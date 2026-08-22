@@ -95,6 +95,19 @@ ignores it and **cycles display modes** on startup — each mode-set re-inits th
 triggers `VK_ERROR_DEVICE_LOST` before the menu. `"Fullscreen"` does a single mode-set and reaches the
 menu cleanly. Solve input with virtual-desktop mode (#5a below), NOT windowed mode.
 
+### 6b. "Everything is too dark to see" has TWO unrelated causes — check gameplay first
+Both were hit on this stack within two days, and only one is a port defect:
+1. **Night, because the day/night cycle is on** — a *gameplay* setting, not rendering.
+   **Options → Gameplay → day/night visual → off** (writes `"dayNightVisual": false` under the
+   `Gameplay Settings` block of `Settings.coc`). Fixed it instantly on 2026-08-22. The key is
+   **absent** from the file until the toggle is first used, so its absence is the default-on state.
+2. **A washed-out, permanently dim scene at any hour** — `SSGIQualitySettings enabled: false`, a
+   leftover MoltenVK GI-off mitigation that no longer applies (fixed 2026-08-21).
+**Tell them apart before debugging:** is it dark *at a particular time of day* (cause 1) or dark
+*always* (cause 2)? Neither is a renderer bug — don't go near DXMT/D3DMetal for either. Confirmed
+non-defect on 2026-08-22: lighting keys byte-identical to the known-good stack, zero shader errors,
+zero exceptions in `Player.log`.
+
 ---
 
 ## Steam client
