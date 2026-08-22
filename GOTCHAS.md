@@ -108,9 +108,15 @@ account menu — renders correctly. Screenshot-verified. Two facts that reframe 
   `--no-sandbox --in-process-gpu --disable-gpu` (renderers on swiftshader ANGLE = software CEF); no
   config file, registry key, or wrapper sets those — steam.exe adds them. On the **Wine 11 + DXMT**
   wrapper it adds NO such flags: CEF runs a real `gpu-process`, and the UI renders anyway (verified
-  2026-08-22, store page + promo popup), with **zero** `cross-process swapchain` errors — so DXMT's
-  missing cross-process swapchain ([3Shain/dxmt#141](https://github.com/3Shain/dxmt/issues/141)) is
-  measured-moot for the client UI, and `whwrapper_ipgpu.c` stays unused.
+  2026-08-22, store page + promo popup), so `whwrapper_ipgpu.c` stays unused.
+  ⚠️ **Correction (2026-08-22):** earlier notes — including a commit made the same day — cited
+  [3Shain/dxmt#141](https://github.com/3Shain/dxmt/issues/141) as "DXMT lacks cross-process
+  swapchains." **It is not that issue.** #141 is *"ANGLE `SwapChain11` fails with `EGL_BAD_ALLOC`
+  (Steam CEF black window)"* — i.e. it tracks **this very black-window symptom**, on DXMT v0.74 +
+  wine 11.5, and it is still open. The string `cross-process swapchain` appears **nowhere** in this
+  project's logs; it survived only in prose. Since Steam's UI renders fine here on **v0.80 +
+  wine-11.0**, we hold a genuinely useful upstream data point: #141 does not reproduce on v0.80.
+  Worth posting there.
 - **The July black screen happened with these SAME flags** — so the flags were never the fix or the
   culprit. It stopped reproducing somewhere across the engine swap (→ Sikarugir/D3DMetal) and the
   Steam client updates since; the exact cause was not isolated.
@@ -362,13 +368,27 @@ and back, the game accepts input (one action registers) but **the screen never r
 the churn is not driven by the mismatch, and an earlier version of this entry claiming otherwise was
 wrong.
 
-**Best current candidate** — logged by DXMT at startup, unverified as the cause:
+**Best current candidates** — logged by DXMT at startup, unverified as the cause:
 
     warn: CreateSwapChain: unsupported swap effect 3 with backbuffer size 2
+    warn: MakeWindowAssociation: Ignoring flags 3
 
-Swap effect 3 is `DXGI_SWAP_EFFECT_FLIP_DISCARD`, the flip-model swapchain that handles occlusion and
-focus transitions. DXMT falls back silently. That matches "input works, surface never re-presents",
-but it has not been proven. No DXMT issue covers alt-tab freeze (searched 2026-08-22).
+Swap effect 3 is **`DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL`** — *not* `FLIP_DISCARD`, which is 4. (Verified
+against mingw's `dxgi.h`: `DISCARD=0, SEQUENTIAL=1, FLIP_SEQUENTIAL=3, FLIP_DISCARD=4`. An earlier
+version of this entry said `FLIP_DISCARD`; that was the same guess-the-constant error as the
+`f8fb5c27` misidentification. Check the header.) It is still a flip-model swapchain, which is the
+path that governs occlusion and focus transitions, and DXMT falls back silently — matching "input
+works, surface never re-presents" — but nothing has proven causation.
+
+Flags 3 = `DXGI_MWA_NO_WINDOW_CHANGES (0x1) | DXGI_MWA_NO_ALT_ENTER (0x2)`: the game explicitly asks
+DXGI **not** to manage window/focus transitions, and DXMT ignores the request. For a focus-transition
+bug that is at least as interesting as the swap effect.
+
+**Prior art upstream:** [#48](https://github.com/3Shain/dxmt/issues/48) (closed) is the same class —
+"doesn't update screen contents unless switching fullscreen on/off" — but a different trigger, and
+its `SetFullscreenState: stub` / `outstanding buffer hold` signatures do **not** appear in our v0.80
+logs. No open issue covers focus-loss freeze (searched 2026-08-22). Draft report:
+`docs/dxmt-bugs/DRAFT-focus-loss-freeze.md`.
 
 **Both stacks misbehave on alt-tab** (D3DMetal/Wine 10 gave cursor desync and darkening; DXMT/Wine 11
 gives this freeze), so it is not renderer-specific.

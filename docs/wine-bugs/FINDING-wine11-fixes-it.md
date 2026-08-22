@@ -186,10 +186,17 @@ binaries, so those dylibs must be **physically present in `SharedSupport/wine/li
 this project already recorded in July and I re-learned the hard way. Copying them in fixed Steam
 login immediately.
 
-(DXMT genuinely does lack cross-process swapchains — `err: CreateSwapChain: cross-process swapchain
-not supported yet`, tracked upstream as **[3Shain/dxmt#141](https://github.com/3Shain/dxmt/issues/141)**,
-open since 2026-03-30. It did not block this run; a `--in-process-gpu` steamwebhelper wrapper is the
-community workaround if it ever does.)
+~~(DXMT genuinely does lack cross-process swapchains — `err: CreateSwapChain: cross-process
+swapchain not supported yet`, tracked upstream as #141, open since 2026-03-30.)~~
+
+⚠️ **Struck 2026-08-22 — two errors in one parenthesis.** (a) **#141 is not about cross-process
+swapchains.** It is *"ANGLE `SwapChain11` fails with `EGL_BAD_ALLOC` (Steam CEF black window)"* —
+it tracks the black-window symptom itself, on DXMT v0.74 + wine 11.5, still open. (b) The quoted
+error string appears in **none** of this project's logs; it existed only in prose, repeated forward
+between sessions. Since Steam's client UI renders correctly here on **v0.80 + wine-11.0**, the
+honest statement is the reverse of the old one: we have evidence that
+[#141](https://github.com/3Shain/dxmt/issues/141) **does not reproduce on v0.80**, which is worth
+reporting upstream. `whwrapper_ipgpu.c` remains unused either way.
 
 **Evening addendum (2026-08-22): it never does, for the Steam client.** Steam launched **visibly**
 on this engine renders the full client UI — store page, promo popup, library — with CEF running a

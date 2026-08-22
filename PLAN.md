@@ -12,12 +12,22 @@ the render on the default stack: input still registers, the surface never re-pre
 needs a force-kill (`wineserver -k`), which can leave a `.crash` marker that blocks the next launch.
 Wine 10 + D3DMetal misbehaves too, but more mildly (cursor desync, darkening).
 
-Best candidate, logged by DXMT at startup and still unproven: `CreateSwapChain: unsupported swap
-effect 3` — `DXGI_SWAP_EFFECT_FLIP_DISCARD`, the flip-model swapchain that handles occlusion and
-focus transitions. No upstream DXMT issue covers it (searched 2026-08-22), so **filing one with the
-measurements from this repo is the highest-value next move** — it is now the main thing standing
-between this stack and "just works". Interim: use the windowed launcher for sessions where you need
-to switch away, and don't click out of fullscreen.
+Two candidates, both logged by DXMT at startup, neither proven: `CreateSwapChain: unsupported swap
+effect 3` — that is `DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL` (**not** `FLIP_DISCARD`, which is 4;
+verified against `dxgi.h`) — and `MakeWindowAssociation: Ignoring flags 3`, where flags 3 is
+`NO_WINDOW_CHANGES | NO_ALT_ENTER`, i.e. the game asking to own focus transitions and being ignored.
+
+No open upstream issue covers focus-loss freeze (searched 2026-08-22; [#48](https://github.com/3Shain/dxmt/issues/48)
+is closed prior art). A report is drafted at `docs/dxmt-bugs/DRAFT-focus-loss-freeze.md` and **not
+filed** — its checklist wants a minimal reproducer from `scripts/dxtest.c` first, which would make
+it far stronger. That is the highest-value next move; it is the main thing between this stack and
+"just works". Interim: use the windowed launcher when you need to switch away, and don't click out
+of fullscreen.
+
+Second thing worth posting upstream: [#141](https://github.com/3Shain/dxmt/issues/141) (Steam CEF
+black window, ANGLE `EGL_BAD_ALLOC`, open) **does not reproduce** on DXMT v0.80 + wine-11.0 here —
+Steam's UI renders, purchases and downloads work. That is a useful negative result for a still-open
+issue.
 
 ## Highest value: fix it upstream in Wine
 
