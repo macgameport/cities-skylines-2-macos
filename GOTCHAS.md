@@ -112,8 +112,10 @@ account menu — renders correctly. Screenshot-verified. Two facts that reframe 
 - **The July black screen happened with these SAME flags** — so the flags were never the fix or the
   culprit. It stopped reproducing somewhere across the engine swap (→ Sikarugir/D3DMetal) and the
   Steam client updates since; the exact cause was not isolated.
-Not yet verified: click-interactivity (rendering is confirmed, input is not), and the same look on
-the Wine 11 + DXMT wrapper.
+Interactivity confirmed 2026-08-22: store browsed, an expansion purchased, and its download started
+from inside the client (Cloud Status: Up to date). Still untested: the same look on the Wine 11 +
+DXMT wrapper. Launching the game from Steam's Play button remains WRONG regardless — see #10, and
+the shortcut's launcher is what re-applies the patches after exactly this kind of update.
 The original record (DXVK 1.10.3 era, 2026-07), kept for history: compositor blamed on a missing
 shared-texture interface *[2026-08-22: that GUID `f8fb5c27` is `ID3D11Texture1D` — benign
 type-discovery]*; tried and failed then: `-cef-disable-gpu[-compositing]`, `WINEDLLOVERRIDES=dcomp=`,

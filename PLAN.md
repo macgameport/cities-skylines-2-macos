@@ -39,6 +39,11 @@ in the handler, or wrap in `finally`.
   change. Use Options → Graphics.
 - **D3DMetal unsupported-API notices** at startup (`NumClassInstances > 0`, `GetSharedHandle`,
   timestamp queries). One-time init messages, not per-frame; no observed impact.
+- **Rosetta horizon.** The entire stack is x86-64 under Rosetta 2, and macOS 26 now surfaces a
+  deprecation notice ([Apple 102527](https://support.apple.com/en-us/102527)) — coming, not in
+  effect. Apple's stated plan: full Rosetta through macOS 27, then a reduced subset "for older
+  games" in macOS 28+, with no word on whether Wine-style use qualifies. Nothing to do today;
+  plan-B territory (ARM-native Wine/FEX or whatever exists by then) around late 2027.
 
 ## Not worth doing
 
