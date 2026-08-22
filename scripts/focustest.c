@@ -64,17 +64,18 @@ static const char *hr_name(HRESULT hr) {
 }
 
 int main(int argc, char **argv) {
-    int use_flip = 0, fullscreen = 0, seconds = 90;
+    int use_flip = 0, fullscreen = 0, seconds = 90, sync = 1;
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--flip")) use_flip = 1;
         else if (!strcmp(argv[i], "--fullscreen")) fullscreen = 1;
         else if (!strcmp(argv[i], "--seconds") && i + 1 < argc) seconds = atoi(argv[++i]);
+        else if (!strcmp(argv[i], "--sync") && i + 1 < argc) sync = atoi(argv[++i]);
     }
     setvbuf(stdout, NULL, _IONBF, 0);   // unbuffered: a freeze must not hide in a buffer
     g_t0 = GetTickCount();
-    printf("focustest: swap_effect=%s mode=%s seconds=%d\n",
+    printf("focustest: swap_effect=%s mode=%s sync_interval=%d seconds=%d\n",
            use_flip ? "FLIP_SEQUENTIAL(3)" : "DISCARD(0)",
-           fullscreen ? "exclusive-fullscreen" : "windowed", seconds);
+           fullscreen ? "exclusive-fullscreen" : "windowed", sync, seconds);
 
     WNDCLASS wc = {0};
     wc.lpfnWndProc = WndProc; wc.hInstance = GetModuleHandle(NULL);
@@ -121,7 +122,7 @@ int main(int argc, char **argv) {
         ctx->lpVtbl->ClearRenderTargetView(ctx, rtv, magenta);
 
         DWORD pt0 = GetTickCount();
-        hr = sc->lpVtbl->Present(sc, 1, 0);
+        hr = sc->lpVtbl->Present(sc, sync, 0);
         DWORD pdt = GetTickCount() - pt0;
         frames++;
         last_hr = hr;

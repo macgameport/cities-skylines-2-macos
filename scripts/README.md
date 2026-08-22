@@ -58,9 +58,30 @@ To reproduce the freeze the focus change probably has to be driven the way a hum
 click on another window, or a hotkey raising another app. Until then the game remains the only known
 reproducer.
 
-**Unrelated finding from the same runs:** `Present` with sync interval 1 is not honoured — ~4700 fps
-on a 120 Hz display, every configuration. Vsync is being ignored, plausibly the same defect class as
-[dxmt#26](https://github.com/3Shain/dxmt/issues/26).
+### ❌ RETRACTED: the "vsync is ignored" claim from these same runs
+
+An earlier version of this section reported `Present(sync interval 1)` running at ~4700 fps on a
+120 Hz display and called it a vsync defect, "plausibly the same class as
+[dxmt#26](https://github.com/3Shain/dxmt/issues/26)". **That was wrong, and it was measured wrong.**
+
+Re-measured on an idle machine with the window raised and composited (`--sync 0|1|2`, median of
+7 one-second samples, main display 1920×1080 **@ 120.00 Hz**):
+
+| sync interval | DXMT v0.80 / wine-11.0 | expected |
+|---|---|---|
+| 0 (no vsync) | 306 fps | uncapped ✓ |
+| **1** | **120 fps** | **= refresh ✓** |
+| **2** | **61 fps** | **= half refresh ✓** |
+
+DXMT's frame pacing is exactly correct. The original 4700 fps came from runs where the window was
+**not composited** — buried under other windows, with a Steam client burning 93% CPU in the same
+prefix — so nothing was throttling to the display. `Present` never returned `DXGI_STATUS_OCCLUDED`
+in either condition, so the return code gave no warning that the measurement was invalid.
+
+**The lesson, since this repo keeps re-learning it:** a frame-rate number is meaningless unless you
+can show the window was on screen and the machine was idle. Screenshot the window during the run —
+`focustest` renders solid magenta precisely so that "is it presenting?" is answerable from a
+screenshot rather than from a number that may be measuring nothing.
 
 ⚠ Note the link line: `-ldxguid -luuid` are required (for `IID_ID3D11Texture2D`) and were missing
 from this file's build commands until 2026-08-22.
