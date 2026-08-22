@@ -99,14 +99,28 @@ menu cleanly. Solve input with virtual-desktop mode (#5a below), NOT windowed mo
 
 ## Steam client
 
-### 7. Steam's CEF UI renders BLACK and cannot be fixed on this stack
-Chromium's compositor needs a shared-texture interface DXVK 1.10.3 lacks
-(`D3D11Texture2D::QueryInterface Unknown interface f8fb5c27-...`) *[2026-08-22: that GUID is `ID3D11Texture1D`, not a shared-texture interface — querying it is benign type-discovery. The black screen had another cause.]*, and its dcomp/GL present paths are dead.
-Tried and failed: `-cef-disable-gpu[-compositing]`, `WINEDLLOVERRIDES=dcomp=`, virtual desktop, Big Picture
-(`-gamepadui`), per-app builtin d3d11, a mingw steamwebhelper.exe wrapper. **All black.**
-- **Workaround that WORKS:** drive the login via **CEF remote debugging** (CDP). It renders the login in
-  Chromium's own engine, off-screen. See `cdp.py` + `CS2 Steam Login.command`. Screenshot with
-  `Page.captureScreenshot` to actually *see* it.
+### 7. Steam's CEF UI renders BLACK — ✅ STALE: it RENDERS on the D3DMetal stack (2026-08-22)
+**Superseded.** Launched visibly (`steam.exe -no-cef-sandbox`, no `-silent`) on the current stack
+(Wine 10 Sikarugir + D3DMetal, Steam build 1785799196): the full client UI — library, store shelves,
+account menu — renders correctly. Screenshot-verified. Two facts that reframe the old diagnosis:
+- **steam.exe launches its webviews software-rendered here, always.** Every webhelper launch back to
+  2026-07-05 (`logs/webhelper.txt`) carries `--no-sandbox --in-process-gpu --disable-gpu` with
+  renderers on swiftshader ANGLE — steam.exe adds those itself; no config file, registry key, or
+  wrapper sets them. So the GPU/shared-texture path was never in the picture, and DXMT's missing
+  cross-process swapchain ([3Shain/dxmt#141](https://github.com/3Shain/dxmt/issues/141)) is likely
+  moot for the client UI too.
+- **The July black screen happened with these SAME flags** — so the flags were never the fix or the
+  culprit. It stopped reproducing somewhere across the engine swap (→ Sikarugir/D3DMetal) and the
+  Steam client updates since; the exact cause was not isolated.
+Not yet verified: click-interactivity (rendering is confirmed, input is not), and the same look on
+the Wine 11 + DXMT wrapper.
+The original record (DXVK 1.10.3 era, 2026-07), kept for history: compositor blamed on a missing
+shared-texture interface *[2026-08-22: that GUID `f8fb5c27` is `ID3D11Texture1D` — benign
+type-discovery]*; tried and failed then: `-cef-disable-gpu[-compositing]`, `WINEDLLOVERRIDES=dcomp=`,
+virtual desktop, Big Picture (`-gamepadui`), per-app builtin d3d11, a mingw steamwebhelper.exe
+wrapper. **All black at the time.**
+- **CDP login** (`cdp.py` + `CS2 Steam Login.command`) is hereby demoted from required workaround to
+  fallback — the normal Steam window should now handle fresh logins. Keep the scripts.
 
 ### 8. steamwebhelper hangs on OLD Wine — needs Wine 9+
 GPTK's Wine 7.7 → "steamwebhelper is not responding," no login possible. Wine 11 fixes it. This is why
