@@ -1,0 +1,44 @@
+# --- secrets / personal ---
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+credentials*
+*session*.json
+*sessionId*
+.pdxsdk/
+connection_log*.txt
+
+# --- screenshots & captures (may contain account names, library, desktop) ---
+*.png
+*.jpg
+*.jpeg
+login*.png
+qr*.png
+
+# --- game / wine artifacts (large, machine-specific, or copyrighted) ---
+*.dll
+*.exe
+*.bak
+*.coc
+*.dxvk-cache
+*.dmp
+dumps/
+Player.log
+*.log
+prefix/
+Bottles/
+
+# --- build / tooling ---
+revenv/
+scratchpad/
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# --- os ---
+.DS_Store
+.AppleDouble
+Icon?

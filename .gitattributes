@@ -1,0 +1,9 @@
+* text=auto eol=lf
+*.command text eol=lf
+*.sh      text eol=lf
+*.py      text eol=lf
+*.md      text eol=lf diff=markdown
+*.c       text eol=lf
+*.dll binary
+*.exe binary
+*.png binary
