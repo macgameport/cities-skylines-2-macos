@@ -169,6 +169,13 @@ not supported yet`, tracked upstream as **[3Shain/dxmt#141](https://github.com/3
 open since 2026-03-30. It did not block this run; a `--in-process-gpu` steamwebhelper wrapper is the
 community workaround if it ever does.)
 
+**Evening addendum (2026-08-22): it never does, for the Steam client.** Steam launched **visibly**
+on this engine renders the full client UI — store page, promo popup, library — with CEF running a
+real `gpu-process` and **zero** cross-process-swapchain errors (steam.exe adds no GPU-off flags on
+this wrapper, unlike the D3DMetal one where it forces `--in-process-gpu --disable-gpu` software
+rendering; both paths render). Cached login OK in ~20 s. So the Steam client UI works on **both**
+stacks, GOTCHAS #7 is fully retired, and `whwrapper_ipgpu.c` stays unused.
+
 ### Superseded analysis below (kept for the record)
 
 > ⚠️ **Everything below was wrong and is retained only to show the reasoning.** The Wine 11 route

@@ -103,18 +103,20 @@ menu cleanly. Solve input with virtual-desktop mode (#5a below), NOT windowed mo
 **Superseded.** Launched visibly (`steam.exe -no-cef-sandbox`, no `-silent`) on the current stack
 (Wine 10 Sikarugir + D3DMetal, Steam build 1785799196): the full client UI — library, store shelves,
 account menu — renders correctly. Screenshot-verified. Two facts that reframe the old diagnosis:
-- **steam.exe launches its webviews software-rendered here, always.** Every webhelper launch back to
-  2026-07-05 (`logs/webhelper.txt`) carries `--no-sandbox --in-process-gpu --disable-gpu` with
-  renderers on swiftshader ANGLE — steam.exe adds those itself; no config file, registry key, or
-  wrapper sets them. So the GPU/shared-texture path was never in the picture, and DXMT's missing
-  cross-process swapchain ([3Shain/dxmt#141](https://github.com/3Shain/dxmt/issues/141)) is likely
-  moot for the client UI too.
+- **steam.exe picks the webview render path itself, per wrapper — and both paths work.** On the
+  D3DMetal wrapper every webhelper launch back to 2026-07-05 (`logs/webhelper.txt`) carries
+  `--no-sandbox --in-process-gpu --disable-gpu` (renderers on swiftshader ANGLE = software CEF); no
+  config file, registry key, or wrapper sets those — steam.exe adds them. On the **Wine 11 + DXMT**
+  wrapper it adds NO such flags: CEF runs a real `gpu-process`, and the UI renders anyway (verified
+  2026-08-22, store page + promo popup), with **zero** `cross-process swapchain` errors — so DXMT's
+  missing cross-process swapchain ([3Shain/dxmt#141](https://github.com/3Shain/dxmt/issues/141)) is
+  measured-moot for the client UI, and `whwrapper_ipgpu.c` stays unused.
 - **The July black screen happened with these SAME flags** — so the flags were never the fix or the
   culprit. It stopped reproducing somewhere across the engine swap (→ Sikarugir/D3DMetal) and the
   Steam client updates since; the exact cause was not isolated.
 Interactivity confirmed 2026-08-22: store browsed, an expansion purchased, and its download started
-from inside the client (Cloud Status: Up to date). Still untested: the same look on the Wine 11 +
-DXMT wrapper. Launching the game from Steam's Play button remains WRONG regardless — see #10, and
+from inside the client (Cloud Status: Up to date). Same-day check on the Wine 11 + DXMT wrapper:
+renders there too (cached login OK in ~20 s, store fully drawn). Launching the game from Steam's Play button remains WRONG regardless — see #10, and
 the shortcut's launcher is what re-applies the patches after exactly this kind of update.
 The original record (DXVK 1.10.3 era, 2026-07), kept for history: compositor blamed on a missing
 shared-texture interface *[2026-08-22: that GUID `f8fb5c27` is `ID3D11Texture1D` — benign
