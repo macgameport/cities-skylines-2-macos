@@ -51,22 +51,35 @@ and, as far as I can tell, isn't documented anywhere else.
 > not reach the main menu on this stack.** See `docs/wine-bugs/R3-*.md`. No game or middleware
 > binary is redistributed here.
 
-## The real finding: most of this is three Wine bugs
+## The real finding: the bug is real, and Wine 11 already fixed it
 
-Nearly every patch exists to work around one of:
+The patches exist because of a genuine defect — but **not the one first assumed**, and it is fixed
+upstream. Measured 2026-08-22, same probe under Unity's Mono with a **pristine** `mscorlib`:
 
-- **R1** — `GetLastError` returns **garbage** after file APIs, so callers can't tell "not found"
-  from a real failure. *(8 patches)*
-- **R2** — `CreateFile` returns **handle 0 for a valid file**; .NET's `SafeHandleZeroOrMinusOneIsInvalid`
-  judges it invalid. *(2 patches)*
-- **R3** — `BCryptVerifySignature` fails on valid ECDSA signatures. *(1 patch)*
+| | wine-10.0 | wine-11.0 / 11.15 |
+|---|---|---|
+| `Marshal.GetLastWin32Error` after P/Invoke | **1525694624 (garbage)** | **0** |
+| `Directory.Delete(recursive)` | throws `IOException 0x5af040a0` | OK |
+| `File.Delete(nonexistent)` | throws | OK |
 
-**Fix those three upstream in Wine and 11 of 17 patches evaporate.** Deterministic reproducers for
-R1/R2 are in `scripts/` and run under the game's exact Unity Mono without launching the game.
+**On Wine 11, 5 of the 17 patches become unnecessary** — verified by running the game with them
+removed: it boots, mods load, and a **fresh mod download completes** with zero IO errors.
 
-One bug is *not* Wine's: a leaked file lock in the Paradox SDK — a method with two `catch` clauses
+Two things this project got wrong first, both disproven by measurement and documented in
+[`docs/wine-bugs/`](docs/wine-bugs/):
+
+- **It is not raw Win32.** Bug [60220](https://bugs.winehq.org/show_bug.cgi?id=60220) was filed
+  against `kernel32` and closed INVALID: `GetLastError` is **9/9 correct** on both Wine versions
+  (`scripts/errtest.c`). The corruption is in **Mono's P/Invoke last-error capture**.
+- **`CreateFile` never returns handle 0.** 3200 concurrent opens, short and long paths, both Wine
+  versions — never once (`scripts/handletest.c`, `scripts/longpathw.c`).
+
+`patch_fshandle` is **still required on Wine 11** — the handle-0 defect and the garbage-errno defect
+are separate bugs, and only the latter is fixed.
+
+One bug is **not Wine's**: a leaked file lock in the Paradox SDK — a method with two `catch` clauses
 and no `finally`, whose handler never releases the lock it took. Any IO exception leaks that path's
-lock permanently and the next waiter dies on a timeout. See `docs/patch-inventory.md` §5.
+lock permanently. See [`docs/patch-inventory.md`](docs/patch-inventory.md) §5.
 
 ## Credit
 

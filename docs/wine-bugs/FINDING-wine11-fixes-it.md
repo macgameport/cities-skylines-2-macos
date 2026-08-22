@@ -171,6 +171,9 @@ community workaround if it ever does.)
 
 ### Superseded analysis below (kept for the record)
 
+> ⚠️ **Everything below was wrong and is retained only to show the reasoning.** The Wine 11 route
+> works; Steam authenticates; mods download. Do not act on anything in this section.
+
 The wrapper was built (`CS2dxmt11.app`, APFS clone of the working one with only the engine swapped)
 and the IO layer verified clean with a **pristine** `mscorlib`. But the game could not be launched,
 because **Steam will not authenticate on the DXMT engine**:
@@ -181,9 +184,11 @@ warn:  D3D11Resource(tex2d): Unknown interface query f8fb5c27-c6b3-4f75-a4c8-439
 [Logged Off, 0, 0] [U:1:0] CCMInterface::SetSteamID( [U:1:0] )
 ```
 
-`f8fb5c27-c6b3-4f75-a4c8-439af2ef564c` is the D3D11 **shared-texture** interface Steam's
-Chromium/CEF uses to hand rendered frames across. **D3DMetal implements it. DXVK 1.10.3 did not, and
-DXMT v0.80 does not.** Steam connects to the network fine (connectivity test OK) and the webhelper
+~~`f8fb5c27-c6b3-4f75-a4c8-439af2ef564c` is the D3D11 shared-texture interface Steam's Chromium/CEF
+uses to hand rendered frames across.~~ **WRONG — see the correction above. That GUID is
+`ID3D11Texture1D`**; ANGLE querying a Texture2D for it is ordinary type-discovery, correctly answered
+`E_NOINTERFACE`, and the DXMT warning is benign. The real Steam blocker turned out to be missing
+`Contents/Frameworks/*.dylib` after the engine swap. Steam connects to the network fine (connectivity test OK) and the webhelper
 starts, but login never completes — it sits at `[U:1:0]` and the client exits. Adding
 `-cef-disable-gpu -cef-disable-gpu-compositing` got it as far as connecting, not to logging in.
 

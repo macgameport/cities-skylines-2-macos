@@ -101,7 +101,7 @@ menu cleanly. Solve input with virtual-desktop mode (#5a below), NOT windowed mo
 
 ### 7. Steam's CEF UI renders BLACK and cannot be fixed on this stack
 Chromium's compositor needs a shared-texture interface DXVK 1.10.3 lacks
-(`D3D11Texture2D::QueryInterface Unknown interface f8fb5c27-...`), and its dcomp/GL present paths are dead.
+(`D3D11Texture2D::QueryInterface Unknown interface f8fb5c27-...`) *[2026-08-22: that GUID is `ID3D11Texture1D`, not a shared-texture interface — querying it is benign type-discovery. The black screen had another cause.]*, and its dcomp/GL present paths are dead.
 Tried and failed: `-cef-disable-gpu[-compositing]`, `WINEDLLOVERRIDES=dcomp=`, virtual desktop, Big Picture
 (`-gamepadui`), per-app builtin d3d11, a mingw steamwebhelper.exe wrapper. **All black.**
 - **Workaround that WORKS:** drive the login via **CEF remote debugging** (CDP). It renders the login in

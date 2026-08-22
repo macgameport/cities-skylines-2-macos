@@ -40,7 +40,7 @@ Saves re-testing dead ends. Chronological-ish within each problem.
 | Default (GPU/ANGLE) | ❌ black |
 | `-cef-disable-gpu` (software) | ❌ black |
 | `-cef-disable-gpu -cef-disable-gpu-compositing` | ❌ black |
-| `WINEDLLOVERRIDES="dcomp="` (disable DirectComposition) | ❌ black (`f8fb5c27` interface still queried) |
+| `WINEDLLOVERRIDES="dcomp="` (disable DirectComposition) | ❌ black (`f8fb5c27` interface still queried) | *[2026-08-22: that GUID is `ID3D11Texture1D`, not a shared-texture interface — querying it is benign type-discovery. The black screen had another cause.]*
 | Virtual desktop (`explorer /desktop`) | ❌ black rectangle appears, no content |
 | Big Picture (`-gamepadui`) | ❌ black — but **had AUDIO** (proves render works, present fails) |
 | Per-app builtin d3d11 for `steamwebhelper.exe` + `renderer=vulkan` | ❌ black + crashes |
