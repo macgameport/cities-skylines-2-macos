@@ -1,8 +1,23 @@
 # Open threads
 
-Current stack: **Wine 10 Sikarugir + D3DMetal** in a Kegworks wrapper. Playable; mods download and
-load. What follows is what's still unresolved — see `README.md` for how it works and
+Current stack: **Wine 11.0 + DXMT** (Porting Kit wrapper), default since 2026-08-22 — 11 patches
+instead of 17. **Wine 10 Sikarugir + D3DMetal** stays as the proven fallback. Both are playable with
+mods downloading and loading; both have working Steam clients. See `README.md` for how it works and
 `docs/patch-inventory.md` for the patch-by-patch breakdown.
+
+## Top user-facing defect: the alt-tab freeze
+
+Switching away from exclusive fullscreen — alt-tab **or just clicking outside the window** — freezes
+the render on the default stack: input still registers, the surface never re-presents, and recovery
+needs a force-kill (`wineserver -k`), which can leave a `.crash` marker that blocks the next launch.
+Wine 10 + D3DMetal misbehaves too, but more mildly (cursor desync, darkening).
+
+Best candidate, logged by DXMT at startup and still unproven: `CreateSwapChain: unsupported swap
+effect 3` — `DXGI_SWAP_EFFECT_FLIP_DISCARD`, the flip-model swapchain that handles occlusion and
+focus transitions. No upstream DXMT issue covers it (searched 2026-08-22), so **filing one with the
+measurements from this repo is the highest-value next move** — it is now the main thing standing
+between this stack and "just works". Interim: use the windowed launcher for sessions where you need
+to switch away, and don't click out of fullscreen.
 
 ## Highest value: fix it upstream in Wine
 
