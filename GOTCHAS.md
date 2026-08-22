@@ -290,32 +290,55 @@ enumerates fine in isolation), wrong-mscorlib (only one; game loads the patched 
 - Current graphics preset (`Settings.coc`): volumetrics/clouds/fog/SSAO/SSR/DoF/motion-blur all off, shadows
   1024, terrainCastShadows off, adaptive DynamicResolutionScale (minScale 0.5), LOD 0.4, Fullscreen.
 
-## Alt-tab breaks the game → it's a REFRESH-RATE mismatch, not a renderer problem (2026-08-22)
+## Second display gets blacked out by the game → REFRESH-RATE mismatch (2026-08-22)
 
-**Symptom:** switching away from the game and back gives a black flash, the cursor stops lining up
-with the UI, a second display gets blanked, and eventually the game hangs and must be killed.
-Observed on **both** the D3DMetal/Wine 10 and DXMT/Wine 11 stacks, which is the clue — it is not
-the renderer.
+**Symptom:** launching the game in exclusive fullscreen blanks the *other* monitor too, so you
+cannot use anything else while it runs.
 
-**Cause:** the display and the game disagreed about refresh rate, so Wine had to perform a display
-**mode change** every time the game took the display — and repeat it on every focus change.
+**Cause:** the display and the game disagreed about refresh rate, so Wine performed a display
+**mode change** to take the screen:
 
     main display (DELL U2424H) : 1920x1080 @ 120.00 Hz
-    Settings.coc refreshRate   : numerator 60000 / denominator 1000  = 60 Hz
+    game was asking for        : 1920x1080 @  60 Hz
 
-Wine's stderr showed the consequence directly — 9 x `Setting display mode: 1920x1080@60` against
-only 2 `Applying resolution` from the game itself. The churn is at the Wine/graphics layer, not the
-game's request. A mode change on a *captured* display is what blanks other monitors and desyncs the
-pointer.
+A mode change on a captured display disturbs the whole display arrangement, which is what blanks the
+second monitor.
 
-**Fix:** make the game's refresh rate match the display's actual mode, so no mode change is ever
-needed. `Settings.coc` -> `"refreshRate": {"numerator": 120000, "denominator": 1000}` (i.e. 120 Hz),
-or set it in-game via Options -> Graphics -> Refresh Rate.
+**Fix — set the game's refresh rate to match the display**, so no mode change is needed:
+Options → Graphics → **Screen Resolution → `1920 x 1080 x 120Hz`**. Confirmed: with 120 Hz selected,
+**the black overlay on the second screen is gone.**
 
-**Note this is a legitimate exception to "don't hand-edit Settings.coc"** — that rule exists because
-flipping an `enabled` flag without its accompanying parameters yields an "on but zeroed" profile
-(see the SSGI entry). A single numeric field matching a known display mode is coherent and safe.
+⚠ **Confound, stated honestly:** `CaptureDisplaysForFullscreen="N"` was written to
+`HKCU\Software\Wine\Mac Driver` in the same session, so the two were not isolated. The timing
+points at the refresh rate (the overlay stopped when 120 Hz was selected in-game, after launch), but
+either or both may be contributing. Keep both.
 
-**Also relevant:** `HKCU\Software\Wine\Mac Driver` -> `CaptureDisplaysForFullscreen = "N"` stops
-Wine capturing displays for fullscreen windows. Set it if other monitors still blank. Wine holds the
-registry in memory while running, so write it with the prefix idle or it gets clobbered on exit.
+**Set it in-game, not by editing `Settings.coc`.** Editing `refreshRate.numerator` 60000→120000 in
+the file did **not** take effect — the game still applied 60 Hz on the next launch. Only the
+in-game Screen Resolution control actually changed it. Another instance of the rule that this
+project keeps re-learning the hard way.
+
+## Alt-tab still freezes the game — presentation, NOT refresh rate (2026-08-22)
+
+**Separate problem from the one above, and NOT fixed by matching refresh rate.** After switching away
+and back, the game accepts input (one action registers) but **the screen never redraws**.
+
+**Measured:** matching the refresh rate did *not* reduce mode-change churn — it went from 9 to **25**
+(`Setting display mode` in wine stderr, 12@120 + 13@60) while the game sat correctly at 120 Hz. So
+the churn is not driven by the mismatch, and an earlier version of this entry claiming otherwise was
+wrong.
+
+**Best current candidate** — logged by DXMT at startup, unverified as the cause:
+
+    warn: CreateSwapChain: unsupported swap effect 3 with backbuffer size 2
+
+Swap effect 3 is `DXGI_SWAP_EFFECT_FLIP_DISCARD`, the flip-model swapchain that handles occlusion and
+focus transitions. DXMT falls back silently. That matches "input works, surface never re-presents",
+but it has not been proven. No DXMT issue covers alt-tab freeze (searched 2026-08-22).
+
+**Both stacks misbehave on alt-tab** (D3DMetal/Wine 10 gave cursor desync and darkening; DXMT/Wine 11
+gives this freeze), so it is not renderer-specific.
+
+**Practical rule: don't alt-tab out of exclusive fullscreen.** Use the windowed launcher
+(`explorer /desktop=`) for sessions where you must switch between the game and a terminal; use
+fullscreen for playing.
