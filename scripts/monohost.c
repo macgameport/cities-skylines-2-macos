@@ -31,7 +31,7 @@ static FARPROC need(HMODULE m, const char *n) {
 }
 
 int main(int argc, char **argv) {
-    const char *asmpath = argc > 1 ? argv[1] : "Z:\\Users\\js\\Documents\\github\\cs2\\scripts\\filetest_net.exe";
+    const char *asmpath = argc > 1 ? argv[1] : "Z:\\path\\to\\filetest_net.exe";
     const char *basearg = argc > 2 ? argv[2] : "C:\\monotest2";
 
     printf("== monohost: loading Unity's mono runtime ==\n  %s\n", MONODLL);
