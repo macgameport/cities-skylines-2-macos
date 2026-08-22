@@ -9,8 +9,8 @@ and, as far as I can tell, isn't documented anywhere else.
 ## The stack that works
 
 Two stacks work. The **Wine 11 + DXMT** one is the default since 2026-08-22 because it needs
-**11 patches instead of 17** — Wine 11 fixed the Mono garbage-errno defect upstream
-([the measurement](docs/wine-bugs/FINDING-wine11-fixes-it.md)).
+**10 patches instead of 17** — Wine 11 fixed both the Mono garbage-errno defect *and* the bcrypt
+signature defect upstream ([the measurement](docs/wine-bugs/FINDING-wine11-fixes-it.md)).
 
 | Layer | Default — **Wine 11 + DXMT** | Fallback — **Wine 10 + D3DMetal** |
 |---|---|---|
@@ -49,7 +49,7 @@ worse — a hard freeze needing a force-kill — so **don't switch away from exc
 | `launchers/` | The one live launcher; dead-stack scripts archived with reasons |
 | `scripts/` | Minimal reproducers (see `scripts/README.md`) |
 
-| `patches/` | The 16 publishable binary patches + `repatch.sh` |
+| `patches/` | The 16 publishable binary patches + `repatch.sh`. The Wine 11 path needs 10 of them, **all present** |
 | `docs/wine-bugs/` | Ready-to-file Wine bug reports for the three root causes |
 
 > **Wine 11 needs 10 patches, and all 10 are here.** ✅ **R3 is fixed upstream** (measured
@@ -72,8 +72,10 @@ upstream. Measured 2026-08-22, same probe under Unity's Mono with a **pristine**
 | `Directory.Delete(recursive)` | throws `IOException 0x5af040a0` | OK |
 | `File.Delete(nonexistent)` | throws | OK |
 
-**On Wine 11, 5 of the 17 patches become unnecessary** — verified by running the game with them
-removed: it boots, mods load, and a **fresh mod download completes** with zero IO errors.
+**On Wine 11, 7 of the 17 patches become unnecessary** — the six errno-tolerance ones plus the
+licence bypass — each verified by running the game with them removed: it boots, mods load, a
+**fresh mod download completes** with zero IO errors, and the main menu is reached with zero
+licence errors.
 
 Two things this project got wrong first, both disproven by measurement and documented in
 [`docs/wine-bugs/`](docs/wine-bugs/):
