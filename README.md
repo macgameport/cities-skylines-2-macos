@@ -42,8 +42,14 @@ and, as far as I can tell, isn't documented anywhere else.
 | `launchers/` | The one live launcher; dead-stack scripts archived with reasons |
 | `scripts/` | Minimal reproducers (see `scripts/README.md`) |
 
-> **This repo contains notes and launchers — not the binary patches themselves.** The patch
-> scripts live outside it. Nothing here modifies or redistributes any game or middleware binary.
+| `patches/` | The 16 publishable binary patches + `repatch.sh` |
+| `docs/wine-bugs/` | Ready-to-file Wine bug reports for the three root causes |
+
+> **16 of 17 patches are here.** The 17th bypasses a Coherent Gameface licence-signature check that
+> fails only because of Wine bug **R3** — publishing a bypass for commercial middleware reads as
+> circumvention regardless of intent, so it is withheld. **Until R3 is fixed in Wine, the game will
+> not reach the main menu on this stack.** See `docs/wine-bugs/R3-*.md`. No game or middleware
+> binary is redistributed here.
 
 ## The real finding: most of this is three Wine bugs
 
