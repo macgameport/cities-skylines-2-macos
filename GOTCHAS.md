@@ -289,3 +289,33 @@ enumerates fine in isolation), wrong-mscorlib (only one; game loads the patched 
   drop adaptive `minScale` below 0.5, smaller virtual desktop, reboot for clean GPU state, or accept the ceiling.
 - Current graphics preset (`Settings.coc`): volumetrics/clouds/fog/SSAO/SSR/DoF/motion-blur all off, shadows
   1024, terrainCastShadows off, adaptive DynamicResolutionScale (minScale 0.5), LOD 0.4, Fullscreen.
+
+## Alt-tab breaks the game → it's a REFRESH-RATE mismatch, not a renderer problem (2026-08-22)
+
+**Symptom:** switching away from the game and back gives a black flash, the cursor stops lining up
+with the UI, a second display gets blanked, and eventually the game hangs and must be killed.
+Observed on **both** the D3DMetal/Wine 10 and DXMT/Wine 11 stacks, which is the clue — it is not
+the renderer.
+
+**Cause:** the display and the game disagreed about refresh rate, so Wine had to perform a display
+**mode change** every time the game took the display — and repeat it on every focus change.
+
+    main display (DELL U2424H) : 1920x1080 @ 120.00 Hz
+    Settings.coc refreshRate   : numerator 60000 / denominator 1000  = 60 Hz
+
+Wine's stderr showed the consequence directly — 9 x `Setting display mode: 1920x1080@60` against
+only 2 `Applying resolution` from the game itself. The churn is at the Wine/graphics layer, not the
+game's request. A mode change on a *captured* display is what blanks other monitors and desyncs the
+pointer.
+
+**Fix:** make the game's refresh rate match the display's actual mode, so no mode change is ever
+needed. `Settings.coc` -> `"refreshRate": {"numerator": 120000, "denominator": 1000}` (i.e. 120 Hz),
+or set it in-game via Options -> Graphics -> Refresh Rate.
+
+**Note this is a legitimate exception to "don't hand-edit Settings.coc"** — that rule exists because
+flipping an `enabled` flag without its accompanying parameters yields an "on but zeroed" profile
+(see the SSGI entry). A single numeric field matching a known display mode is coherent and safe.
+
+**Also relevant:** `HKCU\Software\Wine\Mac Driver` -> `CaptureDisplaysForFullscreen = "N"` stops
+Wine capturing displays for fullscreen windows. Set it if other monitors still blank. Wine holds the
+registry in memory while running, so write it with the prefix idle or it gets clobbered on exit.
