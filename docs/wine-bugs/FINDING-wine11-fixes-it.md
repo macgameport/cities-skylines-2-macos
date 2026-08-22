@@ -64,6 +64,40 @@ app rather than GitHub. This project already built `CS2dxmt.app` on it in July a
 **playable map**, so it is proven on this game — and per the table above, **Wine 11.0 has the errno
 fix**.
 
+### There is no D3DMetal for Wine 11 — and it cannot be transplanted
+
+Porting Kit's own engine manifest (`~/Library/Application Support/portingkit/config.json`):
+
+| engine | Wine | Metal layer |
+|---|---|---|
+| `WS12WineCX64Bit23.7.1-3_D3DMetal-v1.1` | CrossOver 23.7 (~Wine 8) | D3DMetal v1.1 |
+| `WS12WineCX64Bit23.7.1-4_D3DMetalv2.1` | CrossOver 23.7 | D3DMetal v2.1 |
+| **`WS12WineSikarugir10.0_2_D3DMetal-v2.1`** | **Wine 10.0** — newest D3DMetal | D3DMetal v2.1 |
+| **`WS12Wine11.0_DXMT-v0.80`** | **Wine 11.0** — only Wine 11 engine | **DXMT** |
+
+**Why it can't simply be copied across (tested 2026-08-22).** D3DMetal is not just a macOS
+framework. It ships `lib/wine/x86_64-unix/d3d11.so` + `dxgi.so` — **unix-side** Mach-O libraries
+linked against Wine's *internal* unixlib ABI, which is deliberately unstable between releases.
+Transplanting the Wine-10 D3DMetal pieces into the Wine-11 engine and running a minimal DX11 test:
+
+```
+Loaded L"C:\windows\system32\d3d11.dll" ... builtin
+err:module:loader_init "d3d11.dll" failed to initialize, aborting
+status c0000142   (STATUS_DLL_INIT_FAILED)
+```
+
+The PE stub loads; its `DllMain` fails. The shim must be **recompiled** per Wine version — which
+only Apple (for GPTK's frozen wine-7.7) and CodeWeavers (for CrossOver) do. That single
+proprietary rebuild is what "D3DMetal for modern Wine" means, and it is not available free.
+
+**So the choice is a genuine fork:**
+
+| | D3DMetal + Wine 10.0 | DXMT + Wine 11.0 |
+|---|---|---|
+| renderer | D3DMetal v2.1 (proven stable here) | DXMT v0.80 |
+| garbage-errno bug | **present** — needs 8 patches | **fixed** |
+| status | current `S734M.app`, fully working | `CS2dxmt11.app`, IO verified, game not yet run |
+
 ### Next step
 
 Rebuild the wrapper on the Porting Kit Wine11.0-DXMT engine, then remove the 8 errno patches one at
