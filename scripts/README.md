@@ -8,7 +8,8 @@ the game**, which makes them suitable to attach to a Wine bug report.
 |---|---|
 | `monohost.c` | Minimal host that runs a .NET assembly under **CS2's exact Unity Mono runtime** — so results reflect the game's runtime, not the system one |
 | `filetest_net.cs` | The R1/R2 probe. Sections `[5][6][7]` cover recursive delete; `[10]`–`[13]` add Move/Delete/open-handle and nonexistent-path edges |
-| `filetest.c` | Native Win32 equivalent (isolates Wine from Mono) |
+| `filetest.c` | Native Win32 equivalent, success paths (isolates Wine from Mono) |
+| `errtest.c` | **Failure-path probe.** Checks `GetLastError` fidelity across 9 error cases. Disproved bug 60220 — passes 9/9 on both wine-10.0 and wine-11.15, so the Win32 layer is not the culprit |
 | `dxtest.c` | Minimal DX11 clear-to-magenta — proves whether a graphics path can present at all. Invaluable for testing a renderer without a 78 GB game install |
 | `whwrapper.c` | steamwebhelper wrapper used while chasing the CEF black screen (historical) |
 | `capture-hang.sh`, `watch-mods.sh` | Diagnostics: sample a hung process; watch the mod-download tree live |
