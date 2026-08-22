@@ -98,6 +98,47 @@ proprietary rebuild is what "D3DMetal for modern Wine" means, and it is not avai
 | garbage-errno bug | **present** — needs 8 patches | **fixed** |
 | status | current `S734M.app`, fully working | `CS2dxmt11.app`, IO verified, game not yet run |
 
+### ⚠️ Tested 2026-08-22: the Wine 11 route is blocked at Steam login
+
+The wrapper was built (`CS2dxmt11.app`, APFS clone of the working one with only the engine swapped)
+and the IO layer verified clean with a **pristine** `mscorlib`. But the game could not be launched,
+because **Steam will not authenticate on the DXMT engine**:
+
+```
+warn:  D3D11Resource(tex2d): Unknown interface query f8fb5c27-c6b3-4f75-a4c8-439af2ef564c
+...
+[Logged Off, 0, 0] [U:1:0] CCMInterface::SetSteamID( [U:1:0] )
+```
+
+`f8fb5c27-c6b3-4f75-a4c8-439af2ef564c` is the D3D11 **shared-texture** interface Steam's
+Chromium/CEF uses to hand rendered frames across. **D3DMetal implements it. DXVK 1.10.3 did not, and
+DXMT v0.80 does not.** Steam connects to the network fine (connectivity test OK) and the webhelper
+starts, but login never completes — it sits at `[U:1:0]` and the client exits. Adding
+`-cef-disable-gpu -cef-disable-gpu-compositing` got it as far as connecting, not to logging in.
+
+Without a Steam login there is no licence, so `SteamAPI.Init` fails and CS2 will not start. **The
+mods-unpatched test could not be run.**
+
+This is also why the July DXMT stack needed a **CEF remote-debugging (CDP) login hack** rather than
+ordinary auto-login — the same wall, worked around rather than solved.
+
+### The trade-off, in final form
+
+| | **S734M** (D3DMetal + Wine 10.0) | **CS2dxmt11** (DXMT + Wine 11.0) |
+|---|---|---|
+| garbage errno | **present** — needs 8 patches | **fixed** |
+| `f8fb5c27` shared texture | **implemented** | **missing** |
+| Steam login | works | **fails — `[U:1:0]`** |
+| game launches | **yes, fully playable** | blocked, no licence |
+
+**D3DMetal is required for Steam, and D3DMetal does not exist for Wine 11.** So the errno fix is
+real and measured, but unreachable on a free stack today. `S734M.app` + the 17 patches remains the
+only working configuration.
+
+**What would unblock it**, in rough order of likelihood: DXMT implementing `f8fb5c27` (upstream
+feature request — this is a small, well-defined interface) · a Wine 11 D3DMetal engine appearing
+from Porting Kit or Sikarugir · reviving the CDP login hack from July to sidestep the Steam UI.
+
 ### Next step
 
 Rebuild the wrapper on the Porting Kit Wine11.0-DXMT engine, then remove the 8 errno patches one at
