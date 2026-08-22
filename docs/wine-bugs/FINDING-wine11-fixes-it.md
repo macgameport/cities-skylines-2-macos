@@ -5,17 +5,19 @@
 
 ## Result
 
-| test | wine-10.0 Sikarugir | wine-11.15 |
-|---|---|---|
-| `Marshal.GetLastWin32Error` after P/Invoke | **1525694624 (garbage)** | **0 (correct)** |
-| `Directory.Delete(recursive)` | `IOException 0x5af040a0` | OK |
-| `Directory.Delete(tree w/ file, RECURSIVE)` | `IOException 0x5af040a0` | OK |
-| ManualDelete — empty dir | throws, **GONE=False** | no throw, GONE=True |
-| ManualDelete — nested empty subdir | throws, **GONE=False** | no throw, GONE=True |
-| ManualDelete — flat dir w/ file | throws, **GONE=False** | no throw, GONE=True |
-| `File.Delete(nonexistent)` | `IOException 0x5af040a0` | OK |
-| `FindFirstFileW` err | **1525694624 (garbage)** | 127 |
-| `ClearFolderAndKeepPatchFile` replica (the `PrepareFolderForPatching` failure) | fails | **ALL OK** |
+| test | wine-10.0 Sikarugir | **wine-11.0 stable** | wine-11.15 devel |
+|---|---|---|---|
+| `Marshal.GetLastWin32Error` after P/Invoke | **1525694624 (garbage)** | **0** | **0** |
+| `Directory.Delete(recursive)` | `IOException 0x5af040a0` | OK | OK |
+| `Directory.Delete(tree w/ file, RECURSIVE)` | `IOException 0x5af040a0` | OK | OK |
+| ManualDelete — empty dir | throws, **GONE=False** | no throw, GONE=True | no throw, GONE=True |
+| ManualDelete — nested empty subdir | throws, **GONE=False** | no throw, GONE=True | no throw, GONE=True |
+| ManualDelete — flat dir w/ file | throws, **GONE=False** | no throw, GONE=True | no throw, GONE=True |
+| `File.Delete(nonexistent)` | `IOException 0x5af040a0` | OK | OK |
+| `ClearFolderAndKeepPatchFile` replica (the `PrepareFolderForPatching` failure) | fails | **ALL OK** | ALL OK |
+
+**The fix landed between 10.0 and 11.0** — it is in the *stable* branch, not buried in 11.x
+development. That matters, because the only free Wine 11 Metal engine available is built on 11.0.
 
 `0x5af040a0` is pointer-shaped — uninitialised memory, not an error code.
 
@@ -45,10 +47,28 @@ Of the 17 patches, the **8 mscorlib/IO ones exist solely to tolerate this garbag
 `patch_dirdel` · `patch_dirhandle` · `patch_delfile` · `patch_delrec` · `patch_dirrec_nx` ·
 `patch_delchild` · plus `patch_longdelete` and `patch_createfile` in PdxSdk.
 
-**On a Wine 11-based stack they are very likely unnecessary.** That is now the single highest-value
-thing to test: find a **Wine 11 + D3DMetal** engine (Kegworks / Porting Kit ship newer engines than
-the Sikarugir 10.0 used here), rebuild the wrapper on it, and re-run with patches removed one at a
-time.
+**On a Wine 11-based stack they are very likely unnecessary.**
+
+### Engine survey (2026-08-22) — what actually exists
+
+| source | newest | Metal? |
+|---|---|---|
+| **Sikarugir Engines** (Kegworks was renamed Sikarugir; this is what `S734M.app` uses) | `WS12WineSikarugir10.0_6` | D3DMetal, **Wine 10.0** — no Wine 11 build |
+| Sikarugir, other lines | `WS12WineCX24.0.7_7`, `WS12WineGPTK1.1_3` | older |
+| **Gcenx stock Wine** | 11.15 | **no Metal** — verified: DXMT fails `c0000135`, stock ships `winemac.so` without the exposed Metal symbols `winemetal.so` needs |
+| **D3DMetal** | Apple's, welded to GPTK (wine-7.7); forward-ported to modern Wine only inside CrossOver | paid |
+
+**There is no free Wine 11 + D3DMetal engine.** The one viable candidate is
+**Porting Kit's `WS12Wine11.0_DXMT-v0.80`** — Wine 11.0 + DXMT, distributed through the Porting Kit
+app rather than GitHub. This project already built `CS2dxmt.app` on it in July and reached a
+**playable map**, so it is proven on this game — and per the table above, **Wine 11.0 has the errno
+fix**.
+
+### Next step
+
+Rebuild the wrapper on the Porting Kit Wine11.0-DXMT engine, then remove the 8 errno patches one at
+a time and retest. Keep `patch_lockleak` regardless — it fixes a genuine Paradox managed-code defect
+(a `catch` with no `finally`), which no Wine version will fix.
 
 ⚠️ **Not yet verified in the game.** This probe is single-process and single-threaded. It proves the
 Mono/Wine defect is fixed in 11.15; it does not prove the game runs clean without patches. Test
