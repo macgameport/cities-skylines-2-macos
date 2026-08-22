@@ -8,14 +8,21 @@ and, as far as I can tell, isn't documented anywhere else.
 
 ## The stack that works
 
-| Layer | What | Why |
-|---|---|---|
-| Wrapper | **Kegworks / WineskinNavy** app bundle | packaging + prefix |
-| Wine | **Wine 10.0 Sikarugir** | a Wine with `winemac.drv` Metal symbols exposed |
-| Graphics | **D3DMetal v2.1** | D3D11 → Metal, `feature level 11.1`, honest 28 GB VRAM |
-| Game | CS2 `1.6.0f1 (419.d6c6)` via Steam in-prefix | — |
+Two stacks work. The **Wine 11 + DXMT** one is the default since 2026-08-22 because it needs
+**11 patches instead of 17** — Wine 11 fixed the Mono garbage-errno defect upstream
+([the measurement](docs/wine-bugs/FINDING-wine11-fixes-it.md)).
 
-`Direct3D 11.0 [level 11.1]`, no MoltenVK device-loss lottery, no OpenGL.
+| Layer | Default — **Wine 11 + DXMT** | Fallback — **Wine 10 + D3DMetal** |
+|---|---|---|
+| Wrapper | Porting Kit app bundle | Kegworks / WineskinNavy app bundle |
+| Wine | **Wine 11.0** (`WS12Wine11.0_DXMT-v0.80`) | **Wine 10.0 Sikarugir** |
+| Graphics | **DXMT v0.80** — reports the real GPU (`Apple M3 Max`) | **D3DMetal v2.1** — reports `AMD Compatibility Mode` |
+| Patches | **11** — the 6 errno-tolerance ones are unnecessary | **17** |
+| Proven by | boots, mods load + download, Steam UI, DLC | a 1h40m session, saved city, long-run stability |
+
+Both run CS2 `1.6.0f1 (419.d6c6)` via Steam in-prefix at `Direct3D 11.0 [level 11.1]` — no MoltenVK
+device-loss lottery, no OpenGL. Both misbehave on alt-tab (see `GOTCHAS.md`); DXMT's version is
+worse — a hard freeze needing a force-kill — so **don't switch away from exclusive fullscreen**.
 
 > An earlier attempt on **Wine 11 + DXVK + private-API MoltenVK** also rendered, but device-lost
 > roughly 1 run in 8 — playable by dice roll. D3DMetal is stable. Notes kept in `archive/`.

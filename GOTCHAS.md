@@ -336,6 +336,22 @@ the file did **not** take effect — the game still applied 60 Hz on the next la
 in-game Screen Resolution control actually changed it. Another instance of the rule that this
 project keeps re-learning the hard way.
 
+## "Failed to read settings … Invalid handle" ⚠ markers are ABSENT FILES, not broken settings (2026-08-22)
+
+**One error per settings file that does not exist yet — on both stacks, with `patch_fshandle`
+applied.** Wine 11 + DXMT logged 4 (5 mods, 2 with `.coc` files → 3 mods + keybinds absent);
+Wine 10 + D3DMetal logged 3 (4 mods → 2 + keybinds). None of the reported GUIDs exists on disk.
+
+Wine's handle-0 defect makes a *not-found* open indistinguishable from an *invalid handle*, so the
+first read of an absent settings file surfaces as an IO error rather than "no file, use defaults".
+
+**Cosmetic and self-clearing.** Symptoms: ⚠ badges on a mod's Options panel (KEYBINDS / ANARCHY /
+TRAFFIC) and an exception dialog on exit. **Open that mod's settings once** — the file gets written
+and its error never returns. Don't debug this as a patch failure: verify `fshandle` is applied
+(4 differing bytes vs `mscorlib.dll.bak`), then count mods lacking a `.coc`; if the numbers match,
+it is this. `fshandle` remains necessary — it fixes reads of files that *do* exist, which is why
+keybinds persist at all.
+
 ## Alt-tab still freezes the game — presentation, NOT refresh rate (2026-08-22)
 
 **Separate problem from the one above, and NOT fixed by matching refresh rate.** After switching away

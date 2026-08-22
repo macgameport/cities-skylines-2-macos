@@ -151,6 +151,28 @@ mscorlib patches were droppable, based on a log read before it had flushed.
 Verified end state of `CS2dxmt11.app`: `mscorlib` = **4 differing bytes** (`fshandle` only) instead
 of 16; game boots, mods load, mods download, `Invalid handle` 0, NRE 0, SteamAPI failures 0.
 
+#### ⚠️ Correction (2026-08-22 evening): `Invalid handle` 0 was a best case, not the steady state
+
+A later boot with `fshandle` verifiably applied (patched bytes confirmed at `0x1668c4`, 4 differing
+bytes vs `.bak`) still logged **4** `Failed to read settings … Invalid handle` errors. **This is not
+a Wine 11 regression and not an fshandle failure** — the same boot on Wine 10 with all 17 patches
+logged **3**. Measured cause:
+
+| stack | mods enabled | `.coc` settings files present | mods+keybinds with **no** file | errors |
+|---|---|---|---|---|
+| Wine 11 + DXMT | 5 | `MoveIt`, `Traffic` | 3 mods + keybinds = **4** | **4** |
+| Wine 10 + D3DMetal | 4 | `MoveIt`, `Traffic` | 2 mods + keybinds = **3** | **3** |
+
+**One error per settings file that does not exist yet.** None of the 4 GUIDs exists on disk. Wine's
+handle-0 defect makes a *not-found* open indistinguishable from an *invalid handle*, so a first read
+of an absent settings file is reported as an IO error instead of "no file, use defaults". Effects
+are cosmetic and self-clearing: the ⚠ markers on the mod's Options panel, and an exception dialog on
+exit. Opening the mod's settings once writes the file and retires its error permanently.
+
+So `fshandle` still earns its place — it fixes reads of files that **do** exist (`Settings.coc` and
+friends, which is why keybinds now persist) — and the residual count is a function of how many mods
+have never had their settings opened, on **either** stack.
+
 #### The Steam blocker, and what it actually was
 
 The first attempts failed at `[U:1:0]` and I wrongly blamed

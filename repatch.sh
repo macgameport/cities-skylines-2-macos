@@ -10,9 +10,16 @@ HERE="$(cd "$(dirname "$0")/patches" && pwd)"
 # Default remains the CrossOver "Steam" bottle.
 CX_GAME="${CS2_GAME_DIR:-$HOME/Library/Application Support/CrossOver/Bottles/Steam/drive_c/Program Files (x86)/Steam/steamapps/common/Cities Skylines II}"
 FREE_GAME="${CS2_GAME_DIR:-$HOME/Applications/CS2.app/Contents/SharedSupport/prefix/drive_c/Program Files (x86)/Steam/steamapps/common/Cities Skylines II}"
+DXMT_GAME="${CS2_GAME_DIR:-$HOME/Applications/CS2dxmt11.app/Contents/SharedSupport/prefix/drive_c/Program Files (x86)/Steam/steamapps/common/Cities Skylines II}"
 GAME="${1:-$CX_GAME}"
+# wine-11.0 fixes the Mono P/Invoke garbage-errno defect that wine-10.0 has (measured 2026-08-22 —
+# docs/wine-bugs/FINDING-wine11-fixes-it.md), so the dxmt11 target SKIPS the 6 errno-tolerance
+# mscorlib patches: 11 instead of 17. patch_fshandle STAYS — handle-0 is a separate defect that
+# Wine 11 does NOT fix.
+ERRNO_PATCHES=1
 case "$GAME" in
-  free|FREE) GAME="$FREE_GAME" ;;
+  free|FREE)             GAME="$FREE_GAME" ;;
+  dxmt11|DXMT11|wine11)  GAME="$DXMT_GAME"; ERRNO_PATCHES=0 ;;
 esac
 [ -f "$GAME/Cities2.exe" ] || { echo "ERROR: no Cities2.exe under: $GAME"; exit 1; }
 echo "Target game dir: $GAME"
@@ -43,6 +50,7 @@ python3 "$HERE/patch_asset_database.py" "$GAME"
 # Until R3 is fixed upstream, the game will not reach the menu on this stack.
 # ───────────────────────────────────────────────────────────────────────────────
 
+if [ "$ERRNO_PATCHES" = 1 ]; then
 # Paradox Mods download I/O fix (IOERR_101 "IOError - Success").
 # ROOT CAUSE (2026-07-07, monohost probe): Unity-Mono Directory.Delete(path, recursive:true)
 # is broken under Wine — after the FindNextFile end-of-dir, Wine leaves GetLastError garbage
@@ -61,6 +69,9 @@ python3 "$HERE/patch_delfile.py"  "$GAME/Cities2_Data/Managed/mscorlib.dll"
 python3 "$HERE/patch_delrec.py"   "$GAME/Cities2_Data/Managed/mscorlib.dll"
 python3 "$HERE/patch_dirrec_nx.py" "$GAME/Cities2_Data/Managed/mscorlib.dll"
 python3 "$HERE/patch_delchild.py" "$GAME/Cities2_Data/Managed/mscorlib.dll"
+else
+  echo "  (errno-tolerance six skipped: Wine 11 target)"
+fi
 # patch_fshandle: Wine returns file handle 0 for a VALID open file; .NET's SafeFileHandle derives
 # from SafeHandleZeroOrMinusOneIsInvalid, so IsInvalid is true and mscorlib's FileStream.Init throws
 # "ArgumentException: Invalid handle" -> the every-boot "Failed to read settings file with GUID ..."

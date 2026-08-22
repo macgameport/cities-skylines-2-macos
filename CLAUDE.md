@@ -8,18 +8,23 @@ issues-per-item ritual. Durable record = this repo + `~/cs2-patch/change-ledger.
 | What | Path |
 |---|---|
 | Patch scripts + ledger | `~/cs2-patch/` (**outside this repo**, deliberately) |
-| Canonical launcher | `~/cs2-patch/launch-cs2.sh` — repo copy is a thin wrapper (macOS TCC blocks app bundles from executing scripts in `~/Documents`) |
-| Apply all patches | `bash ~/cs2-patch/repatch.sh free` (17 patches; no arg = the dead CrossOver bottle) |
-| Shortcut | `~/Applications/Cities Skylines II.app` → runs the launcher with `CS2_QUIET=1` |
-| Game prefix | `~/Applications/S734M.app/Contents/SharedSupport/prefix` |
+| Canonical launcher (**default**) | `~/cs2-patch/launch-cs2-dxmt11.sh` — Wine 11 + DXMT. Repo copies are thin wrappers (macOS TCC blocks app bundles from executing scripts in `~/Documents`) |
+| Canonical launcher (fallback) | `~/cs2-patch/launch-cs2.sh` — Wine 10 + D3DMetal |
+| Apply all patches | `bash ~/cs2-patch/repatch.sh dxmt11` (11 patches) · `… free` (17, Wine 10) · no arg = the dead CrossOver bottle |
+| Shortcut | `~/Applications/Cities Skylines II.app` → runs the **dxmt11** launcher with `CS2_QUIET=1`. Revert = one `SCRIPT=` line in `Contents/MacOS/launch` |
+| Game prefix (default) | `~/Applications/CS2dxmt11.app/Contents/SharedSupport/prefix` |
+| Game prefix (fallback) | `~/Applications/S734M.app/Contents/SharedSupport/prefix` |
 | Game logs | `<prefix>/drive_c/users/Wineskin/AppData/LocalLow/Colossal Order/Cities Skylines II/` (the other user dirs in the prefix are symlinks to `Wineskin`) |
 | RE toolchain | `~/cs2-patch/revenv` (dnfile + capstone + pefile) |
 | Disassemble | `~/cs2-patch/revenv/bin/python3 ~/cs2-patch/dis_pdx.py <dll> <Type> <Method>` |
 
 ## Rules specific to this project
 
-- **Never edit `launch-cs2.sh` while the game is running.** Bash reads scripts incrementally;
+- **Never edit a `launch-cs2*.sh` while the game is running.** Bash reads scripts incrementally;
   a mid-run edit shifts byte offsets and corrupts the parse (produces a bogus syntax error).
+- **Two wrappers can now both have a Steam resident** (default dxmt11 + fallback S734M). Never
+  detect Steam with a bare `pgrep -f steamwebhelper.exe` — webhelper children carry Windows-style
+  command lines and don't identify their wrapper. Scope on the parent: `pgrep -f "<App>.app.*steam.exe"`.
 - **Never `kill -9` Steam.** It leaves a 0-byte `.crash` marker that makes the next launch exit 1.
   Use `steam.exe -shutdown`; fall back to `WINEPREFIX=<prefix> wineserver -k`. The launcher clears
   a stale `.crash` on startup.
