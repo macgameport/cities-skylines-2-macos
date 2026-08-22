@@ -1,4 +1,9 @@
-# References — CS2 / Wine / DXVK on macOS
+# References — CS2 on macOS (Wine, DXVK, DXMT, D3DMetal)
+
+> **Reference index, compiled 2026-07-04.** External links are still valid, but the *emphasis* is
+> from when GPTK and DXVK were being evaluated. The stack that won is **Wine 10 Sikarugir +
+> D3DMetal** via Kegworks — see [`../README.md`](README.md).
+
 
 Reliable-looking sources found while solving this. ⭐ = directly useful/verified against our experience.
 Note: the community consensus (below) is that **CS2 does not run on Mac** — we got it to the menu anyway,

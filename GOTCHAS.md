@@ -1,4 +1,13 @@
-# CS2-on-macOS Gotchas (Wine 11 + DXVK, macOS 26, Apple Silicon)
+# CS2-on-macOS gotchas — all stacks (2026-07 → 2026-08)
+
+> **Read the stack labels.** This is a cumulative log across **four** stacks tried between
+> 2026-07-03 and 2026-08-22: CrossOver (licence now expired), GPTK/Apple D3DMetal, Wine 11 +
+> DXVK/MoltenVK (abandoned — device-lost ~1 run in 8), and the current **Wine 10 Sikarugir +
+> D3DMetal**. Many entries describe stacks that are no longer in use; they are kept because the
+> underlying Wine behaviour usually still applies. Entries mentioning DXVK, MoltenVK or
+> `VK_ERROR_DEVICE_LOST` are **historical** unless they also mention D3DMetal.
+> Current setup: [`../README.md`](README.md) · Patch detail: [`docs/patch-inventory.md`](docs/patch-inventory.md)
+
 
 Hard-won traps from getting Cities: Skylines II running for free on macOS 26 / M3 Max.
 Context: the wider community says this is impossible (see REFERENCES.md) — so these are mostly undocumented.

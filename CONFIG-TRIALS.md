@@ -1,4 +1,12 @@
-# Config Trials & Errors — CS2 on Wine 11 / macOS 26
+# Config trials & errors — Wine 11 + DXVK stack (historical)
+
+> **Historical trials log (2026-07-03 → 07-04).** Records configuration permutations tried on the
+> **Wine 11 + DXVK + MoltenVK** stack, most of which existed to fight `VK_ERROR_DEVICE_LOST` — a
+> failure mode the current **D3DMetal** stack does not have. Do not copy these settings; several
+> (GI off, shadows off, `maxLightCount 256`, low resolution scale) were device-loss mitigations that
+> now only cost image quality. Set graphics in-game instead.
+> Current setup: [`../README.md`](README.md)
+
 
 Everything tried, and the result. ✅ = worked, ❌ = didn't, ⚠️ = partial/side-effect.
 Saves re-testing dead ends. Chronological-ish within each problem.

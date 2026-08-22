@@ -1,5 +1,15 @@
 # CS2 Paradox Mods on Wine — download testing plan
 
+> **✅ RESOLVED 2026-08-21.** This documents the investigation into why in-game Paradox Mods
+> downloads failed — much of it on the CrossOver bottle, before that licence expired. **It is now
+> fixed** and all four test mods download and load on the free stack.
+> The decisive finding was that the long-standing "reader→writer lock upgrade deadlock" diagnosis in
+> this file was **wrong**: `<CreateFileStream>d__25` takes reader *XOR* writer via an `if/else`, so
+> no upgrade occurs. The real defect was a **leaked lock** — a catch handler with no `finally` that
+> never released it. Read [`docs/patch-inventory.md`](docs/patch-inventory.md) §5 for the correction
+> before trusting any conclusion below.
+
+
 **Goal:** get subscribed Paradox mods (Traffic, Unified Icon Library, Anarchy, Move It) to actually
 download + load. Vanilla plays perfectly; this is the one remaining gap.
 
