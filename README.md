@@ -17,7 +17,7 @@ Two stacks work. The **Wine 11 + DXMT** one is the default since 2026-08-22 beca
 | Wrapper | Porting Kit app bundle | Kegworks / WineskinNavy app bundle |
 | Wine | **Wine 11.0** (`WS12Wine11.0_DXMT-v0.80`) | **Wine 10.0 Sikarugir** |
 | Graphics | **DXMT v0.80** — reports the real GPU (`Apple M3 Max`) | **D3DMetal v2.1** — reports `AMD Compatibility Mode` |
-| Patches | **11** — the 6 errno-tolerance ones are unnecessary | **17** |
+| Patches | **10** — the 6 errno patches AND the licence bypass are unnecessary | **17** |
 | Proven by | boots, mods load + download, Steam UI, DLC | a 1h40m session, saved city, long-run stability |
 
 Both run CS2 `1.6.0f1 (419.d6c6)` via Steam in-prefix at `Direct3D 11.0 [level 11.1]` — no MoltenVK
@@ -52,11 +52,14 @@ worse — a hard freeze needing a force-kill — so **don't switch away from exc
 | `patches/` | The 16 publishable binary patches + `repatch.sh` |
 | `docs/wine-bugs/` | Ready-to-file Wine bug reports for the three root causes |
 
-> **16 of 17 patches are here.** The 17th bypasses a Coherent Gameface licence-signature check that
-> fails only because of Wine bug **R3** — publishing a bypass for commercial middleware reads as
-> circumvention regardless of intent, so it is withheld. **Until R3 is fixed in Wine, the game will
-> not reach the main menu on this stack.** See `docs/wine-bugs/R3-*.md`. No game or middleware
-> binary is redistributed here.
+> **Wine 11 needs 10 patches, and all 10 are here.** ✅ **R3 is fixed upstream** (measured
+> 2026-08-22): with the Coherent Gameface licence bypass fully removed, wine-11.0 verifies the
+> ECDSA signature correctly and the game reaches the main menu and loads a city with zero licence
+> errors. So the one patch this repo withholds — a signature-check bypass, withheld because
+> publishing one reads as circumvention regardless of intent — **is not needed on the default
+> stack**. It remains necessary on the Wine 10 + D3DMetal fallback, which is therefore the
+> incomplete path here (16 of its 17). See `docs/wine-bugs/R3-*.md`. No game or middleware binary
+> is redistributed.
 
 ## The real finding: the bug is real, and Wine 11 already fixed it
 

@@ -16,10 +16,16 @@ GAME="${1:-$CX_GAME}"
 # docs/wine-bugs/FINDING-wine11-fixes-it.md), so the dxmt11 target SKIPS the 6 errno-tolerance
 # mscorlib patches: 11 instead of 17. patch_fshandle STAYS — handle-0 is a separate defect that
 # Wine 11 does NOT fix.
+# COHTML_LICENSE=0 on wine 11: MEASURED 2026-08-22 — with cohtml.WindowsDesktop.dll restored to
+# PRISTINE (bypass removed), the game reached MainMenu and loaded a city with ZERO "Invalid License
+# key used!" errors. wine-11.0's BCryptVerifySignature verifies the Gameface ECDSA signature
+# correctly, so root cause R3 is FIXED UPSTREAM and the withheld bypass is unnecessary on this
+# target. **Every patch the wine 11 path needs is published in this repo.** Wine 10 still needs it.
 ERRNO_PATCHES=1
+COHTML_LICENSE=1
 case "$GAME" in
   free|FREE)             GAME="$FREE_GAME" ;;
-  dxmt11|DXMT11|wine11)  GAME="$DXMT_GAME"; ERRNO_PATCHES=0 ;;
+  dxmt11|DXMT11|wine11)  GAME="$DXMT_GAME"; ERRNO_PATCHES=0; COHTML_LICENSE=0 ;;
 esac
 [ -f "$GAME/Cities2.exe" ] || { echo "ERROR: no Cities2.exe under: $GAME"; exit 1; }
 echo "Target game dir: $GAME"
@@ -35,20 +41,23 @@ python3 "$HERE/patch_cohtml.py"        "$GAME"
 python3 "$HERE/patch_colossal_io.py"   "$GAME"
 python3 "$HERE/patch_longfile.py"      "$GAME"
 python3 "$HERE/patch_asset_database.py" "$GAME"
-# cohtml Gameface license bypass — REQUIRED on the free Sikarugir/D3DMetal stack (Wine 10 bcrypt
-# fails BCryptVerifySignature -> "Invalid License key used!" -> native crash before the menu).
-# ── patch_cohtml_license is NOT included in this repository ────────────────────
-# CS2's Coherent Gameface middleware validates its own embedded licence key via
-# Windows CNG (BCryptImportKeyPair -> BCryptHashData -> BCryptVerifySignature).
-# The key is valid and present; Wine's BCryptVerifySignature simply fails on it
-# (root cause R3, see docs/patch-inventory.md), so cohtml aborts with
-# "Invalid License key used!" and the game crashes before the main menu.
+# ── cohtml Gameface licence bypass — NOT in this repository, and NOT needed on wine 11 ─────────
+# CS2's Coherent Gameface middleware validates its own embedded licence key via Windows CNG
+# (BCryptImportKeyPair -> BCryptHashData -> BCryptVerifySignature). On **wine 10** that final call
+# fails on a valid signature (root cause R3), cohtml aborts with "Invalid License key used!", and
+# the game crashes before the menu — so that stack needs a bypass, which is deliberately NOT
+# published here: a ready-to-run signature-check bypass for commercial middleware reads as
+# circumvention regardless of intent.
 #
-# A bypass exists but is deliberately NOT published here: a ready-to-run
-# signature-check bypass for commercial middleware reads as circumvention
-# regardless of intent. THE CORRECT FIX IS IN WINE — see docs/wine-bugs/R3-*.md.
-# Until R3 is fixed upstream, the game will not reach the menu on this stack.
-# ───────────────────────────────────────────────────────────────────────────────
+# ✅ **On wine 11 none of that applies.** Measured 2026-08-22 with the DLL restored to pristine:
+# MainMenu reached, city loaded, zero licence errors. wine-11.0 verifies the signature correctly.
+# So the `dxmt11` target below needs no bypass, and every patch it *does* need is in this repo.
+# THE CORRECT FIX WAS ALWAYS IN WINE — see docs/wine-bugs/R3-*.md.
+if [ "$COHTML_LICENSE" = 1 ]; then
+  echo "  !! wine 10 target: this stack needs the unpublished cohtml licence bypass (see above)."
+  echo "     Expect 'Invalid License key used!' and no main menu. Use the wine 11 target instead."
+fi
+# ───────────────────────────────────────────────────────────────────────────────────────────────
 
 if [ "$ERRNO_PATCHES" = 1 ]; then
 # Paradox Mods download I/O fix (IOERR_101 "IOError - Success").

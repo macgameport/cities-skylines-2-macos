@@ -10,7 +10,7 @@ issues-per-item ritual. Durable record = this repo + `~/cs2-patch/change-ledger.
 | Patch scripts + ledger | `~/cs2-patch/` (**outside this repo**, deliberately) |
 | Canonical launcher (**default**) | `~/cs2-patch/launch-cs2-dxmt11.sh` — Wine 11 + DXMT. Repo copies are thin wrappers (macOS TCC blocks app bundles from executing scripts in `~/Documents`) |
 | Canonical launcher (fallback) | `~/cs2-patch/launch-cs2.sh` — Wine 10 + D3DMetal |
-| Apply all patches | `bash ~/cs2-patch/repatch.sh dxmt11` (11 patches) · `… free` (17, Wine 10) · no arg = the dead CrossOver bottle |
+| Apply all patches | `bash ~/cs2-patch/repatch.sh dxmt11` (10 patches) · `… free` (17, Wine 10) · no arg = the dead CrossOver bottle |
 | Shortcut | `~/Applications/Cities Skylines II.app` → runs the **dxmt11** launcher with `CS2_QUIET=1`. Revert = one `SCRIPT=` line in `Contents/MacOS/launch` |
 | Game prefix (default) | `~/Applications/CS2dxmt11.app/Contents/SharedSupport/prefix` |
 | Game prefix (fallback) | `~/Applications/S734M.app/Contents/SharedSupport/prefix` |
