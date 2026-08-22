@@ -124,9 +124,32 @@ Direct3D 11.0 [level 11.1]   Renderer: Apple M3 Max   VRAM: 14376 MB
 **All 6 mscorlib patches dropped and nothing broke.** DXMT also reports the real GPU
 (`Apple M3 Max`) where D3DMetal reports `AMD Compatibility Mode`.
 
-⚠️ **Not yet proven: a fresh mod DOWNLOAD.** The mods were already on disk (the prefix is an APFS
-clone of the working wrapper), so this confirms *load*, not *download*. Subscribing to a new mod is
-the remaining test.
+✅ **Fresh mod DOWNLOAD confirmed 2026-08-22 15:33.** Subscribed to a new mod in-game (Easy Zoning,
+`136261_15`) with the 5 errno patches OFF. It appeared on disk within ~2 minutes — 552K, real payload
+(`EasyZoning.mjs` + `EasyZoning_win_x86_64.dll`) — with **0 PdxSdk errors and 0 IO failures**. So the
+errno patches are unnecessary for downloading, not merely for loading.
+
+### ⚠️ But `patch_fshandle` is STILL REQUIRED on Wine 11
+
+Running with `mscorlib` fully unpatched produced **6 `Invalid handle` errors** on settings reads
+(3 distinct GUIDs), which surface in-game as ⚠ markers on the KEYBINDS / ANARCHY / TRAFFIC panels,
+keybindings that don't persist, and an `ArgumentException` dialog on exit. Applying `patch_fshandle`
+alone took that **6 → 0**.
+
+**Wine 11 fixes the garbage-errno defect. It does NOT fix the handle-0 defect.** Those are two
+separate bugs and conflating them is an error — an earlier draft of this document claimed all 6
+mscorlib patches were droppable, based on a log read before it had flushed.
+
+**Correct tally: 5 patches retired, 1 still needed.**
+
+| patch | Wine 10 | Wine 11 |
+|---|---|---|
+| `dirdel`, `dirhandle`, `delfile`, `delrec`, `dirrec_nx`, `delchild` | needed | **droppable** ✅ |
+| `patch_fshandle` | needed | **still needed** ⚠️ |
+| PDX.SDK ×5 (incl. `lockleak`) | needed | untested — left applied |
+
+Verified end state of `CS2dxmt11.app`: `mscorlib` = **4 differing bytes** (`fshandle` only) instead
+of 16; game boots, mods load, mods download, `Invalid handle` 0, NRE 0, SteamAPI failures 0.
 
 #### The Steam blocker, and what it actually was
 
