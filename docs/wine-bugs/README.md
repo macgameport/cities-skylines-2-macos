@@ -6,7 +6,7 @@ retires those patches for every macOS user, not just this machine.
 | ID | Summary | Retires | Status |
 |---|---|---|---|
 | ~~R1~~ | ~~`GetLastError` returns garbage after file APIs~~ | — | **[60220](https://bugs.winehq.org/show_bug.cgi?id=60220) — CLOSED INVALID. Disproven.** |
-| [R2](R2-createfile-handle-zero.md) | `CreateFile` returns handle `0` for a valid file | 2 | **not filed — needs the same verification R1 failed** |
+| ~~R2~~ | ~~`CreateFile` returns handle `0` for a valid file~~ | — | **DISPROVEN 2026-08-22. Do not file.** |
 | [R3](R3-bcrypt-verifysignature.md) | `BCryptVerifySignature` fails on valid ECDSA | 1 | **not filed** |
 
 ## ⚠️ R1 was filed and disproven — read this before filing anything else
@@ -41,6 +41,43 @@ cause is not the raw Win32 error code. Remaining candidates, not yet separated:
 they were derived from real, repeated failures. They do **not** prove *where*. Reproduce at the
 layer you intend to blame, on the version you intend to file against, before filing.
 
+## R2 disproven as well (2026-08-22)
+
+`scripts/handletest.c` and `scripts/longpathw.c` tested R2's claim under every condition it was
+originally observed in. **No zero handle was ever returned**, on either Wine version:
+
+| condition | wine-11.15 | wine-10.0 Sikarugir |
+|---|---|---|
+| single-threaded, short paths | handle `0x34` | handle `0x34` |
+| 8 threads × 400 opens (3200 total) | 0 zeros, min `0x44` | 0 zeros, min `0x70` |
+| wide API, `\\?\` long path (449 chars) — the `System.IO.LongFile` case | 0 zeros, `GLE=0` | 0 zeros, `GLE=0` |
+| `GetFileAttributesW` on a **missing** long path | correctly INVALID, `GLE=2` | correctly INVALID, `GLE=2` |
+
+That last row also **disproves the stated premise of `patch_createfile`** — metadata queries do not
+false-positive on missing files, even on long paths under concurrency.
+
+## Where that leaves the diagnosis
+
+Three claims tested, three disproven **at the Win32 level**. The Win32 file API behaves correctly on
+both Wine versions, single- and multi-threaded, short and long paths.
+
+**This does not mean the patches are unnecessary.** Each was derived from a real, repeatedly observed
+failure, and each demonstrably fixed it — mods now download and load. What is wrong is the
+*explanation* attached to them. The failure is real; "Wine's Win32 layer" is not where it lives.
+
+Untested, and now the prime suspects:
+
+- **Unity's forked Mono** (`mono-2.0-bdwgc.dll`) — its P/Invoke marshalling and errno handling. This
+  is what `monohost.c` exists to exercise, and it has not been run against a current Wine.
+- **Colossal / PdxSdk managed code** — the `patch_lockleak` finding (a `catch` with no `finally`
+  leaking a lock) was a genuine *managed-code* defect, not a Wine one. That is evidence the managed
+  layer is where these bugs actually are.
+- **The patch chain itself** — `patch_longfile` NOPs a throw so an invalid handle is returned rather
+  than rejected; `patch_fshandle` then NOPs the downstream check that rejects it. If the handle was
+  genuinely invalid, the first patch may be *causing* the second symptom. Worth untangling.
+
+**No further Wine bugs should be filed until the failure is reproduced at the layer being blamed.**
+
 **Environment for all three**
 
 R3 is the highest-leverage of the three: it is the only one whose workaround has a licensing
@@ -55,6 +92,43 @@ directly. Please update the table with bug numbers once filed.
 > is enough to retest; do that *before* filing the remaining two. A retest on 11.15 was attempted
 > 2026-08-22 and was **inconclusive** — the standalone Gcenx build would not launch any executable
 > in a scratch prefix, so nothing can be concluded from it either way.
+
+## R2 disproven as well (2026-08-22)
+
+`scripts/handletest.c` and `scripts/longpathw.c` tested R2's claim under every condition it was
+originally observed in. **No zero handle was ever returned**, on either Wine version:
+
+| condition | wine-11.15 | wine-10.0 Sikarugir |
+|---|---|---|
+| single-threaded, short paths | handle `0x34` | handle `0x34` |
+| 8 threads × 400 opens (3200 total) | 0 zeros, min `0x44` | 0 zeros, min `0x70` |
+| wide API, `\\?\` long path (449 chars) — the `System.IO.LongFile` case | 0 zeros, `GLE=0` | 0 zeros, `GLE=0` |
+| `GetFileAttributesW` on a **missing** long path | correctly INVALID, `GLE=2` | correctly INVALID, `GLE=2` |
+
+That last row also **disproves the stated premise of `patch_createfile`** — metadata queries do not
+false-positive on missing files, even on long paths under concurrency.
+
+## Where that leaves the diagnosis
+
+Three claims tested, three disproven **at the Win32 level**. The Win32 file API behaves correctly on
+both Wine versions, single- and multi-threaded, short and long paths.
+
+**This does not mean the patches are unnecessary.** Each was derived from a real, repeatedly observed
+failure, and each demonstrably fixed it — mods now download and load. What is wrong is the
+*explanation* attached to them. The failure is real; "Wine's Win32 layer" is not where it lives.
+
+Untested, and now the prime suspects:
+
+- **Unity's forked Mono** (`mono-2.0-bdwgc.dll`) — its P/Invoke marshalling and errno handling. This
+  is what `monohost.c` exists to exercise, and it has not been run against a current Wine.
+- **Colossal / PdxSdk managed code** — the `patch_lockleak` finding (a `catch` with no `finally`
+  leaking a lock) was a genuine *managed-code* defect, not a Wine one. That is evidence the managed
+  layer is where these bugs actually are.
+- **The patch chain itself** — `patch_longfile` NOPs a throw so an invalid handle is returned rather
+  than rejected; `patch_fshandle` then NOPs the downstream check that rejects it. If the handle was
+  genuinely invalid, the first patch may be *causing* the second symptom. Worth untangling.
+
+**No further Wine bugs should be filed until the failure is reproduced at the layer being blamed.**
 
 **Environment for all three**
 - Wine 10.0 (Sikarugir build, Kegworks/WineskinNavy wrapper)

@@ -9,6 +9,8 @@ the game**, which makes them suitable to attach to a Wine bug report.
 | `monohost.c` | Minimal host that runs a .NET assembly under **CS2's exact Unity Mono runtime** — so results reflect the game's runtime, not the system one |
 | `filetest_net.cs` | The R1/R2 probe. Sections `[5][6][7]` cover recursive delete; `[10]`–`[13]` add Move/Delete/open-handle and nonexistent-path edges |
 | `filetest.c` | Native Win32 equivalent, success paths (isolates Wine from Mono) |
+| `handletest.c` | R2 probe: 8 threads × 400 opens, checks whether `CreateFile` ever returns handle `0`. Disproved R2 |
+| `longpathw.c` | Long-path probe using the **wide** APIs as `System.IO.LongFile` does (`\\?\`, 449 chars). Disproved both R2 and `patch_createfile`'s premise. Note: the ANSI variants return `206 ERROR_FILENAME_EXCED_RANGE` for long paths — that is correct Windows behaviour, not a Wine bug |
 | `errtest.c` | **Failure-path probe.** Checks `GetLastError` fidelity across 9 error cases. Disproved bug 60220 — passes 9/9 on both wine-10.0 and wine-11.15, so the Win32 layer is not the culprit |
 | `dxtest.c` | Minimal DX11 clear-to-magenta — proves whether a graphics path can present at all. Invaluable for testing a renderer without a 78 GB game install |
 | `whwrapper.c` | steamwebhelper wrapper used while chasing the CEF black screen (historical) |
