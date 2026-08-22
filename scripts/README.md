@@ -14,6 +14,7 @@ the game**, which makes them suitable to attach to a Wine bug report.
 | `errtest.c` | **Failure-path probe.** Checks `GetLastError` fidelity across 9 error cases. Disproved bug 60220 — passes 9/9 on both wine-10.0 and wine-11.15, so the Win32 layer is not the culprit |
 | `dxtest.c` | Minimal DX11 clear-to-magenta — proves whether a graphics path can present at all. Invaluable for testing a renderer without a 78 GB game install |
 | `whwrapper.c` | steamwebhelper wrapper used while chasing the CEF black screen (historical) |
+| `focustest.c` | **Focus-loss probe.** DX11 present loop that logs per-frame `Present` hr + latency and every `WM_ACTIVATEAPP`/`WM_ACTIVATE`/`WM_KILLFOCUS`/`WM_SIZE`. Flags: `--flip` (FLIP_SEQUENTIAL, what CS2 asks for), `--fullscreen`, `--seconds N`. Built to reproduce the alt-tab freeze; **it does not** — see the caveat below |
 | `capture-hang.sh`, `watch-mods.sh` | Diagnostics: sample a hung process; watch the mod-download tree live |
 | `disasm.py` | IL walker used to derive patch offsets |
 
@@ -23,7 +24,7 @@ the game**, which makes them suitable to attach to a Wine bug report.
 
 ```sh
 brew install mingw-w64
-x86_64-w64-mingw32-gcc dxtest.c    -o dxtest.exe    -ld3d11 -ldxgi
+x86_64-w64-mingw32-gcc dxtest.c    -o dxtest.exe    -ld3d11 -ldxgi -ldxguid -luuid
 x86_64-w64-mingw32-gcc filetest.c  -o filetest.exe
 x86_64-w64-mingw32-gcc monohost.c  -o monohost.exe
 ```
@@ -44,3 +45,22 @@ WINEPREFIX=<prefix> wine 'Z:\path\to\monohost.exe' 'Z:\path\to\filetest_net.exe'
 
 Reports per-section pass/fail. On Windows every section passes; under Wine on macOS the
 garbage-errno and handle-0 sections fail deterministically — that contrast is the bug report.
+
+## `focustest.c` — what it showed, and what it did not (2026-08-22)
+
+Windowed and fullscreen, `DISCARD` and `FLIP_SEQUENTIAL`: all kept presenting at ~4700 fps with
+`Present` returning `S_OK` while focus was stolen by `osascript`. **That is not evidence the freeze
+isn't real** — in every run, `WM_ACTIVATEAPP DEACTIVATED` **never arrived**. Activation messages fire
+once at startup and never again, even after explicitly making the wine process frontmost first. The
+synthetic focus steal never reached the Wine window, so the trigger was never applied.
+
+To reproduce the freeze the focus change probably has to be driven the way a human does it — a real
+click on another window, or a hotkey raising another app. Until then the game remains the only known
+reproducer.
+
+**Unrelated finding from the same runs:** `Present` with sync interval 1 is not honoured — ~4700 fps
+on a 120 Hz display, every configuration. Vsync is being ignored, plausibly the same defect class as
+[dxmt#26](https://github.com/3Shain/dxmt/issues/26).
+
+⚠ Note the link line: `-ldxguid -luuid` are required (for `IID_ID3D11Texture2D`) and were missing
+from this file's build commands until 2026-08-22.
