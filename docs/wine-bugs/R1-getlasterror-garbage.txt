@@ -1,0 +1,68 @@
+SUMMARY
+GetLastError() returns a garbage value after several file API calls -- both after
+successful calls and, critically, on the failure return of failing calls, where the
+value is what distinguishes "file not found" from a genuine I/O error.
+
+Callers that branch on the error code therefore take the wrong path. Managed runtimes
+are hit hardest because .NET/Mono map the Win32 error to an exception TYPE: with a
+garbage code, .NET throws a generic IOException -- often with the nonsensical message
+"Success" (i.e. strerror(0)) -- instead of DirectoryNotFoundException or
+FileNotFoundException. Application code that catches the specific type to handle a
+benign case instead sees a fatal error.
+
+ENVIRONMENT
+  Wine    : 10.0 (Sikarugir build, Kegworks/WineskinNavy wrapper)
+  OS      : macOS 26, Apple M3 Max (arm64, x86_64 via Rosetta 2)
+  App     : Cities: Skylines II 1.6.0f1 (Unity 2022, Mono runtime)
+
+OBSERVED IN
+Directory.Delete(path, recursive: true) fails on a directory that deletes cleanly on
+Windows. In CoreFX's FileSystem.RemoveDirectoryRecursive, the post-loop error check
+after FindNextFile reads a garbage GetLastError (neither 0 nor ERROR_NO_MORE_FILES /
+18) and throws BEFORE reaching the actual RemoveDirectoryInternal call, so the
+directory is never removed.
+
+The same class of failure appears in File.Delete, directory enumeration of a
+nonexistent path, and deletion of a path with an open handle (which should report
+ERROR_SHARING_VIOLATION).
+
+STEPS TO REPRODUCE
+A self-contained probe is attached; it needs no game install. It runs a small .NET
+assembly under the same Mono runtime the application uses.
+
+  1. Build monohost.exe from monohost.c (mingw-w64):
+       x86_64-w64-mingw32-gcc monohost.c -o monohost.exe
+  2. Build the probe with the prefix's own C# compiler:
+       wine "<prefix>/drive_c/windows/Microsoft.NET/Framework64/v4.0.30319/csc.exe" \
+            /out:filetest_net.exe filetest_net.cs
+  3. Run:
+       WINEPREFIX=<prefix> wine 'Z:\path\monohost.exe' \
+                                'Z:\path\filetest_net.exe' 'C:\probe'
+  4. Read sections [5] [6] [7] and [10]-[13].
+
+EXPECTED vs ACTUAL
+
+  Directory.Delete(dir, recursive:true) on a populated directory
+    expected : succeeds, directory removed
+    actual   : throws; directory remains
+
+  Directory.GetDirectories(<nonexistent path>)
+    expected : DirectoryNotFoundException
+    actual   : generic IOException, message "Success"
+
+  File.Delete / Directory.Delete on a path with an open handle
+    expected : IOException (sharing violation)
+    actual   : garbage error code
+
+  File.Delete(<nonexistent file>)
+    expected : silent no-op
+    actual   : throws, though the file is genuinely absent
+
+IMPACT
+Eight separate binary patches to mscorlib.dll and the application's own IO layer exist
+solely to make callers tolerate this. Any managed application doing routine filesystem
+work is affected.
+
+ADDITIONAL INFORMATION
+Linux/Proton does NOT reproduce this, which suggests it is specific to the macOS
+backend rather than to Wine's file layer generally.

@@ -1,0 +1,53 @@
+SUMMARY
+CreateFile sometimes returns a handle whose numeric value is 0 for a file it opened
+successfully. The handle is usable -- reads and writes on it work -- but 0 is treated
+as invalid by Win32 convention, so callers reject it.
+
+This breaks .NET/Mono: SafeFileHandle derives from SafeHandleZeroOrMinusOneIsInvalid,
+whose IsInvalid returns true for both 0 and -1. A valid handle is therefore judged
+invalid and FileStream's constructor throws:
+    ArgumentException: Invalid handle.  Parameter name: handle
+
+Note that GetLastError() is 0 ("Success") at this point, consistent with a successful
+open -- so the API reports success while returning a handle value the platform's own
+conventions call invalid.
+
+ENVIRONMENT
+  Wine    : 10.0 (Sikarugir build, Kegworks/WineskinNavy wrapper)
+  OS      : macOS 26, Apple M3 Max (arm64, x86_64 via Rosetta 2)
+  App     : Cities: Skylines II 1.6.0f1 (Unity 2022, Mono runtime)
+
+OBSERVED IN
+Cities: Skylines II, on every launch, reading its own settings files:
+
+  [FileSystem] [ERROR] Failed to read settings file with GUID '<guid>': Invalid handle.
+  Parameter name: handle
+    at System.IO.FileStream.Init (Microsoft.Win32.SafeHandles.SafeFileHandle safeHandle, ...)
+    at System.IO.LongFile+FileStreamWithDisposeCallback..ctor (SafeFileHandle handle,
+       System.Guid guid, ...)
+
+Settings then fall back to defaults and are written back on exit, so user configuration
+silently fails to persist across sessions.
+
+STEPS TO REPRODUCE
+The attached probe (see the R1 report for build steps -- same two files) opens a
+known-good file and reports the raw handle value alongside SafeFileHandle.IsInvalid.
+
+EXPECTED vs ACTUAL
+
+  CreateFile on an existing, readable file
+    expected : handle != 0 and != -1
+    actual   : occasionally 0
+
+  new FileStream(safeHandle, ...) on that handle
+    expected : constructs successfully
+    actual   : ArgumentException: Invalid handle
+
+SUGGESTED FIX
+Avoid handing out 0 as a file handle value. Win32 treats it as reserved/invalid by
+convention, and at least one major managed runtime encodes that assumption directly in
+its type hierarchy (SafeHandleZeroOrMinusOneIsInvalid).
+
+IMPACT
+Two binary patches exist to work around this -- one in the application's IO layer and
+one in mscorlib's FileStream.Init, because the handle is validated twice along the path.

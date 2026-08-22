@@ -1,0 +1,49 @@
+SUMMARY
+BCryptVerifySignature reports failure for an ECDSA signature that verifies correctly on
+Windows. The surrounding calls all appear to succeed; only the final verification
+result is wrong.
+
+The observed sequence is:
+    BCryptOpenAlgorithmProvider
+    BCryptImportKeyPair        (public key blob)
+    BCryptCreateHash / BCryptHashData / BCryptFinishHash
+    BCryptVerifySignature      -> returns failure
+
+The verifier parses "R" and "S" components from the key blob, i.e. a raw ECDSA r/s
+signature pair rather than a DER-encoded one.
+
+ENVIRONMENT
+  Wine    : 10.0 (Sikarugir build, Kegworks/WineskinNavy wrapper)
+  OS      : macOS 26, Apple M3 Max (arm64, x86_64 via Rosetta 2)
+  App     : Cities: Skylines II 1.6.0f1, via Coherent Gameface (cohtml)
+
+OBSERVED IN
+Cities: Skylines II uses Coherent Gameface for its UI. Gameface validates its own
+embedded licence key through the CNG sequence above. Under Wine the verification fails,
+so Gameface logs:
+
+    [UI][ERROR] Invalid License key used!
+
+and the game then crashes inside cohtml.Net.Library:Initialize, before reaching the
+main menu. The application is unusable.
+
+EVIDENCE THAT THIS IS A WINE ISSUE
+  - The licence key is present, unmodified and valid; the same game files verify fine
+    on other Wine builds.
+  - Under CrossOver's Wine, which implements this path correctly, the same binaries
+    produce ZERO "Invalid License key" errors and the game boots normally.
+  - The DLLs were byte-compared (SHA-1 identical) between the working and failing
+    setups. The only difference is the Wine build.
+
+STEPS TO REPRODUCE
+Not yet reduced to a minimal test case -- assistance welcome. A standalone reproducer
+would import a known ECDSA public key, hash a fixed message, and call
+BCryptVerifySignature with a known-good raw r/s signature, comparing the result against
+Windows. I am willing to build this if it would help triage.
+
+IMPACT
+This bug alone prevents the application from starting. Because the only workaround
+involves patching a signature check in commercial middleware -- which is not something
+that can responsibly be published, even though the licence being checked is legitimate
+and present -- fixing it in Wine is the only route that allows the setup to be
+documented openly.
