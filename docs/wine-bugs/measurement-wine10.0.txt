@@ -1,0 +1,116 @@
+msync: bootstrapped mach port on wine-5797d73-msync.
+msync: up and running.
+== base: C:\monoprobe10 ==
+
+[1] P/Invoke CreateFile WRITE: C:\monoprobe10\.downloading\74324_36\content.bin
+    Marshal.GetLastWin32Error=1525694624
+    write handle         = 0xb0  (176)  ok   SafeFileHandle.IsInvalid=False
+
+[2] P/Invoke CreateFile READ: C:\monoprobe10\.downloading\74324_36\content.bin
+    Marshal.GetLastWin32Error=1525694624
+    read handle          = 0xb0  (176)  ok   SafeFileHandle.IsInvalid=False
+
+[3] managed FileStream write+read: C:\monoprobe10\.downloading\74324_36\content.bin
+    OK — wrote+read 14 bytes: "hello managed"
+
+[4] PdxSdk-EXACT: FileStream(Create,Write,FileShare.Write) then (Open,Read,FileShare.Read)
+    OK — 15 bytes via FileShare.Write/Read path
+
+[5] Directory op battery (errno-0 / FindNextFile suspect):
+    OK    Directory.CreateDirectory(nested .metadata)
+    OK    Directory.Exists(.metadata)
+    OK    Directory.GetFiles(empty dir)
+    OK    Directory.GetDirectories(dir)
+    OK    Directory.GetFileSystemEntries(dir)
+    OK    EnumerateFiles + iterate
+    OK    EnumerateFileSystemEntries + iterate
+    OK    FileStream write into .metadata (DirNotFound site)
+    *** IOException: "Unknown error (0x5af040a0) : '\\?\C:\monoprobe10\.downloading\74417_17\.metadata'"   [Directory.Delete(recursive)  (the DeleteDirectory failure)]
+
+[6] recursive-delete decomposition:
+    OK    File.Delete(file in subdir)
+    OK    Directory.Delete(EMPTY subdir, false)
+    OK    Directory.Delete(EMPTY parent, false)
+    *** IOException: "Unknown error (0x5af040a0) : '\\?\C:\monoprobe10\d7\sub'"   [Directory.Delete(tree w/ file, RECURSIVE)]
+
+[7] fix candidate — MANUAL recursive delete:
+    OK    ManualDelete(tree w/ subdir+files)
+    d8 gone? True
+  -- does it throw-but-succeed? --
+    EMPTY dir            threw=[IOException: Unknown error (0x5af040a0) : '\\?\C:\monoprobe10\e1']  ACTUALLY GONE=False
+    nested empty subdir  threw=[IOException: Unknown error (0x5af040a0) : '\\?\C:\monoprobe10\e2\sub']  ACTUALLY GONE=False
+    flat dir w/ file     threw=[IOException: Unknown error (0x5af040a0) : '\\?\C:\monoprobe10\e3\sub']  ACTUALLY GONE=False
+
+[8] FindFirstFileW: plain vs \\?\ extended prefix (the recursive-delete enumerator):
+    plain    ...\ffdir\*                       handle=0x17a9080  err=1525694624  first=''
+    extended \\?\...\ffdir\*                   handle=0x17a9080  err=1525694624  first=''
+
+[9] hunt IOException:Success (Move/CreateExisting/enumerate):
+    OK    Directory.Move(m1 -> m2)
+    *** IOException: "Unknown error (0x5af040a0)"   [Directory.Move(dir w/ .metadata)]
+    OK    Directory.CreateDirectory(EXISTING)
+    *** IOException: "Unknown error (0x5af040a0) : 'C:\monoprobe10\nope.txt'"   [File.Delete(nonexistent)]
+    OK    DirectoryInfo.EnumerateFiles+iter
+
+[10] Move/File.Delete — throws but ACTUALLY completes? (safe-to-NOP test):
+    simple dir move          threw=[no throw]  ACTUALLY MOVED=True
+    nested dir (.metadata)   threw=[no throw]  ACTUALLY MOVED=True
+    File.Delete(existing)    threw=[no throw]  GONE=True
+    File.Delete(nonexistent) threw=[IOException: Unknown error (0x5af040a0) : 'C:\monoprobe10\fd2.bin']  GONE=True
+
+[11] ClearFolderAndKeepPatchFile replica (the PrepareFolderForPatching failure):
+    OK    ListDirectories (Directory.GetDirectories)
+    OK    ListFiles (Directory.GetFiles)
+    *** IOException: "Unknown error (0x5af040a0) : '\\?\C:\monoprobe10\.downloading\74324_36\sub'"   [  DeleteDirectory(recursive) sub]
+    OK      File.Delete content.bin
+    OK      File.Delete manifest.json
+    OK    ListFilesRecursive (GetFiles SearchOption.AllDirs)
+    OK    GetLocalModSize (DirectoryInfo.EnumerateFiles+Length)
+
+[12] main-thread vs ThreadPool-thread (the P0x:0y workers):
+    OK    MAIN GetDirectories
+    OK    MAIN GetFiles
+    *** IOException: "Unknown error (0x5af040a0) : '\\?\C:\monoprobe10\t_MAIN\sub'"   [MAIN Delete(recursive)]
+    OK    POOL GetDirectories
+    OK    POOL GetFiles
+    OK    POOL Delete(recursive)
+    OK    NEWTHREAD GetDirectories
+    OK    NEWTHREAD GetFiles
+    OK    NEWTHREAD Delete(recursive)
+    OK    TASK GetDirectories
+    OK    TASK GetFiles
+    OK    TASK Delete(recursive)
+
+[13] nonexistent-dir + open-handle states:
+    Directory.Exists(nonexistent) = False
+    *** IOException: "Unknown error (0x5af040a0) : 'C:\monoprobe10\does_not_exist_14'"   [GetDirectories(nonexistent)]
+    *** IOException: "Unknown error (0x5af040a0) : 'C:\monoprobe10\does_not_exist_14'"   [GetFiles(nonexistent)]
+    *** IOException: "Unknown error (0x5af040a0) : 'C:\monoprobe10\does_not_exist_14'"   [Delete(nonexistent, recursive)]
+    *** IOException: "Unknown error (0x5af040a0) : 'busy.bin'"   [Delete(dir w/ OPEN file, recursive)]
+    *** IOException: "Unknown error (0x5af040a0) : 'C:\monoprobe10\openhandle\busy.bin'"   [File.Delete(OPEN file)]
+    OK    GetFiles(dir w/ OPEN file)
+
+[14] raw dir-handle open (CreateDirectoryHandle's CreateFile), hunting handle-0:
+    ok handle=0x110 on monoprobe10
+    ok handle=0x110 on .downloading
+    ok handle=0x110 on 80095_28
+    == over 120 opens: handle0=0  invalid(-1)=0  ok(nonzero)=120 ==
+
+[15] nested CreateDirectory + write (the .metadata / .cpatch DirectoryNotFound site):
+    OK    CreateDirectory(deep nested, no ancestors)
+    deepest exists? True
+    OK    FileStream write into deepest (manifest)
+    OK    CreateDirectory(.metadata parent)
+    OK    FileStream write .metadata\thumbnail.png
+    *** DirectoryNotFoundException: "Could not find a part of the path "C:\monoprobe10\nocreate\sub\x.bin"."   [FileStream write into UNcreated nested (expect DirNotFound)]
+
+== done ==
+== monohost: loading Unity's mono runtime ==
+  C:\Program Files (x86)\Steam\steamapps\common\Cities Skylines II\MonoBleedingEdge\EmbedRuntime\mono-2.0-bdwgc.dll
+== configuring: MONO_PATH=C:\Program Files (x86)\Steam\steamapps\common\Cities Skylines II\Cities2_Data\Managed  etc=C:\Program Files (x86)\Steam\steamapps\common\Cities Skylines II\MonoBleedingEdge\etc ==
+== mono_jit_init_version(v4.0.30319) ==
+== open assembly: C:\filetest_net.exe ==
+== running Main under Unity mono ==
+----------
+----------
+== returned 0 ==

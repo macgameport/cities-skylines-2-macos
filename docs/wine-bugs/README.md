@@ -1,5 +1,11 @@
 # Wine bug reports
 
+> ## ★ Read [`FINDING-wine11-fixes-it.md`](FINDING-wine11-fixes-it.md) first.
+> The garbage-errno defect is **real, reproduces deterministically on wine-10.0, and is already
+> fixed in wine-11.15.** It lives in Mono's P/Invoke last-error capture, not Wine's Win32 layer.
+> Eight of the seventeen patches exist only to tolerate it and are likely unnecessary on a Wine 11
+> stack. Nothing further needs filing for it.
+
 Three Wine defects account for **11 of the 17** patches this project needs. Fixing them upstream
 retires those patches for every macOS user, not just this machine.
 
