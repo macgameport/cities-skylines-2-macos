@@ -98,7 +98,55 @@ proprietary rebuild is what "D3DMetal for modern Wine" means, and it is not avai
 | garbage-errno bug | **present** — needs 8 patches | **fixed** |
 | status | current `S734M.app`, fully working | `CS2dxmt11.app`, IO verified, game not yet run |
 
-### ⚠️ Tested 2026-08-22: the Wine 11 route is blocked at Steam login
+### ✅ RESOLVED 2026-08-22: the Wine 11 route WORKS — 6 patches confirmed unnecessary
+
+CS2 boots to the main menu on **PortingKit wine-11.0 + DXMT** with **`mscorlib` completely
+unpatched (0 differing bytes)**, and all four mods load:
+
+```
+[15:02:01] MainMenu reached
+[15:02:01] GameManager initialized! (60338ms)
+Direct3D 11.0 [level 11.1]   Renderer: Apple M3 Max   VRAM: 14376 MB
+
+======= Enabled Mods =======
+ - Move It v0.5.15 · Unified Icon Library v1.0.14 · Anarchy v1.7.24 · Traffic v0.2.12.1
+```
+
+| counter | value |
+|---|---|
+| `Invalid handle` | **0** — `patch_fshandle` unnecessary |
+| `IOException` | **0** |
+| NullReferenceException | 0 |
+| SteamAPI failures | 0 |
+| mod load failures | 0 |
+| PdxSdk errors | 0 |
+
+**All 6 mscorlib patches dropped and nothing broke.** DXMT also reports the real GPU
+(`Apple M3 Max`) where D3DMetal reports `AMD Compatibility Mode`.
+
+⚠️ **Not yet proven: a fresh mod DOWNLOAD.** The mods were already on disk (the prefix is an APFS
+clone of the working wrapper), so this confirms *load*, not *download*. Subscribing to a new mod is
+the remaining test.
+
+#### The Steam blocker, and what it actually was
+
+The first attempts failed at `[U:1:0]` and I wrongly blamed
+`f8fb5c27-c6b3-4f75-a4c8-439af2ef564c`. **That GUID is `ID3D11Texture1D`** — ANGLE querying a
+Texture2D for it is ordinary type-discovery, correctly answered with `E_NOINTERFACE`. The DXMT
+warning is benign.
+
+The real cause was mundane: **the engine swap left the wrapper's 86 `Contents/Frameworks/*.dylib`
+behind**, so `wineserver` died on `@rpath/libinotify.0.dylib`. SIP strips `DYLD_*` from signed
+binaries, so those dylibs must be **physically present in `SharedSupport/wine/lib/`** — a gotcha
+this project already recorded in July and I re-learned the hard way. Copying them in fixed Steam
+login immediately.
+
+(DXMT genuinely does lack cross-process swapchains — `err: CreateSwapChain: cross-process swapchain
+not supported yet`, tracked upstream as **[3Shain/dxmt#141](https://github.com/3Shain/dxmt/issues/141)**,
+open since 2026-03-30. It did not block this run; a `--in-process-gpu` steamwebhelper wrapper is the
+community workaround if it ever does.)
+
+### Superseded analysis below (kept for the record)
 
 The wrapper was built (`CS2dxmt11.app`, APFS clone of the working one with only the engine swapped)
 and the IO layer verified clean with a **pristine** `mscorlib`. But the game could not be launched,
