@@ -1,8 +1,8 @@
 # DXMT issue — READY TO FILE (blocked on account auth)
 
 > **Status: not filed.** Approved for filing 2026-08-22, to be posted as **macgameport** on
-> [3Shain/dxmt](https://github.com/3Shain/dxmt). `gh` on this machine is authenticated only as
-> `jvspearman`, and authenticating another account requires a browser flow only James can complete:
+> [3Shain/dxmt](https://github.com/3Shain/dxmt). `gh` on this machine is authenticated only under a
+> personal account, and authenticating `macgameport` requires a browser flow only James can complete:
 >
 > ```
 > gh auth login --hostname github.com --web
@@ -116,13 +116,10 @@ bool should_exit_fs = handle_alt_tab_ // At the moment this is still broken for 
 So on focus loss, `Present1` appears to take neither branch and simply presents into a surface that
 is no longer visible; when the window comes back, presentation never resumes.
 
-**What I could not determine from outside:** whether CS2's swapchain is actually
-`Windowed == FALSE`. The game reports `Applying resolution: 1920x1080x120Hz Fullscreen` and sets
-`displayMode: Fullscreen`, but Unity's "Fullscreen" can map to a borderless fullscreen *window*. If
-it does, `handle_alt_tab_` could never apply here regardless of the setting — which would explain
-both the null result above and the total absence of fullscreen logging. If you can tell me what to
-look for (or point me at a debug build/env var that logs the swapchain's fullscreen state), I'll
-measure it and report back.
+**Update — this question is now answered** (see "Source-level findings" below): the swapchain *is*
+`Windowed == FALSE`. The boot log's `Setting display mode: 1920x1080@120` line is only reachable
+through code paths that require exclusive-fullscreen state, and `SetFullscreenState` turns out to
+log nothing on success, so the absence of log lines was never evidence either way.
 
 **Three hypotheses tested and eliminated on this machine (2026-08-22).** Recording these so the
 search space is smaller for whoever looks next:
@@ -156,6 +153,68 @@ to a bitblt swapchain. Reading `d3d11_swapchain.cpp:1114` that warning is **cosm
 **What is *not* in the logs:** no `SetFullscreenState: stub`, no `outstanding buffer hold`, no errors
 of any kind at the moment of the freeze. DXMT simply goes quiet while the game's own log keeps
 writing. Whatever happens does not announce itself.
+
+## Source-level findings (2026-08-22, second pass)
+
+A deeper read of the v0.80 source, checked against current master (`d31278d`) — none of the code
+cited below has changed between the two, so this applies to master as well.
+
+**(a) The swapchain is genuinely exclusive fullscreen.** The boot log line
+`info:  Setting display mode: 1920x1080@120` is printed only by `wsi::setWindowMode`
+(`src/util/wsi_window_win32.cpp:42`), and every call path to it — `EnterFullscreenMode` (invoked
+from the constructor when the app passes a fullscreen desc, `d3d11_swapchain.cpp:203-204`),
+`SetFullscreenState(TRUE)`, or `ResizeTarget`'s non-windowed branch — requires
+`fullscreen_desc_.Windowed == FALSE`. So Unity's "Fullscreen" maps to DXGI exclusive fullscreen
+here, not a borderless window. (And retracting my earlier inference: `SetFullscreenState` logs
+nothing on its success paths, so "no SetFullscreenState lines" carried no information.)
+
+**(b) Why `dxgi.handleAltTab` structurally cannot help this game.** Both places that react to
+alt-tab are gated on the window *not* being minimized:
+
+- `Present1` (`d3d11_swapchain.cpp:743-744`):
+  `should_exit_fs = handle_alt_tab_ && !fullscreen_desc_.Windowed && !window_minimized && !wsi::isForeground(hWnd)`
+- `GetFullscreenState` (`d3d11_swapchain.cpp:441-442`): same condition shape.
+
+CS2 — like many D3D11 titles — minimizes its own window when it loses focus. Once the window is
+iconic, `window_minimized` is true and `should_exit_fs` can never fire. So for any game that
+minimizes on deactivate, the option is inert by construction, which matches my measured null
+result and may explain part of the "still broken for certain games" comment at `:743`.
+
+**(c) Where the permanent strand plausibly lives.** With vsync on (this game), every present goes
+through `presentDrawableAfterMinimumDuration` (`dxmt_context.cpp`, `EncoderType::Present` case),
+on a layer DXMT configures with `displaySyncEnabled = false` (`dxmt_presenter.cpp:19`). Two
+observations about that combination:
+
+1. `Presenter::encodeCommands` (`dxmt_presenter.cpp:159-165`) calls `layer_.nextDrawable()` and
+   uses `drawable.texture()` with **no nil check** — and the present-execution site doesn't check
+   either. `-[CAMetalLayer nextDrawable]` blocks up to ~1s and returns nil when no drawable can be
+   delivered. Once nil, every frame degrades to a silent no-op: `Present` keeps returning `S_OK`,
+   DXMT logs nothing, the screen never changes. That is exactly the observed behaviour.
+2. The window is genuinely miniaturized while unfocused. A drawable presented with
+   "after minimum *on-screen* duration" semantics on a layer that is never composited may never
+   complete; the pool is small (3 by default), so the few in-flight presents around the
+   deactivation could wedge it permanently — after which `nextDrawable` returns nil forever, even
+   once the window is back on screen.
+
+I cannot prove (2) from outside the process, but the two mechanism families make opposite,
+cheaply-measurable predictions on a frozen instance:
+
+- **no-longer-composited / orphaned layer** → the game keeps rendering at full speed: high CPU,
+  no blocked threads in a `sample`;
+- **wedged drawable pool** → the encoder thread parks in `nextDrawable` timeouts: near-idle CPU,
+  `CAMetalLayer nextDrawable` / semaphore waits in the `sample`.
+
+I have a capture kit ready (5s thread-stack `sample`, per-thread CPU, screen-static check, and a
+`WINEDEBUG=timestamp,+macdrv,+display,+event` trace of the whole run) and will attach its artifacts
+from the next reproduction. If there is a build, config option, or env toggle you would like
+exercised in the same run, name it and I'll include it.
+
+**(d) Environment note on the Wine side.** This Wine is a Porting Kit/Gcenx build carrying the
+winemac→DXMT enablement patch (`macdrv_view_create_metal_view` and friends, reached from
+`winemetal.so`). The metal view/layer is created once per swapchain and cached for its lifetime
+(`d3d11_swapchain.cpp:134`; released only in the destructor). If winemac replaces or disposes the
+hosting view anywhere across the miniaturize/restore cycle, DXMT would keep presenting into a
+detached layer with no error — the same capture will distinguish this too.
 
 ## Failed reproduction attempt (so you don't repeat it)
 

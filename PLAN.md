@@ -21,15 +21,37 @@ Wine 10 + D3DMetal misbehaves too, but more mildly (cursor desync, darkening).
 | `dxgi.handleAltTab = True` just needed enabling | **Dead.** Config provably loaded; freeze unchanged. Matches upstream's own "still broken for certain games" comment. |
 | CS2 never receives `DXGI_STATUS_OCCLUDED` because the branch is gated `SwapEffect <= SEQUENTIAL` | **Dead.** Binary-patched that comparison in the shipped `d3d11.dll` so flip-model reaches it; freeze unchanged. Reverted. |
 
-Remaining suspect is deeper than `Present1`'s status logic — the presenter / Metal-layer restore path
-when the window is minimised and restored.
+**Source dive 2026-08-22 (late) — the suspect list is now concrete** (details + `file:line` in
+`GOTCHAS.md` § alt-tab and in the draft report's "Source-level findings"; v0.80 ≡ master here):
+
+- Established: the swapchain **is exclusive fullscreen** (`Windowed == FALSE`) — the boot
+  `Setting display mode` line is only reachable from exclusive-fullscreen paths. The draft's open
+  question is answered.
+- Established: `dxgi.handleAltTab` is **structurally inert for a game that minimizes itself on
+  focus loss** (both reaction sites require `!window_minimized`) — explains the null result.
+- Two live mechanism candidates with **opposite fingerprints**:
+  (1) *wedged drawable pool* — `presentDrawableAfterMinimumDuration` on a never-composited layer
+  wedges the 3-drawable pool; `nextDrawable` then returns nil forever and DXMT never nil-checks →
+  silent no-op frames; near-idle CPU. (2) *orphaned layer* — the once-per-swapchain metal view gets
+  disposed/replaced by winemac across miniaturize/restore; presents "succeed" into a detached
+  layer; full-speed CPU.
+
+**Next step (needs James at the keyboard, ~10 min):** one diagnostic repro discriminates the two.
+
+1. `bash scripts/diag-launch-dxmt11.sh` (canonical launcher + `WINEDEBUG` macdrv/display/event
+   trace to `/tmp/cs2-diag-<ts>.log`)
+2. reach the menu, alt-tab away, come back → freeze
+3. `bash scripts/capture-freeze.sh` **while frozen** (read-only: 5s `sample`, per-thread CPU,
+   screen-static check, trace tail → `/tmp/cs2-freeze-<ts>/`)
+4. recover as usual; next session reads the artifacts and pins the mechanism
 
 **A minimal reproducer could not be built** (`scripts/focustest.c`, and see its notes in
 `scripts/README.md`): a small DX11 app never receives `WM_ACTIVATEAPP DEACTIVATED` from a synthetic
 focus change, so the trigger cannot be applied without a human at the keyboard. The game remains the
 only reproducer.
 
-**The report is written and ready** (`docs/dxmt-bugs/DRAFT-focus-loss-freeze.md`), **not filed** —
+**The report is written and ready** (`docs/dxmt-bugs/DRAFT-focus-loss-freeze.md`, now carrying the
+2026-08-22 source-level findings section), **not filed** —
 blocked only on authenticating `gh` as `macgameport`. ⚠️ **DXMT forbids AI-authored contributions**
 (`AGENTS.md`, `CONTRIBUTING.md` § AI Policy): no PR, no generated code, but AI-assisted research
 shared with the developers is explicitly permitted. So this goes up as prose + measurements, with

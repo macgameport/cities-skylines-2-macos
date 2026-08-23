@@ -14,8 +14,8 @@ DXMT_GAME="${CS2_GAME_DIR:-$HOME/Applications/CS2dxmt11.app/Contents/SharedSuppo
 GAME="${1:-$CX_GAME}"
 # wine-11.0 fixes the Mono P/Invoke garbage-errno defect that wine-10.0 has (measured 2026-08-22 —
 # docs/wine-bugs/FINDING-wine11-fixes-it.md), so the dxmt11 target SKIPS the 6 errno-tolerance
-# mscorlib patches: 11 instead of 17. patch_fshandle STAYS — handle-0 is a separate defect that
-# Wine 11 does NOT fix.
+# mscorlib patches, and (below) the Gameface licence bypass: 10 patches instead of 17.
+# patch_fshandle STAYS — handle-0 is a separate defect that Wine 11 does NOT fix.
 # COHTML_LICENSE=0 on wine 11: MEASURED 2026-08-22 — with cohtml.WindowsDesktop.dll restored to
 # PRISTINE (bypass removed), the game reached MainMenu and loaded a city with ZERO "Invalid License
 # key used!" errors. wine-11.0's BCryptVerifySignature verifies the Gameface ECDSA signature

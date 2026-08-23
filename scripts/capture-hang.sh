@@ -1,6 +1,8 @@
 #!/bin/bash
 # Capture the state of a hung in-game Paradox Mods download ("Preparing 2%") to localize
 # the stall: network fetch vs async-completion vs patch-apply. Run WHILE the game is hung.
+# ⚠ CrossOver-era tool: paths target the dead CrossOver bottle (licence expired 2026-08-21).
+# Kept for the record; for the current dxmt11 stack see capture-freeze.sh (alt-tab freeze).
 set -u
 SP="${1:-/tmp/cs2-hang-$(date +%s 2>/dev/null || echo now)}"; mkdir -p "$SP" 2>/dev/null
 GAME="$HOME/Library/Application Support/CrossOver/Bottles/Steam/drive_c/Program Files (x86)/Steam/steamapps/common/Cities Skylines II"

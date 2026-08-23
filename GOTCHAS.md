@@ -404,21 +404,44 @@ and back, the game accepts input (one action registers) but **the screen never r
 the churn is not driven by the mismatch, and an earlier version of this entry claiming otherwise was
 wrong.
 
-**Best current candidates** — logged by DXMT at startup, unverified as the cause:
+**The two startup warnings are NOT the cause.** `unsupported swap effect 3` is cosmetic — the same
+`MTLD3D11SwapChain` is built regardless (source read, `d3d11_swapchain.cpp:1111`). Swap effect 3 is
+**`DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL`** — *not* `FLIP_DISCARD`, which is 4. (Verified against
+mingw's `dxgi.h`: `DISCARD=0, SEQUENTIAL=1, FLIP_SEQUENTIAL=3, FLIP_DISCARD=4`. An earlier version
+of this entry said `FLIP_DISCARD`; that was the same guess-the-constant error as the `f8fb5c27`
+misidentification. Check the header.) `MakeWindowAssociation: Ignoring flags 3` = the game asking
+DXGI not to manage window transitions; DXMT ignores everyone's flags there, so it distinguishes
+nothing.
 
-    warn: CreateSwapChain: unsupported swap effect 3 with backbuffer size 2
-    warn: MakeWindowAssociation: Ignoring flags 3
+**Source-level state (2026-08-22, late session — v0.80 ≡ master `d31278d` in all cited files):**
 
-Swap effect 3 is **`DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL`** — *not* `FLIP_DISCARD`, which is 4. (Verified
-against mingw's `dxgi.h`: `DISCARD=0, SEQUENTIAL=1, FLIP_SEQUENTIAL=3, FLIP_DISCARD=4`. An earlier
-version of this entry said `FLIP_DISCARD`; that was the same guess-the-constant error as the
-`f8fb5c27` misidentification. Check the header.) It is still a flip-model swapchain, which is the
-path that governs occlusion and focus transitions, and DXMT falls back silently — matching "input
-works, surface never re-presents" — but nothing has proven causation.
-
-Flags 3 = `DXGI_MWA_NO_WINDOW_CHANGES (0x1) | DXGI_MWA_NO_ALT_ENTER (0x2)`: the game explicitly asks
-DXGI **not** to manage window/focus transitions, and DXMT ignores the request. For a focus-transition
-bug that is at least as interesting as the swap effect.
+- **The swapchain IS exclusive fullscreen (`Windowed == FALSE`).** The boot line
+  `Setting display mode: 1920x1080@120` is printed only by `wsi::setWindowMode`
+  (`wsi_window_win32.cpp:42`), and every path to it requires exclusive-fullscreen state. Closes the
+  draft report's open question. Corollary: `SetFullscreenState` logs NOTHING on success, so
+  "no SetFullscreenState lines" was never evidence — don't re-make that inference.
+- **`dxgi.handleAltTab` is structurally inert for CS2**: both reaction sites
+  (`d3d11_swapchain.cpp:743-744` and `:441-442`) require `!window_minimized`, and CS2 minimizes
+  itself on focus loss. Explains the measured null result. Worth telling upstream.
+- **Two live mechanism candidates** for the permanent strand, with opposite fingerprints:
+  1. *Wedged drawable pool*: vsync presents use `presentDrawableAfterMinimumDuration`
+     (`dxmt_context.cpp` Present case) on a layer with `displaySyncEnabled=false`
+     (`dxmt_presenter.cpp:19`); a never-composited (miniaturized) window may never complete those
+     presents → pool (3) exhausts → `nextDrawable` returns nil forever, and DXMT never checks nil
+     (`dxmt_presenter.cpp:159-165`) → silent no-op frames. Fingerprint: near-idle CPU, encoder
+     thread in `CAMetalLayer nextDrawable` waits.
+  2. *Orphaned layer*: the metal view is created ONCE per swapchain via the winemac patch
+     (`d3d11_swapchain.cpp:134`) and cached; if winemac disposes/replaces the hosting view across
+     miniaturize/restore, presents keep "succeeding" into a detached layer. Fingerprint: full-speed
+     CPU, no blocked threads.
+  Present-status logic is exonerated (the three dead hypotheses); the game's render thread stays
+  free because frame pacing waits on GPU completion, not on-screen presentation
+  (`dxmt_command_queue.cpp:170-190`) — consistent with "input registers, logs advance".
+- **One keyboard repro discriminates them:** launch with `scripts/diag-launch-dxmt11.sh`
+  (adds `WINEDEBUG=timestamp,+macdrv,+display,+event`), reproduce the freeze, run
+  `scripts/capture-freeze.sh` while frozen (read-only: `sample`, per-thread CPU, screen-static
+  check, trace tail). Automation cannot trigger it — a Wine window never receives a synthetic
+  macOS focus loss.
 
 **Prior art upstream:** [#48](https://github.com/3Shain/dxmt/issues/48) (closed) is the same class —
 "doesn't update screen contents unless switching fullscreen on/off" — but a different trigger, and
