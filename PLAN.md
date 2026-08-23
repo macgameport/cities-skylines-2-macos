@@ -53,9 +53,12 @@ window. The actual trigger (second swapchain on the same HWND) needs no focus ev
 
 Interim workaround: don't switch away from fullscreen; use the windowed launcher when you must —
 and if it bites mid-session, the one-refresh-per-alt-tab behavior lets you blind-save and quit.
-**Untested in-game recovery candidate:** toggling display mode in Options while frozen may create a
-NEW swapchain that Unity then presents to (newest = composited) — the dxmt#48 folk remedy predicts
-it. Test on the next natural freeze before force-quitting.
+**CONFIRMED 2026-08-23 (Option-2 test):** toggling to **Fullscreen Window** while frozen revives
+presentation LIVE (trace: no new swapchain — the game switches to presenting its windowed chain,
+the visible one). Better: **Fullscreen Window mode is immune to the freeze entirely** (alt-tab
+clean, input correct, verified in-city). The freeze is neutralized for daily play; exclusive
+Fullscreen stays broken until upstream fixes #206. ⚠ After the game closes: update the launcher
+comment that recommends exclusive fullscreen (never edit launch scripts while the game runs).
 
 **Upgrade experiment (promising — James's question, 2026-08-23):** wine dev post-11.0 is actively
 reworking the exact machinery the freeze lives in: `2293b0e` (2026-07-08, ~11.14+) "win32u: Keep
@@ -67,7 +70,7 @@ patch ourselves (plain clang; the patch may need porting to the reworked client-
 Either freeze outcome is worth a comment on dxmt#206. Needs a regression pass over the 10-patch
 stack (dev wine may move other behaviors).
 
-**Local-fix options if upstream is slow** (neither violates DXMT's AI policy — that governs
+**Local-fix options — likely unnecessary now that Fullscreen Window is immune; kept for reference** (neither violates DXMT's AI policy — that governs
 contributions to *their* repo, not what runs on this machine): (a) binary-patch the engine's
 `winemac.so` so the previous client view is not hidden when a new one attaches (the new view is
 added BELOW existing siblings, so the old — presented-to — view would stay on top and composite;

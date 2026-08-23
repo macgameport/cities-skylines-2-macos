@@ -467,6 +467,17 @@ logs. No open issue covers focus-loss freeze (searched 2026-08-22). Draft report
 **Both stacks misbehave on alt-tab** (D3DMetal/Wine 10 gave cursor desync and darkening; DXMT/Wine 11
 gives this freeze), so it is not renderer-specific.
 
-**Practical rule: don't alt-tab out of exclusive fullscreen.** Use the windowed launcher
+**RESOLVED FOR DAILY PLAY (2026-08-23, Option-2 test):**
+- **Fullscreen Window mode is IMMUNE.** Tested in-city: alt-tab back and forth freely, input
+  routes correctly, no freeze. This is now the recommended display mode. (The old "windowed
+  thrashes display modes" gotcha #6a was the DXVK-era stack — does not apply to DXMT.)
+- **Frozen in exclusive Fullscreen? Recover in-game, no force-kill:** blind-navigate (one
+  alt-tab refresh per step) Options → Graphics → Display Mode → Fullscreen Window → Apply.
+  The screen comes back LIVE. Trace shows NO new swapchain at the toggle — the game simply
+  switches to presenting its windowed chain, which is the visible one. Mechanism confirmed
+  from a second angle.
+- Exclusive Fullscreen remains freeze-on-alt-tab until dxmt#206 is fixed upstream.
+
+**Old practical rule (superseded): don't alt-tab out of exclusive fullscreen.** Use the windowed launcher
 (`explorer /desktop=`) for sessions where you must switch between the game and a terminal; use
 fullscreen for playing.
