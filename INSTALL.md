@@ -94,6 +94,10 @@ You get Apple's Metal performance HUD (frame rate, frame time, GPU time) with DX
 added underneath — commit, sync and encode timings, plus render-pass counts. That breakdown is what
 tells you whether you're GPU-bound or stalling on the CPU side before you start changing settings.
 
+**Measured baseline:** 34 FPS at 1080p on an M3 Max, Medium preset with Depth of Field and Motion
+Blur off, game 1.6.0f1 — level with what the CrossOver route reports on comparable hardware, so
+the free stack doesn't cost you performance.
+
 Two things that move the number most on this stack, in order: **Depth of Field** and **Motion
 Blur** off, then **Volumetrics** and **Shadows** down. Resolution matters less than you'd expect —
 1080p on a 120 Hz display is a good starting point.

@@ -66,7 +66,7 @@ OS: macOS 26.5.2
 Method: Porting Kit Wine 11.0 + DXMT v0.80, patches from cities-skylines-2-macos
 Game version: 1.6.0f1
 Resolution: 1920 x 1080 @ 120Hz Fullscreen Window
-Framerate: <measure before submitting — see below>
+Framerate: 34 FPS (1080p, Medium preset, Depth of Field and Motion Blur off)
 ```
 
 ## Proposed change 2 — qualify the existing Wine (Whisky) row
@@ -80,10 +80,13 @@ sentence appended to the existing warning:
 
 ## Before submitting
 
-- **Measure a framerate.** Their rows all cite one and the CrossOver row claims ~35 FPS, so a
-  number makes the entry credible and comparable. Easiest: launch with `MTL_HUD_ENABLED=1` set,
-  which overlays Metal's own HUD, and note the steady-state figure on a small/medium city at
-  1080p.
-- **Create the account** (anonymous edits are disabled).
+- ~~Measure a framerate~~ **done: 34 FPS**, 1080p Medium with Depth of Field and Motion Blur off
+  (M3 Max, game 1.6.0f1). Worth noting in the row that this is level with the CrossOver entry's
+  ~35 FPS on an M3 Pro — the free stack costs nothing in performance.
+- **Get an account.** Anonymous edits are disabled, and both `Special:CreateAccount` and the
+  PCGW SSO registration page are closed ("Registration not allowed") — this is wiki-wide, not
+  specific to you. Their documented route is the AppleGamingWiki Discord
+  (https://discord.gg/SU27ykMcsD), described on their own pages as the "primary method of getting
+  in touch with staff members".
 - Keep the tone factual and avoid promoting the repository beyond the install step — the wiki's
   value is the method, with the link as the reference.
