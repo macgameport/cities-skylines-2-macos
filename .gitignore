@@ -11,7 +11,10 @@ credentials*
 connection_log*.txt
 
 # --- screenshots & captures (may contain account names, library, desktop) ---
+# Deliberately excluded: screenshots have historically carried account names. Images intended for
+# the docs are opted in explicitly, one path at a time, after being eyeballed for personal info.
 *.png
+!docs/images/*.png
 *.jpg
 *.jpeg
 login*.png
