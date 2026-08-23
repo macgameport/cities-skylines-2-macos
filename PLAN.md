@@ -51,14 +51,19 @@ state: **watch #206 for maintainer response**; offer to run experiments / test b
 it assumed the trigger was a *real* macOS focus loss, which automation cannot deliver to a Wine
 window. The actual trigger (second swapchain on the same HWND) needs no focus event at all.
 
-**The report is written and ready** (`docs/dxmt-bugs/DRAFT-focus-loss-freeze.md`, now carrying the
-2026-08-22 source-level findings section), **not filed** —
-blocked only on authenticating `gh` as `macgameport`. ⚠️ **DXMT forbids AI-authored contributions**
-(`AGENTS.md`, `CONTRIBUTING.md` § AI Policy): no PR, no generated code, but AI-assisted research
-shared with the developers is explicitly permitted. So this goes up as prose + measurements, with
-the assistance disclosed, and a human writes any fix.
+Interim workaround: don't switch away from fullscreen; use the windowed launcher when you must —
+and if it bites mid-session, the one-refresh-per-alt-tab behavior lets you blind-save and quit.
+**Untested in-game recovery candidate:** toggling display mode in Options while frozen may create a
+NEW swapchain that Unity then presents to (newest = composited) — the dxmt#48 folk remedy predicts
+it. Test on the next natural freeze before force-quitting.
 
-Interim workaround: don't switch away from fullscreen; use the windowed launcher when you must.
+**Local-fix options if upstream is slow** (neither violates DXMT's AI policy — that governs
+contributions to *their* repo, not what runs on this machine): (a) binary-patch the engine's
+`winemac.so` so the previous client view is not hidden when a new one attaches (the new view is
+added BELOW existing siblings, so the old — presented-to — view would stay on top and composite;
+one call site to neutralize; same class of local patch as the occlusion diagnostic was); (b)
+rebuild the Wine side from source with that one-line change — plain clang build, none of DXMT's
+LLVM-15 toolchain burden. Both are next-session work if wanted.
 
 **Second thing worth posting upstream:** [#141](https://github.com/3Shain/dxmt/issues/141) (Steam CEF
 black window, ANGLE `EGL_BAD_ALLOC`, open) **does not reproduce** on DXMT v0.80 + wine-11.0 here —
