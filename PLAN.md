@@ -60,15 +60,20 @@ clean, input correct, verified in-city). The freeze is neutralized for daily pla
 Fullscreen stays broken until upstream fixes #206. ⚠ After the game closes: update the launcher
 comment that recommends exclusive fullscreen (never edit launch scripts while the game runs).
 
-**Upgrade experiment (promising, raised 2026-08-23):** wine dev post-11.0 is actively
-reworking the exact machinery the freeze lives in: `2293b0e` (2026-07-08, ~11.14+) "win32u: Keep
-unused client surfaces around and reuse them if possible" — surface REUSE could make the
-second-swapchain-hides-first defect not exist at all — and `1a1d1f3` (2026-08-04, ~11.15/16)
-changes the client_view hide logic again. Test = a DXMT-enabled engine on wine-11.15+: either find
-a newer engine on the Porting Kit/Wineskin channel, or build wine + the DXMT-enablement winemac
-patch ourselves (plain clang; the patch may need porting to the reworked client-surface code).
-Either freeze outcome is worth a comment on dxmt#206. Needs a regression pass over the 10-patch
-stack (dev wine may move other behaviors).
+**✅ RESOLVED UPSTREAM IN WINE 11.16 (tested 2026-08-23).** Ran `scripts/minrepro3.exe` under
+WineForge 0.6.0.3 (wine-11.16 + DXMT v0.80) and presents to the older swapchain composite normally:
+the red pulse animates live — `(241,37,27)` → `(131,15,9)` → `(16,0,0)` — where wine-11.0 gave
+byte-identical stale teal `(32,126,127)`. Three runs, consistent. The DXMT in WineForge is *older*
+than ours (`v0.80` vs `v0.80-17-g79f6279`), so the fix is on the Wine side — almost certainly
+[`2293b0e`](https://github.com/wine-mirror/wine/commit/2293b0e) *"win32u: Keep unused client
+surfaces around and reuse them if possible"*, which landed in **11.16, not 11.15**. Reported to
+[dxmt#206](https://github.com/3Shain/dxmt/issues/206).
+
+**What this means for this project:** moving to a wine-11.16+ DXMT engine should eliminate the
+alt-tab freeze entirely and make exclusive Fullscreen usable again (which would also let macOS Game
+Mode engage — the HUD shows it Off in borderless). Not done yet: switching engines means
+re-validating the 10-patch stack on 11.16, since only the Mono errno and bcrypt fixes are known to
+carry over. Fullscreen Window remains the recommended setting until that validation happens.
 
 **Local-fix options — likely unnecessary now that Fullscreen Window is immune; kept for reference** (neither violates DXMT's AI policy — that governs
 contributions to *their* repo, not what runs on this machine): (a) binary-patch the engine's

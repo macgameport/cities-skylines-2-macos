@@ -451,6 +451,11 @@ nothing.
     swapchain on alt-tab but keeps rendering into the ORIGINAL. ⚠ v1's lesson: present to the OLD
     chain when testing this — presenting to the new one shows nothing wrong (that false-negative
     cost one iteration).
+  - **✅ FIXED IN WINE 11.16 (measured 2026-08-23).** The reproducer passes under WineForge 0.6.0.3
+    (wine-11.16 + DXMT v0.80): the old swapchain's presents composite and animate. Since that DXMT
+    is OLDER than ours, the fix is Wine's — `2293b0e` (client-surface reuse), which is in 11.16 but
+    NOT 11.15. Upgrading the engine would retire this defect; the 10-patch stack would need
+    re-validating on 11.16 first.
   - **Filed upstream 2026-08-23 as [dxmt#206](https://github.com/3Shain/dxmt/issues/206)** (AI
     assistance disclosed; no PR per their policy). Watch the issue for maintainer follow-ups.
   - Diagnostic kit that produced this: `scripts/diag-launch-dxmt11.sh` (WINEDEBUG trace) +
