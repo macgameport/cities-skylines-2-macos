@@ -57,6 +57,16 @@ and if it bites mid-session, the one-refresh-per-alt-tab behavior lets you blind
 NEW swapchain that Unity then presents to (newest = composited) — the dxmt#48 folk remedy predicts
 it. Test on the next natural freeze before force-quitting.
 
+**Upgrade experiment (promising — James's question, 2026-08-23):** wine dev post-11.0 is actively
+reworking the exact machinery the freeze lives in: `2293b0e` (2026-07-08, ~11.14+) "win32u: Keep
+unused client surfaces around and reuse them if possible" — surface REUSE could make the
+second-swapchain-hides-first defect not exist at all — and `1a1d1f3` (2026-08-04, ~11.15/16)
+changes the client_view hide logic again. Test = a DXMT-enabled engine on wine-11.15+: either find
+a newer engine on the Porting Kit/Wineskin channel, or build wine + the DXMT-enablement winemac
+patch ourselves (plain clang; the patch may need porting to the reworked client-surface code).
+Either freeze outcome is worth a comment on dxmt#206. Needs a regression pass over the 10-patch
+stack (dev wine may move other behaviors).
+
 **Local-fix options if upstream is slow** (neither violates DXMT's AI policy — that governs
 contributions to *their* repo, not what runs on this machine): (a) binary-patch the engine's
 `winemac.so` so the previous client view is not hidden when a new one attaches (the new view is
