@@ -45,7 +45,31 @@ downloads impossible before, and the reason the six errno-tolerance patches exis
 - Creating nested directories, writing files, enumerating existing directories, and the
   `FileShare.Write`/`FileShare.Read` PdxSdk pattern all still pass.
 
-## Attribution: narrowed to the build, not upstream Wine
+## ✅ ATTRIBUTION SETTLED (2026-08-23, same day): upstream 11.16 is CLEAN — it is the build
+
+Final measurement: **stock wine 11.16, compiled from the winehq.org source tarball on this
+machine** (x86_64, minimal configure, no external patches), same probe, same `mscorlib`:
+
+| build | file-IO probe | garbage-errno lines |
+|---|---|---|
+| wine 11.0 (Porting Kit) | 44 OK / 7 | 0 |
+| stock wine 11.15 (Gcenx) | 44 OK / 7 | 0 |
+| **stock wine 11.16 (built from source)** | **44 OK / 7** | **0** |
+| WineForge 11.16 | 39 OK / 12 | 15 |
+
+**Upstream Wine never had the regression.** The defect is introduced by WineForge's patch stack
+(CrossOver patches / WFDXCompat — which of its patches specifically is their bug to find). Nothing
+to file at WineHQ.
+
+**Consequently the ideal upgrade is fully de-risked:** a clean wine-11.16 build carries BOTH the
+swapchain fix (retiring the alt-tab freeze, dxmt#206) AND clean file IO (mod downloads keep
+working, 10 patches stay 10). As soon as a DXMT-enabled engine appears on a clean 11.16+ base
+(Porting Kit's next engine, or a self-build of stock 11.16 + the ~450-line winemac enablement
+patch), it is strictly better than wine 11.0. Run the probe once on any new engine to confirm its
+base is clean before switching.
+
+## The earlier attribution reasoning (kept for the record — now superseded)
+### Attribution: narrowed to the build, not upstream Wine
 
 Follow-up measurements the same day, same probe, same machine, same (patched-only-with-`fshandle`)
 `mscorlib`:
