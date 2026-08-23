@@ -82,6 +82,26 @@ one frame per alt-tab, so you can alt-tab your way to Options and switch modes.)
 
 ---
 
+## Measuring performance
+
+The game has no usable built-in FPS counter, so use Metal's own HUD. From a terminal:
+
+```bash
+CS2_HUD=1 bash ~/cs2-patch/launch-cs2-dxmt11.sh
+```
+
+You get Apple's Metal performance HUD (frame rate, frame time, GPU time) with DXMT's own lines
+added underneath — commit, sync and encode timings, plus render-pass counts. That breakdown is what
+tells you whether you're GPU-bound or stalling on the CPU side before you start changing settings.
+
+Two things that move the number most on this stack, in order: **Depth of Field** and **Motion
+Blur** off, then **Volumetrics** and **Shadows** down. Resolution matters less than you'd expect —
+1080p on a 120 Hz display is a good starting point.
+
+Experimental: `CS2_METALFX=1` renders through a MetalFX spatially-upscaled swapchain (upscale factor
+from DXMT's `d3d11.metalSpatialUpscaleFactor`, default 2). It may buy frames at the cost of some
+sharpness. Untested here — report what you find.
+
 ## After a game update
 
 Game updates replace the patched DLLs, so the fixes need re-applying:

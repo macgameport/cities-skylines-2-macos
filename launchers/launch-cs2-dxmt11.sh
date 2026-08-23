@@ -58,6 +58,19 @@ export WINEPREFIX="$SS/prefix"
 export PATH="$SS/wine/bin:$PATH"
 export DYLD_FALLBACK_LIBRARY_PATH="$APP/Contents/Frameworks:$SS/wine/lib:/usr/lib:/usr/local/lib"
 export WINEESYNC=1 WINEMSYNC=1 WINEDEBUG="${WINEDEBUG:--all}"
+
+# CS2_HUD=1 — Metal's performance HUD (FPS, frame time, GPU time), plus DXMT's own stat lines
+# (commit/sync/encode/render breakdown), since DXMT publishes into the same _CADeveloperHUDProperties
+# overlay. This is the way to get a comparable frame-rate number on this stack; the game has no
+# usable built-in counter.
+[ "${CS2_HUD:-0}" = "1" ] && export MTL_HUD_ENABLED=1 && echo "Metal HUD: on"
+# CS2_METALFX=1 — EXPERIMENTAL. Renders through a MetalFX spatially-upscaled swapchain; the factor
+# comes from d3d11.metalSpatialUpscaleFactor (default 2). Untested here — try it for performance,
+# expect softer output, and turn it off if anything looks wrong.
+if [ "${CS2_METALFX:-0}" = "1" ]; then
+  export DXMT_METALFX_SPATIAL_SWAPCHAIN=1
+  echo "MetalFX spatial upscaling: on (experimental)"
+fi
 export SteamAppId=949230 SteamGameId=949230 SteamOverlayGameId=949230
 export WINEDLLOVERRIDES="gameoverlayrenderer64=d;gameoverlayrenderer=d;winemenubuilder.exe=d"
 
