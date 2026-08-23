@@ -1,10 +1,9 @@
 # DXMT issue — FILED as [3Shain/dxmt#206](https://github.com/3Shain/dxmt/issues/206)
 
-> **Status: FILED 2026-08-23** by `jvspearman` (the "post as macgameport" premise in earlier
-> versions of this header was a misunderstanding — `macgameport` is an *organization* jvspearman
-> belongs to, and GitHub issues are always authored by a user account; James confirmed and
-> approved). Everything below the rule is the issue body as filed (plus any local annotations
-> added since). Follow-ups go in comments on #206.
+> **Status: FILED 2026-08-23** (authorship visible on the issue itself; the earlier "post as
+> macgameport" premise was a misunderstanding — that is an *organization*, and GitHub issues are
+> always authored by a user account; approved before filing). Everything below the rule is the
+> issue body as filed (plus any local annotations added since). Follow-ups go in comments on #206.
 
 > ### ⚖️ Upstream AI policy — checked 2026-08-22, and it governs what we may do here
 >

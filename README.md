@@ -21,8 +21,13 @@ signature defect upstream ([the measurement](docs/wine-bugs/FINDING-wine11-fixes
 | Proven by | boots, mods load + download, Steam UI, DLC | a 1h40m session, saved city, long-run stability |
 
 Both run CS2 `1.6.0f1 (419.d6c6)` via Steam in-prefix at `Direct3D 11.0 [level 11.1]` — no MoltenVK
-device-loss lottery, no OpenGL. Both misbehave on alt-tab (see `GOTCHAS.md`); DXMT's version is
-worse — a hard freeze needing a force-kill — so **don't switch away from exclusive fullscreen**.
+device-loss lottery, no OpenGL. The one serious defect — an alt-tab "freeze" in exclusive
+fullscreen — was diagnosed here, reproduced in a standalone ~150-line program, and reported
+upstream as [dxmt#206](https://github.com/3Shain/dxmt/issues/206) (presents to an HWND's
+non-newest swapchain are silently never composited; the game keeps running at full speed while
+the screen shows a stale frame). **It does not affect Fullscreen Window (borderless) mode**, and
+even a frozen exclusive-mode session is recoverable in-game — full story in `GOTCHAS.md` § alt-tab
+and `docs/dxmt-bugs/`.
 
 > An earlier attempt on **Wine 11 + DXVK + private-API MoltenVK** also rendered, but device-lost
 > roughly 1 run in 8 — playable by dice roll. D3DMetal is stable. Notes kept in `archive/`.
@@ -32,9 +37,13 @@ worse — a hard freeze needing a force-kill — so **don't switch away from exc
 1. **Launch `Cities2.exe` directly.** Steam's *Play* button routes through the Paradox Launcher
    and exits before Unity initialises. Start Steam, let it log in, wait for the licence to sync,
    *then* run the exe.
-2. **Use native Fullscreen.** `explorer /desktop=` fixes menu-mouse but eats WSAD — keyboard goes
-   to the virtual-desktop container. Fullscreen routes both. Toggling display modes mid-session
-   also desyncs the cursor.
+2. **Set Display Mode to Fullscreen Window (borderless).** It looks identical to exclusive
+   fullscreen, routes mouse and keyboard correctly, and is immune to the alt-tab freeze
+   ([dxmt#206](https://github.com/3Shain/dxmt/issues/206)). Avoid `explorer /desktop=` (it eats
+   WSAD — keyboard goes to the virtual-desktop container) and avoid exclusive Fullscreen unless
+   you never switch apps — and if it does freeze there, alt-tab refreshes the screen one frame
+   per cycle, so you can blind-navigate Options → Graphics → Display Mode → Fullscreen Window
+   and it comes back live. No force-kill needed.
 
 ## Repository layout
 
