@@ -15,6 +15,7 @@ connection_log*.txt
 # the docs are opted in explicitly, one path at a time, after being eyeballed for personal info.
 *.png
 !docs/images/*.png
+!docs/images/*.jpg
 *.jpg
 *.jpeg
 login*.png

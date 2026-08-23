@@ -93,6 +93,11 @@ and `docs/dxmt-bugs/`.
 
 ## The real finding: the bug is real, and Wine 11 already fixed it
 
+![Paradox Mods working in-game: 5 mods installed and active](docs/images/cs2-paradox-mods.jpg)
+
+*The part no other Mac guide has managed: the in-game Paradox Mods manager, working — five mods
+installed, downloaded and active in-game. This is what the patches below make possible.*
+
 The patches exist because of a genuine defect — but **not the one first assumed**, and it is fixed
 upstream. Measured 2026-08-22, same probe under Unity's Mono with a **pristine** `mscorlib`:
 
