@@ -95,9 +95,11 @@ directly. Please update the table with bug numbers once filed.
 > ⚠️ **Test against current Wine, not the wrapper's Wine.** Bug 60220 was filed against **10.0**,
 > which is what the D3DMetal wrapper ships — but Wine development is at **11.16**, and WineHQ triage
 > expects reproduction on a current release. The reproducers need no graphics, so a stock Wine build
-> is enough to retest; do that *before* filing the remaining two. A retest on 11.15 was attempted
-> 2026-08-22 and was **inconclusive** — the standalone Gcenx build would not launch any executable
-> in a scratch prefix, so nothing can be concluded from it either way.
+> is enough to retest; do that *before* filing the remaining two. ⚠ **An earlier note here said a
+> 11.15 retest was "inconclusive — the standalone Gcenx build would not launch any executable".
+> That is wrong and has been retracted (2026-08-23):** the Gcenx `wine-devel-11.15` build launches
+> executables fine and runs the full probe — 44 OK / 7, identical to 11.0, with zero garbage-errno
+> lines. Raw output: [`measurement-stock-wine11.15.txt`](measurement-stock-wine11.15.txt).
 
 ## R2 disproven as well (2026-08-22)
 

@@ -45,19 +45,48 @@ downloads impossible before, and the reason the six errno-tolerance patches exis
 - Creating nested directories, writing files, enumerating existing directories, and the
   `FileShare.Write`/`FileShare.Read` PdxSdk pattern all still pass.
 
-## Attribution is undetermined — read this before acting
+## Attribution: narrowed to the build, not upstream Wine
 
-Two things differ between the runs, not one: the **Wine version** (11.0 → 11.16) *and* the
-**builder** (Porting Kit → WineForge, which carries CrossOver patches). So this measurement
-establishes that *this* 11.16 build has the defect; it does **not** establish that upstream Wine
-11.16 does. Testing a stock 11.16 build would settle it, and is the obvious next experiment.
+Follow-up measurements the same day, same probe, same machine, same (patched-only-with-`fshandle`)
+`mscorlib`:
+
+| build | file-IO probe | garbage-errno lines | raw Win32 `GetLastError` |
+|---|---|---|---|
+| wine 11.0 (Porting Kit) | 44 OK / 7 | 0 | — |
+| **stock wine 11.15 (Gcenx `wine-devel`)** | **44 OK / 7** | **0** | **9/9 correct** |
+| **WineForge 11.16** | **39 OK / 12** | **15** | **9/9 correct** |
+
+Three things this establishes:
+
+1. **Stock upstream Wine is clean at 11.15** — byte-for-byte the same verdicts as 11.0. The defect
+   is not something that crept into Wine across fifteen dev releases.
+2. **It is not WineForge's sync layer.** The probe was run under their build with
+   `WINEESYNC`/`WINEMSYNC` in all four on/off combinations plus their default: 39 OK / 12 fail and
+   15 garbage-errno lines every time, identical.
+3. **The corruption is in Mono's P/Invoke last-error capture, not in Win32.** `errtest.exe` reports
+   `9/9 correct, 0 WRONG` on *both* builds — so the Win32 layer hands back the right error, and
+   something about WineForge's build breaks Mono's capture of it. That is the same layer as the
+   original R1 defect, which is why WineHQ bug 60220 was correctly closed INVALID against
+   `kernel32`.
+
+**What remains unproven:** whether upstream Wine 11.16 itself regressed, or whether WineForge's
+patch stack (CrossOver patch IDs, WFDXCompat) is responsible. Settling it needs a *stock* 11.16
+build, which does not exist publicly yet — Gcenx's newest is 11.15, and Wine 11.16 was only tagged
+2026-08-21. Re-run this probe when one appears.
+
+Given stock 11.15 is clean and a single dev release separates it from 11.16, the build's own patches
+are the more likely culprit.
 
 ## Practical conclusion
 
-A wine-11.16 stack is **viable but not free**: it retires the alt-tab freeze and re-enables
-exclusive Fullscreen, at the cost of re-applying the six errno-tolerance patches — all of which are
-still in this repo, since they were retired rather than deleted. `repatch.sh` already has that
-target: it is the `free` (17-patch) path minus the licence bypass.
+**Do not adopt WineForge's build for this game.** It fixes the freeze but breaks in-game mod
+downloads, and the freeze is already fully avoidable by using Fullscreen Window.
+
+The wine-11.16 upgrade path is still worth pursuing — just with a different build. When a stock or
+Porting Kit 11.16+ engine with DXMT appears, re-run this probe first. If it comes back 44 OK / 7,
+that engine retires the alt-tab freeze at no cost; if it shows the garbage errno, the six
+errno-tolerance patches are still in this repo (retired, not deleted) and `repatch.sh` already has
+that target.
 
 Until someone validates a full game session on 11.16, **wine 11.0 + Fullscreen Window remains the
 recommendation**: the freeze is fully avoidable in borderless, whereas broken mod downloads are not.

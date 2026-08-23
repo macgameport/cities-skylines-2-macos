@@ -1,0 +1,114 @@
+== base: C:\probe1115 ==
+
+[1] P/Invoke CreateFile WRITE: C:\probe1115\.downloading\74324_36\content.bin
+    Marshal.GetLastWin32Error=0
+    write handle         = 0xb0  (176)  ok   SafeFileHandle.IsInvalid=False
+
+[2] P/Invoke CreateFile READ: C:\probe1115\.downloading\74324_36\content.bin
+    Marshal.GetLastWin32Error=0
+    read handle          = 0xb0  (176)  ok   SafeFileHandle.IsInvalid=False
+
+[3] managed FileStream write+read: C:\probe1115\.downloading\74324_36\content.bin
+    OK — wrote+read 14 bytes: "hello managed"
+
+[4] PdxSdk-EXACT: FileStream(Create,Write,FileShare.Write) then (Open,Read,FileShare.Read)
+    OK — 15 bytes via FileShare.Write/Read path
+
+[5] Directory op battery (errno-0 / FindNextFile suspect):
+    OK    Directory.CreateDirectory(nested .metadata)
+    OK    Directory.Exists(.metadata)
+    OK    Directory.GetFiles(empty dir)
+    OK    Directory.GetDirectories(dir)
+    OK    Directory.GetFileSystemEntries(dir)
+    OK    EnumerateFiles + iterate
+    OK    EnumerateFileSystemEntries + iterate
+    OK    FileStream write into .metadata (DirNotFound site)
+    OK    Directory.Delete(recursive)  (the DeleteDirectory failure)
+
+[6] recursive-delete decomposition:
+    OK    File.Delete(file in subdir)
+    OK    Directory.Delete(EMPTY subdir, false)
+    OK    Directory.Delete(EMPTY parent, false)
+    OK    Directory.Delete(tree w/ file, RECURSIVE)
+
+[7] fix candidate — MANUAL recursive delete:
+    OK    ManualDelete(tree w/ subdir+files)
+    d8 gone? True
+  -- does it throw-but-succeed? --
+    EMPTY dir            threw=[no throw]  ACTUALLY GONE=True
+    nested empty subdir  threw=[no throw]  ACTUALLY GONE=True
+    flat dir w/ file     threw=[no throw]  ACTUALLY GONE=True
+
+[8] FindFirstFileW: plain vs \\?\ extended prefix (the recursive-delete enumerator):
+    plain    ...\ffdir\*                       handle=0x1902830  err=127  first=''
+    extended \\?\...\ffdir\*                   handle=0x1902830  err=127  first=''
+
+[9] hunt IOException:Success (Move/CreateExisting/enumerate):
+    OK    Directory.Move(m1 -> m2)
+    *** DirectoryNotFoundException: "Could not find a part of the path."   [Directory.Move(dir w/ .metadata)]
+    OK    Directory.CreateDirectory(EXISTING)
+    OK    File.Delete(nonexistent)
+    OK    DirectoryInfo.EnumerateFiles+iter
+
+[10] Move/File.Delete — throws but ACTUALLY completes? (safe-to-NOP test):
+    simple dir move          threw=[no throw]  ACTUALLY MOVED=True
+    nested dir (.metadata)   threw=[no throw]  ACTUALLY MOVED=True
+    File.Delete(existing)    threw=[no throw]  GONE=True
+    File.Delete(nonexistent) threw=[no throw]  GONE=True
+
+[11] ClearFolderAndKeepPatchFile replica (the PrepareFolderForPatching failure):
+    OK    ListDirectories (Directory.GetDirectories)
+    OK    ListFiles (Directory.GetFiles)
+    OK      DeleteDirectory(recursive) sub
+    OK      File.Delete content.bin
+    OK      File.Delete manifest.json
+    OK    ListFilesRecursive (GetFiles SearchOption.AllDirs)
+    OK    GetLocalModSize (DirectoryInfo.EnumerateFiles+Length)
+
+[12] main-thread vs ThreadPool-thread (the P0x:0y workers):
+    OK    MAIN GetDirectories
+    OK    MAIN GetFiles
+    OK    MAIN Delete(recursive)
+    OK    POOL GetDirectories
+    OK    POOL GetFiles
+    OK    POOL Delete(recursive)
+    OK    NEWTHREAD GetDirectories
+    OK    NEWTHREAD GetFiles
+    OK    NEWTHREAD Delete(recursive)
+    OK    TASK GetDirectories
+    OK    TASK GetFiles
+    OK    TASK Delete(recursive)
+
+[13] nonexistent-dir + open-handle states:
+    Directory.Exists(nonexistent) = False
+    *** DirectoryNotFoundException: "Could not find a part of the path 'C:\probe1115\does_not_exist_12'."   [GetDirectories(nonexistent)]
+    *** DirectoryNotFoundException: "Could not find a part of the path 'C:\probe1115\does_not_exist_12'."   [GetFiles(nonexistent)]
+    *** DirectoryNotFoundException: "Could not find a part of the path 'C:\probe1115\does_not_exist_12'."   [Delete(nonexistent, recursive)]
+    *** IOException: "The process cannot access the file 'busy.bin' because it is being used by another process."   [Delete(dir w/ OPEN file, recursive)]
+    *** IOException: "The process cannot access the file 'C:\probe1115\openhandle\busy.bin' because it is being used by another process."   [File.Delete(OPEN file)]
+    OK    GetFiles(dir w/ OPEN file)
+
+[14] raw dir-handle open (CreateDirectoryHandle's CreateFile), hunting handle-0:
+    ok handle=0x104 on probe1115
+    ok handle=0x104 on .downloading
+    ok handle=0x104 on 80095_28
+    == over 120 opens: handle0=0  invalid(-1)=0  ok(nonzero)=120 ==
+
+[15] nested CreateDirectory + write (the .metadata / .cpatch DirectoryNotFound site):
+    OK    CreateDirectory(deep nested, no ancestors)
+    deepest exists? True
+    OK    FileStream write into deepest (manifest)
+    OK    CreateDirectory(.metadata parent)
+    OK    FileStream write .metadata\thumbnail.png
+    *** DirectoryNotFoundException: "Could not find a part of the path "C:\probe1115\nocreate\sub\x.bin"."   [FileStream write into UNcreated nested (expect DirNotFound)]
+
+== done ==
+== monohost: loading Unity's mono runtime ==
+  C:\Program Files (x86)\Steam\steamapps\common\Cities Skylines II\MonoBleedingEdge\EmbedRuntime\mono-2.0-bdwgc.dll
+== configuring: MONO_PATH=C:\Program Files (x86)\Steam\steamapps\common\Cities Skylines II\Cities2_Data\Managed  etc=C:\Program Files (x86)\Steam\steamapps\common\Cities Skylines II\MonoBleedingEdge\etc ==
+== mono_jit_init_version(v4.0.30319) ==
+== open assembly: Z:\Users\js\Documents\github\cs2\scripts\filetest_net.exe ==
+== running Main under Unity mono ==
+----------
+----------
+== returned 0 ==
