@@ -39,7 +39,8 @@ It has cost me two play sessions today, the second triggered by accidentally hit
 raised another macOS app. This is the last blocking defect on an otherwise fully playable stack, so
 I'm glad to run experiments or test a patch.
 
-**Up front, so nobody wastes time on it: I could not build a minimal reproducer.** Details in
+**Already tried, so nobody suggests it: `dxgi.handleAltTab = True` does not fix it** (details
+below), and **I could not build a minimal reproducer.** Details in
 "Failed reproduction attempt" below — the short version is that a small DX11 app never receives the
 focus-loss event at all, so the trigger can't be applied synthetically. The game is currently the
 only reproducer I have.
@@ -74,18 +75,40 @@ took several alt-tab attempts; otherwise `wineserver -k`.
 Two DXMT lines stand out from the affected sessions. **I have not proven either causes the freeze** —
 they are the most suspicious things present, in order.
 
-**1. The swapchain is created with a swap effect DXMT rejects, and falls back silently:**
+**1. Both of the code paths that would react to focus loss appear to exclude this game.**
 
-```
-warn:  CreateSwapChain: unsupported swap effect 3 with backbuffer size 2
+Reading `src/d3d11/d3d11_swapchain.cpp` (`Present1`), there are two reactions to a window going
+away, and by my reading CS2 hits neither:
+
+```cpp
+bool window_minimized = wsi::isMinimized(hWnd);
+if ((window_minimized || desc_.Width == 0 || desc_.Height == 0)
+    // MSDN: You will not receive DXGI_STATUS_OCCLUDED if you're using a flip model swap chain.
+    && desc_.SwapEffect <= DXGI_SWAP_EFFECT_SEQUENTIAL)
+  hr = DXGI_STATUS_OCCLUDED;
+bool should_exit_fs = handle_alt_tab_ // At the moment this is still broken for certain games
+                      && !fullscreen_desc_.Windowed && !window_minimized && !wsi::isForeground(hWnd);
 ```
 
-Swap effect `3` is `DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL` (checked against `dxgi.h`:
-`DISCARD = 0, SEQUENTIAL = 1, FLIP_SEQUENTIAL = 3, FLIP_DISCARD = 4`), `BufferCount = 2`. The flip
-model is the path that defines behaviour across occlusion and focus transitions — exactly the
-transition that breaks. If the silent fallback is a bitblt-model swapchain, occlusion handling would
-differ from what the application assumes. I have not verified what DXMT actually falls back *to*, so
-this is a hypothesis.
+- The occlusion branch is gated on `SwapEffect <= DXGI_SWAP_EFFECT_SEQUENTIAL`. **CS2 requests
+  `FLIP_SEQUENTIAL` (3)**, so it never receives `DXGI_STATUS_OCCLUDED`, even minimised. (Per the
+  MSDN comment that is correct for flip model — I mention it only to establish that this branch
+  cannot be what recovers the game.)
+- The fullscreen-exit branch requires `!fullscreen_desc_.Windowed`. **I tried
+  `dxgi.handleAltTab = True`** — confirmed loaded (`info: Found config env: dxgi.handleAltTab = True`,
+  logged by both modules) — **and the freeze still occurred**, with the game needing a force-kill.
+  DXMT logged no `SetFullscreenState` and no occlusion activity at any point in that session.
+
+So on focus loss, `Present1` appears to take neither branch and simply presents into a surface that
+is no longer visible; when the window comes back, presentation never resumes.
+
+**What I could not determine from outside:** whether CS2's swapchain is actually
+`Windowed == FALSE`. The game reports `Applying resolution: 1920x1080x120Hz Fullscreen` and sets
+`displayMode: Fullscreen`, but Unity's "Fullscreen" can map to a borderless fullscreen *window*. If
+it does, `handle_alt_tab_` could never apply here regardless of the setting — which would explain
+both the null result above and the total absence of fullscreen logging. If you can tell me what to
+look for (or point me at a debug build/env var that logs the swapchain's fullscreen state), I'll
+measure it and report back.
 
 **2. The app asks DXGI not to manage window transitions, and the request is ignored:**
 
@@ -93,10 +116,14 @@ this is a hypothesis.
 warn:  MakeWindowAssociation: Ignoring flags 3
 ```
 
-Flags `3` = `DXGI_MWA_NO_WINDOW_CHANGES (0x1) | DXGI_MWA_NO_ALT_ENTER (0x2)`. So the application is
-explicitly saying "don't monitor the message queue, don't handle Alt+Enter — I own these
-transitions," and that is not honoured. For a bug specifically about focus transitions, an ignored
-"I own focus transitions" request seems at least as interesting as the swap effect.
+Flags `3` = `DXGI_MWA_NO_WINDOW_CHANGES (0x1) | DXGI_MWA_NO_ALT_ENTER (0x2)` — the application saying
+"I own these transitions." `dxgi_factory.cpp` stores the HWND and drops the flags. Probably harmless,
+noted for completeness.
+
+**Retracted from an earlier draft of this report:** I had blamed
+`warn: CreateSwapChain: unsupported swap effect 3 with backbuffer size 2`, assuming a silent fallback
+to a bitblt swapchain. Reading `d3d11_swapchain.cpp:1114` that warning is **cosmetic** — the same
+`MTLD3D11SwapChain` is constructed regardless of swap effect. Not a factor.
 
 **What is *not* in the logs:** no `SetFullscreenState: stub`, no `outstanding buffer hold`, no errors
 of any kind at the moment of the freeze. DXMT simply goes quiet while the game's own log keeps
