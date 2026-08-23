@@ -1,22 +1,10 @@
-# DXMT issue — READY TO FILE (blocked on account auth)
+# DXMT issue — FILED as [3Shain/dxmt#206](https://github.com/3Shain/dxmt/issues/206)
 
-> **Status: not filed.** Approved for filing 2026-08-22, to be posted as **macgameport** on
-> [3Shain/dxmt](https://github.com/3Shain/dxmt). `gh` on this machine is authenticated only under a
-> personal account, and authenticating `macgameport` requires a browser flow only James can complete:
->
-> ```
-> gh auth login --hostname github.com --web
-> ```
->
-> Once `gh auth status` lists `macgameport` as active, file it with:
->
-> ```
-> gh issue create --repo 3Shain/dxmt \
->   --title "Presents to an HWND's non-newest swapchain are silently never composited (freezes games that recreate swapchains on alt-tab)" \
->   --body-file docs/dxmt-bugs/DRAFT-focus-loss-freeze.md
-> ```
->
-> (strip this header block first — everything below the rule is the issue body)
+> **Status: FILED 2026-08-23** by `jvspearman` (the "post as macgameport" premise in earlier
+> versions of this header was a misunderstanding — `macgameport` is an *organization* jvspearman
+> belongs to, and GitHub issues are always authored by a user account; James confirmed and
+> approved). Everything below the rule is the issue body as filed (plus any local annotations
+> added since). Follow-ups go in comments on #206.
 
 > ### ⚖️ Upstream AI policy — checked 2026-08-22, and it governs what we may do here
 >

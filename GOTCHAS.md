@@ -451,6 +451,8 @@ nothing.
     swapchain on alt-tab but keeps rendering into the ORIGINAL. ⚠ v1's lesson: present to the OLD
     chain when testing this — presenting to the new one shows nothing wrong (that false-negative
     cost one iteration).
+  - **Filed upstream 2026-08-23 as [dxmt#206](https://github.com/3Shain/dxmt/issues/206)** (AI
+    assistance disclosed; no PR per their policy). Watch the issue for maintainer follow-ups.
   - Diagnostic kit that produced this: `scripts/diag-launch-dxmt11.sh` (WINEDEBUG trace) +
     `scripts/capture-freeze.sh` run while frozen. ⚠ The canonical launcher hard-set
     `WINEDEBUG=-all` and silently ate the first diag run's trace — it now respects a caller's

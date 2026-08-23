@@ -40,12 +40,12 @@ because Unity creates a recovery swapchain on alt-tab and keeps rendering into t
 (`minrepro.c` v1 and `minrepro2.c` v2 are the experiment ladder — kept because their negative and
 intermediate results are cited in the report.)
 
-**Next step — FILE THE REPORT.** The draft (`docs/dxmt-bugs/DRAFT-focus-loss-freeze.md`) now
-carries: the symptom, the trace timeline, the frozen-state sample, and the standalone reproducer
-recipe with numeric measurements. Only gate left: `gh auth login --hostname github.com --web` as
-`macgameport` (James-only), then the `gh issue create` command in the draft's header. Attach
-`minrepro3.c` (it is our own diagnostic, shared as research — consistent with DXMT's AI policy;
-disclose assistance per the header).
+**FILED 2026-08-23: [3Shain/dxmt#206](https://github.com/3Shain/dxmt/issues/206)** — the full
+report (trace timeline, frozen-state sample, standalone reproducer recipe with numeric verdicts),
+with AI assistance disclosed per their policy. Authored by the personal account — the "needs
+macgameport auth" premise was a misunderstanding (macgameport is an org, not an account). Standing
+state: **watch #206 for maintainer response**; offer to run experiments / test builds / share
+`minrepro3.c` source on request (repo currently private). No PR, ever — any fix is theirs to write.
 
 **Historical note:** the 2026-08-22 reproducer attempt (`scripts/focustest.c`) failed only because
 it assumed the trigger was a *real* macOS focus loss, which automation cannot deliver to a Wine
