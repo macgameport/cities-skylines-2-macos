@@ -27,6 +27,25 @@ case "$GAME" in
   free|FREE)             GAME="$FREE_GAME" ;;
   dxmt11|DXMT11|wine11)  GAME="$DXMT_GAME"; ERRNO_PATCHES=0; COHTML_LICENSE=0 ;;
 esac
+
+# CS2_ERRNO_PATCHES — override the target's default.
+# The six errno-tolerance mscorlib patches are skipped on the wine-11 targets because wine-11.0
+# fixed the Mono P/Invoke garbage-errno defect (docs/wine-bugs/FINDING-wine11-fixes-it.md). Not
+# every wine-11.x BUILD is clean, though: WineForge's 11.16 reintroduces it, which breaks in-game
+# mod downloads (docs/wine-bugs/FINDING-wine11.16-tradeoff.md). If you are on an engine that needs
+# them, force them back on without changing target:
+#     CS2_ERRNO_PATCHES=1 bash repatch.sh dxmt11
+# Verify which you need by running the probe in scripts/ — see docs/wine-bugs/README.md.
+# ⚠ To go BACK to the wine-11 set afterwards it is not enough to re-run without the flag: the
+#   patches are already written into mscorlib.dll. Restore the pristine backup first:
+#     cp "<game>/Cities2_Data/Managed/mscorlib.dll.bak" "<game>/Cities2_Data/Managed/mscorlib.dll"
+#     bash repatch.sh dxmt11
+# ⚠ The patch scripts take no --check/--dry flag: running one ALWAYS applies it. To inspect state
+#   without mutating, diff the DLL against its .bak.
+if [ -n "${CS2_ERRNO_PATCHES:-}" ]; then
+  ERRNO_PATCHES="$CS2_ERRNO_PATCHES"
+  echo "  (CS2_ERRNO_PATCHES=$ERRNO_PATCHES — overriding the target default)"
+fi
 [ -f "$GAME/Cities2.exe" ] || { echo "ERROR: no Cities2.exe under: $GAME"; exit 1; }
 echo "Target game dir: $GAME"
 # Derive the wine user dir from the prefix (CrossOver bottle = 'crossover', Kegworks wrapper = 'js').
