@@ -18,6 +18,20 @@
 >
 > (strip this header block first — everything below the rule is the issue body)
 
+> ### ⚖️ Upstream AI policy — checked 2026-08-22, and it governs what we may do here
+>
+> DXMT's `AGENTS.md`: *"AI must not be used to generate code for contributions to this project."*
+> `CONTRIBUTING.md` § AI Policy: *"We cannot accept contributions made or co-authored by AI/LLM...
+> **You are still free to use AI to do your own research and share your findings with others
+> (including the developers, but please don't create a PR).**"*
+>
+> So: **no PR, no AI-written patch — ever, for this project.** A code fix would have to be written by
+> a human, unaided. But filing *this* report is **explicitly the sanctioned channel** — it is research
+> shared with the developers, which the policy names as permitted. Precedent:
+> [#200](https://github.com/3Shain/dxmt/issues/200) is an AI-assisted report whose author disclosed
+> the fact up front and got a maintainer reply. **Disclosing AI assistance in the issue is the
+> honest move and matches that precedent.**
+
 **Duplicate check (2026-08-22):** searched `repo:3Shain/dxmt` for swapchain / alt-tab / fullscreen /
 focus / freeze. No open issue covers focus-loss freeze. [#48](https://github.com/3Shain/dxmt/issues/48)
 is closed prior art; [#26](https://github.com/3Shain/dxmt/issues/26) is frame pacing, not this;
