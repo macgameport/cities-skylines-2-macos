@@ -31,16 +31,25 @@ is the one the game presents into forever after. Wedged-drawable-pool theory eli
 measurement (zero `nextDrawable` waits). Windowing restores are flawless in the trace — the layer
 was broken at birth, not by the restore.
 
-**Next step — build the now-possible minimal reproducer** (no human needed: the trigger is
-programmatic, not a real focus loss): extend `scripts/focustest.c` → `scripts/minrepro.c`:
-window + swapchain + colored presents → `ShowWindow(SW_MINIMIZE)` → create swapchain #2 on the
-same HWND while minimized → `SW_RESTORE` → color-cycling presents on #2 → screencapture twice →
-static screen = repro. If it reproduces, attach to the upstream report and file (still gated on
-`gh auth login` as macgameport — James-only).
+**REPRODUCED STANDALONE 2026-08-23 (same day), and simpler than the game's trigger:**
+`scripts/minrepro3.c` + `run-minrepro3.sh` — two swapchains on one HWND, present to the OLDER one:
+completes at 120fps/S_OK, never reaches the screen (byte-identical screenshots across 6s), while
+presents to the newest chain show instantly. **No fullscreen, no minimize, no focus change
+required.** The defect: only the newest swapchain's layer on an HWND is composited; CS2 freezes
+because Unity creates a recovery swapchain on alt-tab and keeps rendering into the original.
+(`minrepro.c` v1 and `minrepro2.c` v2 are the experiment ladder — kept because their negative and
+intermediate results are cited in the report.)
 
-**Historical note:** the earlier reproducer attempt (`scripts/focustest.c`) failed only because it
-needed a *real* macOS focus loss, which automation cannot deliver to a Wine window. The measured
-trigger removes that requirement entirely.
+**Next step — FILE THE REPORT.** The draft (`docs/dxmt-bugs/DRAFT-focus-loss-freeze.md`) now
+carries: the symptom, the trace timeline, the frozen-state sample, and the standalone reproducer
+recipe with numeric measurements. Only gate left: `gh auth login --hostname github.com --web` as
+`macgameport` (James-only), then the `gh issue create` command in the draft's header. Attach
+`minrepro3.c` (it is our own diagnostic, shared as research — consistent with DXMT's AI policy;
+disclose assistance per the header).
+
+**Historical note:** the 2026-08-22 reproducer attempt (`scripts/focustest.c`) failed only because
+it assumed the trigger was a *real* macOS focus loss, which automation cannot deliver to a Wine
+window. The actual trigger (second swapchain on the same HWND) needs no focus event at all.
 
 **The report is written and ready** (`docs/dxmt-bugs/DRAFT-focus-loss-freeze.md`, now carrying the
 2026-08-22 source-level findings section), **not filed** —

@@ -441,9 +441,16 @@ nothing.
     problem; the layer's compositing link was never established at birth.
   - Explains dxmt#48's folk remedy (fullscreen toggle = fresh attach while visible = normal
     compositing) and the windowed launcher's immunity (no minimize → no swapchain recreation).
-  - **The minimal repro no longer needs a human**: the trigger is create-swapchain-while-minimized,
-    which is programmatic (`ShowWindow(SW_MINIMIZE)` → CreateSwapChain → restore → present → check
-    screen). The old wall (synthetic focus loss never reaches a Wine window) is bypassed entirely.
+  - **REPRODUCED STANDALONE same day (`scripts/minrepro3.c` + `run-minrepro3.sh`), and stripped
+    further than expected: no fullscreen, no minimize, no focus change needed.** The minimal
+    recipe: two swapchains on one HWND; presents to the OLDER one complete at full fps/S_OK but
+    never reach the screen (screenshots byte-identical across 6s of 120fps red presents); presents
+    to the newest chain show instantly. So the defect is: **only the most-recently-created
+    swapchain's layer on an HWND is composited** — each swapchain gets its own client view and the
+    newest view hides the previous one forever. CS2 freezes because Unity creates a recovery
+    swapchain on alt-tab but keeps rendering into the ORIGINAL. ⚠ v1's lesson: present to the OLD
+    chain when testing this — presenting to the new one shows nothing wrong (that false-negative
+    cost one iteration).
   - Diagnostic kit that produced this: `scripts/diag-launch-dxmt11.sh` (WINEDEBUG trace) +
     `scripts/capture-freeze.sh` run while frozen. ⚠ The canonical launcher hard-set
     `WINEDEBUG=-all` and silently ate the first diag run's trace — it now respects a caller's

@@ -12,7 +12,7 @@
 >
 > ```
 > gh issue create --repo 3Shain/dxmt \
->   --title "Exclusive fullscreen: losing window focus permanently freezes presentation (input still registers)" \
+>   --title "Presents to an HWND's non-newest swapchain are silently never composited (freezes games that recreate swapchains on alt-tab)" \
 >   --body-file docs/dxmt-bugs/DRAFT-focus-loss-freeze.md
 > ```
 >
@@ -37,7 +37,7 @@ focus / freeze. No open issue covers focus-loss freeze. [#48](https://github.com
 is closed prior art; [#26](https://github.com/3Shain/dxmt/issues/26) is frame pacing, not this;
 [#141](https://github.com/3Shain/dxmt/issues/141) is the ANGLE/CEF black window, unrelated.
 
-**Title:** `Exclusive fullscreen: losing window focus permanently freezes presentation (input still registers)`
+**Title:** `Presents to an HWND's non-newest swapchain are silently never composited (freezes games that recreate swapchains on alt-tab)`
 
 ---
 
@@ -59,10 +59,9 @@ raised another macOS app. This is the last blocking defect on an otherwise fully
 I'm glad to run experiments or test a patch.
 
 **Already tried, so nobody suggests it: `dxgi.handleAltTab = True` does not fix it** (details
-below), and **I could not build a minimal reproducer.** Details in
-"Failed reproduction attempt" below — the short version is that a small DX11 app never receives the
-focus-loss event at all, so the trigger can't be applied synthetically. The game is currently the
-only reproducer I have.
+below). **A standalone ~150-line reproducer now exists** — see "Minimal reproducer" below; it
+needs no fullscreen, no minimize, and no focus change, just two swapchains on one HWND with
+presents going to the older one.
 
 ## Environment
 
@@ -281,7 +280,50 @@ actual hardware mode change (the mode already matches). Present-time behavior is
 `macdrv` channel by design — after the one-time metal-view attach, DXMT's presentation path never
 crosses winemac again.
 
-## Failed reproduction attempt (so you don't repeat it)
+## Minimal reproducer — no game needed (2026-08-23)
+
+Following the trace, I built a standalone reproducer and then stripped it. **The freeze does not
+need fullscreen, minimize, or a focus change at all.** The minimal recipe (`scripts/minrepro3.c`
+in my repo, ~150 lines, plain windowed `WS_OVERLAPPEDWINDOW`):
+
+1. Create a window + swapchain **A** (`FLIP_SEQUENTIAL`, 2 buffers), present solid magenta → visible. ✔
+2. Create swapchain **B** on the *same HWND* (window plainly visible throughout), present cycling
+   colors on B → visible. ✔
+3. Present a red pulse on **A** again, 6 seconds at ~120fps, every `Present` returning `S_OK` →
+   **the screen never changes. It stays frozen on B's last frame** (screenshots 3s apart are
+   pixel-identical: RGB (32,126,127) both times, while A was being cleared red).
+4. Present on **B** again → live immediately.
+
+So: **on one HWND, only the most-recently-created swapchain's layer is composited. Presents to any
+older swapchain on that HWND complete successfully, at full frame rate, into a layer that is never
+shown again.** No error, no log line, nothing returned to the app.
+
+That is the game's freeze exactly. Cities: Skylines II, like many D3D11 titles, creates a second
+swapchain when it loses exclusive fullscreen (the trace shows the second
+`CreateSwapChain: unsupported swap effect 3` 600ms after the first focus loss) — but keeps
+rendering into the *original* swapchain (each later restore re-asserts fullscreen through the
+original chain — the double `Setting display mode` per cycle). From that moment its presents land
+in a hidden layer forever: input works, the sim runs, ~250% CPU, and the screen shows a stale
+frame that only refreshes once per window-order transaction.
+
+Intermediate data points from the less-stripped variants, in case they help:
+- `minrepro.c` (v1): the same two-swapchain sequence but presenting only on the *new* chain
+  afterward — no bug, because the new chain's layer is the visible one.
+- `minrepro2.c` (v2): full trace mirror (exclusive fullscreen A, self-minimize, B created while
+  minimized, DXGI fullscreen re-assert). Same result as v3, plus one more observation: after a
+  further minimize/restore cycle, presents to the *visible* chain took between 1 and 4 seconds to
+  reach the screen again (stale at +1s, live at +4s) — the window-order transaction seems to
+  re-establish compositing for the visible layer with a lag, and never for hidden ones.
+
+Where I'd look (from the outside, having read the v0.80 source): each swapchain creates its own
+metal view on the HWND (`d3d11_swapchain.cpp:134` → `CreateMetalViewFromHWND`), and on the Wine
+side the newest client view hides the previous one when it attaches; nothing ever unhides the old
+view or follows which swapchain the app is actually presenting. A single shared view per HWND, or
+flipping visibility to the presenting swapchain's view at present time, would both make the
+recipe above behave. (Stated as observations, not a patch — per your AI policy the analysis is
+mine to share and the code is yours to write.)
+
+## Failed reproduction attempt — superseded (kept so nobody repeats it)
 
 I wrote a ~150-line DX11 present loop (clear to magenta, log every frame's `Present` HRESULT and
 latency, log `WM_ACTIVATEAPP` / `WM_ACTIVATE` / `WM_KILLFOCUS` / `WM_SIZE`) and ran the matrix:
