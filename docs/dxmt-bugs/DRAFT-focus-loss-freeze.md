@@ -284,7 +284,8 @@ crosses winemac again.
 
 Following the trace, I built a standalone reproducer and then stripped it. **The freeze does not
 need fullscreen, minimize, or a focus change at all.** The minimal recipe (`scripts/minrepro3.c`
-in my repo, ~150 lines, plain windowed `WS_OVERLAPPEDWINDOW`):
+— ~150 lines, plain windowed `WS_OVERLAPPEDWINDOW`; source shared on request, and the full recipe
+is below):
 
 1. Create a window + swapchain **A** (`FLIP_SEQUENTIAL`, 2 buffers), present solid magenta → visible. ✔
 2. Create swapchain **B** on the *same HWND* (window plainly visible throughout), present cycling
@@ -357,6 +358,15 @@ DXMT's handling is the more severe of the two.
   *pacing* errors. Not this. For what it's worth I measured frame pacing on this setup and it is
   correct: `Present` at sync interval 1 gives exactly 120 fps on the 120 Hz display, and sync
   interval 2 gives 61 fps.
+
+## Disclosure
+
+This investigation was done with substantial AI assistance — the source reading, the trace
+analysis, and the reproducer iterations — following the precedent of #200, where up-front
+disclosure got a maintainer reply. Per your `CONTRIBUTING.md` AI policy I'm sharing this as
+research only: no PR, and any fix is yours to write. All measurements were taken on my machine
+and I'm glad to re-run any of them, test a build, or share the raw artifacts (trace, thread-stack
+sample, reproducer source) on request.
 
 Thanks for DXMT — it reports the real GPU where the alternative reports `AMD Compatibility Mode`,
 and it's the reason this game runs on a free stack at all.
