@@ -21,34 +21,26 @@ Wine 10 + D3DMetal misbehaves too, but more mildly (cursor desync, darkening).
 | `dxgi.handleAltTab = True` just needed enabling | **Dead.** Config provably loaded; freeze unchanged. Matches upstream's own "still broken for certain games" comment. |
 | CS2 never receives `DXGI_STATUS_OCCLUDED` because the branch is gated `SwapEffect <= SEQUENTIAL` | **Dead.** Binary-patched that comparison in the shipped `d3d11.dll` so flip-model reaches it; freeze unchanged. Reverted. |
 
-**Source dive 2026-08-22 (late) — the suspect list is now concrete** (details + `file:line` in
-`GOTCHAS.md` § alt-tab and in the draft report's "Source-level findings"; v0.80 ≡ master here):
+**MECHANISM PINNED 2026-08-23** (diag run + held freeze + thread-stack sample; full account in
+`GOTCHAS.md` § alt-tab and the draft report's "Live-freeze measurements"): only the *screen*
+freezes — the game runs at ~250% CPU, presents complete, drawables recycle, and the screen updates
+**exactly once per minimize/restore cycle**. Trigger, traced: at the first focus loss the game
+minimizes itself, then **creates a second swapchain 600ms later while the window is miniaturized
+with an empty client rect** — that swapchain's CAMetalLayer never enters live compositing, and it
+is the one the game presents into forever after. Wedged-drawable-pool theory eliminated by
+measurement (zero `nextDrawable` waits). Windowing restores are flawless in the trace — the layer
+was broken at birth, not by the restore.
 
-- Established: the swapchain **is exclusive fullscreen** (`Windowed == FALSE`) — the boot
-  `Setting display mode` line is only reachable from exclusive-fullscreen paths. The draft's open
-  question is answered.
-- Established: `dxgi.handleAltTab` is **structurally inert for a game that minimizes itself on
-  focus loss** (both reaction sites require `!window_minimized`) — explains the null result.
-- Two live mechanism candidates with **opposite fingerprints**:
-  (1) *wedged drawable pool* — `presentDrawableAfterMinimumDuration` on a never-composited layer
-  wedges the 3-drawable pool; `nextDrawable` then returns nil forever and DXMT never nil-checks →
-  silent no-op frames; near-idle CPU. (2) *orphaned layer* — the once-per-swapchain metal view gets
-  disposed/replaced by winemac across miniaturize/restore; presents "succeed" into a detached
-  layer; full-speed CPU.
+**Next step — build the now-possible minimal reproducer** (no human needed: the trigger is
+programmatic, not a real focus loss): extend `scripts/focustest.c` → `scripts/minrepro.c`:
+window + swapchain + colored presents → `ShowWindow(SW_MINIMIZE)` → create swapchain #2 on the
+same HWND while minimized → `SW_RESTORE` → color-cycling presents on #2 → screencapture twice →
+static screen = repro. If it reproduces, attach to the upstream report and file (still gated on
+`gh auth login` as macgameport — James-only).
 
-**Next step (needs James at the keyboard, ~10 min):** one diagnostic repro discriminates the two.
-
-1. `bash scripts/diag-launch-dxmt11.sh` (canonical launcher + `WINEDEBUG` macdrv/display/event
-   trace to `/tmp/cs2-diag-<ts>.log`)
-2. reach the menu, alt-tab away, come back → freeze
-3. `bash scripts/capture-freeze.sh` **while frozen** (read-only: 5s `sample`, per-thread CPU,
-   screen-static check, trace tail → `/tmp/cs2-freeze-<ts>/`)
-4. recover as usual; next session reads the artifacts and pins the mechanism
-
-**A minimal reproducer could not be built** (`scripts/focustest.c`, and see its notes in
-`scripts/README.md`): a small DX11 app never receives `WM_ACTIVATEAPP DEACTIVATED` from a synthetic
-focus change, so the trigger cannot be applied without a human at the keyboard. The game remains the
-only reproducer.
+**Historical note:** the earlier reproducer attempt (`scripts/focustest.c`) failed only because it
+needed a *real* macOS focus loss, which automation cannot deliver to a Wine window. The measured
+trigger removes that requirement entirely.
 
 **The report is written and ready** (`docs/dxmt-bugs/DRAFT-focus-loss-freeze.md`, now carrying the
 2026-08-22 source-level findings section), **not filed** —

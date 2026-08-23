@@ -44,10 +44,15 @@ is closed prior art; [#26](https://github.com/3Shain/dxmt/issues/26) is frame pa
 ## Summary
 
 In exclusive fullscreen, anything that takes focus away from the game — alt-tab, clicking another
-window, or a global hotkey raising another app — permanently stops the swapchain presenting. The
-game keeps running: it accepts input, its own logs keep advancing, the process stays healthy. The
-screen never redraws again. There is no recovery from inside the game; the session has to be ended
-with `wineserver -k`.
+window, or a global hotkey raising another app — permanently stops the swapchain's output reaching
+the screen. The game keeps running at full speed: it accepts input, simulates, autosaves, renders,
+and presents (~250% CPU sustained while "frozen"). The screen updates **exactly once per subsequent
+minimize/restore cycle** and is otherwise stuck — so the session is playable blind, one frame per
+alt-tab, but never live again. (I originally believed there was no recovery short of
+`wineserver -k`; the one-refresh-per-cycle behavior is what actually lets a frozen session be saved
+and quit.) The measured mechanism is in "Live-freeze measurements" below: a second swapchain is
+created while the window is minimized with an empty client rect, and its layer never enters live
+compositing.
 
 It has cost me two play sessions today, the second triggered by accidentally hitting a hotkey that
 raised another macOS app. This is the last blocking defect on an otherwise fully playable stack, so
@@ -215,6 +220,66 @@ winemac→DXMT enablement patch (`macdrv_view_create_metal_view` and friends, re
 (`d3d11_swapchain.cpp:134`; released only in the destructor). If winemac replaces or disposes the
 hosting view anywhere across the miniaturize/restore cycle, DXMT would keep presenting into a
 detached layer with no error — the same capture will distinguish this too.
+
+## Live-freeze measurements (2026-08-23) — the mechanism, pinned
+
+I reproduced the freeze under `WINEDEBUG=timestamp,+macdrv,+display,+event`, held it frozen, and
+captured a 5-second thread-stack `sample` plus per-thread CPU while the screen was provably static
+(two centre-screen captures 4s apart, byte-identical). Full artifacts available on request. What
+the run established, in order of importance:
+
+**1. The game only ever "freezes" its screen — nothing else.** While provably static, the process
+sustains ~250% CPU, the sim autosaves, and blind input works (I saved and quit a frozen session
+from memory of the UI). The render loop is not merely alive but *complete*: the sample shows the
+encoder thread actively encoding real draws, command buffers being submitted and completing on the
+GPU (`IOGPUCommandQueueSubmitCommandBuffers`), `presentAfterMinimumDuration` firing, and drawables
+being presented, collected, and recycled in sub-millisecond transit. **Zero threads wait in
+`nextDrawable`** (0 hits in a 65k-line sample). So my earlier "wedged drawable pool" hypothesis is
+eliminated by measurement: presents complete; the compositor just never shows them.
+
+**2. Each minimize/restore cycle yields exactly one visible refresh.** Observed live and repeated:
+alt-tab away and back, and the screen updates *once* — to a current frame — then sticks again.
+That's how a frozen session remains playable-blind. The trace shows six windowing-flawless cycles
+(`WINDOW_DID_MINIMIZE` → `WINDOW_DID_UNMINIMIZE` → `SC_RESTORE` → refocus → the game restyling
+back to borderless-popup fullscreen → a double display-mode re-assert by DXGI/DXMT ~60ms after
+focus), one of them entirely inside the proven-static window — so a *complete, correct restore does
+not resume presentation*. The one-shot refresh is the WindowServer sampling the layer's current
+surface during the window-order transaction, nothing more.
+
+**3. The trigger is a swapchain created while the window was minimized.** The trace pins the
+origin precisely. At the session's first focus loss (t+0ms `WINDOW_LOST_FOCUS`), the game — Unity's
+standard exclusive-fullscreen behavior — set `WS_MINIMIZE` and called `ShowWindow(SW_MINIMIZE)`
+within 5ms. **600ms later, while the Cocoa window was miniaturized and the win32 client rect was
+literally empty `(0,0)-(0,0)`, the game created a second swapchain** (the familiar
+`CreateSwapChain: unsupported swap effect 3 with backbuffer size 2` fired a second time), and its
+metal view/layer was attached to the window in that state. Both swapchains then stay alive until
+process exit (their client surfaces receive paired updates on every window change to the end). The
+win32 window, Cocoa window, and both metal views are never recreated — identity is stable
+throughout. Everything after that attach behaves exactly as a layer whose live-compositing path was
+never established: presents complete into it at full speed; the compositor only samples it during
+window-order transactions.
+
+**4. Why the known workaround works, and why my earlier tests failed.** A fullscreen toggle (the
+folk remedy from #48) forces a fresh swapchain transition *while the window is visible* — a normal
+attach, which composites normally. And the three hypotheses I eliminated earlier (occlusion status,
+`handleAltTab`) all operate in `Present1`'s status logic, far above this — consistent with their
+null results.
+
+**A falsifiable repro recipe follows from this** — and it removes the "needs a human at the
+keyboard" obstacle that blocked my earlier minimal reproducer, because no real focus loss is
+required: create a window + swapchain, present normally; `ShowWindow(SW_MINIMIZE)`
+*programmatically*; create a second swapchain on the same HWND while minimized (empty client
+rect); `ShowWindow(SW_RESTORE)`; present color-cycling frames on the new swapchain and check
+whether the screen updates. If the mechanism above is right, the second swapchain's output will be
+invisible except for one refresh per subsequent minimize/restore cycle. I'm building this and will
+attach results.
+
+**Environment note for interpreting the trace:** each restore produces the double
+`Setting display mode: 1920x1080@120` because the game re-asserts exclusive fullscreen twice
+(mode-set → no-op restyle + `SWP_FRAMECHANGED` → mode-set again); the display channel confirms no
+actual hardware mode change (the mode already matches). Present-time behavior is invisible to the
+`macdrv` channel by design — after the one-time metal-view attach, DXMT's presentation path never
+crosses winemac again.
 
 ## Failed reproduction attempt (so you don't repeat it)
 

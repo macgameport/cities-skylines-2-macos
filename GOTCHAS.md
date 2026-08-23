@@ -423,25 +423,31 @@ nothing.
 - **`dxgi.handleAltTab` is structurally inert for CS2**: both reaction sites
   (`d3d11_swapchain.cpp:743-744` and `:441-442`) require `!window_minimized`, and CS2 minimizes
   itself on focus loss. Explains the measured null result. Worth telling upstream.
-- **Two live mechanism candidates** for the permanent strand, with opposite fingerprints:
-  1. *Wedged drawable pool*: vsync presents use `presentDrawableAfterMinimumDuration`
-     (`dxmt_context.cpp` Present case) on a layer with `displaySyncEnabled=false`
-     (`dxmt_presenter.cpp:19`); a never-composited (miniaturized) window may never complete those
-     presents → pool (3) exhausts → `nextDrawable` returns nil forever, and DXMT never checks nil
-     (`dxmt_presenter.cpp:159-165`) → silent no-op frames. Fingerprint: near-idle CPU, encoder
-     thread in `CAMetalLayer nextDrawable` waits.
-  2. *Orphaned layer*: the metal view is created ONCE per swapchain via the winemac patch
-     (`d3d11_swapchain.cpp:134`) and cached; if winemac disposes/replaces the hosting view across
-     miniaturize/restore, presents keep "succeeding" into a detached layer. Fingerprint: full-speed
-     CPU, no blocked threads.
-  Present-status logic is exonerated (the three dead hypotheses); the game's render thread stays
-  free because frame pacing waits on GPU completion, not on-screen presentation
-  (`dxmt_command_queue.cpp:170-190`) — consistent with "input registers, logs advance".
-- **One keyboard repro discriminates them:** launch with `scripts/diag-launch-dxmt11.sh`
-  (adds `WINEDEBUG=timestamp,+macdrv,+display,+event`), reproduce the freeze, run
-  `scripts/capture-freeze.sh` while frozen (read-only: `sample`, per-thread CPU, screen-static
-  check, trace tail). Automation cannot trigger it — a Wine window never receives a synthetic
-  macOS focus loss.
+- **MEASURED 2026-08-23 (diag run + held freeze + 5s `sample`): the mechanism is pinned.**
+  - **Only the screen freezes.** Frozen process sustains ~250% CPU; sim autosaves; blind save/quit
+    works. The sample shows the COMPLETE present pipeline running: encoder encoding real draws, GPU
+    submits/completes, `presentAfterMinimumDuration` firing, drawables recycling sub-millisecond.
+    **Zero `nextDrawable` waits in 65k sample lines → the wedged-drawable-pool theory is dead.**
+  - **One visible refresh per minimize/restore cycle** (user-verified, repeatable): the WindowServer
+    samples the layer's current surface once during each window-order transaction, otherwise
+    ignores every present. This is what makes blind save/quit possible — one frame per alt-tab.
+  - **Trigger, traced to the millisecond:** at the FIRST focus loss the game (Unity standard
+    behavior) sets WS_MINIMIZE + `ShowWindow(SW_MINIMIZE)` within 5ms — then **600ms later creates
+    a SECOND swapchain while the window is miniaturized with client rect (0,0)-(0,0)** (second
+    `CreateSwapChain: unsupported swap effect 3` in the trace); its metal view/layer attaches in
+    that state and never enters live compositing. Both swapchains stay alive to process exit; the
+    win32/Cocoa window and both metal views are never recreated. Six windowing-flawless restore
+    cycles (one *inside* the proven-static window) changed nothing — the restores were never the
+    problem; the layer's compositing link was never established at birth.
+  - Explains dxmt#48's folk remedy (fullscreen toggle = fresh attach while visible = normal
+    compositing) and the windowed launcher's immunity (no minimize → no swapchain recreation).
+  - **The minimal repro no longer needs a human**: the trigger is create-swapchain-while-minimized,
+    which is programmatic (`ShowWindow(SW_MINIMIZE)` → CreateSwapChain → restore → present → check
+    screen). The old wall (synthetic focus loss never reaches a Wine window) is bypassed entirely.
+  - Diagnostic kit that produced this: `scripts/diag-launch-dxmt11.sh` (WINEDEBUG trace) +
+    `scripts/capture-freeze.sh` run while frozen. ⚠ The canonical launcher hard-set
+    `WINEDEBUG=-all` and silently ate the first diag run's trace — it now respects a caller's
+    `WINEDEBUG` (fixed 2026-08-23).
 
 **Prior art upstream:** [#48](https://github.com/3Shain/dxmt/issues/48) (closed) is the same class —
 "doesn't update screen contents unless switching fullscreen on/off" — but a different trigger, and
