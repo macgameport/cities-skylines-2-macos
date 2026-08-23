@@ -6,6 +6,21 @@ and, as far as I can tell, isn't documented anywhere else.
 
 **Status (2026-08-22):** Playable. Renders, saves, mods download *and* load.
 
+## Quick start
+
+Own the game on Steam, on an Apple Silicon Mac? Roughly 20 minutes:
+
+```bash
+git clone https://github.com/macgameport/cities-skylines-2-macos.git
+cd cities-skylines-2-macos
+bash scripts/setup.sh
+```
+
+`setup.sh` checks your prerequisites, applies the patches, and builds a double-clickable app with
+the game's own icon. You need a Wine wrapper with Steam and the game inside it first —
+**[INSTALL.md](INSTALL.md) walks through all of it**, including the one in-game setting worth
+changing (Display Mode → Fullscreen Window).
+
 ## The stack that works
 
 Two stacks work. The **Wine 11 + DXMT** one is the default since 2026-08-22 because it needs
@@ -49,7 +64,8 @@ and `docs/dxmt-bugs/`.
 
 | Path | What |
 |---|---|
-| `docs/patch-inventory.md` | **Start here.** All 17 binary patches, the bug each works around, and which upstream owns it |
+| `INSTALL.md` | **Start here to play.** Step-by-step from nothing to a working game |
+| `docs/patch-inventory.md` | All 17 binary patches, the bug each works around, and which upstream owns it |
 | `GOTCHAS.md` | Every trap hit, with root cause |
 | `CONFIG-TRIALS.md` | Config permutations tried, with outcomes |
 | `MODS-TESTING.md` | The Paradox Mods download investigation |
