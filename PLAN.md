@@ -60,7 +60,7 @@ clean, input correct, verified in-city). The freeze is neutralized for daily pla
 Fullscreen stays broken until upstream fixes #206. ⚠ After the game closes: update the launcher
 comment that recommends exclusive fullscreen (never edit launch scripts while the game runs).
 
-**Upgrade experiment (promising — James's question, 2026-08-23):** wine dev post-11.0 is actively
+**Upgrade experiment (promising, raised 2026-08-23):** wine dev post-11.0 is actively
 reworking the exact machinery the freeze lives in: `2293b0e` (2026-07-08, ~11.14+) "win32u: Keep
 unused client surfaces around and reuse them if possible" — surface REUSE could make the
 second-swapchain-hides-first defect not exist at all — and `1a1d1f3` (2026-08-04, ~11.15/16)

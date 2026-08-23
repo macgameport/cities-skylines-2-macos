@@ -257,7 +257,7 @@ a CS2 code mod can't be built here. **Only real path to sideload: copy `pdx_mods
 Mod map: Move It=74324_36 (dep: UIL), UIL=74417_17, Anarchy=74604_39, Traffic=80095_28.
 
 ### 21. Async testing: only interpret a run that POSTDATES the change
-Cost James real time this session — I twice concluded a patch "failed" (and once reverted a good one) from a **stale**
+Cost me real time this session — I twice concluded a patch "failed" (and once reverted a good one) from a **stale**
 game run that predated the patch. **Rule:** stamp each patch change in `~/cs2-patch/change-ledger.txt`; only interpret a
 run whose `Logs/SceneFlow.log` first-line timestamp is **after** the change. A run that started before = stale, draw no
 conclusion. (I can't see message send-times, so message order lies.)

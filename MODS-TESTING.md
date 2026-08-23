@@ -112,7 +112,7 @@ bottle via `cxstart` → `bootstrapper-v2.exe`; renders perfectly via D3DMetal) 
 2. **CPatch is 100% self-updater.** Its whole `cpatch.log` history (517KB) patches only `launcher-v2-bootstrapper`
    and `launcher-v2_1` under `C:\Program Files\Paradox Interactive\launcher\…`. **Zero** references to `pdx_mods`,
    the 4 mod IDs, or any mod-content op anywhere in the launcher logs. The "DownloadManager pausing pending patch
-   operations" James saw was the launcher pausing its **own bootstrapper self-update** (`bootstrapper-update-operation`),
+   operations" I saw was the launcher pausing its **own bootstrapper self-update** (`bootstrapper-update-operation`),
    not a mod patch. The Go-daemon-dodges-handle-0 premise is moot: CPatch never handles mod content.
 3. **Steam running changes ownership display but NOT mods.** Started Steam in the CO bottle (auto-login OK,
    `[U:1:<REDACTED>]` Logged On 22:16:29) and restarted the launcher AFTER. With Steam up the CS2 page flipped to
@@ -127,7 +127,7 @@ nothing on the CrossOver stack routes around it. The fix has to be a **Wine that
 or **obtain the files elsewhere (Idea 4)**. Rig kept for re-use if we ever test launcher-mod behavior on another stack.
 
 <details><summary>original Idea 0 note</summary>
-**Insight (James, 2026-07-06):** the launcher "seems to serve a purpose" — it does. The launcher's
+**Insight (2026-07-06):** the launcher "seems to serve a purpose" — it does. The launcher's
 `DownloadManager` was seen **"Pausing all pending patch operations"** the instant the game launched, and its
 download engine is **CPatch, a Go daemon**. Go/Node file I/O uses raw syscalls, **NOT .NET `FileStream`** — so it
 almost certainly **does NOT hit the handle-0 wall** that kills the in-game PdxSdk downloader. Our entire approach
@@ -137,7 +137,7 @@ almost certainly **does NOT hit the handle-0 wall** that kills the in-game PdxSd
   `launcher-v2/logs/*` (DownloadManager/CPatch) for progress. If it downloads → then launch the game with mods present.
 - Caveat only lightly checked: `cpatch.log` so far showed only launcher *self-update* ops — but the launcher log's
   "pending patch operations" strongly implies it also runs mod patches. Confirm by actually driving the launcher UI.
-- **Related setup goal (James):** get a bottle config where **Steam UI shows up / login works cleanly AND the Paradox
+- **Related setup goal:** get a bottle config where **Steam UI shows up / login works cleanly AND the Paradox
   Launcher appears** (currently we launch semi-headless / direct-exe). A normal launcher-visible flow is the natural
   way to exercise this idea. CrossOver renders CEF via D3DMetal, so Steam+launcher UI *should* be displayable here.
 </details>
@@ -183,7 +183,7 @@ a documented dead end.
 ### ☐ Idea 4 — get pdx_mods from real Windows (VM works — no GPU needed) ⭐ reliable fallback
 Guaranteed to work; the mods just need to be downloaded on real (non-Wine) Windows, then copy
 `…/Cities Skylines II/.cache/Mods/pdx_mods/<id>_<ver>/` into this bottle.
-- **VM is enough (James's idea):** you do NOT need CS2 to run/render. Install the **standalone Paradox Launcher**
+- **VM is enough:** you do NOT need CS2 to run/render. Install the **standalone Paradox Launcher**
   in a Windows VM (UTM/QEMU or Parallels on Apple Silicon — ARM Windows is fine; the launcher is an Electron app,
   no GPU/game needed), log into the Paradox account, download the 4 mods, then copy the `pdx_mods` folders to the Mac
   bottle. Low-risk, deterministic. Also handy as a **"real Windows session to test theories"** against (compare
