@@ -56,7 +56,7 @@ and `docs/dxmt-bugs/`.
 | `REFERENCES.md` | Upstream projects, recipes, sources |
 | `PLAN.md` | Roadmap / open threads |
 | `launchers/` | The one live launcher; dead-stack scripts archived with reasons |
-| `scripts/` | Minimal reproducers (see `scripts/README.md`) |
+| `scripts/` | Minimal reproducers + `make-shortcut.sh` (builds the double-clickable launcher app, icon extracted from your own `Cities2.exe`) — see `scripts/README.md` |
 
 | `patches/` | The 16 publishable binary patches + `repatch.sh`. The Wine 11 path needs 10 of them, **all present** |
 | `docs/wine-bugs/` | Ready-to-file Wine bug reports for the three root causes |
