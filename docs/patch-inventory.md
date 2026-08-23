@@ -8,7 +8,9 @@
 > **These are not bugs in this project's code.** Every entry is a workaround for a defect in
 > something else. ⚠️ **The §1 root-cause analysis below was partly disproven on 2026-08-22** — see
 > [`wine-bugs/FINDING-wine11-fixes-it.md`](wine-bugs/FINDING-wine11-fixes-it.md). Measured result:
-> **moving to Wine 11 retires 5 of the 17** (verified in-game, including a fresh mod download).
+> **moving to Wine 11 retires 7 of the 17** — the six errno-tolerance patches plus the Coherent
+> Gameface licence bypass, since Wine 11 also fixed the bcrypt defect (R3). Both verified in-game:
+> a fresh mod download, and the main menu reached with the licence bypass fully removed.
 > `patch_fshandle` is still needed there; R1 and R2 as originally stated are false.
 
 ## The three upstream root causes

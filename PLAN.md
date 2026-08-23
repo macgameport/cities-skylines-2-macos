@@ -1,6 +1,6 @@
 # Open threads
 
-Current stack: **Wine 11.0 + DXMT** (Porting Kit wrapper), default since 2026-08-22 — 11 patches
+Current stack: **Wine 11.0 + DXMT** (Porting Kit wrapper), default since 2026-08-22 — 10 patches
 instead of 17. **Wine 10 Sikarugir + D3DMetal** stays as the proven fallback. Both are playable with
 mods downloading and loading; both have working Steam clients. See `README.md` for how it works and
 `docs/patch-inventory.md` for the patch-by-patch breakdown.
@@ -12,37 +12,48 @@ the render on the default stack: input still registers, the surface never re-pre
 needs a force-kill (`wineserver -k`), which can leave a `.crash` marker that blocks the next launch.
 Wine 10 + D3DMetal misbehaves too, but more mildly (cursor desync, darkening).
 
-Two candidates, both logged by DXMT at startup, neither proven: `CreateSwapChain: unsupported swap
-effect 3` — that is `DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL` (**not** `FLIP_DISCARD`, which is 4;
-verified against `dxgi.h`) — and `MakeWindowAssociation: Ignoring flags 3`, where flags 3 is
-`NO_WINDOW_CHANGES | NO_ALT_ENTER`, i.e. the game asking to own focus transitions and being ignored.
+**Three hypotheses are eliminated, each with evidence** (full table in
+`docs/dxmt-bugs/DRAFT-focus-loss-freeze.md`):
 
-No open upstream issue covers focus-loss freeze (searched 2026-08-22; [#48](https://github.com/3Shain/dxmt/issues/48)
-is closed prior art). A report is drafted at `docs/dxmt-bugs/DRAFT-focus-loss-freeze.md` and **not
-filed** — its checklist wants a minimal reproducer from `scripts/dxtest.c` first, which would make
-it far stronger. That is the highest-value next move; it is the main thing between this stack and
-"just works". Interim: use the windowed launcher when you need to switch away, and don't click out
-of fullscreen.
+| hypothesis | verdict |
+|---|---|
+| The `unsupported swap effect 3` warning means a degraded fallback swapchain | **Dead.** Cosmetic — `d3d11_swapchain.cpp:1114` logs it and builds the same swapchain regardless. |
+| `dxgi.handleAltTab = True` just needed enabling | **Dead.** Config provably loaded; freeze unchanged. Matches upstream's own "still broken for certain games" comment. |
+| CS2 never receives `DXGI_STATUS_OCCLUDED` because the branch is gated `SwapEffect <= SEQUENTIAL` | **Dead.** Binary-patched that comparison in the shipped `d3d11.dll` so flip-model reaches it; freeze unchanged. Reverted. |
 
-Second thing worth posting upstream: [#141](https://github.com/3Shain/dxmt/issues/141) (Steam CEF
+Remaining suspect is deeper than `Present1`'s status logic — the presenter / Metal-layer restore path
+when the window is minimised and restored.
+
+**A minimal reproducer could not be built** (`scripts/focustest.c`, and see its notes in
+`scripts/README.md`): a small DX11 app never receives `WM_ACTIVATEAPP DEACTIVATED` from a synthetic
+focus change, so the trigger cannot be applied without a human at the keyboard. The game remains the
+only reproducer.
+
+**The report is written and ready** (`docs/dxmt-bugs/DRAFT-focus-loss-freeze.md`), **not filed** —
+blocked only on authenticating `gh` as `macgameport`. ⚠️ **DXMT forbids AI-authored contributions**
+(`AGENTS.md`, `CONTRIBUTING.md` § AI Policy): no PR, no generated code, but AI-assisted research
+shared with the developers is explicitly permitted. So this goes up as prose + measurements, with
+the assistance disclosed, and a human writes any fix.
+
+Interim workaround: don't switch away from fullscreen; use the windowed launcher when you must.
+
+**Second thing worth posting upstream:** [#141](https://github.com/3Shain/dxmt/issues/141) (Steam CEF
 black window, ANGLE `EGL_BAD_ALLOC`, open) **does not reproduce** on DXMT v0.80 + wine-11.0 here —
-Steam's UI renders, purchases and downloads work. That is a useful negative result for a still-open
-issue.
+Steam's UI renders, purchases and DLC downloads work. A useful negative result on a still-open issue.
 
-## Highest value: fix it upstream in Wine
+## ✅ Retired: "fix it upstream in Wine"
 
-Three Wine defects account for **11 of the 17** patches. Fixing any of them upstream retires
-patches for every macOS user, not just this machine. Reproducers are in `scripts/` and run under
-the game's exact Unity Mono **without launching the game**, which makes them directly attachable to
-a bug report.
+**This was the top item for months. All three root causes are now resolved, none of them by us
+filing anything.** Kept as a record of how it ended:
 
-| ID | Defect | Retires |
+| ID | Defect | Outcome |
 |---|---|---|
-| **R1** | `GetLastError` returns garbage after file APIs — on success *and* on the failure return, so callers can't distinguish "not found" from a real error | 8 patches |
-| **R2** | `CreateFile` returns handle `0` for a **valid** open file; .NET's `SafeHandleZeroOrMinusOneIsInvalid` then judges it invalid | 2 patches |
-| **R3** | `BCryptVerifySignature` fails on valid ECDSA signatures | 1 patch — and it is the only patch with a licensing problem, so fixing R3 removes that issue entirely |
+| **R1** | `GetLastError` garbage after file APIs | **Fixed upstream in Wine 11.0** — measured 2026-08-22. Retires 6 patches. The bug was never in `kernel32`; bug [60220](https://bugs.winehq.org/show_bug.cgi?id=60220) blamed the wrong layer and was correctly closed INVALID. It is Mono's P/Invoke last-error capture. |
+| **R2** | `CreateFile` returns handle `0` for a valid file | **Disproven.** 3200 concurrent opens, short and long paths, both Wine versions — never once (`scripts/handletest.c`, `scripts/longpathw.c`). The handle-0 symptom is real but arises elsewhere; `patch_fshandle` is still needed. |
+| **R3** | `BCryptVerifySignature` fails on valid ECDSA | **Fixed upstream in Wine 11.0** — measured 2026-08-22 by reverting the Coherent Gameface licence bypass entirely and reaching the main menu with zero licence errors. This retires the one patch that could not be published. |
 
-**Not filed yet.** This is the single most useful thing left to do.
+Consequence: **every patch the default stack needs is published in this repo.** Nothing is left to
+file against Wine.
 
 ## Report upstream to Paradox
 
