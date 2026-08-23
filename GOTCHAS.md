@@ -364,12 +364,35 @@ Wine 10 + D3DMetal logged 3 (4 mods → 2 + keybinds). None of the reported GUID
 Wine's handle-0 defect makes a *not-found* open indistinguishable from an *invalid handle*, so the
 first read of an absent settings file surfaces as an IO error rather than "no file, use defaults".
 
-**Cosmetic and self-clearing.** Symptoms: ⚠ badges on a mod's Options panel (KEYBINDS / ANARCHY /
-TRAFFIC) and an exception dialog on exit. **Open that mod's settings once** — the file gets written
-and its error never returns. Don't debug this as a patch failure: verify `fshandle` is applied
-(4 differing bytes vs `mscorlib.dll.bak`), then count mods lacking a `.coc`; if the numbers match,
-it is this. `fshandle` remains necessary — it fixes reads of files that *do* exist, which is why
-keybinds persist at all.
+**Cosmetic.** The visible symptom is an exception dialog on exit. Don't debug it as a patch failure:
+verify `fshandle` is applied (4 differing bytes vs `mscorlib.dll.bak`), then count mods lacking a
+`.coc`; if the numbers match, it is this. `fshandle` remains necessary — it fixes reads of files
+that *do* exist, which is why keybinds persist at all.
+
+⚠️ **Two corrections to earlier versions of this entry, both measured 2026-08-22:**
+
+1. **"Open the mod's settings once and the error clears" is FALSE.** Viewing a panel writes nothing;
+   the `.coc` appears only when a setting is actually *changed*. A whole session spent in those
+   panels produced no new files.
+2. **The ⚠ badges are NOT this bug.** They are **keybinding conflicts**, and they have nothing to do
+   with Wine, DXMT or the port — the same mods do this on Windows. The disproof is on disk:
+
+   | mod | has `.coc`? | ⚠ badge? |
+   |---|---|---|
+   | Traffic | **yes** | **yes** |
+   | Move It | yes | no |
+   | Anarchy | no | **yes** |
+   | Easy Zoning · Unified Icon Library | no | no |
+
+   Missing-file and badge don't correlate at all. What *does* explain it is the binding state:
+   `Traffic.coc` holds three actions (`RemoveIntersectionConnections`, `RemoveUTurnConnections`,
+   `RemoveUnsafeConnections`) all with an **empty `m_Path`** — unbound. `MoveIt.coc` holds exactly
+   one key, `"HasShownMConflictPanel": true` — its M-key conflict was acknowledged, so no badge. And
+   `Settings.coc` → `Keybinding Settings` holds three **vanilla** shortcuts, also unbound: Map Tile
+   Purchase Panel, Relocate Selected Object, Toggle Selected Object Active.
+
+   **Fix it in Options → KEYBINDS by assigning keys** (or accepting the mod's conflict panel). This
+   is game configuration, not a port defect — don't chase it through Wine.
 
 ## Alt-tab still freezes the game — presentation, NOT refresh rate (2026-08-22)
 
