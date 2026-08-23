@@ -103,6 +103,7 @@ one does report a miss, please open an issue.
 | Black screen with a working cursor | The Coherent Gameface UI fix didn't apply. Re-run `bash scripts/setup.sh` and check its patch output. |
 | Mods won't download ("Preparing 2%", IO errors) | You're on Wine 10 rather than Wine 11, or the patches aren't applied. Wine 11 fixes the underlying bug — check the wrapper's engine. |
 | Screen freezes after alt-tab | Exclusive Fullscreen. Switch to Fullscreen Window (see step 5). |
+| "IOEXCEPTION — Failed to read settings file with GUID ... Invalid handle to path [Unknown]" | **Cosmetic — press Continue.** The game asks for optional settings files that were never created; on Wine an absent file surfaces as an invalid handle instead of a clean not-found, so the game shows its error dialog. Your settings are still applied and saved. Most common right after changing graphics options or at boot. |
 | Mods show a ⚠ badge | Keybinding conflicts, not a port problem — same on Windows. Options → Keybinds. |
 | Second display goes black | Refresh-rate mismatch. Match both displays' refresh rates. |
 
