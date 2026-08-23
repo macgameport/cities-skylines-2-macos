@@ -124,6 +124,20 @@ both the null result above and the total absence of fullscreen logging. If you c
 look for (or point me at a debug build/env var that logs the swapchain's fullscreen state), I'll
 measure it and report back.
 
+**Three hypotheses tested and eliminated on this machine (2026-08-22).** Recording these so the
+search space is smaller for whoever looks next:
+
+| # | hypothesis | how it was tested | result |
+|---|---|---|---|
+| 1 | The `unsupported swap effect 3` warning means a degraded fallback swapchain | read `d3d11_swapchain.cpp:1114` | **Not a factor.** The warning is cosmetic — the same `MTLD3D11SwapChain` is constructed regardless of swap effect. |
+| 2 | `dxgi.handleAltTab` simply needed enabling | set it via `DXMT_CONFIG`, confirmed loaded (`Found config env`, logged by both modules), played and alt-tabbed | **Freeze unchanged.** Matches the inline comment "still broken for certain games". |
+| 3 | CS2 never gets `DXGI_STATUS_OCCLUDED` because the branch is gated `SwapEffect <= SEQUENTIAL`, and that missing signal is what strands it | binary-patched the shipped `d3d11.dll`, widening that compiled comparison (`cmp dword ptr [rdi+0x80], 2` + `setl`) so flip-model swapchains reach the same branch; verified in the disassembly; alt-tabbed | **Freeze unchanged.** The missing occlusion signal is not the cause. Patch reverted. |
+
+Hypothesis 3 deliberately contradicted MSDN (flip-model swapchains are not supposed to receive
+`OCCLUDED`) purely to see whether the absent signal mattered. It did not, so whatever strands the
+game is further down — in how the Metal layer / presenter handles the window being minimised and
+restored, rather than in the `Present1` status logic.
+
 **2. The app asks DXGI not to manage window transitions, and the request is ignored:**
 
 ```
