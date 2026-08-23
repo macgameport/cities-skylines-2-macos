@@ -4,7 +4,12 @@ Field notes from getting **Cities: Skylines II** running on an **M3 Max / macOS 
 fully free stack, **including working in-game Paradox Mods downloads** — which was the hard part
 and, as far as I can tell, isn't documented anywhere else.
 
-**Status (2026-08-22):** Playable. Renders, saves, mods download *and* load.
+**Status (2026-08-23):** Playable. Renders, saves, mods download *and* load.
+
+![Cities: Skylines II running on macOS via Wine + DXMT](docs/images/cs2-on-macos.png)
+
+*The game on macOS 26 (M3 Max), x86-64 under Rosetta, rendering through Metal via DXMT — 42.7 FPS
+at 1080p. The overlay is Metal's own performance HUD, enabled with `CS2_HUD=1`.*
 
 ## Quick start
 

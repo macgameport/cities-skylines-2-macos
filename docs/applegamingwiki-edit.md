@@ -66,7 +66,7 @@ OS: macOS 26.5.2
 Method: Porting Kit Wine 11.0 + DXMT v0.80, patches from cities-skylines-2-macos
 Game version: 1.6.0f1
 Resolution: 1920 x 1080 @ 120Hz Fullscreen Window
-Framerate: 34 FPS (1080p, Medium preset, Depth of Field and Motion Blur off)
+Framerate: 42.7 FPS (1080p, Custom: Volumetrics/Shadows/Reflections Low, DoF and Motion Blur off)
 ```
 
 ## Proposed change 2 — qualify the existing Wine (Whisky) row
