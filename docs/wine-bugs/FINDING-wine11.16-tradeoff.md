@@ -1,4 +1,11 @@
-# wine 11.16: fixes the alt-tab freeze, breaks file IO again
+# wine 11.16: fixes the alt-tab freeze. Upstream is clean — one *build* breaks file IO
+
+> **Read the conclusion first (settled 2026-08-23):** stock wine 11.16, compiled from source, is
+> clean. The file-IO regression documented below belongs to **WineForge's build**, not to Wine.
+> A DXMT engine on a clean 11.16+ base is strictly better than wine 11.0 for this game.
+
+The investigation below is kept in the order it happened, because the intermediate steps are the
+evidence for the conclusion.
 
 **Measured 2026-08-23** against WineForge 0.6.0.3 (`wine-11.16 (WineForge 0.6.0.3)` + DXMT v0.80),
 using the same probe that produced [`measurement-wine11.0.txt`](measurement-wine11.0.txt): CS2's own

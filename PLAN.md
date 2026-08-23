@@ -69,11 +69,17 @@ than ours (`v0.80` vs `v0.80-17-g79f6279`), so the fix is on the Wine side — a
 surfaces around and reuse them if possible"*, which landed in **11.16, not 11.15**. Reported to
 [dxmt#206](https://github.com/3Shain/dxmt/issues/206).
 
-**What this means for this project:** moving to a wine-11.16+ DXMT engine should eliminate the
-alt-tab freeze entirely and make exclusive Fullscreen usable again (which would also let macOS Game
-Mode engage — the HUD shows it Off in borderless). Not done yet: switching engines means
-re-validating the 10-patch stack on 11.16, since only the Mono errno and bcrypt fixes are known to
-carry over. Fullscreen Window remains the recommended setting until that validation happens.
+**Validated the same day — the upgrade is de-risked.** Stock wine 11.16, compiled from source
+here, passes the file-IO probe clean (44 OK / 7, zero garbage errno — identical to 11.0 and 11.15),
+so the 10-patch stack stays 10 on a clean 11.16 base; only WineForge's build regresses it
+(`docs/wine-bugs/FINDING-wine11.16-tradeoff.md`). So a DXMT engine on a clean 11.16+ base is
+strictly better than wine 11.0: alt-tab freeze gone, exclusive Fullscreen usable again, macOS Game
+Mode eligible (the HUD shows it Off in borderless), same patch count.
+
+**Standing action:** when Porting Kit (or anyone) ships a DXMT engine on 11.16+, run the probe once
+against it before switching — `scripts/monohost.exe` + `scripts/filetest_net.exe`, see
+`docs/wine-bugs/README.md`. 44 OK / 7 means switch; anything else means `CS2_ERRNO_PATCHES=1`.
+Until such an engine exists, wine 11.0 + Fullscreen Window remains the recommendation.
 
 **Local-fix options — likely unnecessary now that Fullscreen Window is immune; kept for reference** (neither violates DXMT's AI policy — that governs
 contributions to *their* repo, not what runs on this machine): (a) binary-patch the engine's
