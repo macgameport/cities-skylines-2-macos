@@ -19,3 +19,14 @@ Root cause: PK dylibs have pathless install names. Fix: pin ac_cv_lib_soname_{fr
 Plan §4 updated in the same session.
 
 G0: PASS
+
+== Build + assembly (pass 1) — 2026-08-23 ==
+gmake -j12 install: first run FAILED at fonts/ (sfnt2fon: "dyld: Library not loaded:
+libfreetype.dylib" — build tools hit the pathless install name). Re-run with
+DYLD_FALLBACK_LIBRARY_PATH=$PKLIB: exit 0. Deviation folded into plan §4.
+Assembly per §5: wine64 symlink, 4 DXMT files overlaid (winemetal.so 51.8MB;
+d3d11/dxgi/winemetal dlls), PK dylibs copied, gecko+mono copied, version file written.
+Self-check: bin/wine64 --version = wine-11.16. OUR winemac.so EXPORTS _macdrv_functions
+(dyld_info: 0x59560) — the aquadran shim is live; both DXMT binding paths available.
+NOTE: no engine .so LINKS freetype/gnutls — wine dlopen()s the bare sonames at runtime, so
+raw (non-launcher) runs need DYLD_FALLBACK_LIBRARY_PATH=<engine>/lib. Folded into plan §6.

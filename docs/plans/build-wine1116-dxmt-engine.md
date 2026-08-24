@@ -113,7 +113,10 @@ grep -n 'enable_winemac_drv' config.log | tail -1                               
 Record these lines into `docs/wine-bugs/measurement-engine1116.txt` (§11). Then:
 
 ```bash
-PATH="/opt/homebrew/opt/bison/bin:$PATH" gmake -j12 install   # ~25 min (measured for this config)
+PATH="/opt/homebrew/opt/bison/bin:$PATH" DYLD_FALLBACK_LIBRARY_PATH="$PKLIB" \
+  gmake -j12 install   # ~25 min (measured). The DYLD var is REQUIRED (found at build, 2026-08-23):
+#   build-time tools (sfnt2fon) link the pathless freetype install name and die with
+#   "dyld: Library not loaded" during fonts/ otherwise.
 ```
 
 If the build fails inside `dlls/winemac.drv`, the patch's field references no longer match
@@ -169,6 +172,8 @@ which is what makes G3 meaningful):
 ```bash
 export CS2_WINE=/tmp/engine-1116/bin/wine64 CS2_PREFIX=$HOME/.e1116-prefix
 export WINEESYNC=1 WINEMSYNC=1                  # match the launcher's environment
+export DYLD_FALLBACK_LIBRARY_PATH=/tmp/engine-1116/lib   # wine dlopen()s the pathless sonames
+#   (freetype/gnutls/MoltenVK) — inside the wrapper the launcher sets this; raw runs must too
 mkdir -p "$HOME/.e1116-prefix/drive_c/Program Files (x86)/Steam/steamapps/common"
 ln -s "$HOME/Applications/CS2dxmt11.app/Contents/SharedSupport/prefix/drive_c/Program Files (x86)/Steam/steamapps/common/Cities Skylines II" \
       "$HOME/.e1116-prefix/drive_c/Program Files (x86)/Steam/steamapps/common/Cities Skylines II"
