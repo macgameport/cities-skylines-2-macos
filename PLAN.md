@@ -103,7 +103,9 @@ were verified on this machine.
 a clean 11.16+ base, probe it, switch. Zero effort, unknown timeline.
 
 **Path B: build the engine ourselves** from the stock 11.16 already compiled here — no LLVM/DXMT
-toolchain burden, because the DXMT binaries are copied, not rebuilt.
+toolchain burden, because the DXMT binaries are copied, not rebuilt. **CHOSEN 2026-08-23 (James):
+build now, validate on a cloned wrapper.** The full implementation plan is
+`docs/plans/build-wine1116-dxmt-engine.md` — gate: run `check it` on it before building.
 
 Verified 2026-08-23 (all measured on this machine, none assumed):
 
