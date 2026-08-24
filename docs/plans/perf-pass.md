@@ -115,14 +115,11 @@ T+60s→T+90s** after load — lower-bounded windows sample different in-game we
 record in-game date/time + weather per row and discard readings during a visible weather
 transition). Record min/typ/max, not a glance.
 
-**Instrument-validation cell (P0, before any row counts):** settle the HUD-capture question
-empirically — the check pass found `MTL_HUD_LOGGING_ENABLED` in Apple materials but NOT in this
-macOS's Metal binaries (which do carry an undocumented `MTL_HUD_PATH`). Probe, in one throwaway
-launch each as needed: `MTL_HUD_LOGGING_ENABLED=1` + `log stream --predicate 'eventMessage
-CONTAINS "metal-HUD"'`, and `MTL_HUD_PATH=<dir>`. Whatever produces machine-readable samples
-becomes the stats instrument; if nothing does, the fallback IS the protocol: HUD-eyeball
-min/typ/max over the fixed window, stated per row. Do not let a cell depend on an instrument M0
-didn't demonstrate.
+**Instrument-validation cell — RESOLVED (measured 2026-08-24, see results doc):** Apple HUD
+post-hoc logging is dead under Wine on macOS 26 (`MTL_HUD_LOGGING_ENABLED` emits nothing;
+`MTL_HUD_PATH` writes nothing). The benchmark's own per-frame series is the primary stats
+instrument; daily-scene readings fall back to HUD-eyeball min/typ/max over the fixed window,
+stated per row.
 
 **Standing run rules:**
 - One lever per launch; DXMT config is read once per process — no in-session toggling.

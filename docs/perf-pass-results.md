@@ -34,6 +34,16 @@ after the settings pin (autonomous, cheap).
 (39.3–44.3, ~11%) — GPU-lever verdicts on this scene need either a delta beyond that spread or
 more samples per cell.
 
+## Instrument validation (plan §2 cell) — RESOLVED 2026-08-24
+
+One probe cycle with `MTL_HUD_LOGGING_ENABLED=1` + `MTL_HUD_PATH=<dir>` set: the path dir stayed
+**empty** and the unified log shows **zero** `metal-HUD` samples — Apple's HUD post-hoc logging
+is **dead under Wine on macOS 26** (the check pass's binary-scan lens was right; the tech-talk
+documentation does not apply here). Verdict: **the benchmark's own per-frame series is the
+primary stats instrument** (strictly better anyway); daily-scene readings fall back to
+HUD-eyeball min/typ/max over the fixed window, stated per row. The probe's benchmark result
+(22.68 avgFps, gpuMs 41.6) sits inside the floor band — the HUD vars don't perturb measurements.
+
 ## Lever cells
 
 | lever | value | load-verified? | reading (R-bench) | verdict | notes |
