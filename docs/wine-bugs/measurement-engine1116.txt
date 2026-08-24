@@ -106,3 +106,18 @@ DXMT custom metric confirms fork build v0.80-17-g79f627 rendering.
 PUBLISH DECISION (James): ship the build path -> scripts/build-engine-1116.sh + INSTALL §6.
 Still pending: more V4 cycles (Cmd-Tab variant), V2 log diff, V7 second display, V8 save/load,
 V9 borderless flip, V6b boot-clean, V10 registry grep, isolation measurement.
+
+== PROMOTION — 2026-08-23 ~23:0x ==
+Isolation measurement (§11.4): exactly 1 file in the old daily wrapper newer than the clone
+timestamp — a JetBrains Toolbox .settings.json touched by setup.sh's idempotent repatch pass
+(known repatch step); zero unexplained modifications. The G1 control run was plan-prescribed.
+Rename swap executed with zero live processes:
+  CS2dxmt11.app -> CS2dxmt11-pk110.app   (old wine 11.0 stack, parked; retirement decision
+                                          after ~1 week per plan §8.1)
+  CS2e1116.app  -> CS2dxmt11.app         (self-built stock 11.16 + DXMT, validated tonight,
+                                          carries the session's saves + Move It state)
+V10 dissolved by construction: the prefix's absolute font-registry paths now resolve into the
+new wrapper, whose engine ships the fonts (marlett.ttf verified present).
+Dock shortcut regenerated via make-shortcut.sh --hud: CS2_QUIET=1 CS2_HUD=1 -> canonical
+launcher -> auto-detects CS2dxmt11.app = the new engine. No hand-edited files.
+Next dock-icon launch doubles as V6b (boot with Move It enabled) + V2 (log diff).
