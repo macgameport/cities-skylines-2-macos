@@ -14,6 +14,9 @@
 #   CS2_QUIET=1                        no terminal expected: milestones become macOS
 #                                      notifications, failures become alert dialogs
 #   WINEDEBUG=...                      respected if set (scripts/diag-launch-dxmt11.sh uses it)
+#   CS2_ARGS="..."                     extra Cities2.exe arguments (e.g. -benchmark for the
+#                                      perf-pass measurement cells; unquoted expansion, so
+#                                      multiple space-separated args work)
 set -u
 
 # ---------------------------------------------------------------- locate the wrapper
@@ -57,7 +60,9 @@ export WINE="$SS/wine/bin/wine64"
 export WINEPREFIX="$SS/prefix"
 export PATH="$SS/wine/bin:$PATH"
 export DYLD_FALLBACK_LIBRARY_PATH="$APP/Contents/Frameworks:$SS/wine/lib:/usr/lib:/usr/local/lib"
-export WINEESYNC=1 WINEMSYNC=1 WINEDEBUG="${WINEDEBUG:--all}"
+# (WINEESYNC/WINEMSYNC removed 2026-08-23: stock winehq wine has never shipped esync/msync —
+#  whole-source-tree grep, zero hits. They were Porting-Kit habit and did nothing here.)
+export WINEDEBUG="${WINEDEBUG:--all}"
 
 # CS2_HUD=1 — Metal's performance HUD (FPS, frame time, GPU time), plus DXMT's own stat lines
 # (commit/sync/encode/render breakdown), since DXMT publishes into the same _CADeveloperHUDProperties
@@ -142,7 +147,7 @@ fi
 #    presentation freeze (dxmt#206); exclusive Fullscreen presents into a hidden swapchain after
 #    you switch away, and the screen then only updates once per alt-tab.
 note "Launching Cities: Skylines II (Wine 11 + DXMT)…"
-"$WINE" "$GDIR/Cities2.exe"
+"$WINE" "$GDIR/Cities2.exe" ${CS2_ARGS:-}
 GAME_RC=$?
 
 # 4) Graceful shutdown, scoped to THIS wrapper. NEVER kill -9 — that leaves a 0-byte .crash marker
