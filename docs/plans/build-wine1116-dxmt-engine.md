@@ -224,7 +224,14 @@ cp -R /tmp/engine-1116 "$HOME/Applications/CS2e1116.app/Contents/SharedSupport/w
   double-click keeps using the old stack during validation).
 - **Patch state:** verify by byte-diff, never by re-running patchers (one-way trap):
   `cmp -l` of the clone's `mscorlib.dll` vs `mscorlib.dll.bak` → exactly 4 bytes at `0x1668c4`.
-- First boot updates the clone's prefix to 11.16 (expected, one-time).
+- **Run the one-time prefix update CONTROLLED, before the first launcher run** (deviation found
+  live 2026-08-23): launching straight into the launcher wedged for 15+ minutes — the 11.16
+  prefix update fires the wine-mono updater dialog during Steam's `-silent` boot with nowhere
+  visible to present, and everything queues behind it (symptom: an idle
+  `rundll32 …InstallHinfSection… wine.inf` process, Steam at 0% CPU, launcher times out with a
+  misleading "token expired" error). Recovery = clone-scoped `wineserver -k`, then:
+  `WINEPREFIX=<clone>/prefix WINEDLLOVERRIDES="mscoree=;mshtml=" DYLD_FALLBACK_LIBRARY_PATH=<clone>/wine/lib <clone>/wine/bin/wine64 wineboot -u`
+  — completes in ~15 s. Then launch normally.
 - Record the baseline before first clone boot: the daily wrapper's current `SceneFlow.log`
   path + timestamp (V2 diffs against it), and clone-creation time (§11's isolation measurement).
 

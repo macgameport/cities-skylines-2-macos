@@ -82,3 +82,10 @@ CS2e1116.app/Contents/SharedSupport/wine -> wine.pk11.0-BAK (rollback = one mv)
 version file = "wine stock 11.16 + DXMT (self-built)", 86 dylibs in lib/.
 SMOKE LADDER COMPLETE: G0 G1 G2 G3 G4 ALL PASS, zero waivers.
 Next: §7 V-session (human-driven game validation on the clone).
+
+== V-session deviation #1 — 2026-08-23 ==
+First launcher run on the clone wedged pre-login: the one-time 11.16 prefix update spawned the
+wine-mono updater dialog invisibly (Steam -silent boot), rundll32 wine.inf sat at 0% CPU for
+15+ min, launcher timed out with the (misleading) token-expired error. Recovery: wineserver -k
+(clone-scoped) + controlled wineboot -u with WINEDLLOVERRIDES="mscoree=;mshtml=" -> completed in
+15.6 s. Plan §7 updated to make the controlled pre-boot a standing step. Relaunching.
