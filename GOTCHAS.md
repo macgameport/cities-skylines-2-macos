@@ -605,3 +605,16 @@ closed, backup taken, one surgical value swap, functional verification):
   → verify → restore per cell). Menu label ↔ file value mappings are enums/floats, e.g. the menu's
   "AMD FidelityFX Super Resolution 1.0" saves as `upscaleFilter: "EdgeAdaptiveScaling"` (Unity's
   EASU name); other filter enums: CatmullRom, ContrastAdaptiveSharpen, TAAU.
+
+## Steam Play button / Paradox Launcher — re-tested 2026-08-24: runs now, still doesn't deliver a game
+
+The historical claim ("routes via the Paradox Launcher and exits before Unity initialises") is
+stale in mechanism: on the 11.16 stack, `steam.exe -applaunch 949230` (the Play-button path) now
+boots the full launcher — bootstrapper → `Paradox Launcher.exe` v2.2026.6 → Chromium UI window +
+settings + update checks. It then dies on its own IPC: `cpatch took too long to connect`,
+`set-auth-token command timed out`, `Socket server is not connected` (launcher-v2 logs under
+`AppData/Local/Paradox Interactive/launcher-v2/logs/`). Unattended outcome unchanged: no game.
+Community reports (M4, presumably CrossOver/Whisky-lineage Wine) of Play "just working" are
+plausible — different Wine, different localhost-socket behavior — and do not replicate on stock
+Wine 11.16. Direct `Cities2.exe` launch remains this stack's reliable path. Open question: does
+the launcher's window render + does its own Play work when clicked (needs an attended try).

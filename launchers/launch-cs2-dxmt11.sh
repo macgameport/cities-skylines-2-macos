@@ -2,8 +2,9 @@
 # CS2 launcher — Wine 11 + DXMT wrapper. The recipe, in order:
 #   patches -> Steam up + logged in -> licence sync -> Cities2.exe DIRECTLY -> graceful shutdown.
 #
-# Steam's "Play" button does NOT work: it routes via the Paradox Launcher and exits before Unity
-# initialises. Launching the exe directly is the whole trick.
+# Steam's "Play" button does NOT deliver a game on this stack: the Paradox Launcher now boots
+# fully (re-tested 2026-08-24) but its cpatch/socket IPC times out under stock Wine — see
+# GOTCHAS § Steam Play button. Launching the exe directly is still the whole trick.
 #
 # Install it with `bash scripts/setup.sh` (copies this, repatch.sh and patches/ into ~/cs2-patch/,
 # because macOS TCC blocks .app bundles from executing scripts inside ~/Documents).
