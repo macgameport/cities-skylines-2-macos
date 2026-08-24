@@ -68,3 +68,17 @@ V2 baseline: daily SceneFlow.log = <prefix>/.../Cities Skylines II/Logs/SceneFlo
 V6 fixture note: Move It is ALREADY installed in the daily wrapper (MoveIt.coc present), so the
 clone inherits it — V6 becomes unsubscribe -> resubscribe in-game, which exercises the
 PrepareFolderForPatching recursive-delete path more directly than a fresh download.
+
+== G4 (32-bit PE, pass 2) — 2026-08-23 ==
+Pass-2 build (i386,x86_64): configure + gmake install exit 0; i386-windows = 1083 files.
+DXMT re-overlaid on both arches after install (install refreshes stock dlls — §5 note).
+errtest32.exe (i686-w64-mingw32-gcc, verified PE32 Intel 80386) on the new engine:
+9/9 correct, 0 WRONG.
+G4: PASS. No i386 waiver needed.
+
+== Engine swap into the clone — 2026-08-23 ==
+CS2e1116.app/Contents/SharedSupport/wine -> wine.pk11.0-BAK (rollback = one mv)
+/tmp/engine-1116 copied in as wine/: bin/wine64 --version = wine-11.16,
+version file = "wine stock 11.16 + DXMT (self-built)", 86 dylibs in lib/.
+SMOKE LADDER COMPLETE: G0 G1 G2 G3 G4 ALL PASS, zero waivers.
+Next: §7 V-session (human-driven game validation on the clone).
