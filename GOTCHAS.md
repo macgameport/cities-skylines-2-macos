@@ -618,3 +618,16 @@ Community reports (M4, presumably CrossOver/Whisky-lineage Wine) of Play "just w
 plausible — different Wine, different localhost-socket behavior — and do not replicate on stock
 Wine 11.16. Direct `Cities2.exe` launch remains this stack's reliable path. Open question: does
 the launcher's window render + does its own Play work when clicked (needs an attended try).
+
+## Visible Steam UI black-windows on 11.16 — intermittent, dxmt#141-class; silent flow unaffected (2026-08-24)
+
+Starting Steam WITHOUT `-silent` to click the Play button produced fully black CEF windows —
+process healthy and logged in underneath, repaint (minimize/restore, resize) did NOT fix it, and
+`-cef-disable-gpu-compositing` did NOT fix it either. This revises the V1 "dxmt#141 does not
+reproduce" note: the library rendered fine on 2026-08-23, black on 2026-08-24 — the CEF
+black-window class is **intermittent** here, not absent. The daily stack never hits it because
+the launcher runs Steam `-silent` (tray only) and launches `Cities2.exe` directly. Consequences:
+(a) any attended test needing the visible Steam UI (e.g. clicking Play to drive the Paradox
+Launcher) is unreliable — parked; (b) any future dxmt#141 upstream comment must say
+"intermittent", not "does not reproduce". Teardown from a black-window state: plain
+`steam.exe -shutdown` works — the UI being black doesn't wedge the process.
