@@ -113,20 +113,25 @@ in the handler, or wrap in `finally`.
   `WINE_SIMULATE_WRITECOPY` patch (armed, in-binary, still blank) · msync/writecopy env probes on
   PK (renders with both off) · module transplants PK→stock (window stack: still blank; core/DXMT:
   crashes) · `--in-process-gpu` (Electron: breaks startup; Steam: filters the flag).
-  Mechanism (supported; crossblit visual judge pending next unlock): winemac window surfaces are
-  per-process, so Chromium's cross-process viz→browser-HWND paints never reach the screen —
-  X11 doesn't have this problem (server-side drawables), CrossOver-lineage builds carry support
-  for it, and dxmt#141's cross-process-swapchain wall is the GPU-path twin.
+  **Mechanism CONFIRMED by elimination (evening, post-unlock):** Chromium's software
+  presentation is broken on ALL winemac engines (PK's `--disable-gpu` run is byte-identically
+  white; crossblit shows cross-process GDI lost on both engines) — **PK renders CEF solely
+  because its GPU path works** (ANGLE→D3D11→DXMT presenting cross-process via vendor plumbing
+  spanning winemac/win32u/wineserver). Stock fails the GPU path, falls back to software, hits
+  the same floor. One defect family: dxmt#141 + dxmt#183 + every white window measured here.
   - ✅ **Standing workaround: two wrappers.** Play on `CS2dxmt11` (11.16), Steam UI on
     `CS2dxmt11-pk110` — **do not delete pk110.**
   - ▶ **Queued mini-project (needs own plan):** port the enabling vendor support into the 11.16
     engine, starting from public winecx source (CrossOver's shared window-surface machinery).
     Heavy; only if the two-wrapper split starts to chafe.
-  - ▶ **Queued on next unlock (minutes):** crossblit screen judge on stock vs PK · rerun the two
-    display-lock-voided in-process-gpu pixel cells. Driver + evidence: `~/cs2-patch/bisect/`,
-    GOTCHAS § "Embedded Chromium NEVER rendered on stock Wine".
-  - Upstream: dxmt#141 comment is now worth writing — the evidence (stock-wine sweep + PK
-    delta + mechanism) is well beyond what's on the thread. dxmt#206 game-level report still owed.
+  - ✅ Post-unlock cells all ran 2026-08-24 evening — mechanism closed (GOTCHAS § "Mechanism
+    CONFIRMED by elimination"). Driver: `~/cs2-patch/bisect/`.
+  - **dxmt#206 (our alt-tab freeze issue) was closed by the maintainer as a duplicate of
+    dxmt#183** (ANGLE white-window, winemac Metal-view lifetime) — same family. The game-level
+    11.16 confirmation we owed #206 would now go to #183, if anywhere.
+  - Upstream: dxmt#141 comment now has a complete evidence set (vendor-vs-stock sweep,
+    software-path failure parity, transplant interlock) — **drafting/posting awaits James's
+    explicit go-ahead** (public action).
 
 - **Fullscreen-toggle cursor desync** — ⚠ *observed on wine 11.0; NOT re-tested on the promoted
   11.16 engine.* Toggling fullscreen ↔ windowed mid-session dropped the game out of exclusive

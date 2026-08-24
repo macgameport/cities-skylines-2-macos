@@ -810,3 +810,35 @@ because winlist is display-independent). Before trusting any capture-based verdi
 full screen once and eyeball it — the all-black/lock-screen frame is unmistakable. `caffeinate
 -u -t 3` wakes the display, but a locked session stays locked (never enter credentials — park
 visual work until the user unlocks).
+
+## Mechanism CONFIRMED by elimination (2026-08-24 evening): cross-process PRESENTATION is the wall; PK wins only via its GPU path
+
+Final round of measured cells (post-unlock), which corrects the "mechanism model" line in the
+previous section — the model said PK carries generic cross-process surface support; it does not:
+
+| cell | result |
+|---|---|
+| `crossblit.c` judge: cross-process GDI FillRect into a foreign window | **lost on BOTH engines** — stock AND PK stay pure green (in-process control paints fine). Cross-process `GetPixel` readback returns CLR_INVALID everywhere |
+| child-process census during white-window state (stock) | identical healthy 5-process tree as PK's rendered state, zero churn — nothing is crashing; frames are produced and never presented |
+| launcher `--disable-gpu` on stock 11.16 | white (18369 B) |
+| launcher `--disable-gpu` on **PK** | **white, byte-identical 18369 B** — PK's software path is exactly as dead as stock's |
+
+**The collapsed story, every 2026-08-24 measurement consistent:**
+1. Chromium's software presentation (viz-composited frames → browser HWND) is broken on **all**
+   winemac engines. That is the floor everyone stands on.
+2. **PK renders CEF solely because its GPU path works**: ANGLE → D3D11 → DXMT presents
+   cross-process through vendor plumbing (spanning winemac/win32u/wineserver — which is why
+   module transplants into stock blanked or crashed; the machinery does not travel in pieces).
+3. Stock engines fail the GPU path (wined3d/dead-GL without DXMT; `0xC0000409` fastfail with
+   DXMT — dxmt#141's "cross-process swapchain not supported yet… upstream Wine limitation"),
+   fall back to software, and hit floor (1): white/black window over healthy processes.
+4. One defect family across dxmt#141 (Steam CEF black), dxmt#183 (ANGLE white window — whose
+   author traced winemac's unrefcounted per-window Metal-view lifetime; dxmt#206, our alt-tab
+   freeze, is now closed as its duplicate), and every white Electron/CEF window measured here.
+
+**Consequences, final:** no flag can fix Steam on stock-lineage engines (software mode hits the
+same wall; Steam filters the useful flags anyway). The only real fix for a single-engine setup
+is cross-process presentation support in the engine (CX-lineage port or upstream work) — the
+queued mini-project. Until then the two-wrapper split stands. Upstream: this evidence set
+(vendor-vs-stock sweep, software-path parity of failure, transplant interlock) is precisely what
+dxmt#141 lacks; comment pending James's go-ahead.
