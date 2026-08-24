@@ -114,6 +114,11 @@ in the handler, or wrap in `finally`.
 
 ## Known-unresolved, low severity
 
+- **Steam's visible UI black since the ~Aug-2026 CEF update** — mechanism measured (ANGLE-on-
+  Vulkan version failure; D3D11 path crashes 0xC0000409), full workaround ladder exhausted;
+  game/silent flow unaffected. **Queued fix: MoltenVK dylib update in the engine** (own plan when
+  picked up). Evidence + ladder: GOTCHAS. Upstream-worthy for dxmt#141.
+
 - **Fullscreen-toggle cursor desync** — ⚠ *observed on wine 11.0; NOT re-tested on the promoted
   11.16 engine.* Toggling fullscreen ↔ windowed mid-session dropped the game out of exclusive
   fullscreen (a macOS title bar appeared); render resolution and window geometry stopped matching

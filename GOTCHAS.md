@@ -631,3 +631,26 @@ the launcher runs Steam `-silent` (tray only) and launches `Cities2.exe` directl
 Launcher) is unreliable — parked; (b) any future dxmt#141 upstream comment must say
 "intermittent", not "does not reproduce". Teardown from a black-window state: plain
 `steam.exe -shutdown` works — the UI being black doesn't wedge the process.
+
+## Steam's visible UI is BROKEN since the ~Aug-2026 CEF update — mechanism pinned, fix queued (2026-08-24)
+
+Follow-up to the "intermittent dxmt#141-class" entry above — no longer intermittent, and the
+mechanism is now measured. Steam's updated CEF initializes its GPU process on **Vulkan**:
+`ANGLE Requires a minimum Vulkan instance` → `Internal Vulkan error (-9): The requested version
+of Vulkan is not supported` → SwANGLE fallback fails the same probe → `Exiting GPU process` →
+every Steam window is black (`logs/cef_log.txt` in the Steam dir). Our winevulkan → PK-era
+x86_64 MoltenVK dylib reports too old an instance version. Full fix-ladder tried and dead:
+repaint/resize · `-cef-disable-gpu-compositing` · client unpin + current build ·
+htmlcache clear + `-cef-disable-gpu` · `--use-angle=d3d11` (flag DOES forward; Vulkan errors
+vanish but the GPU process then crashes 0xC0000409 on the ANGLE→D3D11→DXMT path).
+
+- **The game is unaffected** — the daily flow runs Steam `-silent` (tray only) and never renders
+  this UI. Purchases/library management need another device or the queued fix.
+- **Queued fix (own mini-project + plan): drop a newer x86_64 MoltenVK dylib into the engine** so
+  winevulkan reports a modern Vulkan instance — likely also what differentiates the CrossOver/
+  Whisky users who report Steam rendering fine (newer MoltenVK lineage).
+- Secondary upstream lead: the 0xC0000409 ANGLE-on-D3D11 crash is DXMT-relevant evidence for
+  dxmt#141 (stronger than anything currently on the thread).
+- `steam.cfg` update pin (`BootStrapperInhibitAll`, a dead experiment's leftover) removed
+  permanently — parked as `steam.cfg.disabled-20260824`. Re-pinning now would freeze a broken
+  state; unpinned is the healthy default.
