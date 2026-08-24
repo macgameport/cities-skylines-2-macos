@@ -708,6 +708,9 @@ occluded windows, so it beats the hardcoded `-R x,y,w,h` regions the older captu
 too (a partly-covered Messages window returned 252 KB of real content while the 1280x800 Steam
 window returned a byte-identical 22980 across three separate runs = uniform black).
 
+## ⚠ SUPERSEDED same day (see next section): the "11.0 → 11.16 regression" attribution below was
+## disproven by a three-version stock sweep — stock 11.0 is ALSO blank. Kept for the measurements.
+
 ## Steam's black UI is a wine 11.0 → 11.16 REGRESSION, not a CEF/MoltenVK problem (2026-08-24 PM)
 
 Settled by a controlled A/B against the parked `CS2dxmt11-pk110.app`. **Supersedes the two
@@ -754,3 +757,56 @@ can hold a Steam resident simultaneously.
 **Next step is a bisect, not more theory:** `scripts/build-engine-1116.sh` builds a sha-pinned
 stock engine in ~1 hr and 11.0 → 11.16 is 16 releases, so binary search is ~4 builds. Gate each
 build on `grep -c 'exit_code=-1073740791' cef_log.txt` — machine-readable, no eyeballing.
+
+## Embedded Chromium NEVER rendered on stock Wine here — the PK vendor patchset is the enabler (2026-08-24 PM-2)
+
+The afternoon's controlled program (three stock builds + env probes + patch test + module
+transplants; driver `~/cs2-patch/bisect/`, results ledger `/tmp/bisect/results.log` while it
+lives) settles the causal chain and **supersedes the version-regression attribution above**:
+
+| cell | result |
+|---|---|
+| stock 11.0 / 11.15 / 11.16, identical configure, fresh-prefix launcher gate | **all BLANK, byte-identical captures** |
+| PK 11.0 (vendor), same gate | RENDERED, repeatedly |
+| PK + `WINE_SIMULATE_WRITECOPY=0` / `WINEMSYNC=0` | still RENDERED — neither is the enabler |
+| stock 11.16 + Proton writecopy patch, env-armed, verified in binary | still BLANK |
+| stock 11.0 + PK's win32u/winemac/user32/gdi32 transplanted | still BLANK |
+| stock 11.0 + PK core (ntdll+wineserver) or + DXMT payload transplants | unstable/crashes — vendor modules interlock |
+| `--in-process-gpu`: Electron (any engine) | breaks startup, no window — Electron dropped the flag |
+| `--in-process-gpu`: Steam on the daily engine | **filtered, not forwarded** (webhelper children unchanged, same crash ladder) |
+
+**Facts that anchor the diagnosis:**
+- The PK engine is a **Gcenx vendor build from a private tree** (`wine-private` paths in its
+  binaries), carrying at least: Proton-lineage `WINE_SIMULATE_WRITECOPY` (env/Battle.net-keyed —
+  measured NOT active for our apps), the mach-semaphore msync patchset, and CrossOver-lineage
+  `CX_LIBVULKAN` code in win32u. Its winemac.drv carries NO DXMT patch (PK wires DXMT another way).
+- Config omission ruled out: fresh same-flag configures of 11.0/11.16 have config.h parity; all
+  86 dylibs + DXMT binaries md5-identical between engines; module manifest deltas reconciled to
+  upstream restructuring or non-graphics `--without` flags.
+
+**Mechanism (supported, final visual proof pending):** Chromium's viz/software compositor paints
+the browser's HWND **cross-process**; on winemac, GDI window surfaces are per-process, so a
+foreign process's blit lands in its own shadow surface and never reaches the screen — on X11 the
+drawable is server-side, which is why Linux never sees this. Same wall as dxmt#141's
+"cross-process swapchain unsupported (upstream Wine limitation)" on the GPU path.
+`scripts/crossblit.c` measures the naked primitive (green in-process paint vs red cross-process
+paint, judged from the macOS side) — **its screen judge is queued on the next unlock**, along
+with reruns of the two in-process-gpu pixel cells voided by the display lock (below).
+
+**Consequences:** the fix is porting the relevant CrossOver/vendor support into the 11.16 engine
+(own mini-project — start from public winecx source, find the shared-window-surface machinery),
+or living with the two-wrapper split (play on `CS2dxmt11`, Steam UI on `CS2dxmt11-pk110` —
+which remains **do-not-delete**). No amount of Steam/CEF flags can bridge it: Steam filters the
+relevant Chromium switches (`--disable-gpu`, `--in-process-gpu`); `--use-angle` it forwards.
+
+## screencapture goes silently blind when the display sleeps/locks (2026-08-24)
+
+Mid-experiment the display slept and later showed the lock screen: `screencapture -l <id>` fails
+("could not create image from window"), region captures write nothing, and a full-screen capture
+returns an all-black frame — while **CGWindowList keeps working** (winlist still enumerates
+windows correctly). Any pixel-based cell that ran in that state is VOID, not negative: two
+`--in-process-gpu` pixel cells were discarded this way (their "no window" verdicts survived only
+because winlist is display-independent). Before trusting any capture-based verdict, capture the
+full screen once and eyeball it — the all-black/lock-screen frame is unmistakable. `caffeinate
+-u -t 3` wakes the display, but a locked session stays locked (never enter credentials — park
+visual work until the user unlocks).

@@ -26,6 +26,7 @@ for w in info {
     let owner = w[kCGWindowOwnerName as String] as? String ?? "?"
     let name  = w[kCGWindowName  as String] as? String ?? ""
     let num   = w[kCGWindowNumber as String] as? Int ?? -1
+    let pid   = w[kCGWindowOwnerPID as String] as? Int ?? -1
     let layer = w[kCGWindowLayer  as String] as? Int ?? -1
     var wd = 0, ht = 0, x = 0, y = 0
     if let b = w[kCGWindowBounds as String] as? [String: Any] {
@@ -34,5 +35,5 @@ for w in info {
         x  = (b["X"]      as? NSNumber)?.intValue ?? 0
         y  = (b["Y"]      as? NSNumber)?.intValue ?? 0
     }
-    print("id=\(num) layer=\(layer) owner=\(owner) size=\(wd)x\(ht) at=\(x),\(y) title=\(name)")
+    print("id=\(num) pid=\(pid) layer=\(layer) owner=\(owner) size=\(wd)x\(ht) at=\(x),\(y) title=\(name)")
 }

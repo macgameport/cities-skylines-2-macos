@@ -75,8 +75,9 @@ P4 late-game CPU cells (M0-L baseline + job-worker-count/allocator boot.config l
 P5 ship (README numbers + wiki draft after the profile verdict). Out of scope unchanged
 (DXMT rebuild, alternative layers, Rosetta experiments) — and the MoltenVK
 dylib update is **cancelled** (2026-08-24 PM: the A/B against pk110 disproved it outright; see
-Known-unresolved: Steam UI). What replaces it is a **wine 11.x bisect** for the Chromium
-GPU-process regression, if and when Steam's UI on the daily wrapper is worth ~4 engine builds.
+Known-unresolved: Steam UI). What replaces it is the **vendor-patch port
+mini-project** (see Known-unresolved: Steam UI) — the bisect ran 2026-08-24 PM and found no
+version regression to bisect; stock Wine never rendered embedded Chromium here.
 
 ## ✅ Retired: "fix it upstream in Wine"
 
@@ -103,30 +104,29 @@ in the handler, or wrap in `finally`.
 
 ## Known-unresolved, low severity
 
-- **Steam's visible UI black — SOLVED as a diagnosis 2026-08-24 PM: it is a wine 11.0 → 11.16
-  REGRESSION**, not the CEF update, not MoltenVK, not DXMT presentation. Controlled A/B against the
-  parked `CS2dxmt11-pk110.app` with every other variable *verified* identical (DXMT d3d11/dxgi byte
-  sizes, `libMoltenVK.dylib`, Steam client `-buildid=1785799196`, steam.exe/steamui.dll mtimes):
-  **Steam renders fully and interactively on 11.0 and is uniform black on stock 11.16.** Mechanism:
-  Chromium's GPU process fastfails `0xC0000409` ×3 per browser start, before ANGLE logs anything —
-  the Vulkan-version error previously recorded as the root cause is only what the 4th fallback hits.
-  **Engine-wide, not Steam-specific:** the Paradox Launcher (separate Electron app, different
-  Chromium, no SDL) crashes identically in the same prefix.
-  - ❌ **MoltenVK update: cancelled.** Disproven twice — the same dylib renders Steam fine on 11.0,
-    and `-cef-disable-gpu` on 11.16 removes Vulkan from the path with no change in symptom.
-  - ❌ **The HWND-presentation theory: also wrong.** Surfaces composite fine on 11.16 (launcher
-    window comes through white; the game's own window captures 3.4 MB).
-  - ✅ **Workaround available today: keep `CS2dxmt11-pk110.app`, do not delete it.** Play on
-    `CS2dxmt11` (11.16), shop/manage library on `CS2dxmt11-pk110` (11.0). Both can hold a Steam
-    resident at once.
-  - ▶ **Next: bisect, don't theorise.** `scripts/build-engine-1116.sh` builds a sha-pinned stock
-    engine in ~1 hr; 11.0 → 11.16 is 16 releases so binary search is ~4 builds. Gate on
-    `grep -c 'exit_code=-1073740791' cef_log.txt` — machine-readable, no eyeballing. Own plan when
-    picked up.
-  - Evidence: GOTCHAS § "Steam's black UI is a wine 11.0 → 11.16 REGRESSION" +
-    `docs/wine-bugs/FINDING-wine11.16-tradeoff.md` § "Second regression". The 11.16 promotion is now
-    a measured trade-off (faster + no alt-tab freeze, costs every embedded-Chromium UI), not a
-    strict win. dxmt#141 is **not** our bug — do not post the earlier "intermittent" comment.
+- **Steam's visible UI black — DIAGNOSIS FINAL (2026-08-24 PM-2): embedded Chromium has NEVER
+  rendered on stock Wine on this Mac; the Porting Kit engine renders it because of its VENDOR
+  PATCHSET.** The same-day "wine 11.0 → 11.16 regression" reading was disproven by a three-version
+  stock sweep (11.0/11.15/11.16, identical configure, all blank, byte-identical) — the operative
+  variable in the original A/B was PK-vendor-vs-stock, not the version. Build-config omissions
+  ruled out (config.h parity, md5-identical shared binaries). Measured dead as fixes: Proton
+  `WINE_SIMULATE_WRITECOPY` patch (armed, in-binary, still blank) · msync/writecopy env probes on
+  PK (renders with both off) · module transplants PK→stock (window stack: still blank; core/DXMT:
+  crashes) · `--in-process-gpu` (Electron: breaks startup; Steam: filters the flag).
+  Mechanism (supported; crossblit visual judge pending next unlock): winemac window surfaces are
+  per-process, so Chromium's cross-process viz→browser-HWND paints never reach the screen —
+  X11 doesn't have this problem (server-side drawables), CrossOver-lineage builds carry support
+  for it, and dxmt#141's cross-process-swapchain wall is the GPU-path twin.
+  - ✅ **Standing workaround: two wrappers.** Play on `CS2dxmt11` (11.16), Steam UI on
+    `CS2dxmt11-pk110` — **do not delete pk110.**
+  - ▶ **Queued mini-project (needs own plan):** port the enabling vendor support into the 11.16
+    engine, starting from public winecx source (CrossOver's shared window-surface machinery).
+    Heavy; only if the two-wrapper split starts to chafe.
+  - ▶ **Queued on next unlock (minutes):** crossblit screen judge on stock vs PK · rerun the two
+    display-lock-voided in-process-gpu pixel cells. Driver + evidence: `~/cs2-patch/bisect/`,
+    GOTCHAS § "Embedded Chromium NEVER rendered on stock Wine".
+  - Upstream: dxmt#141 comment is now worth writing — the evidence (stock-wine sweep + PK
+    delta + mechanism) is well beyond what's on the thread. dxmt#206 game-level report still owed.
 
 - **Fullscreen-toggle cursor desync** — ⚠ *observed on wine 11.0; NOT re-tested on the promoted
   11.16 engine.* Toggling fullscreen ↔ windowed mid-session dropped the game out of exclusive

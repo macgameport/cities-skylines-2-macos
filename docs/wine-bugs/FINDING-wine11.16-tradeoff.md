@@ -194,3 +194,33 @@ eyeballing required.
 (purchases, library, settings) on this machine. Play on `CS2dxmt11` (11.16 — faster, no alt-tab
 freeze); shop on `CS2dxmt11-pk110` (11.0). Both can hold a Steam resident at once — scope any
 process check on the parent (`pgrep -f "<App>.app.*steam.exe"`), never on `steamwebhelper.exe`.
+
+---
+
+# Third correction (2026-08-24 PM-2): there is no version regression — stock Wine never rendered CEF
+
+The "Second regression" section above attributed the blank Chromium UIs to the 11.0 → 11.16
+window. A same-day controlled program disproved that: **three stock builds (11.0, 11.15, 11.16)
+from sha-recorded winehq tarballs, identical configure flags, all show the identical blank
+Electron/CEF window** in a clean-room gate (token-stripped Steam + Paradox Launcher in a
+disposable prefix; per-window captures attributed by owner PID). The working column of the A/B
+table above was never "wine 11.0" — it was **Gcenx's Porting Kit vendor build** (its binaries
+carry `wine-private` build paths, the Proton `WINE_SIMULATE_WRITECOPY` hack, the msync
+patchset, and CrossOver `CX_LIBVULKAN` code), and one or more of its out-of-tree patches is
+what makes embedded Chromium render on macOS.
+
+Measured dead ends, so nobody retries them: the writecopy patch ported onto stock 11.16 and
+env-armed (still blank; and PK renders with it disabled, so it isn't PK's enabler either) ·
+PK-module transplants into stock (window-stack family: still blank; ntdll/wineserver or DXMT
+payload: unstable — vendor modules interlock) · `--in-process-gpu` (Electron: no window at all;
+Steam: filters the flag — 10 gpu-process children spawned regardless, nothing forwarded).
+
+Working mechanism model (visual confirmation via `scripts/crossblit.c` pending): winemac's
+per-process GDI window surfaces mean Chromium's cross-process viz→browser-HWND presentation
+never reaches the screen; X11 escapes via server-side drawables; CrossOver-lineage trees carry
+cross-process surface support; dxmt#141's cross-process-swapchain limitation is the GPU-path
+face of the same wall.
+
+Practical state, unchanged: **play on the 11.16 engine, use the PK wrapper for Steam's UI, keep
+`CS2dxmt11-pk110.app` indefinitely.** The trade-off table's "renders on 11.0" row should be
+read as "renders on the PK vendor build."
