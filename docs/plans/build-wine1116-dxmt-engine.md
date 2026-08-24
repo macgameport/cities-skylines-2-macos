@@ -89,8 +89,17 @@ PATH="/opt/homebrew/opt/bison/bin:$PATH" \
   FREETYPE_CFLAGS="-I/opt/homebrew/opt/freetype/include/freetype2" \
   FREETYPE_LIBS="-L$PKLIB -lfreetype" \
   GNUTLS_CFLAGS="-I/opt/homebrew/opt/gnutls/include" \
-  GNUTLS_LIBS="-L$PKLIB -lgnutls"
+  GNUTLS_LIBS="-L$PKLIB -lgnutls" \
+  ac_cv_lib_soname_freetype=libfreetype.dylib \
+  ac_cv_lib_soname_gnutls=libgnutls.dylib
 ```
+
+The two `ac_cv_lib_soname_*` cache vars are required, not optional (**found at G0, 2026-08-23**):
+PK's dylibs carry pathless install names, and configure's soname extraction then captures a whole
+`otool -L` line — tab, version parenthetical and all — into `SONAME_LIBFREETYPE`/`_LIBGNUTLS`.
+Wine would `dlopen()` that garbage at runtime and silently lose fonts + schannel, the exact
+failure this gate exists to catch. Bare names are correct: the launcher's
+`DYLD_FALLBACK_LIBRARY_PATH` resolves them against the engine's `lib/`, same as PK's own engine.
 
 **GATE G0 — configure prints no summary table; verify from its outputs, and STOP on failure:**
 

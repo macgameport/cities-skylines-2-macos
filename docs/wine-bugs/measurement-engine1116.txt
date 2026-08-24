@@ -1,0 +1,21 @@
+Engine: stock wine 11.16 + aquadran DXMT patch + PK DXMT binaries (self-built)
+Plan: docs/plans/build-wine1116-dxmt-engine.md  ·  entries appended per gate as executed
+
+== G0 (configure, pass 1: x86_64-only) — 2026-08-23 ==
+invocation: docs/plans §4 verbatim (incl. the two ac_cv_lib_soname_* cache vars)
+exit=0
+
+include/config.h:
+  #define SONAME_LIBFREETYPE "libfreetype.dylib"
+  #define SONAME_LIBGNUTLS "libgnutls.dylib"
+  #define SONAME_LIBMOLTENVK "libMoltenVK.dylib"
+grep -c winemac Makefile: 242 (driver in the build)
+configure warnings: zero schannel/gnutls lines; remaining notices are Linux-only subsystems
+  (EGL/Wayland/sane/va/gphoto/pulse/FFmpeg/alsa/OSS/udev/capi) — expected on macOS.
+
+DEVIATION FOUND AND FOLDED: first configure run (without the cache vars) captured polluted
+sonames — a full otool -L line per lib ("\tlibfreetype.dylib (compatibility version 27.0.0...)").
+Root cause: PK dylibs have pathless install names. Fix: pin ac_cv_lib_soname_{freetype,gnutls}.
+Plan §4 updated in the same session.
+
+G0: PASS
