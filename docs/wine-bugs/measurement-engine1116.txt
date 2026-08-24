@@ -56,3 +56,15 @@ Identical to the wine-11.0 and stock-11.15/11.16 baselines.
 G3: PASS.
 
 Pass-1 smoke ladder complete: G0+G1+G2+G3 all PASS. Pass 2 (i386,x86_64) building; G4 after.
+
+== §7 pre-boot state — 2026-08-23 ==
+Clone: CS2e1116.app created (97 GB APFS clone, cp exit 0, zero stderr); clone timestamp file
+/tmp/cs2-clone-timestamp recorded for the §11.4 isolation measurement.
+Clone patch state: cmp -l mscorlib vs .bak = exactly 4 bytes at 1468613-1468616 (fshandle) —
+identical to the daily wrapper. 10-patch state confirmed, no patcher run.
+Launcher fix synced via setup.sh (installed == repo, line 93 carries CS2_GAME_DIR; .bak kept).
+V2 baseline: daily SceneFlow.log = <prefix>/.../Cities Skylines II/Logs/SceneFlow.log
+(NOTE: Logs/ subdir — the CLAUDE.md table points at the parent dir), mtime Aug 23 19:56:40 2026.
+V6 fixture note: Move It is ALREADY installed in the daily wrapper (MoveIt.coc present), so the
+clone inherits it — V6 becomes unsubscribe -> resubscribe in-game, which exercises the
+PrepareFolderForPatching recursive-delete path more directly than a fresh download.
