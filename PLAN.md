@@ -44,8 +44,8 @@ intermediate results are cited in the report.)
 report (trace timeline, frozen-state sample, standalone reproducer recipe with numeric verdicts),
 with AI assistance disclosed per their policy. Authored by the personal account — the "needs
 macgameport auth" premise was a misunderstanding (macgameport is an org, not an account). Standing
-state: **watch #206 for maintainer response**; offer to run experiments / test builds / share
-`minrepro3.c` source on request (repo currently private). No PR, ever — any fix is theirs to write.
+state: **watch #206 for maintainer response**; offer to run experiments / test builds on
+request (`minrepro3.c` source since shared — repo is public). No PR, ever — any fix is theirs to write.
 
 **Historical note:** the 2026-08-22 reproducer attempt (`scripts/focustest.c`) failed only because
 it assumed the trigger was a *real* macOS focus loss, which automation cannot deliver to a Wine
@@ -92,6 +92,70 @@ LLVM-15 toolchain burden. Both are next-session work if wanted.
 **Second thing worth posting upstream:** [#141](https://github.com/3Shain/dxmt/issues/141) (Steam CEF
 black window, ANGLE `EGL_BAD_ALLOC`, open) **does not reproduce** on DXMT v0.80 + wine-11.0 here —
 Steam's UI renders, purchases and DLC downloads work. A useful negative result on a still-open issue.
+
+## Bring the stack up on wine 11.16 — the plan (feasibility verified 2026-08-23)
+
+The freeze fix is upstream in 11.16 and stock 11.16 probes clean, but nobody ships a clean-base
+11.16 DXMT engine yet. Two paths; A costs nothing, B is fully specified below and its unknowns
+were verified on this machine.
+
+**Path A (the standing action above):** wait for Porting Kit (or anyone) to ship a DXMT engine on
+a clean 11.16+ base, probe it, switch. Zero effort, unknown timeline.
+
+**Path B: build the engine ourselves** from the stock 11.16 already compiled here — no LLVM/DXMT
+toolchain burden, because the DXMT binaries are copied, not rebuilt.
+
+Verified 2026-08-23 (all measured on this machine, none assumed):
+
+- **aquadran's "DXMT support" winemac patch applies clean to 11.16** — dry-run, 9/9 files, zero
+  fuzz. Preserved at `scripts/wineandaqua-dxmt.patch` (was only in volatile /tmp). Its `C_ASSERT`s
+  turn struct-layout drift into a compile error rather than a runtime mystery.
+- **The toolchain is already installed:** the probe build's configure found and used a real PE
+  cross-compiler (`x86_64-w64-mingw32-gcc`); brew has bison, freetype, gnutls.
+- **No ffmpeg/gstreamer needed:** the PK engine's `winedmo.so`/`winegstreamer.so` link dylibs the
+  bundle does not contain — they cannot load today, so the working baseline runs without them.
+- **steam.exe is 64-bit** (PE32+); the only PE32 binaries are off-path helpers (uninstaller,
+  crash reporters, fossilize). Build `--enable-archs=i386,x86_64` anyway to match PK.
+- **The 10 patches are engine-independent** (they live in the game's `mscorlib`), and stock 11.16
+  already probed 44 OK / 7 — the stack stays 10 patches.
+- **Open question — PK's DXMT binding.** Upstream DXMT finds winemac via
+  `dlsym("macdrv_functions")` with a bare-symbol fallback, but the PK engine exports NONE of those
+  symbols (dlopen/dlsym probed: all NULL) and its DXMT is a fork build (`v0.80-17-g79f6279`,
+  commit not upstream). Whatever glue PK uses is undocumented — so PK's DXMT binaries on a stock
+  build are a test, not a given. The hedge is half-proven by WineForge (an 11.16 winemac serving
+  DXMT v0.80 presents): our winemac carries the aquadran patch, try PK's fork binaries first, and
+  fall back to WineForge's plain-v0.80 DXMT binaries (their *wine* was the broken half, not their
+  DXMT; DMG sha256 is in the ledger).
+
+Ladder (one session to bootable, one to validated; rollback at every step = `mv` the .BAK back):
+
+1. **Recon on the current engine (5 min):** `DXMT_LOG_LEVEL=debug WINEDEBUG=+macdrv` run of
+   `scripts/run-minrepro3.sh` — log which path creates the metal view; says whether the winemac
+   patch is load-bearing at all.
+2. **Build:** re-configure the 11.16 source with the full set — drop `--disable-winemac-drv
+   --without-freetype --without-gnutls`, keep `--host=x86_64-apple-darwin` and
+   `CC="clang -arch x86_64"`, switch to `--enable-archs=i386,x86_64`, brew bison + gmake — apply
+   the patch, build ~45–60 min. (⚠ the /tmp build tree and source do not survive a reboot; the
+   tarball is re-downloadable.)
+3. **Assemble in PK layout:** `bin/wine64` + `bin/wineserver`, `lib/wine/{x86_64-unix,
+   x86_64-windows,i386-windows}`, copy the PK engine's bundled dylibs (freetype, gnutls, brotli,
+   MoltenVK, SDL2), drop in the DXMT binaries (`d3d11.dll`, `dxgi.dll`, `winemetal.dll`,
+   `winemetal.so`, + i386 PE variants).
+4. **Smoke ladder, in order:** minrepro3 (binding works + freeze fix present) → errtest (9/9) →
+   monohost + filetest_net (**gate: 44 OK / 7, zero garbage errno**).
+5. **Game, on a safety copy:** APFS-clone the wrapper (`cp -c`, near-free) or `.BAK` the `wine/`
+   dir (the `wine.sikarugir10-BAK` pattern). The prefix updates in place on first boot. Then:
+   Steam login → city load → **exclusive fullscreen + alt-tab** (the point) → in-game Paradox
+   Mods download (the §11 `ClearFolderAndKeepPatchFile` path) → Game Mode on the HUD + FPS
+   exclusive-vs-borderless → second-display/refresh-rate check → save/load.
+6. **Promote + docs:** flip the wrapper default, update the launcher's display-mode comment
+   (exclusive fullscreen becomes recommendable again — edit only with the game closed), update
+   README/INSTALL/GOTCHAS/this file, report the working combination on dxmt#206, and decide:
+   publish a build-engine script so strangers can follow, or keep the public recommendation at
+   PK 11.0 + borderless until a public engine exists.
+
+Payoff beyond the freeze: exclusive fullscreen returns → macOS **Game Mode** becomes eligible
+(the HUD shows it Off in borderless) — measure it at step 5.
 
 ## ✅ Retired: "fix it upstream in Wine"
 
