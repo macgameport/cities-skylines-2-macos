@@ -654,3 +654,56 @@ vanish but the GPU process then crashes 0xC0000409 on the ANGLE→D3D11→DXMT p
 - `steam.cfg` update pin (`BootStrapperInhibitAll`, a dead experiment's leftover) removed
   permanently — parked as `steam.cfg.disabled-20260824`. Re-pinning now would freeze a broken
   state; unpinned is the healthy default.
+
+## Steam black UI is NOT the Vulkan failure — reboot retest disproves the queued MoltenVK fix (2026-08-24 PM)
+
+Supersedes the mechanism in the section above on two points. James rebooted the Mac and asked for
+a retest; four launch configurations were measured, each with its own `cef_log.txt` (kept in the
+prefix as `logs/cef_log.E{0..3}-*.txt`). Window state judged per-window, not by eye — see the
+capture method below.
+
+**1. The reboot changes nothing.** E0 (stock `steam.exe -no-cef-sandbox`) reproduces the
+pre-reboot log line for line. Not stale GPU state, not intermittent: deterministic.
+
+**2. The failure ORDER was recorded backwards.** The GPU process does not "initialize on Vulkan"
+first. It hard-crashes `exit_code=-1073740791` (0xC0000409) **three times before ANGLE logs
+anything at all**; only the 4th, fallback attempt reaches ANGLE, fails the
+`minimum Vulkan instance version of 1.1` probe, fails SwANGLE the same way, and prints
+`Exiting GPU process`. So 0xC0000409 is the PRIMARY failure and Vulkan is what the fallback
+hits — the reverse of what the previous section says, and it is why forcing `--use-angle=d3d11`
+"made the Vulkan errors vanish but crashed 0xC0000409": that flag just deletes the fallback.
+
+**3. New rung — Wine's builtin `vulkan-1` shadows Chromium's own loader.** The tell: SwANGLE
+failed with the *same* "minimum Vulkan instance 1.1" message, which is impossible if it had
+actually reached SwiftShader (that ICD is Vulkan 1.3, and `vk_swiftshader.dll` +
+`vk_swiftshader_icd.json` ARE present in `bin/cef/cef.win64/`). Wine implements `vulkan-1`, so
+builtin wins over the app-local native DLL and every ANGLE backend gets routed at
+winevulkan → MoltenVK. Fix that with `WINEDLLOVERRIDES=…;vulkan-1=n,b` (native first, builtin
+fallback) plus `--use-angle=swiftshader` — **E1 measured: every Vulkan error gone, GPU process
+survives init and stops crashing. Window still black.**
+
+**4. The decisive one — E3 removes the GPU stack entirely and the window is STILL black.**
+`-cef-disable-gpu` + the `vulkan-1=n,b` override → `cef_log.txt` has **zero** GPU-process crashes
+and **zero** Vulkan errors, a clean boot, browser process alive and working. Window black.
+
+⚠ **Consequence: the queued "drop in a newer MoltenVK dylib" fix cannot be the fix.** E3 takes
+Vulkan out of the picture completely and does not change the symptom. The black window has a
+cause independent of the Vulkan/GPU-process stack — most likely in how CEF's browser process
+presents into its HWND under this engine, which is the same surface the alt-tab freeze lived in.
+Re-scope the mini-project before spending a build on it. A newer MoltenVK is still worth having
+(it removes rungs 2-3 above), it is just not sufficient and probably not the cause.
+
+**Flag-forwarding facts, so nobody re-tests these:** `--use-angle=<backend>` passed straight on
+the `steam.exe` command line DOES forward to the webhelper (confirmed in
+`logs/webhelper.txt` child-process lines). Chromium-style `--disable-gpu` /
+`--disable-gpu-compositing` do **NOT** — Steam filters them, a gpu-process still spawns. Use
+Steam's own `-cef-disable-gpu`, which forwards as `--disable-gpu-sandbox --use-gl=disabled`.
+
+**Capture method — verify Steam's render state without fronting it or granting Accessibility.**
+`osascript`/System Events needs Accessibility permission (and prompts for it — decline; it is not
+needed). Instead enumerate with `scripts/winlist.swift` (CGWindowListCopyWindowInfo → `id`, owner,
+size, title) and grab one window by id: `screencapture -x -o -l <id> out.png`. This works on
+occluded windows, so it beats the hardcoded `-R x,y,w,h` regions the older capture scripts use.
+**Validate the instrument before trusting a black reading** — capture a known-good occluded window
+too (a partly-covered Messages window returned 252 KB of real content while the 1280x800 Steam
+window returned a byte-identical 22980 across three separate runs = uniform black).

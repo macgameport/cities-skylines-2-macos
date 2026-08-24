@@ -73,8 +73,9 @@ SMAA + LOD 0.25 + mipbias 0) — **applied to settings, awaiting James's pop-in 
 **Remaining:** P3 pacing cells (`preferredMaxFrameRate` on the daily scene, vsync decision) ·
 P4 late-game CPU cells (M0-L baseline + job-worker-count/allocator boot.config levers) ·
 P5 ship (README numbers + wiki draft after the profile verdict). Out of scope unchanged
-(DXMT rebuild, alternative layers, Rosetta experiments) — except the **queued MoltenVK dylib
-update** (see Known-unresolved: Steam UI), which is now a named mini-project.
+(DXMT rebuild, alternative layers, Rosetta experiments) — except the **MoltenVK dylib
+update** (see Known-unresolved: Steam UI) — still a named mini-project, but demoted 2026-08-24 PM
+from "the fix" to "worth having": measurement disproved it as the cause.
 
 ## ✅ Retired: "fix it upstream in Wine"
 
@@ -101,10 +102,22 @@ in the handler, or wrap in `finally`.
 
 ## Known-unresolved, low severity
 
-- **Steam's visible UI black since the ~Aug-2026 CEF update** — mechanism measured (ANGLE-on-
-  Vulkan version failure; D3D11 path crashes 0xC0000409), full workaround ladder exhausted;
-  game/silent flow unaffected. **Queued fix: MoltenVK dylib update in the engine** (own plan when
-  picked up). Evidence + ladder: GOTCHAS. Upstream-worthy for dxmt#141.
+- **Steam's visible UI black since the ~Aug-2026 CEF update** — ⚠ **re-measured after a reboot on
+  2026-08-24 PM; the queued MoltenVK fix is DISPROVEN as the cure.** Four configurations measured
+  (logs kept in the prefix as `logs/cef_log.E{0..3}-*.txt`): a reboot changes nothing (deterministic,
+  not stale state) · the failure order was recorded backwards — the GPU process hard-crashes
+  0xC0000409 **three times before ANGLE logs anything**, and the Vulkan version probe is only what
+  the 4th fallback attempt hits · a new rung works partially (`WINEDLLOVERRIDES=…;vulkan-1=n,b` +
+  `--use-angle=swiftshader` — Wine's builtin `vulkan-1` was shadowing Chromium's own loader, so
+  SwiftShader's bundled ICD was unreachable; with the override every Vulkan error disappears and the
+  GPU process stops crashing) · **but E3 (`-cef-disable-gpu` + that override) produces a clean
+  cef_log with zero GPU crashes and zero Vulkan errors and the window is STILL black.** So the black
+  window has a cause independent of the Vulkan/GPU-process stack — likely in how CEF's browser
+  process presents into its HWND, the same surface the alt-tab freeze lived in. Game/silent flow
+  unaffected throughout. **Re-scope the mini-project before spending a build on it:** a newer
+  MoltenVK is still worth having (it retires the two rungs above) but is not the fix. Full evidence
+  + flag-forwarding facts + the window-capture method: GOTCHAS § "Steam black UI is NOT the Vulkan
+  failure". Upstream-worthy for dxmt#141.
 
 - **Fullscreen-toggle cursor desync** — ⚠ *observed on wine 11.0; NOT re-tested on the promoted
   11.16 engine.* Toggling fullscreen ↔ windowed mid-session dropped the game out of exclusive
