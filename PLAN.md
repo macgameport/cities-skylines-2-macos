@@ -73,9 +73,10 @@ SMAA + LOD 0.25 + mipbias 0) — **applied to settings, awaiting James's pop-in 
 **Remaining:** P3 pacing cells (`preferredMaxFrameRate` on the daily scene, vsync decision) ·
 P4 late-game CPU cells (M0-L baseline + job-worker-count/allocator boot.config levers) ·
 P5 ship (README numbers + wiki draft after the profile verdict). Out of scope unchanged
-(DXMT rebuild, alternative layers, Rosetta experiments) — except the **MoltenVK dylib
-update** (see Known-unresolved: Steam UI) — still a named mini-project, but demoted 2026-08-24 PM
-from "the fix" to "worth having": measurement disproved it as the cause.
+(DXMT rebuild, alternative layers, Rosetta experiments) — and the MoltenVK
+dylib update is **cancelled** (2026-08-24 PM: the A/B against pk110 disproved it outright; see
+Known-unresolved: Steam UI). What replaces it is a **wine 11.x bisect** for the Chromium
+GPU-process regression, if and when Steam's UI on the daily wrapper is worth ~4 engine builds.
 
 ## ✅ Retired: "fix it upstream in Wine"
 
@@ -102,22 +103,30 @@ in the handler, or wrap in `finally`.
 
 ## Known-unresolved, low severity
 
-- **Steam's visible UI black since the ~Aug-2026 CEF update** — ⚠ **re-measured after a reboot on
-  2026-08-24 PM; the queued MoltenVK fix is DISPROVEN as the cure.** Four configurations measured
-  (logs kept in the prefix as `logs/cef_log.E{0..3}-*.txt`): a reboot changes nothing (deterministic,
-  not stale state) · the failure order was recorded backwards — the GPU process hard-crashes
-  0xC0000409 **three times before ANGLE logs anything**, and the Vulkan version probe is only what
-  the 4th fallback attempt hits · a new rung works partially (`WINEDLLOVERRIDES=…;vulkan-1=n,b` +
-  `--use-angle=swiftshader` — Wine's builtin `vulkan-1` was shadowing Chromium's own loader, so
-  SwiftShader's bundled ICD was unreachable; with the override every Vulkan error disappears and the
-  GPU process stops crashing) · **but E3 (`-cef-disable-gpu` + that override) produces a clean
-  cef_log with zero GPU crashes and zero Vulkan errors and the window is STILL black.** So the black
-  window has a cause independent of the Vulkan/GPU-process stack — likely in how CEF's browser
-  process presents into its HWND, the same surface the alt-tab freeze lived in. Game/silent flow
-  unaffected throughout. **Re-scope the mini-project before spending a build on it:** a newer
-  MoltenVK is still worth having (it retires the two rungs above) but is not the fix. Full evidence
-  + flag-forwarding facts + the window-capture method: GOTCHAS § "Steam black UI is NOT the Vulkan
-  failure". Upstream-worthy for dxmt#141.
+- **Steam's visible UI black — SOLVED as a diagnosis 2026-08-24 PM: it is a wine 11.0 → 11.16
+  REGRESSION**, not the CEF update, not MoltenVK, not DXMT presentation. Controlled A/B against the
+  parked `CS2dxmt11-pk110.app` with every other variable *verified* identical (DXMT d3d11/dxgi byte
+  sizes, `libMoltenVK.dylib`, Steam client `-buildid=1785799196`, steam.exe/steamui.dll mtimes):
+  **Steam renders fully and interactively on 11.0 and is uniform black on stock 11.16.** Mechanism:
+  Chromium's GPU process fastfails `0xC0000409` ×3 per browser start, before ANGLE logs anything —
+  the Vulkan-version error previously recorded as the root cause is only what the 4th fallback hits.
+  **Engine-wide, not Steam-specific:** the Paradox Launcher (separate Electron app, different
+  Chromium, no SDL) crashes identically in the same prefix.
+  - ❌ **MoltenVK update: cancelled.** Disproven twice — the same dylib renders Steam fine on 11.0,
+    and `-cef-disable-gpu` on 11.16 removes Vulkan from the path with no change in symptom.
+  - ❌ **The HWND-presentation theory: also wrong.** Surfaces composite fine on 11.16 (launcher
+    window comes through white; the game's own window captures 3.4 MB).
+  - ✅ **Workaround available today: keep `CS2dxmt11-pk110.app`, do not delete it.** Play on
+    `CS2dxmt11` (11.16), shop/manage library on `CS2dxmt11-pk110` (11.0). Both can hold a Steam
+    resident at once.
+  - ▶ **Next: bisect, don't theorise.** `scripts/build-engine-1116.sh` builds a sha-pinned stock
+    engine in ~1 hr; 11.0 → 11.16 is 16 releases so binary search is ~4 builds. Gate on
+    `grep -c 'exit_code=-1073740791' cef_log.txt` — machine-readable, no eyeballing. Own plan when
+    picked up.
+  - Evidence: GOTCHAS § "Steam's black UI is a wine 11.0 → 11.16 REGRESSION" +
+    `docs/wine-bugs/FINDING-wine11.16-tradeoff.md` § "Second regression". The 11.16 promotion is now
+    a measured trade-off (faster + no alt-tab freeze, costs every embedded-Chromium UI), not a
+    strict win. dxmt#141 is **not** our bug — do not post the earlier "intermittent" comment.
 
 - **Fullscreen-toggle cursor desync** — ⚠ *observed on wine 11.0; NOT re-tested on the promoted
   11.16 engine.* Toggling fullscreen ↔ windowed mid-session dropped the game out of exclusive

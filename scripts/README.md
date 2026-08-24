@@ -15,6 +15,7 @@ the game**, which makes them suitable to attach to a Wine bug report.
 | `dxtest.c` | Minimal DX11 clear-to-magenta — proves whether a graphics path can present at all. Invaluable for testing a renderer without a 78 GB game install |
 | `whwrapper.c` | steamwebhelper wrapper used while chasing the CEF black screen (historical) |
 | `focustest.c` | **Focus-loss probe.** DX11 present loop that logs per-frame `Present` hr + latency and every `WM_ACTIVATEAPP`/`WM_ACTIVATE`/`WM_KILLFOCUS`/`WM_SIZE`. Flags: `--flip` (FLIP_SEQUENTIAL, what CS2 asks for), `--fullscreen`, `--seconds N`. Built to reproduce the alt-tab freeze; **it does not** — see the caveat below |
+| `wingrab.c` | Win32-side **window-tree dump** (hwnd / class / rect / style, recursive) for a window inside the prefix — this is what revealed Steam's top-level class is `SDL_app` with healthy CEF children. ⚠ Its pixel-grab half **does not work**: cross-process `GetWindowDC`+`BitBlt`/`PrintWindow` returns nothing under Wine, and `wine notepad` (which renders) returns the identical empty result. Use `winlist.swift` for pixels |
 | `winlist.swift` | Lists on-screen windows (`id`, owner, size, title) via CGWindowList, so `screencapture -x -o -l <id>` can grab a **specific Wine window even when occluded** — no Accessibility permission, no hardcoded `-R` region. Built to measure Steam's black CEF windows |
 | `capture-hang.sh`, `watch-mods.sh` | Diagnostics: sample a hung process; watch the mod-download tree live |
 | `disasm.py` | IL walker used to derive patch offsets |

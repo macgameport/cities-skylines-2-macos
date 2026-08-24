@@ -1,8 +1,11 @@
 # wine 11.16: fixes the alt-tab freeze. Upstream is clean — one *build* breaks file IO
 
-> **Read the conclusion first (settled 2026-08-23):** stock wine 11.16, compiled from source, is
-> clean. The file-IO regression documented below belongs to **WineForge's build**, not to Wine.
-> A DXMT engine on a clean 11.16+ base is strictly better than wine 11.0 for this game.
+> **Read the conclusion first (settled 2026-08-23, amended 2026-08-24):** stock wine 11.16,
+> compiled from source, is clean *for file IO*. The file-IO regression documented below belongs to
+> **WineForge's build**, not to Wine. A DXMT engine on a clean 11.16+ base is better than wine 11.0
+> **for the game** — but it is not strictly better: on 2026-08-24 a controlled A/B showed stock
+> 11.16 **breaks every embedded-Chromium UI** (Steam's client, the Paradox Launcher), which renders
+> fine on 11.0. See §"Second regression" at the foot of this file.
 
 The investigation below is kept in the order it happened, because the intermediate steps are the
 evidence for the conclusion.
@@ -21,6 +24,7 @@ absent, which is what makes this test meaningful).
 | File-IO probe | 44 OK / 7 expected-fail | **39 OK / 12 fail** |
 | In-game Paradox Mods downloads | work | **would break** (see §11 below) |
 | Patches needed | 10 | 16 (the 6 errno-tolerance ones return) |
+| Embedded-Chromium UIs (Steam client, Paradox Launcher) | **render** | **black / blank** — see §"Second regression" (measured on *stock* 11.16, 2026-08-24) |
 
 ## What regressed
 
@@ -121,3 +125,72 @@ that target.
 
 Until someone validates a full game session on 11.16, **wine 11.0 + Fullscreen Window remains the
 recommendation**: the freeze is fully avoidable in borderless, whereas broken mod downloads are not.
+
+
+---
+
+# Second regression (2026-08-24): stock 11.16 breaks embedded Chromium
+
+The file-IO regression above was WineForge's. **This one is stock Wine's**, and it was found by
+A/B-ing the two wrappers that are still installed side by side.
+
+## The controlled comparison
+
+Same Mac, same session, ~10 minutes apart. Everything except the Wine engine held constant and
+*verified* constant, not assumed:
+
+| | `CS2dxmt11` (self-built stock **11.16**) | `CS2dxmt11-pk110` (Porting Kit **11.0**) |
+|---|---|---|
+| DXMT `d3d11.dll` / `dxgi.dll` | 5304320 / 1753088 bytes | **identical** |
+| `libMoltenVK.dylib` | 8096560 bytes | **identical** |
+| Steam client `-buildid` | 1785799196 | **identical** |
+| `steam.exe` / `steamui.dll` mtime | Aug 3 16:46:16 2026 | **identical** |
+| `cef_log.txt`: `exit_code=-1073740791` (0xC0000409) | many, every boot | **0** |
+| `cef_log.txt`: `minimum Vulkan instance` | present | **0** |
+| Steam window, captured per-HWND | 22980 B, **uniform black** | 1405591 B, **full store page, images, everything** |
+| Interactive, not just painted | n/a | **yes** — account dropdown opened and navigated by James, same session |
+
+Only the engine differs. **Steam's UI renders on 11.0 and is black on 11.16.**
+
+## What this kills
+
+- **"Steam broke with the ~Aug-2026 CEF update."** Wrong attribution — the CEF/client build is
+  byte-identical in both prefixes. It broke when this project promoted the 11.16 engine.
+- **"A newer MoltenVK dylib is the fix."** Disproven twice over: the *same* MoltenVK renders Steam
+  fine on 11.0, and on 11.16 `-cef-disable-gpu` removes Vulkan from the path entirely without
+  changing the symptom. Do not spend a build on it.
+- **"CEF presents into its HWND and the surface is lost"** (the winemac/DXMT-presentation theory,
+  by analogy with the alt-tab freeze). Also wrong: window surfaces composite fine on 11.16 — the
+  Paradox Launcher's window comes through **white** and the game's own window captures 3.4 MB of
+  real content. The surface path works; Chromium's GPU process is what dies.
+
+## What it actually is
+
+Chromium's GPU process **fastfails `0xC0000409`** on stock 11.16, three times per browser start,
+before ANGLE logs anything. The Vulkan-version failure previously recorded as the root cause is
+only what the *4th, fallback* attempt hits.
+
+It is **not Steam-specific**. The Paradox Launcher — a separate Electron app, different Chromium
+version, no SDL, no Steam involvement — crashes the same way in the same prefix:
+
+```
+GPU process exited unexpectedly: exit_code=-1073740791
+error [main]: GPU process crash detected. Skipping quit, hoping that electron will restart itself.
+```
+
+So it is an engine-wide Chromium-on-Wine-11.16 defect, not an app bug.
+
+## Next step
+
+**Bisect the engine, don't theorise.** `scripts/build-engine-1116.sh` already builds a sha-pinned
+stock engine in ~1 hr; 11.0 → 11.16 is 16 releases, so a binary search is ~4 builds. Reuse the
+per-HWND capture (`scripts/winlist.swift` + `screencapture -x -o -l <id>`) as the pass/fail gate,
+and count `exit_code=-1073740791` in `cef_log.txt` as the cheap machine-readable signal — no
+eyeballing required.
+
+## Practical consequence right now
+
+**Keep `CS2dxmt11-pk110.app`. Do not delete it.** It is currently the only way to use Steam's UI
+(purchases, library, settings) on this machine. Play on `CS2dxmt11` (11.16 — faster, no alt-tab
+freeze); shop on `CS2dxmt11-pk110` (11.0). Both can hold a Steam resident at once — scope any
+process check on the parent (`pgrep -f "<App>.app.*steam.exe"`), never on `steamwebhelper.exe`.

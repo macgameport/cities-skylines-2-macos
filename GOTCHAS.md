@@ -707,3 +707,50 @@ occluded windows, so it beats the hardcoded `-R x,y,w,h` regions the older captu
 **Validate the instrument before trusting a black reading** — capture a known-good occluded window
 too (a partly-covered Messages window returned 252 KB of real content while the 1280x800 Steam
 window returned a byte-identical 22980 across three separate runs = uniform black).
+
+## Steam's black UI is a wine 11.0 → 11.16 REGRESSION, not a CEF/MoltenVK problem (2026-08-24 PM)
+
+Settled by a controlled A/B against the parked `CS2dxmt11-pk110.app`. **Supersedes the two
+sections above on the cause; their measurements stand, their attribution does not.**
+
+**The comparison.** Same Mac, ~10 minutes apart, every variable except the engine verified
+identical (not assumed): DXMT `d3d11.dll` 5304320 B and `dxgi.dll` 1753088 B in both ·
+`libMoltenVK.dylib` 8096560 B in both · Steam client `-buildid=1785799196` and `steam.exe` /
+`steamui.dll` mtime `Aug 3 16:46:16 2026` in both.
+
+| | stock **11.16** (`CS2dxmt11`) | Porting Kit **11.0** (`CS2dxmt11-pk110`) |
+|---|---|---|
+| `exit_code=-1073740791` in `cef_log.txt` | many, every boot | **0** |
+| `minimum Vulkan instance` | present | **0** |
+| Steam window (per-HWND capture) | 22980 B **uniform black** | 1405591 B **full store page** |
+| Interactive? | n/a | **yes** — James drove the account dropdown live on 2026-08-24, menus open and navigate |
+
+**Three things this kills — don't re-derive them:**
+1. **"The ~Aug-2026 CEF update broke it."** No: the client build is byte-identical in both
+   prefixes. It broke when the 11.16 engine was promoted (2026-08-23).
+2. **"Update MoltenVK."** No: the *same* dylib renders Steam fine on 11.0, and on 11.16
+   `-cef-disable-gpu` takes Vulkan out of the path entirely with no change in symptom.
+3. **"CEF's HWND presentation is being lost"** (by analogy with the alt-tab freeze). No: surfaces
+   composite fine on 11.16 — the Paradox Launcher window comes through **white**, and the game's
+   own window captures 3.4 MB of real content. The surface path works.
+
+**What it actually is:** Chromium's GPU process **fastfails `0xC0000409`** on stock 11.16, ×3 per
+browser start, before ANGLE logs anything. **Not Steam-specific** — the Paradox Launcher (separate
+Electron app, different Chromium, no SDL) crashes identically in the same prefix
+(`GPU process crash detected. Skipping quit…`). Engine-wide Chromium-on-11.16 defect.
+
+⚠ **The instrument trap that nearly produced a wrong answer here.** A Win32 probe doing
+`GetWindowDC` + `BitBlt`/`PrintWindow` on another process's window returns **nothing** under Wine —
+`scripts/wingrab.c` primes its DIB with magenta and got 100% untouched magenta from Steam. That
+looks like damning evidence until you run the same probe on `wine notepad`, which renders fine and
+returns **the identical 100% untouched magenta**. Cross-process GDI readback does not work here;
+the probe is only good for the window-tree dump. **Use the macOS side** (`scripts/winlist.swift` +
+`screencapture -x -o -l <id>`) for pixels, and validate it against a known-good window each time.
+
+**Practical, today:** keep `CS2dxmt11-pk110.app` — **do not delete it**. Play on `CS2dxmt11`
+(11.16: faster, no alt-tab freeze); do Steam purchases/library on `CS2dxmt11-pk110` (11.0). Both
+can hold a Steam resident simultaneously.
+
+**Next step is a bisect, not more theory:** `scripts/build-engine-1116.sh` builds a sha-pinned
+stock engine in ~1 hr and 11.0 → 11.16 is 16 releases, so binary search is ~4 builds. Gate each
+build on `grep -c 'exit_code=-1073740791' cef_log.txt` — machine-readable, no eyeballing.
