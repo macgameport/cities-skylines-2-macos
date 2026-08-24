@@ -4,7 +4,10 @@ Field notes from getting **Cities: Skylines II** running on an **M3 Max / macOS 
 fully free stack, **including working in-game Paradox Mods downloads** — which was the hard part
 and, as far as I can tell, isn't documented anywhere else.
 
-**Status (2026-08-23):** Playable. Renders, saves, mods download *and* load.
+**Status (2026-08-23):** Playable. Renders, saves, mods download *and* load — and the last
+real defect (the alt-tab / exclusive-fullscreen freeze) is **fixed** by an optional self-built
+stock wine 11.16 engine ([INSTALL §6](INSTALL.md#6-recommended-build-the-wine-1116-engine-kills-the-alt-tab-freeze)):
+~45 FPS, Direct presentation, freeze gone.
 
 ![Cities: Skylines II running on macOS via Wine + DXMT](docs/images/cs2-on-macos.png)
 

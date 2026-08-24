@@ -82,6 +82,33 @@ one frame per alt-tab, so you can alt-tab your way to Options and switch modes.)
 
 ---
 
+## 6. Recommended: build the wine 11.16 engine (kills the alt-tab freeze)
+
+The base stack above runs on Porting Kit's wine 11.0 engine, which has one real defect: in
+exclusive Fullscreen, switching away (Cmd-Tab, or just clicking another window/display)
+permanently freezes the render ([dxmt#206](https://github.com/3Shain/dxmt/issues/206)). Wine
+**11.16 fixed it upstream**, but no prebuilt clean-base 11.16 DXMT engine exists yet — so this
+repo builds one, locally, from the official Wine source:
+
+```bash
+bash scripts/build-engine-1116.sh
+```
+
+Roughly an hour, mostly unattended compile. It redistributes nothing: the Wine source comes
+sha256-verified from winehq.org, the winemac DXMT patch is in this repo (aquadran's, with
+attribution), and the DXMT binaries + x86_64 support dylibs are reused from *your own* wrapper.
+Your old engine is kept beside the new one (`wine.pk11.0-BAK`) — rollback is one `mv`, printed
+at the end of the script.
+
+What you get, measured (M3 Max, 2026-08-23): the freeze gone — minimize/restore and alt-tab in
+exclusive Fullscreen come back live; **Direct** presentation (the 11.0 stack composited);
+~45 FPS where the same city/settings measured 42.7 before; in-game mod downloads still work
+(same 10 patches — the file-IO probe is identical to 11.0). Exclusive Fullscreen becomes the
+mode to use; Fullscreen Window remains fine too.
+
+Validated on one machine so far — if it misbehaves on yours, roll back and open an issue with
+`~/Library/Logs/cs2-launcher.log`.
+
 ## Measuring performance
 
 The game has no usable built-in FPS counter, so use Metal's own HUD. From a terminal:

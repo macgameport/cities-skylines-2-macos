@@ -89,3 +89,20 @@ wine-mono updater dialog invisibly (Steam -silent boot), rundll32 wine.inf sat a
 15+ min, launcher timed out with the (misleading) token-expired error. Recovery: wineserver -k
 (clone-scoped) + controlled wineboot -u with WINEDLLOVERRIDES="mscoree=;mshtml=" -> completed in
 15.6 s. Plan §7 updated to make the controlled pre-boot a standing step. Relaunching.
+
+== V-session, live results so far — 2026-08-23 ~22:2x-22:4x ==
+V1 PASS (after deviation #1's controlled prefix update): Steam boots + logs in on the new engine.
+V6 PASS both halves, disk-verified: unsubscribe removed 74324_* (recursive delete clean, UIL dep
+  correctly retained); resubscribe re-landed 74324_36 with full content, zero .downloading
+  remnants. The path that originally forced the 6 errno patches works with 10 on stock 11.16.
+V3 PASS: HUD 44.86 FPS / GPU 23.11 ms / interval 22.29 ms at the baseline settings & city —
+  vs 40.9 FPS / 25.9-26.6 ms on wine 11.0. ~+10% FPS, ~-3 ms GPU.
+PRESENTATION: "Direct" (green) in BOTH borderless and exclusive — 11.0 showed "Composited".
+V5 MEASURED NEGATIVE: Game Mode = Off even in exclusive fullscreen. Hypothesis closed.
+V4 CORE OBSERVATION (eyewitness + captures): click-outside in exclusive -> game self-minimizes
+  (same first step as the old freeze trace) -> RESTORE COMES BACK LIVE, animation running.
+  On 11.0 this exact cycle froze the render permanently. Repeated cycles in progress.
+DXMT custom metric confirms fork build v0.80-17-g79f627 rendering.
+PUBLISH DECISION (James): ship the build path -> scripts/build-engine-1116.sh + INSTALL §6.
+Still pending: more V4 cycles (Cmd-Tab variant), V2 log diff, V7 second display, V8 save/load,
+V9 borderless flip, V6b boot-clean, V10 registry grep, isolation measurement.

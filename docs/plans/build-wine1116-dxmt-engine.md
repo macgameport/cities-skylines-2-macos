@@ -278,7 +278,12 @@ re-run any time without reverting anything, and rollback is the symmetric name s
    `docs/wine-bugs/README.md` (standing probe action status) · `~/cs2-patch/change-ledger.txt` ·
    memory files · **as-built header on THIS doc** · dxmt#206 report posted, **comment URL
    recorded in the ledger**.
-4. **Record vs publish (two different decisions):** the exact configure line, the as-executed
+4. **Record vs publish — DECIDED (James, 2026-08-23, mid-V-session): PUBLISH.** Shipped as
+   `scripts/build-engine-1116.sh` + INSTALL.md §6 the same night — the recipe redistributes
+   nothing (winehq source sha-verified, in-repo patch, donor binaries from the user's own
+   wrapper), which dissolves the repack concern for the *recipe* form. Original text kept below
+   for the record:
+   **(original)** Record vs publish (two different decisions): the exact configure line, the as-executed
    assembly manifest, and DXMT binary provenance are recorded in-repo **unconditionally** (this
    doc's §4–§5, corrected to as-built). Whether INSTALL.md *recommends* self-building to
    strangers is a separate, later decision, gated on the portable-repack follow-up (§ Non-goals)
