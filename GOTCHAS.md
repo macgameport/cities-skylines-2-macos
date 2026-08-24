@@ -564,3 +564,27 @@ unix path, so match `'/Cities2.exe'` **with the leading slash** (watchers say `C
 bare). Applied in the shim's already-running check, its `GPID` capture, and the Swift panel's
 game-up probe. Corollary: a test harness that greps for a process by name must never put that
 name in its own command line unescaped (`pkill` excludes itself; `pgrep -f` does not).
+
+## Resolution scaling on this stack: what works and what structurally cannot (2026-08-24)
+
+Adjudicated live in one session (HUD + Settings.coc reads + relaunches). The traps:
+
+- **The in-game Screen Resolution dropdown is INERT in Fullscreen Windowed.** Unity borderless
+  always uses desktop resolution; the choice saves to `Settings.coc` but the swapchain never
+  follows (verified across a relaunch: saved 1280×720, HUD input stayed 1920×1080). Resolution
+  choices only bite in exclusive Fullscreen (mode-change/blanking class — see the refresh-rate
+  section) or plain Windowed.
+- **Consequently `DXMT_METALFX_SPATIAL_SWAPCHAIN` cannot downscale-render in borderless** — input
+  is pinned at desktop res, so any factor >1 is supersampling (measured: softer AND slower — three
+  resample passes for world text). MetalFX itself works (HUD `Scaling: Spatial` lines) — it's the
+  display mode that kills the use case, not DXMT.
+- **CS2 street names are painted onto roads in the 3D world, not drawn as UI** — any internal-
+  resolution scaling (DRS included) softens them. "DRS keeps UI sharp" is true for menus/panels
+  and useless for road text.
+- **DRS Constant defaults to 50% scale** (`minScale: 0.5`, `EdgeAdaptiveScaling`) — brutal at
+  1080p. The scale slider is double-gated: DRS must be *Constant* AND "SHOW ADVANCED" toggled.
+- **Anti-aliasing was the actual jaggedness fix**: Low→High SMAA at native, cost ~1-2 FPS.
+  Settings.coc also carries `outlinesMSAA: MSAA8x`.
+- Reading `Settings.coc`: it is a title line + MULTIPLE concatenated JSON objects — `json.loads`
+  fails with "Extra data"; use `JSONDecoder.raw_decode` in a loop. (Reading is fine; the standing
+  rule against hand-EDITING it is unchanged.)

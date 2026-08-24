@@ -180,13 +180,15 @@ Tags: **[GPU]** attacks the GPU bound · **[CPU-sim]** pays in big-city/sim regi
 frame-time consistency & latency · **[validity]** measurement infrastructure · **[quality]** free
 visual upgrade. Confidence: measured / documented (source-read) / community / speculative.
 
-### 3A. Resolution levers — the main GPU-bound play (Phase P1)
+### 3A. Resolution levers — **FAMILY CLOSED 2026-08-24** (adjudicated live; see results doc)
 
-The only remaining big GPU levers are all resolution-shaped (DLSS absent; settings already lean).
-**All cells: DynamicRes pinned off, Fullscreen Window mode.** Open feasibility question a cheap
-first launch answers: does Unity under Wine actually resize the D3D11 swapchain to the selected
-in-game resolution in Fullscreen Window mode? The HUD `Scale:` line is the arbiter for A2/A3; for
-A1 the load-verification is the drawable staying at desktop size while the game res drops.
+The feasibility question was answered by measurement: **Fullscreen Windowed locks the backbuffer
+to desktop resolution** — the in-game resolution dropdown is inert in borderless, so A1–A3 as
+designed cannot run in the pinned display mode. MetalFX works mechanically (HUD-verified) but only
+as supersampling here, which measured softer AND slower. Street names are world-rendered, so every
+scaling route (DRS included) softens them. James adjudicated the whole family by eye: daily driver
+= **native 1080p + High SMAA, DRS Disabled**; DRS-Constant@75–80% remains an optional FPS-back
+dial. Full verdict table + mechanism findings: docs/perf-pass-results.md. GOTCHAS has the traps.
 
 | # | Lever | Design | Confidence |
 |---|---|---|---|

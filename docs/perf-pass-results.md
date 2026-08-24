@@ -60,9 +60,44 @@ One autonomous cycle ≈ 5–6 min: Steam cold start + 45 s licence + boot + 45 
 ~90 s run + teardown (SIGTERM at idle menu exits cleanly; launcher then shuts Steam down
 gracefully). Chain of three ran unattended, zero failures.
 
-## Next cells (blocked on a 30-second settings visit)
+## Resolution-lever family (§3A + C1) — ADJUDICATED LIVE 2026-08-24, family closed
 
-1. **Pin DynamicRes Off** (Options → Graphics) → re-run M0 ×3 (autonomous) → clean floor.
-2. Confirm/record the texture-quality state the baseline ran at.
-3. Then: A1 (in-game 720p) needs a resolution change in Options; A2/A3 add the MetalFX env on
-   top (autonomous once the resolution is set).
+James ran the whole quality/FPS trade himself in one morning session (live HUD + eyeballs; exact
+per-view FPS numbers are scene-dependent and not comparable to R-bench rows). Mechanism findings
+first — all measured, all new for this stack:
+
+1. **Fullscreen Windowed locks the backbuffer to desktop resolution.** The in-game Screen
+   Resolution dropdown is INERT in borderless: 1280×720 saved to Settings.coc, confirmed across
+   a relaunch, HUD input res stayed 1920×1080. Unity-standard borderless behavior, now verified
+   under Wine/DXMT.
+2. **Therefore the MetalFX spatial swapchain is unusable in borderless** — the input resolution
+   can never drop below desktop res, so the only reachable configs are supersampling (input
+   1080p → 1620p target: measured live — softer AND slower; the factor trap in its display-mode
+   form). MetalFX itself WORKS (HUD `Scaling: Spatial` + input/target lines confirmed) — the
+   route dies on display-mode grounds, not DXMT grounds.
+3. **Street names are world-rendered (painted on roads), not UI-layer text** — every scaling
+   route softens them. This killed the "DRS keeps text sharp" hypothesis for the one text class
+   that matters most in play.
+4. **DRS Constant defaults to 50% scale** (`minScale: 0.5`, filter `EdgeAdaptiveScaling` in
+   Settings.coc) — the scale control only appears with DRS=Constant + SHOW ADVANCED.
+
+Verdicts (James as TRADE judge):
+
+| Config | Look | Verdict |
+|---|---|---|
+| Native 1080p, Low SMAA | sharp, "a bit jagged" edges | superseded by AA bump |
+| 720p / 900p nearest-neighbor stretch | "not as good" / "ok, not great" | REVERT |
+| MetalFX supersample (1080→1620, borderless-forced) | soft, unreadable street text | REVERT |
+| DRS Constant @ default 50% | "looks bad" at ~50 FPS | REVERT |
+| **Native 1080p + High SMAA (+ outline MSAA8x), DRS Disabled** | **"looks good"** | **KEEP — the daily driver** |
+| DRS Constant @ 75–80% (slider) | untried | OPEN — optional FPS-back dial |
+
+**Current daily config on record:** 1920×1080 Fullscreen Windowed @120Hz · DRS Disabled ·
+**AA High SMAA** (up from Low — the one quality *spend* of the day) · VSync on · max frame
+latency 2 · rest of the settings block unchanged. Benchmark cells for this config: pending the
+next idle window (nothing auto-arms — post-collision protocol).
+
+Also visually confirmed from the Options screens: the **max-frame-latency slider exists** (B2
+live, set 2) · the **DLSS upscaler entry is present but greyed** on Apple GPU (A4 gating seen in
+the UI) · **VSync-on doesn't bind** at sub-40 FPS on a 120 Hz panel (kept on, consistent across
+cells).
