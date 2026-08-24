@@ -588,3 +588,20 @@ Adjudicated live in one session (HUD + Settings.coc reads + relaunches). The tra
 - Reading `Settings.coc`: it is a title line + MULTIPLE concatenated JSON objects — `json.loads`
   fails with "Extra data"; use `JSONDecoder.raw_decode` in a loop. (Reading is fine; the standing
   rule against hand-EDITING it is unchanged.)
+
+## Settings.coc: complete value edits ARE honored — the trap is PARTIAL flips (2026-08-24)
+
+Refines the standing "never hand-edit Settings.coc" rule after a controlled experiment (game
+closed, backup taken, one surgical value swap, functional verification):
+
+- Edited `minScale` 0.75→0.5 in the DRS block. The game booted clean, **rendered at the edited
+  scale** (benchmark gpuMs 40.5→33.7 avg, −17%, far beyond the ~11% run spread — functional
+  proof, not just file survival), preserved the value through its exit rewrite, menu uncorrupted.
+- The original 2026-08-22 trap stands for its actual mechanism: flipping an `enabled` flag whose
+  companion parameters are absent/zeroed produces the "on but zeroed" Custom profile. **Complete,
+  self-consistent value edits with the game closed are safe.** Always: backup first, edit with
+  unique-anchor regexes asserting exactly one match, verify persistence after the next run.
+- This unlocks autonomous settings A/B: `~/cs2-patch/perf-runs/settings-series.py` (edit → bench
+  → verify → restore per cell). Menu label ↔ file value mappings are enums/floats, e.g. the menu's
+  "AMD FidelityFX Super Resolution 1.0" saves as `upscaleFilter: "EdgeAdaptiveScaling"` (Unity's
+  EASU name); other filter enums: CatmullRom, ContrastAdaptiveSharpen, TAAU.
