@@ -129,9 +129,11 @@ in the handler, or wrap in `finally`.
   - **dxmt#206 (our alt-tab freeze issue) was closed by the maintainer as a duplicate of
     dxmt#183** (ANGLE white-window, winemac Metal-view lifetime) — same family. The game-level
     11.16 confirmation we owed #206 would now go to #183, if anywhere.
-  - Upstream: dxmt#141 comment now has a complete evidence set (vendor-vs-stock sweep,
-    software-path failure parity, transplant interlock) — **drafting/posting awaits James's
-    explicit go-ahead** (public action).
+  - ✅ Upstream: the dxmt#141 evidence comment was **posted 2026-08-24** with James's approval
+    (https://github.com/3Shain/dxmt/issues/141#issuecomment-5400445243) — vendor-vs-stock sweep,
+    fastfail-masks-the-real-error warning, software-path failure parity, crossblit micro-repro,
+    steam.exe flag-filtering facts, writecopy negative. Draft archived at
+    `~/cs2-patch/bisect/draft-dxmt141-comment.md`.
 
 - **Fullscreen-toggle cursor desync** — ⚠ *observed on wine 11.0; NOT re-tested on the promoted
   11.16 engine.* Toggling fullscreen ↔ windowed mid-session dropped the game out of exclusive
