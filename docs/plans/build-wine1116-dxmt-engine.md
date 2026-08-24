@@ -1,5 +1,19 @@
 # Build a wine-11.16 + DXMT engine, validate CS2 on a cloned wrapper
 
+> **🔧 As-built (2026-08-23):** **BUILT, VALIDATED, PROMOTED — this is now the daily stack.**
+> Commits `dbfadfe` (G0) → `b250370` (G1–G3) → `e0f2e66` (G4) → `9228b5b` (published as
+> `scripts/build-engine-1116.sh` + INSTALL §6) → `83a395a` (promotion). No migrations.
+> **Deviations from the plan, all folded into §4–§7 as they were found:** (1) `ac_cv_lib_soname_*`
+> cache vars are *required* — the donor dylibs' pathless install names otherwise poison
+> `SONAME_LIBFREETYPE/GNUTLS` with whole `otool -L` lines; (2) `gmake` needs
+> `DYLD_FALLBACK_LIBRARY_PATH` or the font tool dies mid-build; (3) the one-time 11.16 prefix
+> update must be run *controlled* with `WINEDLLOVERRIDES="mscoree=;mshtml="` — under the launcher
+> it hangs invisibly on the wine-mono dialog and surfaces as a bogus "Steam token expired".
+> **Verify against:** `scripts/build-engine-1116.sh` · `docs/wine-bugs/measurement-engine1116.txt`
+> (every gate's raw numbers) · `scripts/run-minrepro3.sh` (hardened harness).
+> **Not done:** V2 log diff, V6b boot-clean, V9 borderless flip — deferred to the next launch;
+> dxmt#206 report; old wrapper retirement (parked as `CS2dxmt11-pk110.app`, decide ~2026-08-30).
+
 **Status: Triple-checked 2026-08-23 — build-ready-with-fixes (pass 1). Corrections folded; see
 `## Review corrections` and the Review log.**
 

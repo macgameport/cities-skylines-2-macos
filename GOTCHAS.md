@@ -486,3 +486,50 @@ gives this freeze), so it is not renderer-specific.
 **Old practical rule (superseded): don't alt-tab out of exclusive fullscreen.** Use the windowed launcher
 (`explorer /desktop=`) for sessions where you must switch between the game and a terminal; use
 fullscreen for playing.
+
+## Building a Wine engine from source for this stack (2026-08-23)
+
+Five traps, each hit live while building the stock-11.16 + DXMT engine. All are encoded in
+`scripts/build-engine-1116.sh`; this is why each line is there.
+
+1. **brew's freetype/gnutls are arm64-only — an x86_64 Wine cannot link them.** Configure does a
+   real link test: freetype failure is a *hard abort*, gnutls failure is a **silent** downgrade to
+   "no schannel support" (= Steam TLS broken, discovered much later). Installing `pkgconf` does
+   not help. Fix: pass `FREETYPE_LIBS`/`GNUTLS_LIBS` pointing at an existing wrapper's x86_64
+   dylibs, with brew's (arch-neutral) headers.
+2. **Pathless install names poison the recorded soname.** Those donor dylibs have install names
+   like `libfreetype.dylib` with no path, so configure's soname extraction captures the *entire*
+   `otool -L` line — tab, version parenthetical and all — into `SONAME_LIBFREETYPE`. Wine then
+   `dlopen()`s that garbage at runtime and silently loses fonts + TLS. Fix:
+   `ac_cv_lib_soname_freetype=libfreetype.dylib ac_cv_lib_soname_gnutls=libgnutls.dylib`.
+   **Gate on `include/config.h` after configure — never trust "configure exited 0".**
+3. **The build itself needs `DYLD_FALLBACK_LIBRARY_PATH`.** Build-time tools (`sfnt2fon`) link the
+   same pathless name and die with `dyld: Library not loaded` partway through `fonts/`. Set it on
+   the `gmake` line, not just at runtime.
+4. **Run the one-time prefix update controlled, before the first launcher run.** A fresh 11.16
+   prefix fires the wine-mono updater dialog; under a `-silent` Steam boot it has nowhere to
+   present, everything queues behind it, and the *launcher* reports a bogus "Steam did not
+   auto-login (token expired)". Tell: an idle `rundll32 …InstallHinfSection… wine.inf` at 0% CPU.
+   Fix: `WINEDLLOVERRIDES="mscoree=;mshtml=" wine64 wineboot -u` first (~15 s).
+5. **`gmake install` needs `--prefix`**, or it targets `/usr/local`. And a hand-copied engine is
+   not bootable: it also needs `programs/*/*-windows/*` (wineboot, services, explorer) and all of
+   `share/wine/` (wine.inf, nls, fonts) — `install` handles both; a naive `dlls/` copy does not.
+
+## Two self-inflicted measurement bugs found by review, not by failure (2026-08-23)
+
+Both had been silently wrong for a while; both were caught by adversarial review of a plan, then
+fixed and *demonstrated* wrong the same session.
+
+- **`run-minrepro3.sh` could fabricate a verdict.** `waitfor()` ended in `echo` on timeout, so it
+  returned **success** — every `waitfor X && snap` fired regardless, sampling stale desktop
+  pixels from a run that had already died. The printed `VERDICT:` line was a hardcoded string, not
+  a computed result. Fixed: timeouts return 1 and abort, a failed/empty `screencapture` aborts,
+  and the verdict is computed from the sampled RGB (`STALE`/`LIVE`/`INCONCLUSIVE`). Minutes after
+  the fix a locked display made it abort cleanly — the old version would have printed
+  "BUG REPRODUCED" over nothing. **Any harness that prints a conclusion it didn't compute is a
+  liability.**
+- **The launcher re-patched the wrong wrapper.** `launch-cs2-dxmt11.sh` called `repatch.sh`
+  *without* `CS2_GAME_DIR`, so with `CS2_WRAPPER=` pointing anywhere else it patched the default
+  wrapper while reporting success for the one it launched. Harmless-looking (patches are
+  idempotent) until you run two wrappers — then a game update silently leaves the running one
+  unpatched. The correct idiom already existed in `setup.sh`; only the launcher omitted it.
