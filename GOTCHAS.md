@@ -842,3 +842,48 @@ is cross-process presentation support in the engine (CX-lineage port or upstream
 queued mini-project. Until then the two-wrapper split stands. Upstream: this evidence set
 (vendor-vs-stock sweep, software-path parity of failure, transplant interlock) is precisely what
 dxmt#141 lacks; comment pending James's go-ahead.
+
+## ⭐ Steam's visible UI CAN render on stock Wine + DXMT — the webhelper shim (2026-08-24 evening)
+
+Reverses the "no way to get Steam working on 11.16" conclusion. **Measured working in a
+sandbox prefix: the Steam login window rendered fully** (logo, fields, QR) on the self-built
+11.16 + DXMT engine — the same 700x440 window that captured 9,659 B of pure black that morning
+came back at **80,714 B of real UI**, with every machine-readable signal flipping together:
+gpu-process children 10 → **0**, `0xC0000409` crashes 6+ → **0**, metal-layer errors 12 → 1.
+
+**The mechanism, in one line:** `--in-process-gpu` moves Chromium's GPU into the browser
+process, so the swapchain is same-process — the path DXMT already serves for the game — instead
+of the cross-process one it cannot (dxmt#141).
+
+**Two traps that make this look impossible, and both must be solved:**
+
+1. **steam.exe FILTERS the flag.** `--in-process-gpu` and `--disable-gpu` never reach
+   steamwebhelper (verified against `logs/webhelper.txt` child cmdlines; gpu-process children
+   spawn regardless). `--use-angle=<backend>` *does* forward. Steam's own switch set has no
+   in-process option (`-cef-disable-gpu`, `-cef-disable-gpu-sandbox`, `-cef-disable-sandbox`,
+   `-cef-disable-seccomp-sandbox`, `-cef-force-accessibility`, `-cef-force-gpu` — from
+   `strings steam.exe`). So the flag must be injected AT the webhelper: rename the real binary
+   to `steamwebhelper_real.exe` and drop a shim in its place that re-launches it with the flag
+   appended (`scripts/steamwebhelper-shim.c`, installer `scripts/install-webhelper-shim.sh`).
+2. **⭐ Steam restores the shim — unless it is SIZE-MATCHED.** A plain shim gets silently
+   replaced and Steam exits **42**; that is what makes the whole approach read as dead. The
+   tell is in `logs/bootstrap_log.txt`: **`Verifying installation... Verifying file sizes
+   only`**. Zero-pad the shim to the original's exact byte count (7,489,176 for the Aug-2026
+   client) and it passes verification untouched. A trailing-zero-padded PE runs normally.
+   ⚠ This depends on Valve verifying sizes only — a hash check upstream kills it.
+
+**Shim implementation notes that matter** (all in the .c file): forward `lpCmdLine` VERBATIM
+with `bInheritHandles=TRUE` — Chromium passes live IPC/crashpad handle values on the child
+command line and inherited handles keep their values; use `lstrcatW` into a 32K buffer, never
+`wsprintf` (1K limit) since Chromium cmdlines are huge; Chromium spawns its own subprocesses
+via the *running* image path (`steamwebhelper_real.exe`), so they bypass the shim and only the
+top-level launch is wrapped. IFEO `Debugger` is NOT an alternative — Wine implements only
+`AeDebug` (crash-time), not launch interception (`dlls/kernelbase/debug.c:555`).
+
+**Re-apply after every Steam client update** (the update restores the original webhelper).
+`bash scripts/install-webhelper-shim.sh` installs, `--revert` undoes; the original is preserved
+in-tree as `steamwebhelper_real.exe` and offsite at `~/cs2-patch/shim/steamwebhelper.orig.exe`.
+
+**Status:** sandbox-proven (login window). Store/library rendering under a real signed-in
+session is the remaining confirmation. In-process GPU is an unsupported Chromium mode — watch
+for long-session stability before calling it the project default.

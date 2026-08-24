@@ -104,37 +104,29 @@ in the handler, or wrap in `finally`.
 
 ## Known-unresolved, low severity
 
-- **Steam's visible UI black — DIAGNOSIS FINAL (2026-08-24 PM-2): embedded Chromium has NEVER
-  rendered on stock Wine on this Mac; the Porting Kit engine renders it because of its VENDOR
-  PATCHSET.** The same-day "wine 11.0 → 11.16 regression" reading was disproven by a three-version
-  stock sweep (11.0/11.15/11.16, identical configure, all blank, byte-identical) — the operative
-  variable in the original A/B was PK-vendor-vs-stock, not the version. Build-config omissions
-  ruled out (config.h parity, md5-identical shared binaries). Measured dead as fixes: Proton
-  `WINE_SIMULATE_WRITECOPY` patch (armed, in-binary, still blank) · msync/writecopy env probes on
-  PK (renders with both off) · module transplants PK→stock (window stack: still blank; core/DXMT:
-  crashes) · `--in-process-gpu` (Electron: breaks startup; Steam: filters the flag).
-  **Mechanism CONFIRMED by elimination (evening, post-unlock):** Chromium's software
-  presentation is broken on ALL winemac engines (PK's `--disable-gpu` run is byte-identically
-  white; crossblit shows cross-process GDI lost on both engines) — **PK renders CEF solely
-  because its GPU path works** (ANGLE→D3D11→DXMT presenting cross-process via vendor plumbing
-  spanning winemac/win32u/wineserver). Stock fails the GPU path, falls back to software, hits
-  the same floor. One defect family: dxmt#141 + dxmt#183 + every white window measured here.
-  - ✅ **Standing workaround: two wrappers.** Play on `CS2dxmt11` (11.16), Steam UI on
-    `CS2dxmt11-pk110` — **do not delete pk110.**
-  - ▶ **Queued mini-project (needs own plan):** port the enabling vendor support into the 11.16
-    engine, starting from public winecx source (CrossOver's shared window-surface machinery).
-    Heavy; only if the two-wrapper split starts to chafe.
-  - ✅ Post-unlock cells all ran 2026-08-24 evening — mechanism closed (GOTCHAS § "Mechanism
-    CONFIRMED by elimination"). Driver: `~/cs2-patch/bisect/`.
-  - **dxmt#206 (our alt-tab freeze issue) was closed by the maintainer as a duplicate of
-    dxmt#183** (ANGLE white-window, winemac Metal-view lifetime) — same family. The game-level
-    11.16 confirmation we owed #206 would now go to #183, if anywhere.
-  - ✅ Upstream: the dxmt#141 evidence comment was **posted 2026-08-24** with James's approval
-    (https://github.com/3Shain/dxmt/issues/141#issuecomment-5400445243) — vendor-vs-stock sweep,
-    fastfail-masks-the-real-error warning, software-path failure parity, crossblit micro-repro,
-    steam.exe flag-filtering facts, writecopy negative. Draft archived at
-    `~/cs2-patch/bisect/draft-dxmt141-comment.md`.
-
+- **Steam's visible UI — ⭐ SOLVED on the daily engine (2026-08-24 evening), pending James's
+  signed-in confirmation.** The blocker was never fixable by flags *on steam.exe* — it needed a
+  **webhelper shim**. `--in-process-gpu` makes Chromium's swapchain same-process, which is the
+  path DXMT serves for the game (the cross-process one, dxmt#141, it cannot). Sandbox-measured:
+  Steam's **login window rendered fully** on self-built 11.16 + DXMT — 700x440 window went from
+  9,659 B black to **80,714 B of real UI**, with gpu-process children 10→**0**, `0xC0000409`
+  crashes 6+→**0**, metal-layer errors 12→1.
+  - **Two traps, both must be solved:** steam.exe *filters* `--in-process-gpu`/`--disable-gpu`
+    (so inject at the webhelper), and Steam *restores* a modified webhelper — unless the shim is
+    **zero-padded to the original's exact byte count**, because its bootstrap log says
+    "Verifying **file sizes only**". Unpadded ⇒ silently restored + exit 42, which is exactly
+    what makes this look impossible.
+  - **Shipped:** `scripts/steamwebhelper-shim.c` + `scripts/install-webhelper-shim.sh`
+    (`--revert` undoes; original kept as `steamwebhelper_real.exe` in-tree and at
+    `~/cs2-patch/shim/steamwebhelper.orig.exe`). **Installed on the daily wrapper.**
+  - ▶ **Remaining confirmation:** James signs in and verifies the **store + library** render and
+    stay stable. Then: fold re-application into the launcher/`repatch.sh` (a Steam client update
+    restores the original), README/INSTALL write-up, and a dxmt#141 follow-up comment — the
+    filtering + size-verification findings are directly useful to that thread.
+  - ⚠ Fragile-by-construction: depends on Valve verifying sizes not hashes; in-process GPU is an
+    unsupported Chromium mode (watch long-session stability). Keep `CS2dxmt11-pk110.app` as the
+    fallback until the shim has real mileage.
+  - Evidence: GOTCHAS § "Steam's visible UI CAN render on stock Wine + DXMT".
 - **Fullscreen-toggle cursor desync** — ⚠ *observed on wine 11.0; NOT re-tested on the promoted
   11.16 engine.* Toggling fullscreen ↔ windowed mid-session dropped the game out of exclusive
   fullscreen (a macOS title bar appeared); render resolution and window geometry stopped matching
