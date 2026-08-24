@@ -533,3 +533,34 @@ fixed and *demonstrated* wrong the same session.
   wrapper while reporting success for the one it launched. Harmless-looking (patches are
   idempotent) until you run two wrappers — then a game update silently leaves the running one
   unpatched. The correct idiom already existed in `setup.sh`; only the launcher omitted it.
+
+## AppleScript applet `progress` renders NO window on macOS 26 — use an AppKit panel (2026-08-23)
+
+Building the dock-launch progress window, both canonical applet patterns produced a running
+process with **zero windows** (System Events `windows` = empty, confirmed on two builds):
+
+- stay-open applet (`osacompile -s`) setting `progress total steps` from `on run` and updating in
+  `on idle` — no window, ever;
+- plain applet with the whole poll loop inside `on run` (`repeat`/`delay`, the classic pattern
+  that historically kept the panel alive) — still no window.
+
+The `progress` properties execute without error; the panel simply never materializes. Fix that
+shipped: a ~80-line Swift AppKit floating panel compiled by `make-shortcut.sh` at bundle-build
+time (`xcrun swiftc`, CLT ships it), `.accessory` activation policy so it never takes focus or a
+dock icon, `orderFrontRegardless()` + `.floating` + `.canJoinAllSpaces` for visibility. Verified
+end to end the same night: renders, live milestone tracking from the launcher log, self-dismisses
+2 s after the game process appears.
+
+## `pgrep -f` self-match: your own watcher becomes "the game is running" (2026-08-23)
+
+The shim's `pgrep -f 'Cities2.exe'` matched a *monitoring script* whose command line contained
+the string (a background watcher polling for game exit) — so a dock click concluded "already
+running", refused to launch, and showed nothing. The same trap the steamwebhelper rule documents,
+now measured from the other side: **any** wrapper/watcher/editor whose argv mentions the pattern
+is a false positive.
+
+Scope on structure the real process must have and casual mentions won't: the game's argv is a
+unix path, so match `'/Cities2.exe'` **with the leading slash** (watchers say `Cities2.exe`
+bare). Applied in the shim's already-running check, its `GPID` capture, and the Swift panel's
+game-up probe. Corollary: a test harness that greps for a process by name must never put that
+name in its own command line unescaped (`pkill` excludes itself; `pgrep -f` does not).

@@ -3,12 +3,12 @@
 # with the game's own icon extracted from your installed Cities2.exe.
 #
 # Why a script: the .app is four generated pieces (Info.plist, a launch shim, an .icns, and a
-# progress applet). Hand-making it is fiddly, and the icon has to come from YOUR game install —
+# progress panel). Hand-making it is fiddly, and the icon has to come from YOUR game install —
 # this repo does not (and must not) redistribute Paradox artwork, so the icon is extracted locally
 # at build time from the copy you own.
 #
 # The progress applet: a dock-icon launch spends ~1-2 minutes on Steam start + licence sync with
-# nothing on screen but transient notifications. The bundled "CS2 Progress" applet shows a
+# nothing on screen but transient notifications. The bundled cs2-progress panel (compiled Swift) shows a
 # persistent progress window instead — it polls the launcher log the shim writes and mirrors the
 # newest milestone, then quits itself once the game process is up.
 #
@@ -83,10 +83,14 @@ if [ ! -f "\$SCRIPT" ]; then
   osascript -e 'display alert "Cities: Skylines II" message "Launcher script is missing. Re-run scripts/make-shortcut.sh." as critical'
   exit 1
 fi
-if pgrep -f 'Cities2.exe' >/dev/null 2>&1; then
+# ⚠ '/Cities2.exe' with the slash, on purpose: the real game process's argv is a unix path
+# (…/Cities Skylines II/Cities2.exe). A bare 'Cities2.exe' also matches any watcher/wrapper
+# whose own command line mentions the name (measured 2026-08-23: a monitoring script made this
+# shim think the game was running and refuse to launch). Same class as the steamwebhelper rule.
+if pgrep -f '/Cities2.exe' >/dev/null 2>&1; then
   # Already running: bring the game forward — real feedback, not a vanishing banner. First use
   # triggers a one-time Automation (System Events) consent prompt; notification is the fallback.
-  GPID=\$(pgrep -f 'Cities2.exe' | head -1)
+  GPID=\$(pgrep -f '/Cities2.exe' | head -1)
   osascript -e "tell application \"System Events\" to set frontmost of (first process whose unix id is \$GPID) to true" >/dev/null 2>&1 \
     || osascript -e 'display notification "Already running — switching to it failed. Click its window." with title "Cities: Skylines II"'
   exit 0
@@ -97,13 +101,13 @@ chmod +x "\$SCRIPT" 2>/dev/null
 # Persistent progress window (built beside this shim, if osacompile was available at build time).
 # It reads \$LOG and quits itself when the game is up, on ERROR, or after 8 minutes.
 APPDIR="\$(cd "\$(dirname "\$0")/.." && pwd)"
-PROGRESS="\$APPDIR/Resources/CS2 Progress.app"
-[ -d "\$PROGRESS" ] && open "\$PROGRESS" 2>/dev/null
+PROGRESS="\$APPDIR/Resources/cs2-progress"
+[ -x "\$PROGRESS" ] && "\$PROGRESS" >/dev/null 2>&1 &
 CS2_QUIET=1${HUD_ENV} bash "\$SCRIPT" >> "\$LOG" 2>&1
 rc=\$?
 # The applet exits on its own; this is only the backstop (launcher died before any milestone).
 # pkill by path, NOT AppleScript quit-by-name — telling a non-running app to quit LAUNCHES it.
-pgrep -f 'CS2 Progress.app' >/dev/null 2>&1 && pkill -f 'CS2 Progress.app' 2>/dev/null
+pkill -f 'Resources/cs2-progress' 2>/dev/null
 if [ \$rc -ne 0 ]; then
   osascript -e "display alert \"Cities: Skylines II\" message \"Launch failed (exit \$rc). Open the log?\" buttons {\"Dismiss\",\"Open Log\"} default button \"Open Log\"" \\
     -e 'if button returned of result is "Open Log" then do shell script "open ~/Library/Logs/cs2-launcher.log"' >/dev/null 2>&1
@@ -206,88 +210,111 @@ PY
 fi
 [ "$ICON_OK" = 1 ] || echo "    icon:     skipped (generic icon) — game exe or python3 not found; the app still works"
 
-# ---------------------------------------------------------------- progress applet
-# Stay-open AppleScript applet: mirrors the launcher's milestones (from the log the shim writes)
-# in a persistent progress window, so a dock-icon launch visibly does something during the
-# Steam-start + licence-sync minutes. Quits itself when the game process appears, when the
-# launcher logs an ERROR (the shim's alert takes over), or after 8 minutes.
+# ---------------------------------------------------------------- progress panel (Swift)
+# A tiny compiled floating panel: mirrors the launcher's milestones (from the log the shim
+# writes) so a dock-icon launch visibly does something during the Steam-start + licence-sync
+# minutes. Quits itself when the game process appears, when the launcher logs an ERROR (the
+# shim's alert takes over), or after 8 minutes.
+# ⚠ Why Swift and not an AppleScript applet: measured 2026-08-23 — `progress` properties in an
+# osacompile applet render NO window on macOS 26 (process alive, System Events reports zero
+# windows), whether polled from `on idle` or from a repeat-loop inside `run`. Dead end; the
+# AppKit panel below is unconditional. Accessory activation policy = no dock icon, no focus theft.
 PROGRESS_OK=0
-if command -v osacompile >/dev/null 2>&1; then
+if xcrun -f swiftc >/dev/null 2>&1; then
   PDIR=$(mktemp -d)
-  cat > "$PDIR/progress.applescript" << 'APPLET'
--- Generated by scripts/make-shortcut.sh — re-run that instead of editing this bundle.
-property startedAt : missing value
-property maxSeconds : 480
+  cat > "$PDIR/progress.swift" << 'SWIFT'
+// Generated by scripts/make-shortcut.sh — re-run that instead of editing the binary's source.
+// Usage: cs2-progress [logfile]   (logfile defaults to ~/Library/Logs/cs2-launcher.log)
+import AppKit
 
-on run
-	set startedAt to current date
-	set progress total steps to 5
-	set progress completed steps to 0
-	set progress description to "Cities: Skylines II is starting"
-	set progress additional description to "Waking the launcher…"
-end run
+let logPath = CommandLine.arguments.count > 1
+    ? CommandLine.arguments[1]
+    : ("~/Library/Logs/cs2-launcher.log" as NSString).expandingTildeInPath
+let app = NSApplication.shared
+app.setActivationPolicy(.accessory)
 
-on idle
-	if (current date) - startedAt > maxSeconds then quit
-	set tailText to ""
-	try
-		-- only the newest launch session: the shim writes an "===== date =====" marker per run
-		set tailText to do shell script "awk '/^===== /{buf=\"\"}{buf=buf $0 \"\\n\"}END{printf \"%s\",buf}' \"$HOME/Library/Logs/cs2-launcher.log\" 2>/dev/null || true"
-	end try
-	if tailText contains "ERROR:" then quit
-	set stepN to 0
-	set msg to "Waking the launcher…"
-	if tailText contains "Launching Cities: Skylines II" then
-		set stepN to 5
-		set msg to "Starting the game — the window is on its way…"
-	else if tailText contains "Almost ready — 15s" then
-		set stepN to 4
-		set msg to "Licence check — about 15 seconds left…"
-	else if tailText contains "Almost ready — 30s" then
-		set stepN to 4
-		set msg to "Licence check — about 30 seconds left…"
-	else if tailText contains "verifying licence" then
-		set stepN to 3
-		set msg to "Signed in — verifying the game licence (about 45 s)…"
-	else if tailText contains "Steam already warm" then
-		set stepN to 4
-		set msg to "Steam already warm — launching shortly…"
-	else if tailText contains "Steam already running" then
-		set stepN to 3
-		set msg to "Steam already running — reusing the session…"
-	else if tailText contains "Starting Steam" then
-		set stepN to 2
-		set msg to "Starting Steam and signing in…"
-	else if tailText contains "Wrapper:" then
-		set stepN to 1
-		set msg to "Checking game patches…"
-	end if
-	set progress completed steps to stepN
-	set progress additional description to msg
-	if stepN is 5 then
-		set gameUp to "no"
-		try
-			set gameUp to do shell script "pgrep -f Cities2.exe >/dev/null 2>&1 && echo yes || echo no"
-		end try
-		if gameUp is "yes" then
-			set progress additional description to "Game is up — have fun!"
-			delay 2
-			quit
-		end if
-	end if
-	return 1
-end idle
-APPLET
-  if osacompile -s -o "$APP/Contents/Resources/CS2 Progress.app" "$PDIR/progress.applescript" >/dev/null 2>&1; then
+let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 400, height: 96),
+                   styleMask: [.titled], backing: .buffered, defer: false)
+win.title = "Cities: Skylines II"
+win.level = .floating
+win.collectionBehavior = [.canJoinAllSpaces]
+win.isReleasedWhenClosed = false
+if let screen = NSScreen.main {
+    let f = screen.visibleFrame
+    win.setFrameOrigin(NSPoint(x: f.maxX - 424, y: f.maxY - 120))
+}
+let title = NSTextField(labelWithString: "Cities: Skylines II is starting")
+title.font = NSFont.boldSystemFont(ofSize: 13)
+title.frame = NSRect(x: 16, y: 66, width: 368, height: 18)
+let status = NSTextField(labelWithString: "Waking the launcher…")
+status.font = NSFont.systemFont(ofSize: 12)
+status.textColor = .secondaryLabelColor
+status.frame = NSRect(x: 16, y: 44, width: 368, height: 17)
+let bar = NSProgressIndicator(frame: NSRect(x: 16, y: 16, width: 368, height: 16))
+bar.isIndeterminate = false
+bar.minValue = 0
+bar.maxValue = 5
+win.contentView!.addSubview(title)
+win.contentView!.addSubview(status)
+win.contentView!.addSubview(bar)
+win.orderFrontRegardless()
+
+let started = Date()
+func lastSession() -> String {
+    guard let s = try? String(contentsOfFile: logPath, encoding: .utf8) else { return "" }
+    if let r = s.range(of: "===== ", options: .backwards) { return String(s[r.lowerBound...]) }
+    return s
+}
+func gameUp() -> Bool {
+    let p = Process()
+    p.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
+    p.arguments = ["-f", "/Cities2.exe"]   // leading slash: never match watchers by name
+    p.standardOutput = FileHandle.nullDevice
+    guard (try? p.run()) != nil else { return false }
+    p.waitUntilExit()
+    return p.terminationStatus == 0
+}
+var quitAt: Date? = nil
+Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
+    if let q = quitAt { if Date() >= q { app.terminate(nil) }; return }
+    if Date().timeIntervalSince(started) > 480 { app.terminate(nil) }
+    let t = lastSession()
+    if t.contains("ERROR:") { app.terminate(nil) }   // the shim's own alert takes over
+    var stepN = 0.0
+    var msg = "Waking the launcher…"
+    if t.contains("Launching Cities: Skylines II") {
+        stepN = 5; msg = "Starting the game — the window is on its way…"
+    } else if t.contains("Almost ready — 15s") {
+        stepN = 4; msg = "Licence check — about 15 seconds left…"
+    } else if t.contains("Almost ready — 30s") {
+        stepN = 4; msg = "Licence check — about 30 seconds left…"
+    } else if t.contains("verifying licence") {
+        stepN = 3; msg = "Signed in — verifying the game licence (about 45 s)…"
+    } else if t.contains("Steam already warm") {
+        stepN = 4; msg = "Steam already warm — launching shortly…"
+    } else if t.contains("Steam already running") {
+        stepN = 3; msg = "Steam already running — reusing the session…"
+    } else if t.contains("Starting Steam") {
+        stepN = 2; msg = "Starting Steam and signing in…"
+    } else if t.contains("Wrapper:") {
+        stepN = 1; msg = "Checking game patches…"
+    }
+    bar.doubleValue = stepN
+    status.stringValue = msg
+    if stepN == 5 && gameUp() {
+        status.stringValue = "Game is up — have fun!"
+        quitAt = Date().addingTimeInterval(2)
+    }
+}
+app.run()
+SWIFT
+  if xcrun swiftc -O -o "$APP/Contents/Resources/cs2-progress" "$PDIR/progress.swift" >/dev/null 2>&1; then
     PROGRESS_OK=1
-    # brand the applet with the extracted game icon (osacompile bundles look for applet.icns)
-    [ "$ICON_OK" = 1 ] && cp "$APP/Contents/Resources/cs2.icns" \
-      "$APP/Contents/Resources/CS2 Progress.app/Contents/Resources/applet.icns" 2>/dev/null
-    echo "    progress: applet built (persistent launch-progress window)"
+    echo "    progress: Swift panel built (persistent launch-progress window)"
   fi
   rm -rf "$PDIR"
 fi
-[ "$PROGRESS_OK" = 1 ] || echo "    progress: skipped (osacompile failed or unavailable) — notifications only"
+[ "$PROGRESS_OK" = 1 ] || echo "    progress: skipped (swiftc unavailable or compile failed) — notifications only"
 
 # ---------------------------------------------------------------- Info.plist
 cat > "$APP/Contents/Info.plist" << PLIST
