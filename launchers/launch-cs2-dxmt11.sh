@@ -90,7 +90,7 @@ echo "Engine: $("$WINE" --version 2>/dev/null)"
 # 0) Ensure the binary patches are applied — a game update reverts them. All are idempotent and
 #    refuse to write if the pattern moved, so re-running is always safe.
 if [ -x "$PATCH_DIR/repatch.sh" ]; then
-  bash "$PATCH_DIR/repatch.sh" dxmt11 >/dev/null 2>&1 && echo "Patches ensured (10, dxmt11 target)." \
+  CS2_GAME_DIR="$GDIR" bash "$PATCH_DIR/repatch.sh" dxmt11 >/dev/null 2>&1 && echo "Patches ensured (10, dxmt11 target)." \
     || echo "WARNING: repatch reported an issue — continuing (patches are idempotent)."
 else
   echo "NOTE: no repatch.sh in $PATCH_DIR — skipping the patch check. Run scripts/setup.sh to install it."

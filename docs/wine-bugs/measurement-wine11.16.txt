@@ -107,7 +107,7 @@
   C:\Program Files (x86)\Steam\steamapps\common\Cities Skylines II\MonoBleedingEdge\EmbedRuntime\mono-2.0-bdwgc.dll
 == configuring: MONO_PATH=C:\Program Files (x86)\Steam\steamapps\common\Cities Skylines II\Cities2_Data\Managed  etc=C:\Program Files (x86)\Steam\steamapps\common\Cities Skylines II\MonoBleedingEdge\etc ==
 == mono_jit_init_version(v4.0.30319) ==
-== open assembly: Z:\Users\js\Documents\github\cs2\scripts\filetest_net.exe ==
+== open assembly: Z:\Users\<REDACTED>\Documents\github\cs2\scripts\filetest_net.exe ==
 == running Main under Unity mono ==
 ----------
 ----------
