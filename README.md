@@ -12,7 +12,8 @@ stock wine 11.16 engine ([INSTALL §6](INSTALL.md#6-recommended-build-the-wine-1
 ![Cities: Skylines II running on macOS via Wine + DXMT](docs/images/cs2-on-macos.png)
 
 *The game on macOS 26 (M3 Max), x86-64 under Rosetta, rendering through Metal via DXMT — 42.7 FPS
-at 1080p. The overlay is Metal's own performance HUD, enabled with `CS2_HUD=1`.*
+at 1080p on the Wine 11.0 stack; the 11.16 engine measures 44.9 FPS at the same settings. The
+overlay is Metal's own performance HUD, enabled with `CS2_HUD=1`.*
 
 ## Quick start
 
@@ -35,13 +36,19 @@ Two stacks work. The **Wine 11 + DXMT** one is the default since 2026-08-22 beca
 **10 patches instead of 17** — Wine 11 fixed both the Mono garbage-errno defect *and* the bcrypt
 signature defect upstream ([the measurement](docs/wine-bugs/FINDING-wine11-fixes-it.md)).
 
-| Layer | Default — **Wine 11 + DXMT** | Fallback — **Wine 10 + D3DMetal** |
-|---|---|---|
-| Wrapper | Porting Kit app bundle | Kegworks / WineskinNavy app bundle |
-| Wine | **Wine 11.0** (`WS12Wine11.0_DXMT-v0.80`) | **Wine 10.0 Sikarugir** |
-| Graphics | **DXMT v0.80** — reports the real GPU (`Apple M3 Max`) | **D3DMetal v2.1** — reports `AMD Compatibility Mode` |
-| Patches | **10** — the 6 errno patches AND the licence bypass are unnecessary | **17** |
-| Proven by | boots, mods load + download, Steam UI, DLC | a 1h40m session, saved city, long-run stability |
+| Layer | Default — **self-built Wine 11.16 + DXMT** | Base — **Wine 11.0 + DXMT** | Fallback — **Wine 10 + D3DMetal** |
+|---|---|---|---|
+| Wrapper | the Porting Kit bundle, engine swapped | Porting Kit app bundle | Kegworks / WineskinNavy bundle |
+| Wine | **stock 11.16**, built by [`scripts/build-engine-1116.sh`](scripts/build-engine-1116.sh) | **Wine 11.0** (`WS12Wine11.0_DXMT-v0.80`) | **Wine 10.0 Sikarugir** |
+| Graphics | **DXMT v0.80** (reused from the base engine) | **DXMT v0.80** — reports the real GPU | **D3DMetal v2.1** — reports `AMD Compatibility Mode` |
+| Patches | **10** | **10** — the 6 errno patches AND the licence bypass are unnecessary | **17** |
+| Alt-tab in exclusive fullscreen | **works** | freezes ([dxmt#206](https://github.com/3Shain/dxmt/issues/206)) — use borderless | mild misbehaviour |
+| Measured | **44.9 FPS**, GPU 23.1 ms, presentation `Direct` | 42.7 FPS, GPU ~26 ms, `Composited` | — |
+| Proven by | a full validated session: mods delete+redownload, alt-tab cycles, city play | boots, mods load + download, Steam UI, DLC | a 1h40m session, saved city, long-run stability |
+
+The 11.16 engine is the recommended setup and takes about an hour to build ([INSTALL §6](INSTALL.md#6-recommended-build-the-wine-1116-engine-kills-the-alt-tab-freeze)).
+It needs the Wine 11.0 + DXMT stack installed first — it reuses that engine's DXMT binaries and
+x86_64 support libraries, and redistributes nothing.
 
 Both run CS2 `1.6.0f1 (419.d6c6)` via Steam in-prefix at `Direct3D 11.0 [level 11.1]` — no MoltenVK
 device-loss lottery, no OpenGL. The one serious defect — an alt-tab "freeze" in exclusive
