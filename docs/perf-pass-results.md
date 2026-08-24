@@ -19,9 +19,13 @@
 
 ## Noise floor (M0 on the benchmark scene) — 2026-08-23/24
 
-⚠ Caveat: these samples ran on the **current pre-pin profile** (DynamicRes=Automatic still on;
-texture setting unconfirmed). They establish the working floor for tonight's cells; M0 re-runs
-after the settings pin (autonomous, cheap).
+⚠ Caveat: these samples ran on the **pre-pin profile** (DynamicRes=Automatic still on). Settings
+confirmed by screenshot 2026-08-24 09:29 (after James's pin): Global=Custom ·
+**DynamicRes=Disabled (pinned)** · AA=Low SMAA · Clouds=Med · Fog=on · Volumetrics=Low · AO=Med ·
+GI=Off · **Reflections=Low** (drifted from the V3 block's "Med" at some point — one more reason
+the clean re-baseline matters) · DoF=Off · MotionBlur=Off · Shadows=Low · Terrain/Water/LOD=Med ·
+**Texture=Med**. The `m0-clean-*` rows below are the authoritative floor; the Benchmark tab also
+exists in Options (menu entry confirmed).
 
 | cell | avgFps | gpuMs avg / p95 | cpuMs avg / p95 | frame stdev | 1%-low FPS | load s |
 |---|---|---|---|---|---|---|
