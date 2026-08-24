@@ -101,3 +101,35 @@ Also visually confirmed from the Options screens: the **max-frame-latency slider
 live, set 2) · the **DLSS upscaler entry is present but greyed** on Apple GPU (A4 gating seen in
 the UI) · **VSync-on doesn't bind** at sub-40 FPS on a 120 Hz panel (kept on, consistent across
 cells).
+
+## The autonomous settings series (P2 matrix) — 2026-08-24, 9 cells, zero human input
+
+**Method unlock first:** a controlled experiment proved complete value edits to `Settings.coc`
+are honored by the game (functional proof: edited `minScale` 0.75→0.5 → benchmark gpuMs dropped
+−17%, file persisted, config restored byte-for-byte; GOTCHAS refined — the old trap is *partial*
+flips). That made the whole settings matrix autonomous: per cell, backup → unique-anchor regex
+edit → benchmark cycle → persistence check → restore (`~/cs2-patch/perf-runs/settings-series.py`).
+
+**Base config** (James's adjudicated finalist): 1080p Fullscreen Windowed · DRS Custom 75%
+FSR1.0/EASU · High SMAA · the lean settings block. Base R-bench: **24.02 FPS · gpuMs 40.5 ·
+cpuGameMs 25.9 · 1%-low 15.2**. (Beats the pre-pin 22.2 baseline while looking better.)
+Noise: avgFps floor 1.03; gpuMs spread ~±2.3.
+
+| Cell | avgFps Δ | gpuMs Δ | Verdict |
+|---|---|---|---|
+| s2 LOD 0.5→0.25 | **+4.74** | **−6.4** (and cpuGame −5.5!) | **WINNER — a double lever** (GPU + CPU); best 1%-lows (22.9). Cost: pop-in, eyes pending |
+| s3 Shadows off | +3.52 | −6.4 | big/ugly; a half-res-shadows middle cell is queued for later |
+| s4 Small-ticket sweep | +0.91 | −4.2 | real GPU ms, diluted on the CPU-heavy scene; marginal per visual cost |
+| s5 Texture up (mipbias 1→0) | +0.43 | −3.7 | **free quality win — KEEP** |
+| s6 AA High→Low SMAA | +0.23 | −4.7 | High SMAA costs ~5 gpuMs; the jaggedness fix's known price, kept |
+| s1 DRS off (native) | −1.11 | +1.0 | **finalists tie within noise → sharpness is free → native wins** |
+| s0 Upscale filter TAAU | −1.62 | **+9.2, p95 110 ms, 1%-low 8.0** | **LANDMINE — never use TAAU under DXMT** (temporal path pathological) |
+
+**s7 composed** (native + High SMAA + LOD 0.25 + mipbias 0): **26.80 FPS (+11.6%) · gpuMs 35.9 ·
+cpuGameMs 20.3 · 1%-low 23.59 (+55% vs base — better than the base config's *average* feel).**
+Sub-additive vs the naive sum (expected; native returns DRS's savings), CPU win survives
+composition. On the GPU-bound daily scene the average-FPS gain should exceed the stress-scene's.
+
+**Recommended daily driver (pending James's pop-in eyeball):** DRS **Disabled** · **High SMAA** ·
+**levelOfDetail 0.25** · **mipbias 0** · everything else per the lean block. Revert = restore
+any `.bak`/series-base snapshot or re-select in Options.

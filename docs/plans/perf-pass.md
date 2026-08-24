@@ -1,6 +1,16 @@
 # The deep performance pass — squeeze the promoted 11.16 stack
 
 > **Status: check-it'd 2026-08-23 — build-ready-with-fixes (pass 1, corrections folded).**
+> **🔧 As-built (2026-08-24):** P0–P2 executed and substantially measured — instrument = the
+> game's own `-benchmark` (structured per-frame output; autonomous cycles via
+> `scripts/perf-bench.sh`); settings cells went fully autonomous after the Settings.coc
+> edit experiment (GOTCHAS refined). §3A closed by live adjudication (borderless locks
+> backbuffer res). Composed profile measured +11.6% avg / +55% 1%-low on the stress scene.
+> Deviations from plan: MetalFX A-cells impossible in the pinned display mode (replaced by
+> DRS/filter cells); HUD-logging instrument dead (benchmark series superseded it); settings
+> edits via file (not menu) after the controlled experiment. Remaining: P3 pacing cells,
+> P4 late-game CPU cells (M0-L), P5 ship. Verify against: docs/perf-pass-results.md ·
+> scripts/perf-bench.sh · ~/cs2-patch/perf-runs/settings-series.py · GOTCHAS.md.
 > Tracking: PLAN.md § "Performance: the deep optimization pass" (personal-tier repo, no issue tracker).
 
 James, 2026-08-23: *"take a deep hard look at optimizing efficiency"* — serious token budget
