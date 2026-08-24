@@ -30,3 +30,29 @@ Self-check: bin/wine64 --version = wine-11.16. OUR winemac.so EXPORTS _macdrv_fu
 (dyld_info: 0x59560) — the aquadran shim is live; both DXMT binding paths available.
 NOTE: no engine .so LINKS freetype/gnutls — wine dlopen()s the bare sonames at runtime, so
 raw (non-launcher) runs need DYLD_FALLBACK_LIBRARY_PATH=<engine>/lib. Folded into plan §6.
+
+== G1 (swapchain compositing) — 2026-08-23, display awake, hardened harness ==
+CONTROL (daily engine, wine 11.0 + DXMT, prefix = daily wrapper):
+  P1 (251,35,248) magenta — crop confirmed inside client area
+  P2B (32,115,137) == P2B2 (32,115,137)  -> computed VERDICT: STALE (bug PRESENT)
+CANDIDATE (CS2_WINE=/tmp/engine-1116/bin/wine64, fresh prefix ~/.e1116-prefix,
+           DYLD_FALLBACK_LIBRARY_PATH=<engine>/lib, WINEESYNC/MSYNC=1):
+  P1 (251,35,248) magenta
+  P2B (168,22,15) != P2B2 (72,5,3) — red pulse ANIMATING on the older chain
+  -> computed VERDICT: LIVE (fix PRESENT)
+G1: PASS. Headline unknown SETTLED: PK's fork DXMT binaries (v0.80-17-g79f6279) bind and
+present correctly on stock wine 11.16 — no WineForge fallback needed, no aquadran-path use
+required at runtime (though the shim is compiled in and exported).
+
+== G2 (raw Win32 errno) — 2026-08-23 ==
+scripts/errtest.exe (compiled this session, x86_64-w64-mingw32-gcc -O2) on the new engine:
+9/9 correct, 0 WRONG.
+G2: PASS.
+
+== G3 (Mono file IO, game's own Unity runtime) — 2026-08-23 ==
+monohost.exe + filetest_net.exe, fresh prefix, game dir symlinked (live 10-patch mscorlib =
+fshandle-only delta), exit 0: 44 OK / 7 expected exceptions / 0 garbage-errno lines.
+Identical to the wine-11.0 and stock-11.15/11.16 baselines.
+G3: PASS.
+
+Pass-1 smoke ladder complete: G0+G1+G2+G3 all PASS. Pass 2 (i386,x86_64) building; G4 after.
