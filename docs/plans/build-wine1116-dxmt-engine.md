@@ -174,6 +174,9 @@ export CS2_WINE=/tmp/engine-1116/bin/wine64 CS2_PREFIX=$HOME/.e1116-prefix
 export WINEESYNC=1 WINEMSYNC=1                  # match the launcher's environment
 export DYLD_FALLBACK_LIBRARY_PATH=/tmp/engine-1116/lib   # wine dlopen()s the pathless sonames
 #   (freetype/gnutls/MoltenVK) — inside the wrapper the launcher sets this; raw runs must too
+export WINEDLLOVERRIDES="mscoree=;mshtml="   # kill the Wine Mono / Gecko install dialogs on
+#   first wineboot: PK's bundled mono does NOT satisfy 11.16's addon version check (measured —
+#   it prompted anyway), and no gate needs wine-mono: G3 uses the GAME's own Unity Mono.
 mkdir -p "$HOME/.e1116-prefix/drive_c/Program Files (x86)/Steam/steamapps/common"
 ln -s "$HOME/Applications/CS2dxmt11.app/Contents/SharedSupport/prefix/drive_c/Program Files (x86)/Steam/steamapps/common/Cities Skylines II" \
       "$HOME/.e1116-prefix/drive_c/Program Files (x86)/Steam/steamapps/common/Cities Skylines II"
