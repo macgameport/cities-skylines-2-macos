@@ -84,7 +84,11 @@ if [ ! -f "\$SCRIPT" ]; then
   exit 1
 fi
 if pgrep -f 'Cities2.exe' >/dev/null 2>&1; then
-  osascript -e 'display notification "Already running." with title "Cities: Skylines II"'
+  # Already running: bring the game forward — real feedback, not a vanishing banner. First use
+  # triggers a one-time Automation (System Events) consent prompt; notification is the fallback.
+  GPID=\$(pgrep -f 'Cities2.exe' | head -1)
+  osascript -e "tell application \"System Events\" to set frontmost of (first process whose unix id is \$GPID) to true" >/dev/null 2>&1 \
+    || osascript -e 'display notification "Already running — switching to it failed. Click its window." with title "Cities: Skylines II"'
   exit 0
 fi
 
