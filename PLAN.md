@@ -55,39 +55,26 @@ software compositing (GOTCHAS § visible Steam UI). The daily flow is immune (St
 `-silent`). Any upstream comment should say "intermittent under stock wine 11.16", which is
 still useful signal on the open issue.
 
-## Performance: the deep optimization pass (queued — serious token budget approved)
+## Performance: the deep optimization pass (RUNNING — P0–P2 measured 2026-08-24)
 
-James, 2026-08-23: after the 11.16 validation lands, *"take a deep hard look at optimizing
-efficiency"* — with explicit approval to **spend serious tokens to make things run well**.
-Recorded so no future session under-scopes it or re-asks.
+James, 2026-08-23: *"take a deep hard look at optimizing efficiency"* — serious token budget
+approved. Plan + ethos: `docs/plans/perf-pass.md` (check-it'd, as-built header current).
+Measured table: `docs/perf-pass-results.md`. Method + traps: GOTCHAS (benchmark instrument,
+Settings.coc edit rule, resolution/upscaling closures).
 
-**Sequencing:** runs ON the promoted 11.16 stack — exclusive fullscreen + Game Mode change the
-baseline, so tuning on wine-11.0 numbers would be wasted work. V3/V5 of the current validation
-produce the starting baseline for free. Being complex, the pass gets its own `docs/plans/`
-doc + `check it` before execution, per the standing chain.
+**Done:** instrument discovered (the game's own `-benchmark` writes structured per-frame results;
+`scripts/perf-bench.sh` runs autonomous cycles) · noise floor 1.03 FPS · resolution/upscaling
+family closed by live adjudication (borderless locks backbuffer res; MetalFX supersample-only
+there; TAAU pathological; street names are world text) · settings matrix measured autonomously
+via Settings.coc edits (LOD = GPU+CPU double lever; High SMAA costs ~5 gpuMs, kept for looks;
+texture-up free) · **composed daily driver measured +11.6% avg / +55% 1%-low** (native + High
+SMAA + LOD 0.25 + mipbias 0) — **applied to settings, awaiting James's pop-in verdict**.
 
-**Already measured — don't re-derive:**
-- **GPU-BOUND at current settings** (Metal HUD: GPU 25.9–26.6 ms ≥ frame interval @ ~40 fps,
-  1080p). Graphics settings keep paying; CPU/translation overhead is not today's bottleneck.
-- Settings progression on record: 34 → ~40 fps (+18%) via Volumetrics Low + Shadows Low;
-  **42.7 final** (M3 Max; exact settings block in the ledger and the build plan's V3 row).
-- CrossOver parity reference: ~35 fps (AppleGamingWiki, M3 Pro).
-
-**Lever inventory for the pass** (from the ledger's DXMT-source enumeration + stack knowledge):
-- In-game matrix: GI, Reflections/SSR, AO, Clouds/Fog, DynamicResolutionScale modes, resolution —
-  one variable at a time against a fixed save + fixed camera.
-- DXMT tunables: `d3d11.preferredMaxFrameRate`, `d3d11.metalSpatialUpscaleFactor` +
-  `DXMT_METALFX_SPATIAL_SWAPCHAIN` (**`CS2_METALFX=1` is wired in the launcher and still
-  untested**), `dxgi.forceSDR`, `d3d11.ignoreMapFlagNoWait`, `d3d11.sampleNaNToZero`,
-  `dxmt.shaderMetalVersion`.
-- macOS: Game Mode delta (V5 measures it), refresh-rate/second-display interaction (GOTCHAS).
-- Method: fixed city + camera, HUD numbers (FPS, GPU ms, commit/sync/encode breakdown) per lever,
-  results in a measured table; judge only runs whose logs postdate the change.
-- Out of scope until measurement justifies it: rebuilding DXMT from source (LLVM-15 burden),
-  alternative translation layers, Rosetta-level experiments.
-
-Exit shape: `docs/plans/perf-pass.md` with the matrix → check-it'd → executed; results fold into
-README (the public numbers) and the AppleGamingWiki draft.
+**Remaining:** P3 pacing cells (`preferredMaxFrameRate` on the daily scene, vsync decision) ·
+P4 late-game CPU cells (M0-L baseline + job-worker-count/allocator boot.config levers) ·
+P5 ship (README numbers + wiki draft after the profile verdict). Out of scope unchanged
+(DXMT rebuild, alternative layers, Rosetta experiments) — except the **queued MoltenVK dylib
+update** (see Known-unresolved: Steam UI), which is now a named mini-project.
 
 ## ✅ Retired: "fix it upstream in Wine"
 
