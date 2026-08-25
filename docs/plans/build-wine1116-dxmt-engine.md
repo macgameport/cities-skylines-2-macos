@@ -13,6 +13,13 @@
 > (every gate's raw numbers) · `scripts/run-minrepro3.sh` (hardened harness).
 > **Not done:** V2 log diff, V6b boot-clean, V9 borderless flip — deferred to the next launch;
 > dxmt#206 report; old wrapper retirement (parked as `CS2dxmt11-pk110.app`, decide ~2026-08-30).
+> **Post-ship addition (2026-08-24, commit `7b634fa`):** step 7 appended to the script — after
+> the engine swap it preserves the 11.0 wrapper (APFS clone via `scripts/make-steam-shortcut.sh`,
+> game + `appmanifest_949230.acf` stripped) and installs `CS2 Steam Store.app`, resolving the
+> "old wrapper retirement" question above as **keep, productized** (storefront is black on 11.16 —
+> dxmt#141). Step 7 is tested standalone (clone/refusal/idempotent paths + a live storefront
+> render); the full 1-hour build has not been re-run with it in place. Session-swap behavior
+> measured harmless — GOTCHAS § "Same-account Steam sessions SWAP".
 
 **Status: Triple-checked 2026-08-23 — build-ready-with-fixes (pass 1). Corrections folded; see
 `## Review corrections` and the Review log.**

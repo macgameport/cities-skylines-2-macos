@@ -3,7 +3,8 @@
 Current stack: **self-built stock Wine 11.16 + DXMT**, promoted 2026-08-23 — 10 patches. Built by
 `scripts/build-engine-1116.sh` from the official winehq source (the DXMT binaries and x86_64
 dylibs are reused from a Porting Kit Wine11+DXMT wrapper, which remains the prerequisite install).
-**Porting Kit Wine 11.0 + DXMT** is the parked fallback (`CS2dxmt11-pk110.app`); **Wine 10
+**Porting Kit Wine 11.0 + DXMT** is the storefront wrapper + parked fallback
+(`CS2dxmt11-pk110.app` — `CS2 Steam Store.app` opens Steam there); **Wine 10
 Sikarugir + D3DMetal** (`S734M.app`) is the older proven one. See `README.md` for how it works,
 `INSTALL.md` §6 for the engine build, and `docs/patch-inventory.md` for the patch-by-patch
 breakdown.
