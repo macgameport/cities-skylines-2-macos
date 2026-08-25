@@ -85,9 +85,29 @@ GDIR="$WINEPREFIX/drive_c/Program Files (x86)/Steam/steamapps/common/Cities Skyl
 CL="$WINEPREFIX/drive_c/Program Files (x86)/Steam/logs/connection_log.txt"
 PATCH_DIR="${CS2_PATCH_DIR:-$HOME/cs2-patch}"
 
+# ---- process attribution (2026-08-24): a steam.exe re-exec'd by its own updater carries a
+# Windows-style argv (C:\...\steam.exe) that no .app-path pgrep can match, and webhelper
+# children always do — command lines cannot attribute a wine process to its wrapper. Open
+# files can: lsof against THIS prefix is the truthful test (~30 ms per pid).
+_owns() { lsof -p "$1" 2>/dev/null | grep -q "$WINEPREFIX"; }
+steam_exe_up() {   # steam.exe proper (any argv style) alive in THIS prefix?
+  for _p in $(pgrep -f "steam.exe" 2>/dev/null); do
+    case "$(ps -o command= -p "$_p" 2>/dev/null)" in *steamwebhelper*) continue ;; esac
+    _owns "$_p" && return 0
+  done
+  return 1
+}
+webhelper_up() {   # any CEF helper of THIS prefix up? (readiness signal after a fresh start)
+  for _p in $(pgrep -f "steamwebhelper.exe" 2>/dev/null); do _owns "$_p" && return 0; done
+  return 1
+}
+steam_family() {   # every steam-ish pid THIS prefix still owns (shutdown sweep)
+  for _p in $(pgrep -f "steam" 2>/dev/null); do _owns "$_p" && echo "$_p"; done
+}
+
 [ -x "$WINE" ]            || die "Wine not found inside $APPTAG (expected $WINE). Is this the DXMT wrapper?"
-[ -f "$STEAM" ]           || die "Steam is not installed inside $APPTAG. See INSTALL.md step 3."
-[ -f "$GDIR/Cities2.exe" ] || die "Cities: Skylines II is not installed inside $APPTAG. Install it via Steam in the wrapper (INSTALL.md step 4)."
+[ -f "$STEAM" ]           || die "Steam is not installed inside $APPTAG. See INSTALL.md step 2."
+[ -f "$GDIR/Cities2.exe" ] || die "Cities: Skylines II is not installed inside $APPTAG. Install it via Steam in the wrapper (INSTALL.md step 3)."
 
 echo "Wrapper: $APPTAG"
 echo "949230" > "$GDIR/steam_appid.txt"
@@ -109,7 +129,7 @@ fi
 fresh_login() { tail -n +$((BEFORE+1)) "$CL" 2>/dev/null | grep -qE "LogOnResponse.*'OK'|\[Logged On.*\[U:1:[1-9]"; }
 BEFORE=$(wc -l < "$CL" 2>/dev/null || echo 0)
 STARTED_STEAM=0
-if pgrep -f "$APPTAG.*steam.exe" >/dev/null 2>&1; then
+if steam_exe_up; then
   note "Steam already running — reusing session."
   tail -20 "$CL" 2>/dev/null | grep -qE "\[Logged On.*\[U:1:[1-9]|LogOnResponse.*'OK'" \
     || die "Steam is running but not logged in. Sign in in the Steam window, then relaunch."
@@ -121,7 +141,7 @@ else
   STARTED_STEAM=1
   ok=0
   for i in $(seq 1 40); do
-    if fresh_login && pgrep -f "steamwebhelper.exe" >/dev/null 2>&1; then ok=1; break; fi
+    if fresh_login && webhelper_up; then ok=1; break; fi
     sleep 3
   done
   [ "$ok" = 1 ] || die "Steam did not auto-login (token expired, or it crashed). Open Steam inside the wrapper, sign in until the library loads, then relaunch. If Steam won't start at all, reboot — a kill -9 can wedge it."
@@ -157,25 +177,35 @@ GAME_RC=$?
 echo "Game exited (rc=$GAME_RC). Shutting down Steam cleanly…"
 "$WINE" "$STEAM" -shutdown >/dev/null 2>&1 || echo "  (steam -shutdown failed; falling back)"
 for i in $(seq 1 20); do
-  pgrep -f "$APPTAG.*steam.exe" >/dev/null 2>&1 || break
+  steam_exe_up || break
   sleep 1
 done
 # Fallback: end the wine session for THIS prefix only. WINEPREFIX must be exported or wineserver
 # targets the default prefix and silently does nothing.
-if pgrep -f "$APPTAG.*steam.exe" >/dev/null 2>&1; then
+if steam_exe_up; then
   echo "  Steam still resident — ending the wine session for this prefix."
   WINEPREFIX="$WINEPREFIX" "$SS/wine/bin/wineserver" -k >/dev/null 2>&1
   for i in $(seq 1 10); do
-    pgrep -f "$APPTAG.*steam.exe" >/dev/null 2>&1 || break
+    steam_exe_up || break
     sleep 1
   done
+fi
+# Webhelpers can outlive steam.exe: they reparent to launchd and their Windows-style argv hides
+# them from every cmdline check (6 of them survived a shutdown unseen, 2026-08-24). Sweep the
+# whole family by prefix attribution.
+_strays="$(steam_family)"
+if [ -n "$_strays" ]; then
+  WINEPREFIX="$WINEPREFIX" "$SS/wine/bin/wineserver" -k >/dev/null 2>&1
+  sleep 2
+  _strays="$(steam_family)"
+  [ -n "$_strays" ] && kill $_strays 2>/dev/null   # plain TERM — NEVER kill -9 steam
 fi
 # wineserver exits on its own once its clients are gone; nudge it only if it lingers
 if pgrep -f "$APPTAG.*wineserver" >/dev/null 2>&1; then
   sleep 2
   WINEPREFIX="$WINEPREFIX" "$SS/wine/bin/wineserver" -k >/dev/null 2>&1
 fi
-_left=$(pgrep -f "$APPTAG" | wc -l | tr -d ' ')
-echo "  Residual $APPTAG processes after shutdown: ${_left:-0}"
+_left=$(steam_family | wc -l | tr -d ' ')
+echo "  Residual Steam-family processes in this prefix: ${_left:-0}"
 note "Cities: Skylines II closed."
 exit 0

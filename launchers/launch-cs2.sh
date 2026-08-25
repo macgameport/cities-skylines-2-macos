@@ -74,10 +74,22 @@ fi
 fresh_login() { tail -n +$((BEFORE+1)) "$CL" 2>/dev/null | grep -qE "LogOnResponse.*'OK'|\[Logged On.*\[U:1:[1-9]"; }
 BEFORE=$(wc -l < "$CL" 2>/dev/null || echo 0)
 STARTED_STEAM=0
-# Scoped to THIS wrapper: since 2026-08-22 the dxmt11 wrapper can also have a Steam resident, and
-# webhelper children carry Windows-style command lines that don't identify their wrapper. The
-# parent steam.exe carries the unix path, so detect on that.
-if pgrep -f "$APPTAG.*steam.exe" >/dev/null 2>&1; then
+# Scoped to THIS wrapper: since 2026-08-22 the dxmt11 wrapper can also have a Steam resident.
+# Attribution is by OPEN FILES, not command lines (2026-08-24): a steam.exe re-exec'd by its own
+# updater carries a Windows-style argv no .app-path pgrep can match, and webhelper children
+# always do. lsof against THIS prefix is the truthful test (~30 ms per pid).
+_owns() { lsof -p "$1" 2>/dev/null | grep -q "$WINEPREFIX"; }
+steam_exe_up() {   # steam.exe proper (any argv style) alive in THIS prefix?
+  for _p in $(pgrep -f "steam.exe" 2>/dev/null); do
+    case "$(ps -o command= -p "$_p" 2>/dev/null)" in *steamwebhelper*) continue ;; esac
+    _owns "$_p" && return 0
+  done
+  return 1
+}
+steam_family() {   # every steam-ish pid THIS prefix still owns (shutdown sweep)
+  for _p in $(pgrep -f "steam" 2>/dev/null); do _owns "$_p" && echo "$_p"; done
+}
+if steam_exe_up; then
   note "Steam already running — reusing session."
   tail -20 "$CL" 2>/dev/null | grep -qE "\[Logged On.*\[U:1:[1-9]|LogOnResponse.*'OK'" \
     || die "Steam is running but not logged in. Sign in in the Steam window, then relaunch."
@@ -89,7 +101,7 @@ else
   STARTED_STEAM=1
   ok=0
   for i in $(seq 1 40); do
-    if fresh_login && pgrep -f "$APPTAG.*steam.exe" >/dev/null 2>&1; then ok=1; break; fi
+    if fresh_login && steam_exe_up; then ok=1; break; fi
     sleep 3
   done
   [ "$ok" = 1 ] || die "Steam did not auto-login (token expired, or it crashed). Open Steam in the wrapper, sign in until the library loads, then relaunch. If Steam won't start at all, reboot — kill -9 can wedge it."
@@ -130,26 +142,37 @@ echo "Game exited (rc=$GAME_RC). Shutting down Steam cleanly…"
 # point exception, so it is not sufficient on its own.
 "$WINE" "$STEAM" -shutdown >/dev/null 2>&1 || echo "  (steam -shutdown failed; falling back)"
 for i in $(seq 1 20); do
-  pgrep -f "$APPTAG.*steam.exe" >/dev/null 2>&1 || break
+  steam_exe_up || break
   sleep 1
 done
 # Fallback: if Steam is still resident, end the wine session for THIS prefix. WINEPREFIX must be
 # exported or wineserver targets the default prefix and silently does nothing (caught 2026-08-22).
-if pgrep -f "$APPTAG.*steam.exe" >/dev/null 2>&1; then
+if steam_exe_up; then
   echo "  Steam still resident — ending the wine session for this prefix."
   WINEPREFIX="$WINEPREFIX" "$SS/wine/bin/wineserver" -k >/dev/null 2>&1
   for i in $(seq 1 10); do
-    pgrep -f "$APPTAG.*steam.exe" >/dev/null 2>&1 || break
+    steam_exe_up || break
     sleep 1
   done
+fi
+# Webhelpers can outlive steam.exe (reparent to launchd, Windows-style argv hides them from every
+# cmdline check — measured 2026-08-24). Sweep the whole family by prefix attribution.
+_strays="$(steam_family)"
+if [ -n "$_strays" ]; then
+  WINEPREFIX="$WINEPREFIX" "$SS/wine/bin/wineserver" -k >/dev/null 2>&1
+  sleep 2
+  _strays="$(steam_family)"
+  [ -n "$_strays" ] && kill $_strays 2>/dev/null   # plain TERM — NEVER kill -9 steam
 fi
 # wineserver exits on its own once its clients are gone; nudge it only if it lingers
 if pgrep -f "$APPTAG.*wineserver" >/dev/null 2>&1; then
   sleep 2
   WINEPREFIX="$WINEPREFIX" "$SS/wine/bin/wineserver" -k >/dev/null 2>&1
 fi
-# Report what, if anything, is still holding memory.
-_rss=$(ps aux | grep -iE "[s]team\.exe|[s]teamwebhelper|[w]ineserver" | awk "{s+=\$6} END {printf \"%.0f\", s/1024+0}")
-echo "  Residual after shutdown: ${_rss:-0} MB"
+# Report what, if anything, is still holding memory — THIS wrapper only (the dxmt11 wrapper
+# legitimately keeps its own Steam resident; don't count it as residue).
+_pids="$(steam_family) $(pgrep -f "$APPTAG.*wineserver" 2>/dev/null)"
+_rss=0; for _p in $_pids; do _r=$(ps -o rss= -p "$_p" 2>/dev/null | tr -d " "); _rss=$((_rss + ${_r:-0})); done
+echo "  Residual after shutdown: $((_rss/1024)) MB"
 note "Cities: Skylines II closed."
 exit 0

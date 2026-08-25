@@ -37,8 +37,10 @@ S="$APP/Contents/SharedSupport/prefix/drive_c/Program Files (x86)/Steam"
 CEF="$S/bin/cef/cef.win64"
 SHIM_SRC="$(cd "$(dirname "$0")" && pwd)/steamwebhelper-shim.c"
 [ -d "$CEF" ] || { echo "ERROR: no Steam CEF dir at $CEF"; exit 1; }
-pgrep -f "$(basename "$APP").*steam.exe" >/dev/null && \
-  { echo "ERROR: Steam is running in this wrapper — quit it first (steam.exe -shutdown; never kill -9)."; exit 1; }
+for _p in $(pgrep -f "steam" 2>/dev/null); do   # open-file attribution: cmdline can be Windows-style
+  lsof -p "$_p" 2>/dev/null | grep -q "$APP/Contents/SharedSupport/prefix" && \
+    { echo "ERROR: Steam is running in this wrapper — quit it first (steam.exe -shutdown; never kill -9)."; exit 1; }
+done
 
 if [ "$REVERT" = 1 ]; then
   [ -f "$CEF/steamwebhelper_real.exe" ] || { echo "nothing to revert (no steamwebhelper_real.exe)"; exit 0; }
