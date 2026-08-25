@@ -926,3 +926,25 @@ split (play on `CS2dxmt11`, Steam UI on `CS2dxmt11-pk110`) stands as the practic
 `--in-process-gpu` / `--disable-gpu` but forwards `--use-angle`; and Steam's integrity pass is
 **"Verifying file sizes only"**, so a size-padded replacement survives where an unpadded one is
 restored with exit 42.
+
+## `du` lies about disk on APFS: the two wrappers' 91 GB game installs were CLONES (2026-08-24)
+
+Both wrappers reported a 91 GB `Cities Skylines II` install, so deleting the redundant one in
+`CS2dxmt11-pk110.app` looked like a ~91 GB reclaim. **It freed 0 GB** — measured, `df -g` read
+222 before and 222 after.
+
+**Why:** APFS `clonefile` copies (Finder duplicate, `cp -c`, `cp -Rc`) get **distinct inodes but
+share physical extents**. `du`/`ls` report each clone's *logical* size, so N clones of a 91 GB
+tree look like N×91 GB while occupying ~91 GB plus divergence. Checking inodes is **not** enough
+to prove two trees are independent — that check passed here and was still wrong.
+
+**How to actually tell before deleting anything large:** trust only the container, not `du` —
+`df -g /` (or `diskutil info / | grep "Container Free Space"`) before and after; on a clone the
+number does not move. There is no cheap per-file "is this cloned" query, so measure the delta.
+
+**The useful consequence:** restoring a clone is instant and free — `cp -Rc <src> <dst>` re-shares
+the extents rather than copying 91 GB. So the pk110 wrapper can be given the game back in seconds
+from the daily wrapper's copy if it is ever wanted as a play wrapper again; it does **not** need
+a 91 GB Steam re-download. (Deleting `steamapps/common/<game>` **and** its
+`appmanifest_<appid>.acf` together is what stops Steam re-downloading — removing the tree while
+leaving the manifest makes Steam see "installed, files missing" and fetch the lot again.)

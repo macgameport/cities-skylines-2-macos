@@ -120,6 +120,11 @@ in the handler, or wrap in `finally`.
   - **Reverted from the daily wrapper**; `scripts/install-webhelper-shim.sh` kept for future work
     (`SHIM_ARGS` swaps injected switches without rebuild+repad). Two-wrapper split still the
     practical answer: play on `CS2dxmt11`, Steam UI on `CS2dxmt11-pk110` (**do not delete**).
+  - **Disk note (2026-08-24):** the pk110 wrapper's redundant 91 GB game copy was deleted (with
+    its `appmanifest_949230.acf`, so Steam does not re-download) — but this reclaimed **0 GB**: the
+    two installs were APFS clones sharing extents, and `du` was reporting logical size for each.
+    Restoring it is instant and free via `cp -Rc` from the daily wrapper if ever wanted. See
+    GOTCHAS § "`du` lies about disk on APFS".
   - ▶ **Open lead if resumed:** why `--in-process-gpu` produces zero glyphs in Chromium 126 CEF
     under Wine — the community report of this shim working dates to a March-2026 client, so a CEF
     regression between those builds is the obvious suspect. Both durable findings (flag filtering,
