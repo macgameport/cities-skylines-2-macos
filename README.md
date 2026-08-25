@@ -43,6 +43,7 @@ signature defect upstream ([the measurement](docs/wine-bugs/FINDING-wine11-fixes
 | Graphics | **DXMT v0.80** (reused from the base engine) | **DXMT v0.80** — reports the real GPU | **D3DMetal v2.1** — reports `AMD Compatibility Mode` |
 | Patches | **10** | **10** — the 6 errno patches AND the licence bypass are unnecessary | **17** |
 | Alt-tab in exclusive fullscreen | **works** | freezes ([dxmt#206](https://github.com/3Shain/dxmt/issues/206)) — use borderless | mild misbehaviour |
+| Steam's **visible storefront** | **black** — see "Two things" below | **renders** | renders |
 | Measured | **44.9 FPS**, GPU 23.1 ms, presentation `Direct` | 42.7 FPS, GPU ~26 ms, `Composited` | — |
 | Proven by | a full validated session: mods delete+redownload, alt-tab cycles, city play | boots, mods load + download, Steam UI, DLC | a 1h40m session, saved city, long-run stability |
 
@@ -62,7 +63,7 @@ and `docs/dxmt-bugs/`.
 > An earlier attempt on **Wine 11 + DXVK + private-API MoltenVK** also rendered, but device-lost
 > roughly 1 run in 8 — playable by dice roll. D3DMetal is stable. Notes kept in `archive/`.
 
-## Two things worth knowing before you start
+## Three things worth knowing before you start
 
 1. **Launch `Cities2.exe` directly.** Steam's *Play* button routes through the Paradox Launcher
    and exits before Unity initialises. Start Steam, let it log in, wait for the licence to sync,
@@ -74,6 +75,26 @@ and `docs/dxmt-bugs/`.
    you never switch apps — and if it does freeze there, alt-tab refreshes the screen one frame
    per cycle, so you can blind-navigate Options → Graphics → Display Mode → Fullscreen Window
    and it comes back live. No force-kill needed.
+
+3. **Steam's storefront window is black on the 11.16 engine — the game is unaffected.** The
+   daily flow runs Steam in tray mode (`-silent`), which is all CS2 needs: login, licences,
+   Paradox Mods downloads all work normally. What does not render is Steam's *visible* UI —
+   the store, library and settings windows. This is an upstream limitation, not a
+   configuration mistake: Steam's CEF asks for a swapchain on a window owned by another
+   process, which DXMT cannot serve ([dxmt#141](https://github.com/3Shain/dxmt/issues/141)),
+   and Chromium's software fallback fails the same way.
+
+   **If you need the storefront** (buying DLC, browsing), keep the wine 11.0 wrapper from step
+   4 of the install alongside the 11.16 one and open Steam there. **Steam licences are
+   account-level**, so anything you buy in one wrapper is immediately available in the other.
+   Play in the 11.16 wrapper; shop in the 11.0 one. Or just use another device, or the Steam
+   website.
+
+   *Measured, so you don't retry them:* Steam filters `--in-process-gpu` and `--disable-gpu`
+   from its own command line (`--use-angle` does forward). Injecting `--in-process-gpu` at
+   steamwebhelper via a shim (`scripts/install-webhelper-shim.sh`) **does** make the window
+   render — but Chromium then draws no text at all, on every engine tested, so it is not a
+   usable workaround today. Details in [GOTCHAS.md](GOTCHAS.md).
 
 ## Repository layout
 

@@ -126,6 +126,25 @@ in the handler, or wrap in `finally`.
     size-only verification) are worth a dxmt#141 follow-up regardless.
   - Evidence: GOTCHAS § "The webhelper shim renders everything EXCEPT text".
 
+  **↻ Revisit triggers (checked periodically — James, 2026-08-24: "let's periodically look for a
+  better solution").** Don't re-run the whole investigation; check these cheap signals, and only
+  dig in if one moves:
+  1. **A Steam client update.** The community shim was reported working on a *March-2026* client;
+     ours is buildid `1785799196` (Aug-2026). Text may return on a different CEF. Cheap test:
+     re-apply `scripts/install-webhelper-shim.sh`, launch, capture the window, look for glyphs;
+     `--revert` after. (Also re-check whether Steam still verifies **file sizes only** — a switch
+     to hashes kills the shim entirely.)
+  2. **[dxmt#141](https://github.com/3Shain/dxmt/issues/141) activity** — any movement on
+     cross-process swapchain support is the real fix. Our evidence comment is already on the
+     thread.
+  3. **A DXMT release** — `3Shain/dxmt` releases page; cross-process present is the thing to grep
+     release notes for.
+  4. **Wine 11.17+** — not because a version regression exists (there is none; stock 11.0 is
+     equally affected), but because winemac cross-process surface work would show up there.
+  5. **An older-CEF pin** — Steam keeps prior client builds; pinning one predating the regression
+     is the most promising *untried* route, and the only one that doesn't depend on someone else
+     shipping a fix.
+
 - **Fullscreen-toggle cursor desync** — ⚠ *observed on wine 11.0; NOT re-tested on the promoted
   11.16 engine.* Toggling fullscreen ↔ windowed mid-session dropped the game out of exclusive
   fullscreen (a macOS title bar appeared); render resolution and window geometry stopped matching

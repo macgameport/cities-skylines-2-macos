@@ -94,6 +94,14 @@ repo builds one, locally, from the official Wine source:
 bash scripts/build-engine-1116.sh
 ```
 
+⚠ **One trade-off, decided by measurement:** the 11.16 engine kills the alt-tab freeze and is
+faster, but **Steam's visible storefront window is black on it** (the game, its login, licences
+and Paradox Mods downloads are all unaffected — the daily flow runs Steam in tray mode). The
+wine 11.0 wrapper renders the storefront fine, so **keep it** rather than deleting it after the
+upgrade: play in the 11.16 wrapper, shop in the 11.0 one. Steam licences are account-level, so
+purchases cross over immediately. Cause and the full list of attempted workarounds:
+[GOTCHAS.md](GOTCHAS.md) and [dxmt#141](https://github.com/3Shain/dxmt/issues/141).
+
 Roughly an hour, mostly unattended compile. It redistributes nothing: the Wine source comes
 sha256-verified from winehq.org, the winemac DXMT patch is in this repo (aquadran's, with
 attribution), and the DXMT binaries + x86_64 support dylibs are reused from *your own* wrapper.
@@ -158,6 +166,7 @@ one does report a miss, please open an issue.
 | "IOEXCEPTION — Failed to read settings file with GUID ... Invalid handle to path [Unknown]" | **Cosmetic — press Continue.** The game asks for optional settings files that were never created; on Wine an absent file surfaces as an invalid handle instead of a clean not-found, so the game shows its error dialog. Your settings are still applied and saved. Most common right after changing graphics options or at boot. |
 | Mods show a ⚠ badge | Keybinding conflicts, not a port problem — same on Windows. Options → Keybinds. |
 | Second display goes black | Refresh-rate mismatch. Match both displays' refresh rates. |
+| Steam's store/library window is black (game still works) | Expected on the wine 11.16 engine — upstream limitation ([dxmt#141](https://github.com/3Shain/dxmt/issues/141)), not a setup error. Use the wine 11.0 wrapper for the storefront; licences are account-level so purchases apply to both. See README "Three things worth knowing". |
 
 More traps, each with its root cause, in **[GOTCHAS.md](GOTCHAS.md)**. What every patch does and why
 is in **[docs/patch-inventory.md](docs/patch-inventory.md)**.
