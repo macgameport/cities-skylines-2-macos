@@ -47,7 +47,11 @@ done
 [ -x /opt/homebrew/opt/bison/bin/bison ] || die "brew bison (keg) not found — Apple's 2.3 is too old"
 avail_gb=$(df -g "$WORK" | awk 'NR==2{print $4}')
 [ "$avail_gb" -ge 15 ] || die "need ~15 GB free in $WORK (have ${avail_gb}G)"
-pgrep -f "$(basename "$APP").*steam.exe" >/dev/null && die "Steam is running in the wrapper — quit it first (steam.exe -shutdown; never kill -9)"
+# attribute by open files, not cmdline — a self-restarted steam.exe carries a Windows-style argv
+for _p in $(pgrep -f "steam" 2>/dev/null); do
+  lsof -p "$_p" 2>/dev/null | grep -q "$APP/Contents/SharedSupport/prefix" && \
+    die "Steam (or a webhelper) is running in the wrapper — quit it first (steam.exe -shutdown; never kill -9)"
+done
 echo "  wrapper: $APP"
 echo "  donor engine: $("$PK/bin/wine64" --version 2>/dev/null || cat "$PK/version" 2>/dev/null)"
 
@@ -142,12 +146,29 @@ WINEPREFIX="$SS/prefix" DYLD_FALLBACK_LIBRARY_PATH="$SS/wine/lib" \
   "$SS/wine/bin/wine64" wineboot -u >/dev/null 2>&1
 WINEPREFIX="$SS/prefix" "$SS/wine/bin/wineserver" -w
 
+# ------------------------------------------- 7. storefront wrapper + Steam shortcut
+# The 11.16 engine renders the game but Steam's visible storefront is BLACK on it (GOTCHAS,
+# dxmt#141-class). make-steam-shortcut.sh keeps the storefront usable: it APFS-clones this
+# wrapper, restores the 11.0 engine inside the clone from wine.pk11.0-BAK (instant, ~no disk,
+# game install stripped from the clone), and builds a "CS2 Steam Store.app" that opens Steam
+# there. Licences are account-level, so purchases cross over. Failure here is non-fatal —
+# the game side is already complete.
+step "storefront wrapper + Steam shortcut (play in 11.16, shop in 11.0)"
+bash "$REPO/scripts/make-steam-shortcut.sh" --from "$APP" \
+  || echo "  (storefront shortcut failed — run: bash scripts/make-steam-shortcut.sh)"
+
 cat << DONE
 
 === done ===
 Engine: $(cat "$SS/wine/version")
 Play as usual (double-click the app, or the launcher). Exclusive Fullscreen is now safe —
 the alt-tab freeze is fixed in this engine.
+
+Steam's visible storefront is black on this engine (upstream, dxmt#141) — for buying DLC or
+browsing, double-click "CS2 Steam Store.app" instead: it opens Steam in the preserved wine 11.0
+wrapper. Licences are account-level, so purchases apply to both wrappers immediately. Opening
+the store while the game runs steals the account's online session from the game's Steam — the
+game keeps running (measured); the game's Steam simply reconnects on its next launch.
 
 Optional verification (a 30-second windowed test, expect "VERDICT: LIVE"):
   bash "$REPO/scripts/run-minrepro3.sh"
