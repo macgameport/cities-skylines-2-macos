@@ -58,10 +58,22 @@ still useful signal on the open issue.
 
 ## Queued: mod keybinding alerts (James, 2026-08-24, mid-play)
 
-*"Can we do a thing about the keybinding alerts in the mods?"* — logged sight-unseen while he
-plays. Next session: get a screenshot/description (which mods, when the alerts fire — boot?
-per-conflict toasts?), then check the mod logs under the game-logs dir and each mod's settings
-for a rebind/suppress path. Not started.
+*"Can we do a thing about the keybinding alerts in the mods?"* — investigated from disk
+2026-08-24 while the game ran (read-only). **Findings:** 5 mods installed (Move It, Traffic,
+Anarchy, EasyZoning, Unified Icon Library); 4 register input actions; NO conflict/warning lines
+in any log — the alert is UI-only. Move It ships a conflict panel (`MIT_BindingConflicts` →
+`MIT_ShowRebindConfirm`, "Set {N} bindings to empty") and it already ran once: `MoveIt.coc`
+`HasShownMConflictPanel: true`, and Settings.coc shows three vanilla actions emptied to make
+room (Map Tile Purchase Panel · Relocate Selected Object · Toggle Selected Object Active).
+Traffic's three optional remove-connection shortcuts are unbound in Traffic.coc (its default);
+Traffic options has "Use Vanilla Tool bindings" + "Reset bindings"; Anarchy has "Reset Anarchy
+Keybindings"; EasyZoning can log "Keybinding setup skipped:" (not firing now). Mod default keys
+live in attribute metadata, not extractable as strings — collision table needs either James's
+screenshot of the alert, or decompiling defaults via dis_pdx.py.
+**Next:** James describes/screenshots the alert (which screen, what wording, when). Fix paths
+ready: (a) resolve in-game via Options → Keybindings (badges mark the colliding pair), (b) rebind
+the three emptied vanilla actions to fresh keys, (c) post-session Settings.coc complete-value
+binding edits (honored per GOTCHAS — never partial).
 
 ## Performance: the deep optimization pass (RUNNING — P0–P2 measured 2026-08-24)
 
