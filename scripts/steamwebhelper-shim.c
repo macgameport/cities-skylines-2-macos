@@ -24,7 +24,7 @@
  */
 #include <windows.h>
 
-#define APPEND L" --in-process-gpu"
+#define APPEND L" --in-process-gpu"       /* default; override with SHIM_ARGS for testing */
 #define CMDMAX 32768
 
 int WINAPI wWinMain(HINSTANCE hi, HINSTANCE hp, PWSTR args, int ns)
@@ -39,9 +39,12 @@ int WINAPI wWinMain(HINSTANCE hi, HINSTANCE hp, PWSTR args, int ns)
     lstrcpyW(cmd, L"\"");
     lstrcatW(cmd, real);
     lstrcatW(cmd, L"\" ");
-    if (lstrlenW(cmd) + lstrlenW(args) + lstrlenW(APPEND) + 1 >= CMDMAX) return 125;
+    /* SHIM_ARGS lets a test run swap the injected switches without rebuilding + re-padding */
+    static WCHAR extra[1024];
+    if (!GetEnvironmentVariableW(L"SHIM_ARGS", extra, 1024)) lstrcpyW(extra, APPEND);
+    if (lstrlenW(cmd) + lstrlenW(args) + lstrlenW(extra) + 1 >= CMDMAX) return 125;
     lstrcatW(cmd, args);
-    lstrcatW(cmd, APPEND);
+    lstrcatW(cmd, extra);
 
     /* optional: log the exact relaunch so a test can confirm the flag landed */
     if (GetEnvironmentVariableW(L"SHIM_LOG", NULL, 0)) {

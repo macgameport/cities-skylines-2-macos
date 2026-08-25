@@ -104,29 +104,28 @@ in the handler, or wrap in `finally`.
 
 ## Known-unresolved, low severity
 
-- **Steam's visible UI — ⭐ SOLVED on the daily engine (2026-08-24 evening), pending James's
-  signed-in confirmation.** The blocker was never fixable by flags *on steam.exe* — it needed a
-  **webhelper shim**. `--in-process-gpu` makes Chromium's swapchain same-process, which is the
-  path DXMT serves for the game (the cross-process one, dxmt#141, it cannot). Sandbox-measured:
-  Steam's **login window rendered fully** on self-built 11.16 + DXMT — 700x440 window went from
-  9,659 B black to **80,714 B of real UI**, with gpu-process children 10→**0**, `0xC0000409`
-  crashes 6+→**0**, metal-layer errors 12→1.
-  - **Two traps, both must be solved:** steam.exe *filters* `--in-process-gpu`/`--disable-gpu`
-    (so inject at the webhelper), and Steam *restores* a modified webhelper — unless the shim is
-    **zero-padded to the original's exact byte count**, because its bootstrap log says
-    "Verifying **file sizes only**". Unpadded ⇒ silently restored + exit 42, which is exactly
-    what makes this look impossible.
-  - **Shipped:** `scripts/steamwebhelper-shim.c` + `scripts/install-webhelper-shim.sh`
-    (`--revert` undoes; original kept as `steamwebhelper_real.exe` in-tree and at
-    `~/cs2-patch/shim/steamwebhelper.orig.exe`). **Installed on the daily wrapper.**
-  - ▶ **Remaining confirmation:** James signs in and verifies the **store + library** render and
-    stay stable. Then: fold re-application into the launcher/`repatch.sh` (a Steam client update
-    restores the original), README/INSTALL write-up, and a dxmt#141 follow-up comment — the
-    filtering + size-verification findings are directly useful to that thread.
-  - ⚠ Fragile-by-construction: depends on Valve verifying sizes not hashes; in-process GPU is an
-    unsupported Chromium mode (watch long-session stability). Keep `CS2dxmt11-pk110.app` as the
-    fallback until the shim has real mileage.
-  - Evidence: GOTCHAS § "Steam's visible UI CAN render on stock Wine + DXMT".
+- **Steam's visible UI — PARTIAL, not shippable (2026-08-24 late).** The webhelper shim
+  (`--in-process-gpu`, injected past steam.exe's filter, size-padded past Steam's
+  "Verifying file sizes only" integrity pass) **converts the black window into a fully rendered
+  one — except it draws no text at all.** Artwork, thumbnails, icons and chrome are perfect; no
+  menu labels, titles, prices or search placeholder. Isolated to the flag: the PK wrapper renders
+  Steam text normally and loses it identically once the shim is added.
+  - **Ruled out as the cause:** DXMT glyph-atlas support (`--use-angle=swiftshader` + `vulkan-1=n,b`
+    is pure software and still textless) · GPU/OOP rasterization · LCD/subpixel text · GPU
+    compositing · DirectWrite (`--disable-direct-write`) · **fonts** (`scripts/fonttest.c`: daily
+    and PK both see 924 GDI / 204 DirectWrite families, identical).
+  - ⚠ **Correction:** an earlier claim this session that our build omitted DirectWrite FreeType was
+    **wrong** — our `dwrite.so` has all 56 `pFT_*` pointers; PK's binaries are merely stripped.
+    Compare with `nm`, never `strings` or file size.
+  - **Reverted from the daily wrapper**; `scripts/install-webhelper-shim.sh` kept for future work
+    (`SHIM_ARGS` swaps injected switches without rebuild+repad). Two-wrapper split still the
+    practical answer: play on `CS2dxmt11`, Steam UI on `CS2dxmt11-pk110` (**do not delete**).
+  - ▶ **Open lead if resumed:** why `--in-process-gpu` produces zero glyphs in Chromium 126 CEF
+    under Wine — the community report of this shim working dates to a March-2026 client, so a CEF
+    regression between those builds is the obvious suspect. Both durable findings (flag filtering,
+    size-only verification) are worth a dxmt#141 follow-up regardless.
+  - Evidence: GOTCHAS § "The webhelper shim renders everything EXCEPT text".
+
 - **Fullscreen-toggle cursor desync** — ⚠ *observed on wine 11.0; NOT re-tested on the promoted
   11.16 engine.* Toggling fullscreen ↔ windowed mid-session dropped the game out of exclusive
   fullscreen (a macOS title bar appeared); render resolution and window geometry stopped matching

@@ -843,7 +843,8 @@ queued mini-project. Until then the two-wrapper split stands. Upstream: this evi
 (vendor-vs-stock sweep, software-path parity of failure, transplant interlock) is precisely what
 dxmt#141 lacks; comment pending James's go-ahead.
 
-## ⭐ Steam's visible UI CAN render on stock Wine + DXMT — the webhelper shim (2026-08-24 evening)
+## ⚠ PARTIAL — see the correction section below: the shim fixes RENDERING but NOT TEXT.
+## Steam's visible UI CAN render on stock Wine + DXMT — the webhelper shim (2026-08-24 evening)
 
 Reverses the "no way to get Steam working on 11.16" conclusion. **Measured working in a
 sandbox prefix: the Steam login window rendered fully** (logo, fields, QR) on the self-built
@@ -887,3 +888,41 @@ in-tree as `steamwebhelper_real.exe` and offsite at `~/cs2-patch/shim/steamwebhe
 **Status:** sandbox-proven (login window). Store/library rendering under a real signed-in
 session is the remaining confirmation. In-process GPU is an unsupported Chromium mode — watch
 for long-session stability before calling it the project default.
+
+## The webhelper shim renders everything EXCEPT text — `--in-process-gpu` is what kills glyphs (2026-08-24 late)
+
+Correction to the section above, which called the shim a fix on the strength of a login window
+that had rendered *images and layout*. It had **no text either** — the blank blue button should
+have been the tell. With the shim, Steam draws artwork, thumbnails, gradients, icons and chrome
+perfectly and **not one glyph**: no menu labels, no game titles, no prices, no search
+placeholder. Only text baked into promo images appears.
+
+**Isolated to the flag, not our engine:** the PK 11.0 wrapper renders Steam text fine normally,
+and **loses text the same way the moment the shim is added**. So `--in-process-gpu` breaks glyph
+rendering in Chromium 126 CEF under Wine, independent of engine and graphics backend.
+
+**Measured dead ends (all with the shim + `--in-process-gpu`, judged by per-window capture):**
+`--disable-gpu-rasterization --disable-oop-rasterization` · `--disable-lcd-text
+--disable-font-subpixel-positioning` · `--use-angle=swiftshader` **+ `vulkan-1=n,b`** (pure
+software — proves it is NOT DXMT's glyph-atlas texture support) · `--disable-gpu-compositing` ·
+`--disable-direct-write --disable-partial-raster` (GDI fonts instead of DirectWrite).
+Also measured: **`--disable-gpu-compositing` WITHOUT `--in-process-gpu` = 22,980 B uniform black**,
+i.e. the in-process flag is what buys rendering at all.
+
+**Fonts are NOT the cause — don't re-chase this.** `scripts/fonttest.c` enumerates what Chromium
+actually sees, and the daily 11.16 engine and PK 11.0 are *identical*: **924 GDI families, 204
+DirectWrite families**, same names. ⚠ And an earlier claim in this session that our build lacked
+DirectWrite FreeType support was **wrong**: our `dwrite.so` carries all 56 `pFT_*` pointers;
+PK's shows none only because PK's binaries are **stripped** (its FT_ evidence is dlsym name
+*strings*). Compare with `nm`, not `strings`, and never infer capability from file size.
+
+**Net:** the shim converts "black window" into "usable-looking but textless window" — still not
+practical for a public audience, so it is **not installed by default** and was reverted from the
+daily wrapper. `scripts/install-webhelper-shim.sh` remains for anyone continuing this; the shim
+takes `SHIM_ARGS` to swap injected switches without rebuilding + re-padding. The two-wrapper
+split (play on `CS2dxmt11`, Steam UI on `CS2dxmt11-pk110`) stands as the practical answer.
+
+**Still worth knowing (unchanged and independently useful):** steam.exe *filters*
+`--in-process-gpu` / `--disable-gpu` but forwards `--use-angle`; and Steam's integrity pass is
+**"Verifying file sizes only"**, so a size-padded replacement survives where an unpadded one is
+restored with exit 42.
