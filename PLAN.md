@@ -140,8 +140,13 @@ in the handler, or wrap in `finally`.
      `--revert` after. (Also re-check whether Steam still verifies **file sizes only** — a switch
      to hashes kills the shim entirely.)
   2. **[dxmt#141](https://github.com/3Shain/dxmt/issues/141) activity** — any movement on
-     cross-process swapchain support is the real fix. Our evidence comment is already on the
-     thread.
+     cross-process swapchain support is the real fix. **Two evidence comments are on the thread**:
+     the stock-vs-vendor sweep
+     ([#5400445243](https://github.com/3Shain/dxmt/issues/141#issuecomment-5400445243)) and the
+     `--in-process-gpu` results — renders but textless, with the steam.exe flag-filtering and
+     file-size-only verification findings
+     ([#5403561498](https://github.com/3Shain/dxmt/issues/141#issuecomment-5403561498)). Watch for
+     a maintainer reply; we offered to run further diagnostics on this setup.
   3. **A DXMT release** — `3Shain/dxmt` releases page; cross-process present is the thing to grep
      release notes for.
   4. **Wine 11.17+** — not because a version regression exists (there is none; stock 11.0 is
