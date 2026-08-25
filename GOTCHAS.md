@@ -962,7 +962,9 @@ cached/offline UI (footer shows NO CONNECTION; the library stays browsable). It 
 auto-reconnect, so the clients never fight — each swap is one clean handover, triggered only by
 a fresh connect (client start, or a manual Go Online).
 
-**The running game survives the steal.** With CS2 at the menu on the daily wrapper's session,
+**The running game survives the steal — measured at the menu AND in live gameplay** (2026-08-24
+22:13: session stolen mid-play with James at the controls; 2.5-min soak, game at 250% CPU, the
+only new Player.log lines were routine Unity asset GC). Menu-state detail: with CS2 at the menu,
 starting the store wrapper's Steam took the session at 21:42:59 — the game-side Steam delivered
 `SteamServersDisconnected_t` and the game kept rendering (117% CPU) with ZERO new Player.log
 lines over an 8-minute soak. CS2 needs SteamAPI at BOOT (the licence check behind the launcher's

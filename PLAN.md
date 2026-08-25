@@ -56,6 +56,13 @@ software compositing (GOTCHAS § visible Steam UI). The daily flow is immune (St
 `-silent`). Any upstream comment should say "intermittent under stock wine 11.16", which is
 still useful signal on the open issue.
 
+## Queued: mod keybinding alerts (James, 2026-08-24, mid-play)
+
+*"Can we do a thing about the keybinding alerts in the mods?"* — logged sight-unseen while he
+plays. Next session: get a screenshot/description (which mods, when the alerts fire — boot?
+per-conflict toasts?), then check the mod logs under the game-logs dir and each mod's settings
+for a rebind/suppress path. Not started.
+
 ## Performance: the deep optimization pass (RUNNING — P0–P2 measured 2026-08-24)
 
 James, 2026-08-23: *"take a deep hard look at optimizing efficiency"* — serious token budget
