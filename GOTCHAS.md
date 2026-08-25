@@ -394,6 +394,22 @@ that *do* exist, which is why keybinds persist at all.
    **Fix it in Options → KEYBINDS by assigning keys** (or accepting the mod's conflict panel). This
    is game configuration, not a port defect — don't chase it through Wine.
 
+**2026-08-25 update — the dialog can also fire MID-SESSION, at mod-options open.** First boot after
+adding 5 mods: 8 GUID errors in Player.log (the new mods' settings + keybind stores, none on disk —
+the count scales with mod additions, still cosmetic), and opening Find It's options page raised the
+same IOException as a mid-session dialog (CONTINUE / SAVE & QUIT / QUIT). **CONTINUE is safe** — the
+mod runs on defaults. Each mod's error stops once its settings file exists, i.e. after any of its
+settings is actually changed (viewing alone writes nothing, per correction 1 above).
+
+## Apple/⌘ binds as Ctrl in-game — rebinding chords from the Mac keyboard (2026-08-25)
+
+`user.reg` → `[Software\\Wine\\Mac Driver]` carries `"LeftCommandIsCtrl"="Y"` +
+`"RightCommandIsCtrl"="Y"` (and both Option keys are Alt). So in any keybinding capture the game
+receives **⌘ as Ctrl**: pressing ⌘⇧F stores Ctrl+Shift+F, and the chord then works from the Mac
+keyboard as Apple+Shift+F. First use: Find It's search default (plain Ctrl+F, shipped with a
+conflict ⚠) was rebound to ⌘⇧F — `FindIt.coc` `SearchKeyBinding` now carries `shift`+`ctrl`
+modifiers over the default `f`, which is exactly that chord as the game spells it.
+
 ## Alt-tab still freezes the game — presentation, NOT refresh rate (2026-08-22)
 
 **Separate problem from the one above, and NOT fixed by matching refresh rate.** After switching away

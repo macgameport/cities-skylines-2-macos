@@ -75,6 +75,15 @@ ready: (a) resolve in-game via Options → Keybindings (badges mark the collidin
 the three emptied vanilla actions to fresh keys, (c) post-session Settings.coc complete-value
 binding edits (honored per GOTCHAS — never partial).
 
+**Update 2026-08-25 (screenshot received, thread mostly resolved):** the "alert" = the ⚠ badges
+on mod entries in Options (post-batch-1: Find It · Anarchy · Traffic), plus — separately — the
+known cosmetic settings-read IOException (GOTCHAS § absent files), which fired as a mid-session
+dialog at Find It options-open on the first post-install boot. Find It's conflict was resolved
+live: search rebound off plain Ctrl+F to ⌘⇧F (= Ctrl+Shift+F under `LeftCommandIsCtrl`, see
+GOTCHAS § Apple/⌘ binds as Ctrl; landed in `FindIt.coc`). **Remaining:** Anarchy + Traffic
+badges (unbound-action class) and optionally (b) — all benign, close out post-session via (a)
+or (c).
+
 ## Performance: the deep optimization pass (RUNNING — P0–P2 measured 2026-08-24)
 
 James, 2026-08-23: *"take a deep hard look at optimizing efficiency"* — serious token budget
