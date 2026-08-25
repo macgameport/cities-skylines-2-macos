@@ -1,4 +1,7 @@
 # --- secrets / personal ---
+# Personal play guide (which mods James runs + how he uses them) — local-only by request
+# (2026-08-24); the public repo documents the port, not the playstyle.
+MODS-GUIDE.md
 # Personal Claude Code workflow rules, auto-synced into every repo from ~/.claude on session
 # start. Deliberately NOT published here (decided 2026-08-24): this repo is public, and these are
 # private working conventions, not project documentation. They regenerate automatically, so
