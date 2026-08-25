@@ -84,6 +84,18 @@ GOTCHAS § Apple/⌘ binds as Ctrl; landed in `FindIt.coc`). **Remaining:** Anar
 badges (unbound-action class) and optionally (b) — all benign, close out post-session via (a)
 or (c).
 
+**2026-08-25 PM — CLOSED via fix path (c), executed while the game was down.** Defaults
+extracted offline with new `scripts/dump-binding-attrs.py` (attribute-blob parser; b1/b2/b3 =
+alt/ctrl/shift, calibrated on Ctrl+Z/Ctrl+F); full collision table + the .coc edit protocol
+now in GOTCHAS § "Mod keybinding defaults are extractable offline". Applied on disk (backups
+`*.bak-keybinds-20260825-120139`): the three emptied vanilla actions → Ctrl+Shift+M/R/A ·
+Traffic's unbound trio → Ctrl+Alt+1/2/3 · Traffic priorities-display off vanilla-quicksave
+Ctrl+S → Ctrl+Alt+S · Find It Random off Traffic's Ctrl+R → Ctrl+Alt+R. **Left open by
+choice:** Anarchy's PageUp/Down ⚠ (triple-booked with vanilla surface/underground + Move It;
+no Anarchy.coc exists and minting one from scratch is format-risk — one in-game rebind creates
+it properly if James wants that badge gone). Verify on next boot: Traffic + Find It badges
+should be gone; then confirm the game preserved the .coc values after that session exits.
+
 ## Performance: the deep optimization pass (RUNNING — P0–P2 measured 2026-08-24)
 
 James, 2026-08-23: *"take a deep hard look at optimizing efficiency"* — serious token budget

@@ -401,6 +401,31 @@ same IOException as a mid-session dialog (CONTINUE / SAVE & QUIT / QUIT). **CONT
 mod runs on defaults. Each mod's error stops once its settings file exists, i.e. after any of its
 settings is actually changed (viewing alone writes nothing, per correction 1 above).
 
+## Mod keybinding defaults are extractable offline — and the conflicts were fixed on disk (2026-08-25)
+
+Mod default chords live in `SettingsUIKeyboardBinding` attribute blobs, not strings —
+`scripts/dump-binding-attrs.py` (dnfile, run via `~/cs2-patch/revenv`) parses them, using
+Game.dll for the BindingKeyboard enum map. **Calibration:** the ctor bools are positional —
+b1=alt, b2=ctrl, b3=shift (anchored on Move It Ctrl+Z undo + Find It Ctrl+F search). Vanilla
+declares nothing via attributes (Game.dll yields zero rows) — vanilla chords come from docs/UI.
+
+Measured collisions in the 10-mod set (game 1.6.0f1): Find It Random **Ctrl+R** ⟷ Traffic lane
+connector **Ctrl+R** · Traffic priorities-display **Ctrl+S** ⟷ vanilla quicksave · Traffic's
+remove-connection trio ships **unbound** because its Ctrl+1/2/3 defaults collide with Traffic's
+own priorities quick-set · **PageUp/PageDown** triple-booked (vanilla surface/underground ·
+Move It raise/lower · Anarchy elevation). BB / Line Tool / Plop / InfoLoom / AIL declare zero
+keybindings.
+
+**Disk fix protocol (applied 2026-08-25, backups `*.bak-keybinds-20260825-120139`):** edit only
+files the game itself wrote — `.coc` format is `Header\r\n` + 4-space JSON with `\n` bodies and
+a `\r\n` after the final `}`; mod entries are keyed by settings **property name** (from the
+dump); rebind = complete binding object (`m_Path` + `m_Modifiers`), modifier entries
+`{"m_Name": "modifier", "m_Path": "<Keyboard>/ctrl|alt|shift"}`. Applied: Settings.coc three
+emptied vanilla actions → Ctrl+Shift+M/R/A · Traffic trio → Ctrl+Alt+1/2/3 + display toggle →
+Ctrl+Alt+S · FindIt Random → +alt (Ctrl+Alt+R). **Never create a `.coc` a mod hasn't written
+yet** (header name is unverifiable — a wrong guess risks its settings load): Anarchy has none,
+so its PageUp/Down badge stays until someone rebinds once in-game to mint the file.
+
 ## Apple/⌘ binds as Ctrl in-game — rebinding chords from the Mac keyboard (2026-08-25)
 
 `user.reg` → `[Software\\Wine\\Mac Driver]` carries `"LeftCommandIsCtrl"="Y"` +
