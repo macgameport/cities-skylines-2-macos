@@ -948,3 +948,52 @@ from the daily wrapper's copy if it is ever wanted as a play wrapper again; it d
 a 91 GB Steam re-download. (Deleting `steamapps/common/<game>` **and** its
 `appmanifest_<appid>.acf` together is what stops Steam re-downloading — removing the tree while
 leaving the manifest makes Steam see "installed, files missing" and fetch the lot again.)
+
+## Same-account Steam sessions SWAP, they don't stack — and the running game doesn't care (2026-08-24)
+
+Context: the two-wrapper split (play on 11.16, shop on 11.0) puts two logged-in Steam clients on
+one machine. The question the `CS2 Steam Store.app` shortcut forces: does opening the store kill
+a running game?
+
+**Measured mechanics.** Both clients RUN logged-in happily, but the account holds ONE online CM
+session. Whichever client connects last takes it; the other logs
+`ConnectionDisconnected() not auto reconnecting due to Session Replaced` and drops to its
+cached/offline UI (footer shows NO CONNECTION; the library stays browsable). It does NOT
+auto-reconnect, so the clients never fight — each swap is one clean handover, triggered only by
+a fresh connect (client start, or a manual Go Online).
+
+**The running game survives the steal.** With CS2 at the menu on the daily wrapper's session,
+starting the store wrapper's Steam took the session at 21:42:59 — the game-side Steam delivered
+`SteamServersDisconnected_t` and the game kept rendering (117% CPU) with ZERO new Player.log
+lines over an 8-minute soak. CS2 needs SteamAPI at BOOT (the licence check behind the launcher's
+45 s wait); a mid-session CM disconnect is a non-event. The reverse steal is symmetric: the next
+game launch logs in and kicks the store back to cached mode (21:48:39, same session).
+
+**Untested edge:** a Paradox Mods download in flight at the moment of a steal (different
+auth/CDN — expected unaffected, not measured).
+
+## Command lines cannot attribute a wine process to its wrapper — use lsof (2026-08-24)
+
+The old rule (scope Steam checks with `pgrep -f "<App>.app.*steam.exe"`) has TWO blind spots,
+both hit live in one evening:
+
+1. **A steam.exe re-exec'd by its own updater/watchdog carries a Windows-style argv**
+   (`C:\Program Files (x86)\Steam\steam.exe`) — no unix path anywhere, so every .app-path pgrep
+   misses it. Found as a *hidden* logged-in Steam that a pgrep sweep called "no steam running";
+   left alone it kept re-stealing the account session and respawning webhelpers that looked like
+   orphans. An "already running" check that misses it starts a SECOND steam into the same
+   prefix; a shutdown loop that misses it declares victory while Steam lives.
+2. **steamwebhelper children always carry Windows-style argv AND reparent to launchd** when
+   their steam.exe dies mid-cleanup — six of them survived a "Residual: 0" shutdown, invisible
+   to `pgrep -f "$APPTAG"`.
+
+**The truthful test is open files:** `lsof -p <pid> 2>/dev/null | grep -q "$WINEPREFIX"`
+(~30 ms/pid). Attribute by PREFIX, not by the wine directory — an engine can serve a foreign
+prefix (a /tmp/bisect scratch prefix ran the daily wrapper's wine binaries, so wine-dir matching
+blamed its webhelpers on the daily wrapper). Both launchers now ship `_owns()` /
+`steam_exe_up()` / `webhelper_up()` / `steam_family()` plus a shutdown sweep built on this, and
+the `build-engine-1116.sh` / `install-webhelper-shim.sh` preflights use the same loop.
+
+**Bonus trap:** bench/bisect scratch prefixes under /tmp keep their own logged-in steam.exe
+alive for hours after the test ends — and steal the account session while at it (see the
+session-swap entry above). End them: `WINEPREFIX=/tmp/<scratch> wineserver -k`.

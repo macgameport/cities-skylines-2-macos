@@ -120,6 +120,13 @@ in the handler, or wrap in `finally`.
   - **Reverted from the daily wrapper**; `scripts/install-webhelper-shim.sh` kept for future work
     (`SHIM_ARGS` swaps injected switches without rebuild+repad). Two-wrapper split still the
     practical answer: play on `CS2dxmt11`, Steam UI on `CS2dxmt11-pk110` (**do not delete**).
+  - **✅ Productized (2026-08-24 late):** the split is now one double-click — `CS2 Steam
+    Store.app` (`scripts/make-steam-shortcut.sh`; `build-engine-1116.sh` step 7 auto-preserves
+    the 11.0 wrapper as an APFS clone + builds the app). Session behavior measured: same-account
+    Steams SWAP one online session (Session Replaced), the running game survives the steal
+    (8-min soak, 0 errors) and takes the session back on next launch. Launchers moved to
+    lsof-vs-prefix process attribution (cmdline pgrep misses Windows-argv steam.exe + orphaned
+    webhelpers). GOTCHAS has both writeups.
   - **Disk note (2026-08-24):** the pk110 wrapper's redundant 91 GB game copy was deleted (with
     its `appmanifest_949230.acf`, so Steam does not re-download) — but this reclaimed **0 GB**: the
     two installs were APFS clones sharing extents, and `du` was reporting logical size for each.

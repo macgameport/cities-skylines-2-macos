@@ -65,7 +65,7 @@ else
   done
 fi
 if [ -n "$WRAPPER" ]; then good "Wine wrapper ($(basename "$WRAPPER"))"
-else fail "Wine wrapper" "INSTALL.md step 2 — install the Porting Kit Wine 11 + DXMT wrapper, or set CS2_WRAPPER=/path/to/Wrapper.app"; fi
+else fail "Wine wrapper" "INSTALL.md step 1 — install the Porting Kit Wine 11 + DXMT wrapper, or set CS2_WRAPPER=/path/to/Wrapper.app"; fi
 
 PREFIX="${WRAPPER:-}/Contents/SharedSupport/prefix"
 GDIR="$PREFIX/drive_c/Program Files (x86)/Steam/steamapps/common/Cities Skylines II"
@@ -77,9 +77,9 @@ else fail "wine64 in the wrapper" "the wrapper looks incomplete — reinstall th
 
 # --- steam + game
 if [ -n "$WRAPPER" ] && [ -f "$PREFIX/drive_c/Program Files (x86)/Steam/steam.exe" ]; then good "Steam inside the wrapper"
-else fail "Steam inside the wrapper" "INSTALL.md step 3 — install Steam into the wrapper's prefix"; fi
+else fail "Steam inside the wrapper" "INSTALL.md step 2 — install Steam into the wrapper's prefix"; fi
 if [ -n "$WRAPPER" ] && [ -f "$GDIR/Cities2.exe" ]; then good "Cities: Skylines II installed"
-else fail "Cities: Skylines II installed" "INSTALL.md step 4 — install the game via Steam inside the wrapper"; fi
+else fail "Cities: Skylines II installed" "INSTALL.md step 3 — install the game via Steam inside the wrapper"; fi
 
 # --- optional niceties
 command -v python3 >/dev/null 2>&1 && good "python3 (patches + icon extraction)" \

@@ -97,10 +97,16 @@ bash scripts/build-engine-1116.sh
 ⚠ **One trade-off, decided by measurement:** the 11.16 engine kills the alt-tab freeze and is
 faster, but **Steam's visible storefront window is black on it** (the game, its login, licences
 and Paradox Mods downloads are all unaffected — the daily flow runs Steam in tray mode). The
-wine 11.0 wrapper renders the storefront fine, so **keep it** rather than deleting it after the
-upgrade: play in the 11.16 wrapper, shop in the 11.0 one. Steam licences are account-level, so
-purchases cross over immediately. Cause and the full list of attempted workarounds:
-[GOTCHAS.md](GOTCHAS.md) and [dxmt#141](https://github.com/3Shain/dxmt/issues/141).
+build script handles this for you: it preserves the wine 11.0 wrapper as `CS2dxmt11-pk110.app`
+(an APFS clone — under a minute, ~no extra disk, the game install stripped from the clone) and
+installs **CS2 Steam Store.app** in `~/Applications`. Play from **Cities Skylines II.app**; buy
+DLC and browse from **CS2 Steam Store.app** — licences are account-level, so purchases cross
+over immediately. One account holds one online Steam session, so opening the store while
+playing steals the session from the game's Steam; measured harmless — the game keeps running,
+and the next game launch takes the session back. Built the engine before this existed?
+`bash scripts/make-steam-shortcut.sh` retrofits the wrapper + shortcut. Cause and the full
+list of attempted workarounds: [GOTCHAS.md](GOTCHAS.md) and
+[dxmt#141](https://github.com/3Shain/dxmt/issues/141).
 
 Roughly an hour, mostly unattended compile. It redistributes nothing: the Wine source comes
 sha256-verified from winehq.org, the winemac DXMT patch is in this repo (aquadran's, with
@@ -112,7 +118,8 @@ What you get, measured (M3 Max, 2026-08-23): the freeze gone — minimize/restor
 exclusive Fullscreen come back live; **Direct** presentation (the 11.0 stack composited);
 ~45 FPS where the same city/settings measured 42.7 before; in-game mod downloads still work
 (same 10 patches — the file-IO probe is identical to 11.0). Exclusive Fullscreen becomes the
-mode to use; Fullscreen Window remains fine too.
+mode to use; Fullscreen Window remains fine too. You also get **CS2 Steam Store.app** — the
+storefront, one double-click away in the preserved 11.0 wrapper.
 
 Validated on one machine so far — if it misbehaves on yours, roll back and open an issue with
 `~/Library/Logs/cs2-launcher.log`.
@@ -166,7 +173,7 @@ one does report a miss, please open an issue.
 | "IOEXCEPTION — Failed to read settings file with GUID ... Invalid handle to path [Unknown]" | **Cosmetic — press Continue.** The game asks for optional settings files that were never created; on Wine an absent file surfaces as an invalid handle instead of a clean not-found, so the game shows its error dialog. Your settings are still applied and saved. Most common right after changing graphics options or at boot. |
 | Mods show a ⚠ badge | Keybinding conflicts, not a port problem — same on Windows. Options → Keybinds. |
 | Second display goes black | Refresh-rate mismatch. Match both displays' refresh rates. |
-| Steam's store/library window is black (game still works) | Expected on the wine 11.16 engine — upstream limitation ([dxmt#141](https://github.com/3Shain/dxmt/issues/141)), not a setup error. Use the wine 11.0 wrapper for the storefront; licences are account-level so purchases apply to both. See README "Three things worth knowing". |
+| Steam's store/library window is black (game still works) | Expected on the wine 11.16 engine — upstream limitation ([dxmt#141](https://github.com/3Shain/dxmt/issues/141)), not a setup error. Double-click **CS2 Steam Store.app** (installed by the engine build; retrofit with `bash scripts/make-steam-shortcut.sh`) — it opens Steam in the preserved wine 11.0 wrapper; licences are account-level so purchases apply to both. See README "Three things worth knowing". |
 
 More traps, each with its root cause, in **[GOTCHAS.md](GOTCHAS.md)**. What every patch does and why
 is in **[docs/patch-inventory.md](docs/patch-inventory.md)**.
@@ -174,8 +181,9 @@ is in **[docs/patch-inventory.md](docs/patch-inventory.md)**.
 ## Uninstall
 
 ```bash
-rm -rf ~/Applications/"Cities Skylines II.app" ~/cs2-patch
+rm -rf ~/Applications/"Cities Skylines II.app" ~/Applications/"CS2 Steam Store.app" ~/cs2-patch
 ```
 
-Then delete the wrapper (`~/Applications/CS2dxmt11.app`) via Porting Kit or the Finder. Nothing is
-installed outside those paths.
+Then delete the wrappers (`~/Applications/CS2dxmt11.app`, and `~/Applications/CS2dxmt11-pk110.app`
+if the engine build created it) via Porting Kit or the Finder. Nothing is installed outside those
+paths.

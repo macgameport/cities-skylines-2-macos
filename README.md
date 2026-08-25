@@ -43,7 +43,7 @@ signature defect upstream ([the measurement](docs/wine-bugs/FINDING-wine11-fixes
 | Graphics | **DXMT v0.80** (reused from the base engine) | **DXMT v0.80** — reports the real GPU | **D3DMetal v2.1** — reports `AMD Compatibility Mode` |
 | Patches | **10** | **10** — the 6 errno patches AND the licence bypass are unnecessary | **17** |
 | Alt-tab in exclusive fullscreen | **works** | freezes ([dxmt#206](https://github.com/3Shain/dxmt/issues/206)) — use borderless | mild misbehaviour |
-| Steam's **visible storefront** | **black** — see "Two things" below | **renders** | renders |
+| Steam's **visible storefront** | **black** — shop via **CS2 Steam Store.app** ("Three things" #3) | **renders** | renders |
 | Measured | **44.9 FPS**, GPU 23.1 ms, presentation `Direct` | 42.7 FPS, GPU ~26 ms, `Composited` | — |
 | Proven by | a full validated session: mods delete+redownload, alt-tab cycles, city play | boots, mods load + download, Steam UI, DLC | a 1h40m session, saved city, long-run stability |
 
@@ -84,11 +84,18 @@ and `docs/dxmt-bugs/`.
    process, which DXMT cannot serve ([dxmt#141](https://github.com/3Shain/dxmt/issues/141)),
    and Chromium's software fallback fails the same way.
 
-   **If you need the storefront** (buying DLC, browsing), keep the wine 11.0 wrapper from step
-   4 of the install alongside the 11.16 one and open Steam there. **Steam licences are
-   account-level**, so anything you buy in one wrapper is immediately available in the other.
-   Play in the 11.16 wrapper; shop in the 11.0 one. Or just use another device, or the Steam
-   website.
+   **The storefront still works — from the second app.** The engine build (INSTALL §6)
+   preserves your wine 11.0 wrapper as `CS2dxmt11-pk110.app` (an APFS clone: under a minute,
+   ~no extra disk, the game install stripped from the clone) and installs **CS2 Steam
+   Store.app** beside the game shortcut. Double-click it to buy DLC or browse; **Steam
+   licences are account-level**, so a purchase there is immediately playable in the game
+   wrapper. Built the engine before this existed? `bash scripts/make-steam-shortcut.sh`
+   retrofits both pieces. (Or just use another device, or the Steam website.)
+
+   One account holds one online session (measured 2026-08-24): opening the store while the
+   game is running steals the session from the game's Steam — **the running game does not
+   care** (8-minute soak, zero errors) — and the next game launch takes the session back,
+   dropping the store to its cached/offline view. Swap freely; nothing breaks.
 
    *Measured, so you don't retry them:* Steam filters `--in-process-gpu` and `--disable-gpu`
    from its own command line (`--use-angle` does forward). Injecting `--in-process-gpu` at
