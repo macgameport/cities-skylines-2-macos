@@ -88,11 +88,14 @@ family closed by live adjudication (borderless locks backbuffer res; MetalFX sup
 there; TAAU pathological; street names are world text) · settings matrix measured autonomously
 via Settings.coc edits (LOD = GPU+CPU double lever; High SMAA costs ~5 gpuMs, kept for looks;
 texture-up free) · **composed daily driver measured +11.6% avg / +55% 1%-low** (native + High
-SMAA + LOD 0.25 + mipbias 0) — **applied to settings, awaiting James's pop-in verdict**.
+SMAA + LOD 0.25 + mipbias 0) — **applied, and VERDICT DELIVERED (James, 2026-08-24, mid-play):
+"things look good, not as amazing as some youtubes i've seen but pretty solid" — ACCEPTED as the
+daily driver.** (The YouTube gap is native-Windows/RTX rigs at high LOD + photo-mode footage; if
+looks ever outrank frames, LOD 0.25→0.5 buys it back for ~4.7 FPS — one settings change.)
 
 **Remaining:** P3 pacing cells (`preferredMaxFrameRate` on the daily scene, vsync decision) ·
 P4 late-game CPU cells (M0-L baseline + job-worker-count/allocator boot.config levers) ·
-P5 ship (README numbers + wiki draft after the profile verdict). Out of scope unchanged
+P5 ship (README numbers + wiki draft — UNBLOCKED by the verdict, next session). Out of scope unchanged
 (DXMT rebuild, alternative layers, Rosetta experiments) — and the MoltenVK
 dylib update is **cancelled** (2026-08-24 PM: the A/B against pk110 disproved it outright; see
 Known-unresolved: Steam UI). What replaces it is the **vendor-patch port

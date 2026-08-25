@@ -117,7 +117,7 @@ Noise: avgFps floor 1.03; gpuMs spread ~±2.3.
 
 | Cell | avgFps Δ | gpuMs Δ | Verdict |
 |---|---|---|---|
-| s2 LOD 0.5→0.25 | **+4.74** | **−6.4** (and cpuGame −5.5!) | **WINNER — a double lever** (GPU + CPU); best 1%-lows (22.9). Cost: pop-in, eyes pending |
+| s2 LOD 0.5→0.25 | **+4.74** | **−6.4** (and cpuGame −5.5!) | **WINNER — a double lever** (GPU + CPU); best 1%-lows (22.9). Cost: pop-in — **accepted** (James, 2026-08-24: "pretty solid") |
 | s3 Shadows off | +3.52 | −6.4 | big/ugly; a half-res-shadows middle cell is queued for later |
 | s4 Small-ticket sweep | +0.91 | −4.2 | real GPU ms, diluted on the CPU-heavy scene; marginal per visual cost |
 | s5 Texture up (mipbias 1→0) | +0.43 | −3.7 | **free quality win — KEEP** |
@@ -130,6 +130,6 @@ cpuGameMs 20.3 · 1%-low 23.59 (+55% vs base — better than the base config's *
 Sub-additive vs the naive sum (expected; native returns DRS's savings), CPU win survives
 composition. On the GPU-bound daily scene the average-FPS gain should exceed the stress-scene's.
 
-**Recommended daily driver (pending James's pop-in eyeball):** DRS **Disabled** · **High SMAA** ·
+**Recommended daily driver (CONFIRMED — James's pop-in verdict 2026-08-24: "pretty solid", accepted):** DRS **Disabled** · **High SMAA** ·
 **levelOfDetail 0.25** · **mipbias 0** · everything else per the lean block. Revert = restore
 any `.bak`/series-base snapshot or re-select in Options.
