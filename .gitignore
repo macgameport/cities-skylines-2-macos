@@ -1,4 +1,9 @@
 # --- secrets / personal ---
+# Personal Claude Code workflow rules, auto-synced into every repo from ~/.claude on session
+# start. Deliberately NOT published here (decided 2026-08-24): this repo is public, and these are
+# private working conventions, not project documentation. They regenerate automatically, so
+# nothing is lost by excluding them. Never tracked — this entry keeps a stray `git add .` honest.
+.claude/
 .env
 .env.*
 !.env.example
