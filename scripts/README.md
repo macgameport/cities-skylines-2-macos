@@ -22,6 +22,7 @@ the game**, which makes them suitable to attach to a Wine bug report.
 | `winlist.swift` | Lists on-screen windows (`id`, owner, size, title) via CGWindowList, so `screencapture -x -o -l <id>` can grab a **specific Wine window even when occluded** — no Accessibility permission, no hardcoded `-R` region. Built to measure Steam's black CEF windows |
 | `capture-hang.sh`, `watch-mods.sh` | Diagnostics: sample a hung process; watch the mod-download tree live |
 | `disasm.py` | IL walker used to derive patch offsets |
+| `dump-binding-attrs.py` | Extracts mod **keybinding defaults** from `SettingsUIKeyboardBinding` attribute blobs (dnfile) — chords are enum+bool ctor args, never strings, so this is the only offline route to them. Pass `Game.dll` first (supplies the `BindingKeyboard` enum map); bool order calibrated **alt/ctrl/shift**. Built the 2026-08-25 mod-keybinding collision table (`GOTCHAS.md` § "Mod keybinding defaults are extractable offline") |
 
 ## Building
 
