@@ -46,3 +46,7 @@ issues-per-item ritual. Durable record = this repo + `~/cs2-patch/change-ledger.
 
 Repo is intended to be publishable. Keep Steam IDs, `[U:1:<n>]` account ids, real usernames and
 absolute `/Users/<name>` paths **out of committed files** — use `$HOME`, `$WINEUSER`, `<REDACTED>`.
+
+## Deliberate deviations from sibling-repo practice
+
+- **`.claude/rules/` in `.prettierignore`** (from meritmap, declined 2026-08-26) — Python / C / shell (20 py, 17 sh, 16 c); no package.json anywhere, so prettier can never run here. The guard exists because a repo `.prettierrc` whose `printWidth` differs from the global source's default 80 makes format-on-commit fight the session-start sync forever (diagnosed in meritmap, where it had run since 2026-08-14). Adopted in bespoke-tr, isnotus and homeOne, which have a JS toolchain that could grow a `.prettierrc`. Here it would configure a tool that will never exist. **Revisit if this repo ever gains a `package.json`.**
