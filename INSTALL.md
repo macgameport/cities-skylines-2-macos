@@ -117,8 +117,9 @@ at the end of the script.
 What you get, measured (M3 Max, 2026-08-23): the freeze gone — minimize/restore and alt-tab in
 exclusive Fullscreen come back live; **Direct** presentation (the 11.0 stack composited);
 ~45 FPS where the same city/settings measured 42.7 before; in-game mod downloads still work
-(same 10 patches — the file-IO probe is identical to 11.0). Exclusive Fullscreen becomes the
-mode to use; Fullscreen Window remains fine too. You also get **CS2 Steam Store.app** — the
+(same 10 patches — the file-IO probe is identical to 11.0). Exclusive Fullscreen works again
+too, but **Fullscreen Windowed is the standing mode** — the launcher's guidance and the display-
+profile system both assume it. You also get **CS2 Steam Store.app** — the
 storefront, one double-click away in the preserved 11.0 wrapper.
 
 Validated on one machine so far — if it misbehaves on yours, roll back and open an issue with

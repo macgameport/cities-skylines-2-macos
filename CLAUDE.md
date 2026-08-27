@@ -10,6 +10,7 @@ issues-per-item ritual. Durable record = this repo + `~/cs2-patch/change-ledger.
 | Patch scripts + ledger | `~/cs2-patch/` (**outside this repo**, deliberately) |
 | Canonical launcher (**default**) | `~/cs2-patch/launch-cs2-dxmt11.sh` — Wine 11 + DXMT. Repo copies are thin wrappers (macOS TCC blocks app bundles from executing scripts in `~/Documents`) |
 | Canonical launcher (fallback) | `~/cs2-patch/launch-cs2.sh` — Wine 10 + D3DMetal |
+| Display-profile helper | `~/cs2-patch/cs2-display-profile.sh` — the dxmt11 launcher runs it pre-boot: retina + DRS per *main* display (mobile = retina on + DRS 0.5 CAS · home/external = retina off, native 1:1). `CS2_PROFILE=off\|home\|mobile`, `DRY=1` preview. Repo original: `scripts/`; design: `docs/plans/launcher-display-profiles.md` |
 | Apply all patches | `bash ~/cs2-patch/repatch.sh dxmt11` (10 patches) · `… free` (17, Wine 10) · no arg = the dead CrossOver bottle |
 | Shortcut | `~/Applications/Cities Skylines II.app` → runs the **dxmt11** launcher with `CS2_QUIET=1`. Revert = one `SCRIPT=` line in `Contents/MacOS/launch` |
 | Store shortcut | `~/Applications/CS2 Steam Store.app` → opens Steam **visibly** in the storefront wrapper (`CS2dxmt11-pk110.app`, wine 11.0 — the 11.16 engine black-screens Steam's UI). Built by `scripts/make-steam-shortcut.sh` (also creates the wrapper by APFS clone if absent) |
@@ -21,8 +22,9 @@ issues-per-item ritual. Durable record = this repo + `~/cs2-patch/change-ledger.
 
 ## Rules specific to this project
 
-- **Never edit a `launch-cs2*.sh` while the game is running.** Bash reads scripts incrementally;
-  a mid-run edit shifts byte offsets and corrupts the parse (produces a bogus syntax error).
+- **Never edit a `launch-cs2*.sh` (or `cs2-display-profile.sh`) while the game is running.** Bash
+  reads scripts incrementally; a mid-run edit shifts byte offsets and corrupts the parse
+  (produces a bogus syntax error).
 - **Several wrappers legitimately run Steam at once** (dxmt11 + store wrapper + S734M). Never
   attribute a Steam process by COMMAND LINE: webhelper children always carry Windows-style argv,
   and a steam.exe restarted by its own updater does too — a `pgrep -f "<App>.app.*steam.exe"`
