@@ -123,23 +123,19 @@ Known-unresolved: Steam UI). What replaces it is the **vendor-patch port
 mini-project** (see Known-unresolved: Steam UI) — the bisect ran 2026-08-24 PM and found no
 version regression to bisect; stock Wine never rendered embedded Chromium here.
 
-## Decision pending: retina / native swapchain (measured 2026-08-26, reverted)
+## ✅ ADOPTED: retina / native swapchain (2026-08-26, option 2 — no launcher change)
 
-Laptop-panel sharpness experiment — planned, triple-checked, executed and **fully reverted** in
-one session (plan + as-built: `docs/plans/retina-swapchain-experiment.md`; mechanism: GOTCHAS §
-"Retina mode"). Headline: native 3024×1964 costs only **+12.7% stress-scene gpuMs** (the scene is
-sim-bound; expect ~+4 ms absolute ≈ 40 → mid-30s FPS on the GPU-bound daily city), looks
-dramatically sharper, UI scales correctly. Not adopted because the game re-persists its stale
-saved 1920×1200 every exit, so stable retina needs one of:
-
-1. **Launcher assert (recommended)** — 3 lines in `~/cs2-patch/launch-cs2-dxmt11.sh` pre-launch:
-   re-assert `Screenmanager Resolution Use Native=1` (+3024×1964) via `reg add`. One-line revert.
-   Needs James's OK since the canonical launcher is otherwise never touched.
-2. **Attended 10-second test** — in-game Options → Display: does the resolution dropdown offer
-   3024×1964 under retina? If yes and it sticks across a relaunch, no launcher change needed.
-
-Either path also needs the §1 registry flip re-applied (RetinaMode=y + LogPixels 192 — two
-commands, in the plan). Until then the daily driver is untouched.
+Laptop-panel sharpness experiment — planned, triple-checked, executed, briefly reverted, then
+**adopted the same night via James's attended test** (plan + as-built:
+`docs/plans/retina-swapchain-experiment.md`; mechanism + traps: GOTCHAS § "Retina mode").
+Final state: RetinaMode=y + LogPixels 192 · in-game Screen Resolution **3024×1964×120** (James's
+dropdown selection — it persisted the full width/height/refreshRate tuple and re-latched the
+ratchet the right way, `Use Native=1`; the launcher-assert fallback was never needed) · **DRS
+Constant 0.5 + ContrastAdaptiveSharpen** set on disk at his request (native-at-100% measured
+22–28 FPS on the live city — GPU-bound, unlike the sim-bound bench — vs ~40 at internal 1512).
+Net: UI/HUD/menus retina-sharp, world at the accepted frame rate + battery cost. Tuning is the
+in-game slider (DRS Constant + SHOW ADVANCED): 0.5 ≈ 40 FPS, 0.65 ≈ high-20s with sharper street
+text. Verify-on-next-run outstanding: DRS renders at 0.5 as configured (judge by timestamp).
 
 ## ✅ Retired: "fix it upstream in Wine"
 

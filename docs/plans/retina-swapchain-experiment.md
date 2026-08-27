@@ -13,8 +13,14 @@
 > and re-persisted to both layers on every exit, surviving pre-boot fixes of both — is the adoption
 > blocker; (3) shot cadence trimmed to 1/run after b0. Verify against: `~/cs2-patch/perf-runs/`
 > results.jsonl rt- rows · GOTCHAS § "Retina mode" · docs/perf-pass-results.md § "Retina series".
-> **Decision pending James** (PLAN.md § Decision pending): launcher assert (3 lines, one-line
-> revert) vs attended in-game dropdown test.
+> **Resolved same night — ADOPTED via option 2** (James's attended dropdown test): the in-game
+> list offers 3024×1964×120 under retina; his selection persisted the full tuple (incl.
+> `refreshRate` — the missing field that explains the file-edit rejections) and re-latched the
+> ratchet to native with `Use Native=1`. No launcher change. Live-city native cost measured
+> 25.4 → 45.9 ms GPU (GPU-bound scene ≫ the sim-bound bench's +13%), so the r1 config was applied
+> from disk at his request: **DRS Constant 0.5 + CAS at the native swapchain** — the plan's
+> headline cell, reached via the user path. See PLAN.md § "ADOPTED: retina / native swapchain"
+> and the GOTCHAS addendum.
 > Tracking: PLAN.md § "Retina / native-swapchain experiment" (section created at build time;
 > personal-tier repo, no issue tracker). Raw run artifacts stay in `~/cs2-patch/perf-runs/` per the
 > publishability rule; only reduced numbers and decisions land here.

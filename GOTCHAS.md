@@ -1077,3 +1077,18 @@ session; rt- rows in the perf results doc). The standing facts:
 - Outcome 2026-08-26: **full revert, nothing adopted** (decision matrix row 4 — stable adoption
   requires a launcher change outside the checked plan's blast radius). Machine byte-verified back
   to the measured baseline state. The revert recipe lives in the plan §1.
+
+**Addendum (same night — ADOPTED via the in-game dropdown; trap 2 refined).** Under retina the
+in-game Screen Resolution dropdown lists the full doubled mode set (3024×1964 at 120/60/59/50/48/
+47 Hz, 3024×1890, 2704×…, …). James selected 3024×1964×120 live; on exit the game persisted the
+**complete tuple — width + height + `refreshRate` object — into `Settings.coc`** and wrote
+Screenmanager 3024×1964 with `Use Native=1`. That refines trap 2: the file-edit rejection was
+almost certainly the **missing `refreshRate`** (the stale external-era object carried only
+width/height; a hand edit of those two fields alone fails the game's validation and falls back) —
+not a mode-list filter. Consequences: (a) the ratchet ratchets *whichever way the last in-game
+selection points* — after a UI selection of native it is self-maintaining and **no launcher assert
+is needed**; (b) a future from-disk resolution change must write the full tuple including
+`refreshRate`, or use the dropdown. Live-city cost of native-at-100% measured far above the
+sim-bound bench's +13%: GPU 25.4 → 45.9 ms (40 → 22 FPS) — the bench extrapolation understated a
+GPU-bound scene, as flagged. Final adopted config: retina native swapchain + DRS Constant 0.5 +
+ContrastAdaptiveSharpen (= morning's render cost, native presentation).
