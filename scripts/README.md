@@ -23,6 +23,7 @@ the game**, which makes them suitable to attach to a Wine bug report.
 | `capture-hang.sh`, `watch-mods.sh` | Diagnostics: sample a hung process; watch the mod-download tree live |
 | `disasm.py` | IL walker used to derive patch offsets |
 | `dump-binding-attrs.py` | Extracts mod **keybinding defaults** from `SettingsUIKeyboardBinding` attribute blobs (dnfile) — chords are enum+bool ctor args, never strings, so this is the only offline route to them. Pass `Game.dll` first (supplies the `BindingKeyboard` enum map); bool order calibrated **alt/ctrl/shift**. Built the 2026-08-25 mod-keybinding collision table (`GOTCHAS.md` § "Mod keybinding defaults are extractable offline") |
+| `cs2-display-profile.sh` | **Display-profile applier the launcher runs before every boot** (deployed to `~/cs2-patch/` by `setup.sh`). Classifies by the *main* display — mobile (built-in retina) = native swapchain + DRS Constant 0.5 + CAS; home (external) = DRS off, native 1:1 — writing only the DRS block and Unity's "Use Native" registry flag, never the resolution tuple (measured unreliable from disk). `CS2_PROFILE=off\|home\|mobile` overrides, `DRY=1` previews without writing; fail-open with one log line per boot. Design, measurements and test battery: `docs/plans/launcher-display-profiles.md`; traps: `GOTCHAS.md` § "Retina mode" |
 
 ## Building
 
