@@ -145,6 +145,20 @@ Overrides: `CS2_PROFILE=off` disables the feature entirely, `=home`/`=mobile` fo
 and `DRY=1 bash ~/cs2-patch/cs2-display-profile.sh` previews what it would do without writing.
 It fails open — any error is one warning line and the boot continues with your saved settings.
 
+## Mod keybinding ⚠ badges
+
+If you run mods, the Options screen flags some of them with a ⚠ at every launch — and the badge
+clears the moment you open that section, without changing anything. It is not reporting a real
+collision: during startup each mod registers its *factory-default* chords before your saved
+rebinds are applied, and the badge is that stale snapshot.
+
+`setup.sh` installs `patch-modconflict-badge.py`, and the dxmt11 launcher re-ensures it before
+every boot, so the badges stay gone across game updates (which replace `Game.dll`). It's
+cosmetic-only and fail-open: a failed check prints one warning and the boot continues. To run it
+by hand — `~/cs2-patch/revenv/bin/python3 ~/cs2-patch/patch-modconflict-badge.py` verifies (safe
+any time), `… apply` patches (refuses while the game is running, and backs up `Game.dll` first).
+Real conflicts still surface normally when you rebind a key that's already taken.
+
 ## Measuring performance
 
 The game has no usable built-in FPS counter, so use Metal's own HUD. From a terminal:

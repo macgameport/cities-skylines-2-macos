@@ -105,6 +105,7 @@ fi
 cp "$LAUNCHER_SRC" "$DEST/" && echo "  launcher:  $_lname"
 cp "$REPO/repatch.sh" "$DEST/" && echo "  repatch.sh"
 cp "$REPO/scripts/cs2-display-profile.sh" "$DEST/" 2>/dev/null && echo "  cs2-display-profile.sh (home/mobile display profiles)"
+cp "$REPO/scripts/patch-modconflict-badge.py" "$DEST/" 2>/dev/null && echo "  patch-modconflict-badge.py (mod keybind ⚠ badges; needs revenv — see scripts/README.md)"
 mkdir -p "$DEST/patches" && cp "$REPO"/patches/*.py "$DEST/patches/" 2>/dev/null && \
   echo "  patches:   $(ls "$DEST/patches"/*.py 2>/dev/null | wc -l | tr -d ' ') scripts"
 chmod +x "$DEST"/*.sh 2>/dev/null

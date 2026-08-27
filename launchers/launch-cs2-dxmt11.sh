@@ -131,6 +131,14 @@ else
   echo "NOTE: no repatch.sh in $PATCH_DIR — skipping the patch check. Run scripts/setup.sh to install it."
 fi
 
+# 0b) Badge patch (Game.dll): re-ensure after game updates — Steam replaces Game.dll and
+#     repatch.sh does not cover it (see patch-modconflict-badge.py; fail-open by design).
+if [ -x "$PATCH_DIR/revenv/bin/python3" ] && [ -f "$PATCH_DIR/patch-modconflict-badge.py" ]; then
+  BP_OUT=$("$PATCH_DIR/revenv/bin/python3" "$PATCH_DIR/patch-modconflict-badge.py" apply 2>&1) \
+    && echo "Badge patch: $(printf '%s' "$BP_OUT" | tail -1)" \
+    || echo "WARNING: badge-patch check failed — continuing (cosmetic). $(printf '%s' "$BP_OUT" | head -1)"
+fi
+
 # 1) Steam up + FRESHLY logged in — scoped to THIS wrapper. Two wrappers can each have a Steam
 #    resident, and `pgrep steamwebhelper` cannot tell them apart: webhelper children carry
 #    Windows-style command lines. The PARENT steam.exe carries the unix path of its wrapper, so
