@@ -20,7 +20,10 @@ set -u
 python3 - <<'PYEOF'
 import glob, json, os, re, shutil, subprocess, sys
 
+acts = []
 def out(line):
+    if os.environ.get('DRY') == '1' and acts:
+        print('DRY: would do -> ' + '; '.join(acts))
     print(line); sys.exit(0)
 
 HATCH = 'set CS2_PROFILE=off to silence'
@@ -33,7 +36,6 @@ if prof not in ('', 'home', 'mobile'):
 
 WP   = os.environ.get('WINEPREFIX', '')
 WINE = os.environ.get('WINE', '')
-acts = []
 
 # Game-running guard (double-launch window): lsof-vs-prefix attribution, never bare pgrep alone.
 try:
@@ -87,6 +89,58 @@ else:
     except Exception as e:
         out(f'Display profile: skipped (detection {type(e).__name__}; {HATCH})')
 
+# ---- apply 0: retina alignment (v2, from the T10 finding 2026-08-27) --------------------------
+# winemac's RetinaMode doubles EVERY display's coordinates globally — including 1x externals,
+# which then render supersampled (measured: 1080p Dell -> 3840x2160 window, 75 ms, 14 FPS).
+# So retina is part of the profile: mobile = RetinaMode y + LogPixels 192/192; home = RetinaMode
+# absent + CPD LogPixels absent + Fonts LogPixels 96 (the measured pre-retina state). Read per
+# process at init, so a pre-boot flip is exact. Skip-if-already: steady state runs zero wine calls.
+def reg_value(txt, section, name):
+    cur = None
+    for line in txt.splitlines():
+        if line.startswith('['):
+            cur = line
+        elif cur is not None and cur.startswith('[' + section + ']') and line.startswith('"%s"=' % name):
+            return line.split('=', 1)[1]
+    return None
+
+try:
+    urtxt = open(os.path.join(WP, 'user.reg'), encoding='utf-8', errors='replace').read() if WP else ''
+except Exception:
+    urtxt = ''
+MACDRV = 'Software\\\\Wine\\\\Mac Driver'
+CPD    = 'Control Panel\\\\Desktop'
+FONTS  = 'Software\\\\Wine\\\\Fonts'
+rm  = reg_value(urtxt, MACDRV, 'RetinaMode')
+lp_cpd   = reg_value(urtxt, CPD, 'LogPixels')
+lp_fonts = reg_value(urtxt, FONTS, 'LogPixels')
+ops = []
+K = {'mac': r'HKCU\Software\Wine\Mac Driver', 'cpd': r'HKCU\Control Panel\Desktop',
+     'fonts': r'HKCU\Software\Wine\Fonts'}
+if mode == 'mobile':
+    if rm != '"y"':
+        ops.append(('retina: RetinaMode=y', ['reg', 'add', K['mac'], '/v', 'RetinaMode', '/t', 'REG_SZ', '/d', 'y', '/f']))
+    if lp_cpd != 'dword:000000c0':
+        ops.append(('retina: CPD LogPixels=192', ['reg', 'add', K['cpd'], '/v', 'LogPixels', '/t', 'REG_DWORD', '/d', '192', '/f']))
+    if lp_fonts != 'dword:000000c0':
+        ops.append(('retina: Fonts LogPixels=192', ['reg', 'add', K['fonts'], '/v', 'LogPixels', '/t', 'REG_DWORD', '/d', '192', '/f']))
+else:
+    if rm is not None:
+        ops.append(('retina: delete RetinaMode', ['reg', 'delete', K['mac'], '/v', 'RetinaMode', '/f']))
+    if lp_cpd is not None:
+        ops.append(('retina: delete CPD LogPixels', ['reg', 'delete', K['cpd'], '/v', 'LogPixels', '/f']))
+    if lp_fonts != 'dword:00000060':
+        ops.append(('retina: Fonts LogPixels=96', ['reg', 'add', K['fonts'], '/v', 'LogPixels', '/t', 'REG_DWORD', '/d', '96', '/f']))
+if not ops:
+    acts.append('retina: already aligned (%s)' % ('on' if mode == 'mobile' else 'off'))
+for desc, argv in ops:
+    acts.append(desc)
+    if not DRY:
+        try:
+            subprocess.run([WINE] + argv, capture_output=True, timeout=30)
+        except Exception as e:
+            acts.append('WARN: %s %s — continuing' % (desc, type(e).__name__))
+
 # ---- apply 1/2: Screenmanager "Use Native"=1 (both profiles; self-heals the saved-res ratchet)
 # Value name: discover from user.reg (guards a game-update rename; the "_h" suffix is a
 # deterministic DJB2-XOR of the name — same on every install), fall back to the known literal.
@@ -130,15 +184,16 @@ if mode == 'mobile':
              (r'"minScale": [0-9.]+',           '"minScale": 0.5',     r'"minScale": 0\.5'),
              (r'"upscaleFilter": "[A-Za-z]+"',  '"upscaleFilter": "ContrastAdaptiveSharpen"',
                                                 r'"upscaleFilter": "ContrastAdaptiveSharpen"')]
-    what = 'native swapchain + DRS 0.5 CAS'
+    what = 'native swapchain + DRS 0.5 CAS, retina on'
 else:
     edits = [(r'"enabled": (?:true|false)' + A, r'"enabled": false\1', r'"enabled": false' + A)]
-    what = 'DRS off, native 1:1'
+    what = 'DRS off, native 1:1, retina off'
 
 try:
     s = open(sc, encoding='utf-8').read()
     if all(len(re.findall(chk, s)) == 1 for _, _r, chk in edits):
-        out(f'Display profile: {mode} — {label} ({what}; already set)')
+        out(f'Display profile: {mode} — {label} ({what}; settings already set'
+            + ('; retina realigned' if ops else '') + ')')
     for pat, _r, _c in edits:
         n = len(re.findall(pat, s))
         if n != 1:
@@ -159,7 +214,6 @@ except Exception as e:
     out(f'Display profile: {mode} — {label} (WARN: settings step {type(e).__name__} — continuing; {HATCH})')
 
 if DRY:
-    print('DRY: would do -> ' + '; '.join(acts))
     out(f'Display profile: {mode} — {label} ({what}; DRY, nothing written)')
 out(f'Display profile: {mode} — {label} ({what})')
 PYEOF

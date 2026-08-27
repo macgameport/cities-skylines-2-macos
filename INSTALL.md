@@ -129,14 +129,16 @@ Validated on one machine so far — if it misbehaves on yours, roll back and ope
 The launcher auto-detects your display context before each boot and asserts the matching
 profile — one line in the log tells you which (`Display profile: mobile — …` / `home — …`):
 
-- **mobile** (main display = built-in retina panel): native swapchain + Dynamic Resolution
-  Scale Constant 50% + Contrast Adaptive Sharpen — retina-sharp UI at the frame cost of a
-  half-res render. Wants Wine's `RetinaMode=y` + `LogPixels=192` set once (see GOTCHAS §
-  "Retina mode" for the two `reg add` commands and what they do).
-- **home** (main display = external monitor): DRS off, native 1:1 — an external at its native
-  resolution needs no scaling.
+- **mobile** (main display = built-in retina panel): Wine Retina mode ON (asserted
+  automatically) + native 3024×1964 swapchain + Dynamic Resolution Scale Constant 50% +
+  Contrast Adaptive Sharpen — retina-sharp UI at the frame cost of a half-res render.
+- **home** (main display = external monitor): Wine Retina mode OFF (asserted automatically —
+  RetinaMode doubles *every* display, so a 1080p external would otherwise render 4K
+  supersampled at half the frame rate) + DRS off, true native 1:1.
 
-It only ever touches the DRS settings block and Unity's "Use Native" registry flag — your
+It touches the DRS settings block, Unity's "Use Native" registry flag, and the three Wine
+Retina/DPI registry values (per context, skip-if-already — steady-state boots write nothing) —
+your
 in-game resolution choice is untouched, and an in-game DRS tweak lasts until the next launch.
 Overrides: `CS2_PROFILE=off` disables the feature entirely, `=home`/`=mobile` force a profile,
 and `DRY=1 bash ~/cs2-patch/cs2-display-profile.sh` previews what it would do without writing.

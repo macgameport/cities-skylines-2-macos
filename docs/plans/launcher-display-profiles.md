@@ -11,8 +11,17 @@
 > saving is noise-level on the sim-bound bench (GOTCHAS § Retina, second addendum); (2) T9-R4
 > executed in vivo (`CS2_PROFILE=off` through the real boot chain) rather than standalone; (3) one
 > test-harness slip (stray non-DRY arg) self-identified, re-run — and accidentally
-> integration-tested the home write path. **T10 (first real dock) open — handed to James with the
-> DRY pre-check.** Verify against: `scripts/cs2-display-profile.sh` ·
+> integration-tested the home write path. **T10 executed 2026-08-27 (first real dock, James
+> present): FOUND AND FIXED the defect it existed to catch** — winemac RetinaMode doubles ALL
+> displays globally (measured: 1× 1080p Dell main → 3840×2160 window, 75.35 gpuMs / 14.5 FPS,
+> rt-home-1), falsifying §0.4's "external = native 1:1" inference. v2 helper makes retina
+> profile-conditional (mobile = on + 192 DPI · home = off + 96 DPI; per-process read → pre-boot
+> flip exact; skip-if-already). Home direction proven live (rt-home-2: 1920×1080 true 1:1,
+> 36.49 gpuMs, state held through exit); mobile direction same code path, DRY-verified, confirmed
+> on the next laptop boot. Real-world topology beat the fixtures: clamshell + two externals, and
+> `spdisplays_connection_type` is ABSENT on externals (classifier's != internal default handled
+> it). One v2 reporting bug caught by DRY (already-set exit swallowed retina-ops report; fixed).
+> Verify against: `scripts/cs2-display-profile.sh` ·
 > `launchers/launch-cs2-dxmt11.sh` · results.jsonl `rt-profile-mobile` + `rt-drsprobe-025` ·
 > GOTCHAS § "Retina mode" second addendum.
 > Tracking: PLAN.md (personal-tier repo).

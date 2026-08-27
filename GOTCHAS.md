@@ -1103,3 +1103,17 @@ take effect — a minScale-0.25 discriminator probe moved gpuMs.average 36.5→3
 native median 36.42 — pixels are cheap there); judge DRS by a scale-extreme probe or on the
 GPU-bound live city, never by a single 0.5-vs-native bench pair; (c) the Metal HUD resolution
 line shows the **drawable**, never DRS's internal render target — it is not a DRS arbiter.
+
+**Third addendum (2026-08-27 — T10 first dock: RetinaMode is GLOBAL, so it joined the profile).**
+winemac's RetinaMode doubles the coordinate space of EVERY display in the prefix, not just
+retina-backed ones — measured: with a 1× DELL U2424H (1920×1080 logical = pixels) as main, the
+game's window came up **3840×2160**, supersampled down by the compositor (75.35 gpuMs / 14.5 FPS
+stress-scene — rt-home-1; pretty, unplayable). The display-profile helper (v2) therefore aligns
+retina per context: **mobile = RetinaMode y + LogPixels 192/192 · home = RetinaMode deleted, CPD
+LogPixels deleted, Fonts 96** — the option is read per-process at init, so a pre-boot flip is
+exact, and skip-if-already keeps steady-state boots at zero wine calls. Proven live in the home
+direction (rt-home-2: window 1920×1080 true 1:1, 36.49 gpuMs, registry state held through the
+game's exit rewrite); the mobile direction is the same code path, DRY-verified, live-confirmed on
+the next laptop boot. Reporting subtlety worth keeping: the settings-already-set early exit
+initially swallowed the retina-ops report — the helper now flushes the DRY would-do list from
+`out()` and marks "retina realigned" on that path.

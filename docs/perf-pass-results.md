@@ -160,12 +160,14 @@ bench's sim-bound numbers understate pixel cost):
 | 3024×1964 native, DRS off | 45.9 | 22.4 |
 | 3024×1964 + DRS 0.5 + CAS (mobile profile) | ≈ the 1512 cost by construction (same internal pixels) — James's next session is the confirming read | ~40 expected |
 
+| rt-home-1 | 3840×2160 (⚠ retina-doubled 1× Dell — the T10 defect) | 75.35 | 14.49 | — | first dock: RetinaMode doubles ALL displays globally, so the 1080p external rendered 4K supersampled (GOTCHAS third addendum) |
+| rt-home-2 | **1920×1080 native 1:1 (the fixed HOME profile)** | **36.49** | **27.25** | 24.13 | v2 helper flips retina off pre-boot on home; all three resolution instruments agree for the first time |
+
 **Resolution of the series (2026-08-27):** retina ADOPTED — James's in-game dropdown selection
 persisted the full tuple and holds across relaunch (verified by the rt-profile-mobile boot), so
-the earlier "not adopted / launcher assert" verdict is superseded. The launcher now auto-asserts
-per display context (`cs2-display-profile.sh`: mobile = native + DRS 0.5 CAS · home/external =
-DRS off, native 1:1 — docs/plans/launcher-display-profiles.md). **HOME profile numbers: none yet**
-— the external display hasn't been connected since the settings profile changed; the 2026-08-23/24
-1920×1080 rows above ran a different quality profile and don't transfer. First dock (T10) can
-carry a bench run if a number is wanted; expected regime is the pre-retina daily's (native 1:1,
-no scaling).
+the earlier "not adopted / launcher assert" verdict is superseded. The launcher auto-asserts per
+display context (`cs2-display-profile.sh` v2: **mobile = retina on + native swapchain + DRS 0.5
+CAS · home/external = retina off + DRS off, true native 1:1** —
+docs/plans/launcher-display-profiles.md). T10 (first dock, 2026-08-27) found and fixed the home
+defect above; both configs now carry measured rows. The 2026-08-23/24 1920×1080 rows further up
+ran a different quality profile and don't transfer.
