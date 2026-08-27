@@ -64,6 +64,16 @@ export DYLD_FALLBACK_LIBRARY_PATH="$APP/Contents/Frameworks:$SS/wine/lib:/usr/li
 # (WINEESYNC/WINEMSYNC removed 2026-08-23: stock winehq wine has never shipped esync/msync —
 #  whole-source-tree grep, zero hits. They were Porting-Kit habit and did nothing here.)
 export WINEDEBUG="${WINEDEBUG:--all}"
+PATCH_DIR="${CS2_PATCH_DIR:-$HOME/cs2-patch}"
+
+# Display profile (home/external vs mobile/built-in) — docs/plans/launcher-display-profiles.md
+# CS2_PROFILE=home|mobile|off overrides auto-detect. Never blocks a launch: missing/failing
+# helper = one warning line, boot continues untouched.
+if [ -f "$PATCH_DIR/cs2-display-profile.sh" ]; then
+  bash "$PATCH_DIR/cs2-display-profile.sh" || echo "WARNING: display-profile step failed — continuing with saved settings"
+else
+  echo "NOTE: no cs2-display-profile.sh in $PATCH_DIR — display profiles inactive."
+fi
 
 # CS2_HUD=1 — Metal's performance HUD (FPS, frame time, GPU time), plus DXMT's own stat lines
 # (commit/sync/encode/render breakdown), since DXMT publishes into the same _CADeveloperHUDProperties
@@ -83,7 +93,6 @@ export WINEDLLOVERRIDES="gameoverlayrenderer64=d;gameoverlayrenderer=d;winemenub
 STEAM="$WINEPREFIX/drive_c/Program Files (x86)/Steam/steam.exe"
 GDIR="$WINEPREFIX/drive_c/Program Files (x86)/Steam/steamapps/common/Cities Skylines II"
 CL="$WINEPREFIX/drive_c/Program Files (x86)/Steam/logs/connection_log.txt"
-PATCH_DIR="${CS2_PATCH_DIR:-$HOME/cs2-patch}"
 
 # ---- process attribution (2026-08-24): a steam.exe re-exec'd by its own updater carries a
 # Windows-style argv (C:\...\steam.exe) that no .app-path pgrep can match, and webhelper

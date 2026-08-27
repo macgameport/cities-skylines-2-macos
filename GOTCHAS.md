@@ -1087,8 +1087,19 @@ almost certainly the **missing `refreshRate`** (the stale external-era object ca
 width/height; a hand edit of those two fields alone fails the game's validation and falls back) —
 not a mode-list filter. Consequences: (a) the ratchet ratchets *whichever way the last in-game
 selection points* — after a UI selection of native it is self-maintaining and **no launcher assert
-is needed**; (b) a future from-disk resolution change must write the full tuple including
+is needed** *(superseded 2026-08-27: the display-profile helper now asserts `Use Native=1` every boot regardless — docs/plans/launcher-display-profiles.md)*; (b) a future from-disk resolution change must write the full tuple including
 `refreshRate`, or use the dropdown. Live-city cost of native-at-100% measured far above the
 sim-bound bench's +13%: GPU 25.4 → 45.9 ms (40 → 22 FPS) — the bench extrapolation understated a
 GPU-bound scene, as flagged. Final adopted config: retina native swapchain + DRS Constant 0.5 +
 ContrastAdaptiveSharpen (= morning's render cost, native presentation).
+
+**Second addendum (2026-08-27 — display profiles shipped; DRS disk-enable proven live).** The
+launcher now runs `cs2-display-profile.sh` pre-boot (main-display-keyed: mobile = native + DRS
+0.5 CAS · home/external = DRS off, native 1:1; `CS2_PROFILE=off|home|mobile`, `DRY=1`;
+fail-open). Measured while shipping: (a) disk-flipping the DRS `enabled` flag **to true** does
+take effect — a minScale-0.25 discriminator probe moved gpuMs.average 36.5→32.64 and 1%-low
+22.5→32.6, far beyond repeat noise (the settings series had only proven the disable direction);
+(b) ⚠ DRS-0.5's saving is **invisible on the sim-bound bench scene** at native swapchain (36.5 vs
+native median 36.42 — pixels are cheap there); judge DRS by a scale-extreme probe or on the
+GPU-bound live city, never by a single 0.5-vs-native bench pair; (c) the Metal HUD resolution
+line shows the **drawable**, never DRS's internal render target — it is not a DRS arbiter.

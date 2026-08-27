@@ -124,6 +124,24 @@ storefront, one double-click away in the preserved 11.0 wrapper.
 Validated on one machine so far — if it misbehaves on yours, roll back and open an issue with
 `~/Library/Logs/cs2-launcher.log`.
 
+## Display profiles (laptop panel vs external monitor)
+
+The launcher auto-detects your display context before each boot and asserts the matching
+profile — one line in the log tells you which (`Display profile: mobile — …` / `home — …`):
+
+- **mobile** (main display = built-in retina panel): native swapchain + Dynamic Resolution
+  Scale Constant 50% + Contrast Adaptive Sharpen — retina-sharp UI at the frame cost of a
+  half-res render. Wants Wine's `RetinaMode=y` + `LogPixels=192` set once (see GOTCHAS §
+  "Retina mode" for the two `reg add` commands and what they do).
+- **home** (main display = external monitor): DRS off, native 1:1 — an external at its native
+  resolution needs no scaling.
+
+It only ever touches the DRS settings block and Unity's "Use Native" registry flag — your
+in-game resolution choice is untouched, and an in-game DRS tweak lasts until the next launch.
+Overrides: `CS2_PROFILE=off` disables the feature entirely, `=home`/`=mobile` force a profile,
+and `DRY=1 bash ~/cs2-patch/cs2-display-profile.sh` previews what it would do without writing.
+It fails open — any error is one warning line and the boot continues with your saved settings.
+
 ## Measuring performance
 
 The game has no usable built-in FPS counter, so use Metal's own HUD. From a terminal:

@@ -1,7 +1,20 @@
 # Launcher display profiles — home (external) vs mobile (built-in) auto-detect
 
 > **Status: Triple-checked 2026-08-27 — build-ready-with-fixes (pass 1, all corrections folded).**
-> **Build is gated on James's explicit go** (his ask was plan + check, 2026-08-26 night).
+> **🔧 As-built (2026-08-27, same session — James's go):** shipped as planned — helper
+> `scripts/cs2-display-profile.sh` (deployed to `~/cs2-patch/`), launcher hook + PATCH_DIR hoist
+> (both copies byte-identical), setup.sh deploy line. **36 build-night assertions + 5 red-checks
+> green** (detection 12 · write-path 16 · control 10 · T9). Deviations: (1) T9's "HUD reads
+> 1512x982" DRS arbiter was mis-specified — the Metal HUD shows the drawable, never DRS's internal
+> render (a lens suggestion folded without spot-check); replaced live by a **minScale-0.25
+> discriminator probe**: gpuMs 36.5→32.64, 1%-low 22.5→32.6 → DRS-by-disk proven live, and 0.5's
+> saving is noise-level on the sim-bound bench (GOTCHAS § Retina, second addendum); (2) T9-R4
+> executed in vivo (`CS2_PROFILE=off` through the real boot chain) rather than standalone; (3) one
+> test-harness slip (stray non-DRY arg) self-identified, re-run — and accidentally
+> integration-tested the home write path. **T10 (first real dock) open — handed to James with the
+> DRY pre-check.** Verify against: `scripts/cs2-display-profile.sh` ·
+> `launchers/launch-cs2-dxmt11.sh` · results.jsonl `rt-profile-mobile` + `rt-drsprobe-025` ·
+> GOTCHAS § "Retina mode" second addendum.
 > Tracking: PLAN.md (personal-tier repo).
 
 James, 2026-08-26 (after adopting retina on the built-in panel): *"how do I launch differently if

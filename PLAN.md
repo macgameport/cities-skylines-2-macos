@@ -135,7 +135,15 @@ Constant 0.5 + ContrastAdaptiveSharpen** set on disk at his request (native-at-1
 22–28 FPS on the live city — GPU-bound, unlike the sim-bound bench — vs ~40 at internal 1512).
 Net: UI/HUD/menus retina-sharp, world at the accepted frame rate + battery cost. Tuning is the
 in-game slider (DRS Constant + SHOW ADVANCED): 0.5 ≈ 40 FPS, 0.65 ≈ high-20s with sharper street
-text. Verify-on-next-run outstanding: DRS renders at 0.5 as configured (judge by timestamp).
+text. **Verified 2026-08-27** (T9 boot + 0.25 discriminator probe): the 3024×1964 selection holds
+across relaunch at both stores, and disk-configured DRS is live (0.25 probe moved gpuMs 36.5→32.6,
+1%-low 22.5→32.6 — far beyond repeat noise).
+
+**2026-08-27: display-profile auto-detect SHIPPED** (docs/plans/launcher-display-profiles.md,
+triple-checked then built same night): the launcher classifies by the *main* display pre-boot —
+mobile = native + DRS 0.5 CAS, home/external = DRS off, native 1:1 — via a fail-open helper
+(`cs2-display-profile.sh`; `CS2_PROFILE=off|home|mobile`, `DRY=1`). 36 build-night assertions +
+5 red-checks green; one open item: **T10, first real dock** (fail-open until then).
 
 ## ✅ Retired: "fix it upstream in Wine"
 

@@ -104,6 +104,7 @@ if [ -f "$DEST/$_lname" ] && ! cmp -s "$LAUNCHER_SRC" "$DEST/$_lname"; then
 fi
 cp "$LAUNCHER_SRC" "$DEST/" && echo "  launcher:  $_lname"
 cp "$REPO/repatch.sh" "$DEST/" && echo "  repatch.sh"
+cp "$REPO/scripts/cs2-display-profile.sh" "$DEST/" 2>/dev/null && echo "  cs2-display-profile.sh (home/mobile display profiles)"
 mkdir -p "$DEST/patches" && cp "$REPO"/patches/*.py "$DEST/patches/" 2>/dev/null && \
   echo "  patches:   $(ls "$DEST/patches"/*.py 2>/dev/null | wc -l | tr -d ' ') scripts"
 chmod +x "$DEST"/*.sh 2>/dev/null
