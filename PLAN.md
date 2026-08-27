@@ -279,6 +279,17 @@ in the handler, or wrap in `finally`.
 
 ## Known-unresolved, low severity
 
+- **Metal HUD is OFF in the double-clickable shortcut (James, 2026-08-27, "for now").** The
+  `.app` was previously generated with `HUD=1`; regenerated without it, so the perf overlay no
+  longer appears in normal play. Restore whenever wanted:
+  `HUD=1 bash scripts/make-shortcut.sh` (the generator parameterises it — `HUD_ENV` line;
+  nothing else changes). Launching the script directly with `CS2_HUD=1` also works for one run.
+- **Five `Game.dll.bak-modconflict-*` backups (~58 MB) in `Cities2_Data/Managed/`
+  (2026-08-27).** Byproduct of the badge-patch iterations; each is the state *before* that
+  apply, so only the earliest (pristine `Game.dll`) and one P1-only copy have distinct value.
+  Harmless but redundant — safe to prune down to the pristine one, which is the true rollback
+  target. Left in place deliberately (deleting rollback artifacts is not a housekeeping call to
+  make unasked); a game update replaces `Game.dll` anyway and the launcher re-patches.
 - **Steam's visible UI — PARTIAL, not shippable (2026-08-24 late).** The webhelper shim
   (`--in-process-gpu`, injected past steam.exe's filter, size-padded past Steam's
   "Verifying file sizes only" integrity pass) **converts the black window into a fully rendered
