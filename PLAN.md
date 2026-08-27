@@ -284,12 +284,14 @@ in the handler, or wrap in `finally`.
   longer appears in normal play. Restore whenever wanted:
   `HUD=1 bash scripts/make-shortcut.sh` (the generator parameterises it — `HUD_ENV` line;
   nothing else changes). Launching the script directly with `CS2_HUD=1` also works for one run.
-- **Five `Game.dll.bak-modconflict-*` backups (~58 MB) in `Cities2_Data/Managed/`
-  (2026-08-27).** Byproduct of the badge-patch iterations; each is the state *before* that
-  apply, so only the earliest (pristine `Game.dll`) and one P1-only copy have distinct value.
-  Harmless but redundant — safe to prune down to the pristine one, which is the true rollback
-  target. Left in place deliberately (deleting rollback artifacts is not a housekeeping call to
-  make unasked); a game update replaces `Game.dll` anyway and the launcher re-patches.
+- **~~Five `Game.dll.bak-modconflict-*` backups (~58 MB)~~ — PRUNED 2026-08-27 (James).** One
+  kept: `Game.dll.bak-modconflict-20260827-164920`, the **pristine** rollback target — both
+  patch sites verified unpatched by byte-probe (0x22c1e5 / 0x108d5a), sha `721e7e17bf74`,
+  parses as a valid .NET PE. The other four were a byte-identical duplicate of it, two
+  identical P1-only copies, and one holding the broken truncated-P2 state. 58 MB → 12 MB; live
+  `Game.dll` untouched (both patches confirmed present after). Restoring the keeper puts the
+  DLL back to stock; the launcher would then re-apply on next boot, so use `CS2_PROFILE`-style
+  intent — i.e. move the patcher aside — if you ever want it to *stay* stock.
 - **Steam's visible UI — PARTIAL, not shippable (2026-08-24 late).** The webhelper shim
   (`--in-process-gpu`, injected past steam.exe's filter, size-padded past Steam's
   "Verifying file sizes only" integrity pass) **converts the black window into a fully rendered
