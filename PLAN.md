@@ -153,6 +153,27 @@ InvalidProgramException boot does NOT kill the process (limped at 98% CPU 10+ mi
 **Remaining:** James eyeballs Options → mod rows next session (expected: no ⚠ anywhere,
 including Anarchy); re-run the patcher after any CS2 game update.
 
+**2026-08-27 ~17:2x — QUEUED (James's ask): launcher auto-ensures the badge patch.** Insert
+after the repatch-ensure block (`launch-cs2-dxmt11.sh` ~line 131's `fi`), matching its
+warn-and-continue style — fail-open, a bad state must never block a launch. The patcher is
+idempotent (ALREADY PATCHED no-op · fresh apply after a game update · FAIL+warn on sig
+anomaly/lsof), so `apply` is the right mode:
+
+```bash
+# Badge patch (Game.dll): re-ensure after game updates — Steam replaces Game.dll and
+# repatch.sh does not cover it (see patch-modconflict-badge.py; fail-open by design).
+if [ -x "$PATCH_DIR/revenv/bin/python3" ] && [ -f "$PATCH_DIR/patch-modconflict-badge.py" ]; then
+  BP_OUT=$("$PATCH_DIR/revenv/bin/python3" "$PATCH_DIR/patch-modconflict-badge.py" apply 2>&1) \
+    && echo "Badge patch: ${BP_OUT%%$'\n'*}" \
+    || echo "WARNING: badge-patch check failed — continuing (cosmetic). ${BP_OUT%%$'\n'*}"
+fi
+```
+
+**Blocked on:** game/Steam down (mid-run-edit rule — a launch was in flight when queued).
+Post-edit gate: `bash -n` + standalone run of the inserted command; the echo integration
+proves itself on the next natural launch (fail-open). Re-verify the ~line-131 anchor before
+inserting.
+
 ## Performance: the deep optimization pass (RUNNING — P0–P2 measured 2026-08-24)
 
 James, 2026-08-23: *"take a deep hard look at optimizing efficiency"* — serious token budget
