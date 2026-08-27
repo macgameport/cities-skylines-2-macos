@@ -129,15 +129,29 @@ mod that never badges. So the 08-25 rebinds fixed the real conflicts but could n
 badge — it's armed from state that predates them. (Conflict predicate detail for the record:
 `ProxyBinding.ConflictsWith` respects modifiers unless either side's action has
 `modifierOptions==0`, and `CanConflict` whitelists linked pairs — the superset theory wasn't
-needed.) **Fix:** 1-byte IL patch — `SetModConflictNotification`'s `brfalse` (0x39→0x38 br at
-file 0x22c1e6) makes every call take the pop/clear path; badges can never arm; the real
-conflict UI inside the rebind screens is separate code, untouched. Patcher:
+needed.) **Fix (v2 — v1 was invalid IL, see GOTCHAS § "IL opcode surgery"):** 1-byte IL patch
+— `SetModConflictNotification`'s `ldarg.2`→`ldc.i4.0` (0x04→0x16 at file 0x22c1e5) makes the
+active-check constant-false so every call takes the pop/clear path; badges can never arm; the
+real conflict UI inside the rebind screens is separate code, untouched. Patcher:
 `~/cs2-patch/patch-modconflict-badge.py` (repo copy `scripts/`) — dnfile-resolved,
 sig-verified (exactly-one-hit or refuses), lsof game-down guard, idempotent, backup on apply;
 verify-only run 2026-08-27 = PATCHABLE at the derived offset. **To finish: run
 `~/cs2-patch/revenv/bin/python3 ~/cs2-patch/patch-modconflict-badge.py apply` with the game
 down, then boot-verify (clean main menu + no badges). Re-run after any CS2 game update**
 (Steam replaces Game.dll; script re-derives by signature). Ledger entry 2026-08-27 16:06.
+
+**2026-08-27 ~17:00 — APPLIED + BOOT-VERIFIED (v2), thread CLOSED pending James's visual
+check.** v1 (brfalse→br) was invalid IL — brfalse pops its condition, br doesn't →
+`InvalidProgramException` at JIT in CheckConflicts/InitializeUI + broken mod init; caught by
+boot-verify, backup restored byte-verified. Full lesson: GOTCHAS § "IL opcode surgery". v2
+(`ldarg.2`→`ldc.i4.0`, stack-balanced) applied 16:58, boot-verify round 3 PASSED (fresh
+Player.log: 0 InvalidProgram, 0 mod-init errors, game alive at main menu; backup
+`Game.dll.bak-modconflict-20260827-165828`). Ops lessons from round 1: an
+InvalidProgramException boot does NOT kill the process (limped at 98% CPU 10+ min — a stale
+`ps comm` grep missed it and a second instance launched beside it); liveness check is
+`pgrep -f '/Cities2.exe'` (the .app stub's own pattern). Machine left: game + Steam down.
+**Remaining:** James eyeballs Options → mod rows next session (expected: no ⚠ anywhere,
+including Anarchy); re-run the patcher after any CS2 game update.
 
 ## Performance: the deep optimization pass (RUNNING — P0–P2 measured 2026-08-24)
 

@@ -1137,7 +1137,23 @@ PathEquals includes modifiers UNLESS either action has `modifierOptions==0` (the
 (how Anarchy's mimic-vanilla PgUp/Dn shares keys without flagging).
 
 Fix = 1-byte IL patch, `patch-modconflict-badge.py` (~/cs2-patch original, repo scripts/
-copy): flips `SetModConflictNotification`'s brfalse→br so every call takes the pop path.
-Sig-resolved via dnfile (refuses on ≠1 hit), lsof game-down guard, idempotent, backs up
-Game.dll. **Re-run after any CS2 game update** — Steam replaces Game.dll and repatch.sh does
-NOT cover it (engine-side only). Rebind-screen conflict UI is separate code, unaffected.
+copy): in `SetModConflictNotification`, `ldarg.2`→`ldc.i4.0` (0x04→0x16) makes the
+active-check constant-false so every call takes the pop/clear path. Sig-resolved via dnfile
+(refuses on ≠1 hit), lsof game-down guard (run BEFORE dnfile opens the DLL — dnPE's own mmap
+otherwise trips it), idempotent, backs up Game.dll. **Re-run after any CS2 game update** —
+Steam replaces Game.dll and repatch.sh does NOT cover it (engine-side only). Rebind-screen
+conflict UI is separate code, unaffected.
+
+## IL opcode surgery: branch opcodes have STACK effects — brfalse pops, br doesn't (2026-08-27)
+
+The v1 badge patch flipped `brfalse`→`br` (0x39→0x38): one byte, same length, looks
+equivalent — but `brfalse` POPS the condition its `ldarg.2` pushed and `br` does not, so the
+method leaves an orphaned stack slot and Mono rejects the whole method at JIT:
+`InvalidProgramException: Invalid IL code in ... SetModConflictNotification ... IL_015a`,
+thrown on the BOOT path (CheckConflicts → InitializeUI) and again from every mod's
+`AddActions` (MoveIt init died). Boot-verify caught it; backup restore was byte-verified by
+the patcher's own sig check reading PATCHABLE again. **Rules: (1) when neutering a
+conditional, replace the VALUE (`ldarg.X`→`ldc.i4.0/1`) and keep the branch, rather than
+changing the branch opcode — it preserves stack shape by construction; (2) emulate stack
+effects over every path before writing any opcode change; (3) an IL patch without a
+boot-verify is not applied, it is armed.**

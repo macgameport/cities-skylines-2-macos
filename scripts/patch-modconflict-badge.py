@@ -10,9 +10,17 @@ it — which is why the badge clears on view and returns every launch.
 
 Patch: in InputManager.SetModConflictNotification the IL reads
     ldarg.2 (0x04) ; brfalse -> pop-branch (0x39 F4 00 00 00)
-i.e. "if not active, clear the notification". Flipping brfalse (0x39) to br
-(0x38) makes EVERY call take the clear path — the badge can never arm. The
-real conflict displays inside the rebind UI are separate code and untouched.
+i.e. "if not active, clear the notification". Replacing ldarg.2 (0x04) with
+ldc.i4.0 (0x16) makes the condition constant-false, so EVERY call takes the
+clear path — the badge can never arm. The real conflict displays inside the
+rebind UI are separate code and untouched.
+
+⚠ Stack-effect lesson (cost one crashed boot, 2026-08-27): the first version
+flipped brfalse (0x39) to br (0x38) instead. brfalse POPS the value ldarg.2
+pushed; br does not — the orphaned stack slot makes the method invalid IL and
+Mono throws InvalidProgramException at JIT time, on the boot path
+(CheckConflicts → InitializeUI), also breaking mod init. When flipping opcodes,
+emulate the stack: every push must still be popped on every path.
 
 Usage:
   python3 patch-modconflict-badge.py            # verify only (safe while game runs)
@@ -35,7 +43,9 @@ GAME_DLL = Path.home() / (
 )
 # ldarg.2 ; brfalse +0xF4  — the "if (!active) → pop" branch in SetModConflictNotification
 SIG = bytes.fromhex("0439f4000000")
-PATCHED_SIG = bytes.fromhex("0438f4000000")
+# ldc.i4.0 ; brfalse +0xF4 — constant-false condition: always take the pop/clear path
+PATCHED_SIG = bytes.fromhex("1639f4000000")
+OLD_BAD_SIG = bytes.fromhex("0438f4000000")  # the invalid-IL v1 patch (br, stack-broken)
 
 
 def method_body_range(pe: dnfile.dnPE, type_name: str, method_name: str):
@@ -71,6 +81,12 @@ def main():
     if not GAME_DLL.exists():
         sys.exit(f"FAIL: {GAME_DLL} not found")
 
+    if apply:
+        # must run BEFORE dnfile opens the DLL — our own mmap handle shows up in lsof
+        lsof = subprocess.run(["lsof", "--", str(GAME_DLL)], capture_output=True, text=True)
+        if lsof.stdout.strip():
+            sys.exit("FAIL: Game.dll is open (game running?) — exit the game first")
+
     pe = dnfile.dnPE(str(GAME_DLL))
     body, size = method_body_range(pe, "InputManager", "SetModConflictNotification")
     if body is None:
@@ -78,31 +94,30 @@ def main():
 
     blob = bytes(pe.__data__[body : body + size])
     live, patched = blob.count(SIG), blob.count(PATCHED_SIG)
+    if blob.count(OLD_BAD_SIG):
+        sys.exit("FAIL: stack-broken v1 patch (br) present — restore the Game.dll backup first")
     if patched == 1 and live == 0:
         print(f"ALREADY PATCHED  (method body @0x{body:x}, size {size})")
         return
     if live != 1:
         sys.exit(f"FAIL: expected exactly 1 signature hit, got {live} (game updated? re-derive offsets)")
-    target = body + blob.index(SIG) + 1  # the brfalse opcode byte
-    print(f"PATCHABLE  brfalse @file 0x{target:x} (method body @0x{body:x}, size {size})")
+    target = body + blob.index(SIG)  # the ldarg.2 opcode byte
+    print(f"PATCHABLE  ldarg.2 @file 0x{target:x} (method body @0x{body:x}, size {size})")
     if not apply:
         print("verify-only; run with 'apply' to patch")
         return
 
-    # refuse while any process has the DLL (or its dir's prefix) open
-    lsof = subprocess.run(["lsof", "--", str(GAME_DLL)], capture_output=True, text=True)
-    if lsof.stdout.strip():
-        sys.exit("FAIL: Game.dll is open (game running?) — exit the game first")
+    pe.close()  # release our own mmap before writing
 
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     backup = GAME_DLL.with_suffix(f".dll.bak-modconflict-{stamp}")
     backup.write_bytes(GAME_DLL.read_bytes())
     with open(GAME_DLL, "r+b") as f:
         f.seek(target)
-        assert f.read(1) == b"\x39"
+        assert f.read(1) == b"\x04"
         f.seek(target)
-        f.write(b"\x38")
-    print(f"PATCHED  0x39→0x38 @0x{target:x}; backup: {backup.name}")
+        f.write(b"\x16")
+    print(f"PATCHED  ldarg.2→ldc.i4.0 (0x04→0x16) @0x{target:x}; backup: {backup.name}")
     print("Boot-verify next launch: badges should not appear; game must reach main menu cleanly.")
 
 
