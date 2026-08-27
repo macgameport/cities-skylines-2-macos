@@ -134,7 +134,7 @@ composition. On the GPU-bound daily scene the average-FPS gain should exceed the
 **levelOfDetail 0.25** · **mipbias 0** · everything else per the lean block. Revert = restore
 any `.bak`/series-base snapshot or re-select in Options.
 
-## Retina series (rt-, 2026-08-26) — laptop panel, current daily config
+## Retina series (rt-, 2026-08-26/27) — laptop panel, current daily config
 
 > Protocol + full mechanism: [docs/plans/retina-swapchain-experiment.md](plans/retina-swapchain-experiment.md).
 > Baseline = the accepted daily driver (DRS Disabled · High SMAA · LOD 0.25 · mipbias 0) on the
@@ -148,9 +148,24 @@ any `.bak`/series-base snapshot or re-select in Options.
 | rt-b0-1/2/3 | 1512×982 | 35.56 / 27.84 / 32.31 (**median 32.31**) | 29.25–31.21 | 26.3–35.0 | fresh same-panel baseline |
 | rt-r0, r0-3, r0-4 | **3024×1964 native** | 36.42 / 42.11 / 34.70 (**median 36.42**) | 24.7–25.2 | ~23 | **+12.7% median gpuMs for 4× pixels** — scene is sim-bound; expect ~+4 ms absolute on GPU-bound daily play |
 | rt-r0-2 | 1920×1200 (saved-res latch) | 33.52 | 26.59 | — | accidental curve point (GOTCHAS trap 2) |
+| rt-profile-mobile | **3024×1964 native + DRS 0.5 + CAS** | 36.50 | 24.73 | 22.53 | **the shipped MOBILE profile**, E2E boot through the launcher hook (2026-08-27). ⚠ 0.5's saving is invisible on this sim-bound scene — see the probe row and the live-city table |
+| rt-drsprobe-025 | native + DRS **0.25** (discriminator) | **32.64** | **29.22** | **32.6** | proves DRS-by-disk is live (every metric moved far beyond repeat noise) + prices the 0.25 option |
 
-Verdicts: native sharpness is real and cheap on the stress scene (compositor upscale eliminated,
-UI normal-sized, street text legible); r1/r2 (DRS-at-native) were **not run** — r0 passing its
-gate made DRS-assisted native moot. **Not adopted**: the game re-persists its saved 1920×1200
-every exit (trap 2), so stable retina needs a one-line pre-boot Screenmanager assert in the
-launcher — pending James's call. Full revert executed + byte-verified same session.
+**Live-city spot readings** (HUD, James's session 2026-08-26 — the GPU-bound regime where the
+bench's sim-bound numbers understate pixel cost):
+
+| config | GPU ms | FPS |
+|---|---|---|
+| 1512×982 swapchain (pre-retina daily) | 25.4 | 40.3 |
+| 3024×1964 native, DRS off | 45.9 | 22.4 |
+| 3024×1964 + DRS 0.5 + CAS (mobile profile) | ≈ the 1512 cost by construction (same internal pixels) — James's next session is the confirming read | ~40 expected |
+
+**Resolution of the series (2026-08-27):** retina ADOPTED — James's in-game dropdown selection
+persisted the full tuple and holds across relaunch (verified by the rt-profile-mobile boot), so
+the earlier "not adopted / launcher assert" verdict is superseded. The launcher now auto-asserts
+per display context (`cs2-display-profile.sh`: mobile = native + DRS 0.5 CAS · home/external =
+DRS off, native 1:1 — docs/plans/launcher-display-profiles.md). **HOME profile numbers: none yet**
+— the external display hasn't been connected since the settings profile changed; the 2026-08-23/24
+1920×1080 rows above ran a different quality profile and don't transfer. First dock (T10) can
+carry a bench run if a number is wanted; expected regime is the pre-retina daily's (native 1:1,
+no scaling).
