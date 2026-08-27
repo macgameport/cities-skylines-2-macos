@@ -1120,15 +1120,24 @@ initially swallowed the retina-ops report — the helper now flushes the DRY wou
 
 ## Mod keybind ⚠ badges arm at boot from FACTORY defaults — rebinds can't clear them (2026-08-27)
 
-The Options mod-row/tab ⚠ is a notification, not live state: boot `InitializeUI` →
-`InputManager.CheckConflicts` → `SetModConflictNotification` pushes "KeyBindingConflict" per
-mod input map; opening the section re-runs the check (via conflict-dirty →
-`ProcessActionsUpdate`) and pops it. The boot pass evaluates bindings **before per-user .coc
-overrides apply**, so it sees the mods' factory-default chords (which collide: FindIt/Traffic
-Ctrl+R, Traffic/quicksave Ctrl+S, trio/quick-set, Anarchy/vanilla PgUp/Dn) — which is why the
-badge returns every launch, clears on mere viewing, and why the 2026-08-25 disk rebinds fixed
-real collisions but never the badge. **General lesson: an indicator that clears on view
-without input is an acknowledgment pattern — do not debug it as a mirror of current config.**
+The Options mod-row/tab ⚠ is stale cached state, not live config: during boot, each mod's
+`AddActions` triggers `InputManager.CheckConflicts` (via the defer-wrapper →
+`ProcessActionsUpdate`) **before the per-user .coc overrides settle**, so the mods'
+factory-default chords (which collide: FindIt/Traffic Ctrl+R, Traffic/quicksave Ctrl+S,
+trio/quick-set, Anarchy/vanilla PgUp/Dn) get flagged into `ProxyBinding`'s cached conflict
+state. Two separate surfaces read that cache — patching only the first (2026-08-27 v2) did
+NOT clear the badges James sees; screenshots falsified that attribution:
+- `SetModConflictNotification` → a per-mod "KeyBindingConflict" notification (menu toasts).
+- **`InputBindingField.get_warning`** → per-keybind-row widget warning
+  (`(binding.hasConflicts & mask) != 0`); the KEYBINDS-tab ⚠ and mod-row ⚠ aggregate from
+  these rows (the mods declare no `SettingsUI*Warning` attributes — rows are the only
+  source). This is the badge.
+Opening a badged section re-runs `CheckConflicts` against the settled bindings → cache goes
+clean → badge clears on mere viewing, re-arms next boot. That's why the 2026-08-25 disk
+rebinds fixed real collisions but never the badge. **Lessons: an indicator that clears on
+view without input is an acknowledgment/stale-cache pattern — don't debug it as a mirror of
+current config; and after neutering one consumer of shared state, re-check WHICH consumer
+renders the artifact you're chasing (xref all readers — here `get_hasConflicts` had four).**
 
 Conflict predicate (for future binding work, disassembled 1.6.0f1):
 `ProxyBinding.ConflictsWith` = both set + same device + `PathEquals` (+ usage overlap), where
@@ -1136,13 +1145,16 @@ PathEquals includes modifiers UNLESS either action has `modifierOptions==0` (the
 — `Alt+R` vs `Ctrl+Alt+R` would collide); `CanConflict` exempts whitelisted/linked pairs
 (how Anarchy's mimic-vanilla PgUp/Dn shares keys without flagging).
 
-Fix = 1-byte IL patch, `patch-modconflict-badge.py` (~/cs2-patch original, repo scripts/
-copy): in `SetModConflictNotification`, `ldarg.2`→`ldc.i4.0` (0x04→0x16) makes the
-active-check constant-false so every call takes the pop/clear path. Sig-resolved via dnfile
-(refuses on ≠1 hit), lsof game-down guard (run BEFORE dnfile opens the DLL — dnPE's own mmap
-otherwise trips it), idempotent, backs up Game.dll. **Re-run after any CS2 game update** —
-Steam replaces Game.dll and repatch.sh does NOT cover it (engine-side only). Rebind-screen
-conflict UI is separate code, unaffected.
+Fix = two tiny IL patches, `patch-modconflict-badge.py` (~/cs2-patch original, repo scripts/
+copy): **P1** `SetModConflictNotification` `ldarg.2`→`ldc.i4.0` (0x04→0x16, always the
+pop/clear path — kills the notification) and **P2** `InputBindingField.get_warning` prologue
+→ `ldc.i4.0; ret` (0x16 0x2A — constant-false widget warning, kills the badges). The cut is
+at the WIDGET, not `ProxyBinding.get_hasConflicts`, because the interactive rebind
+"key already taken" dialog (`InputRebindingUISystem` → `NeedAskUser`) reads `hasConflicts`
+too and must stay live. Methods re-resolved by name via dnfile each run (refuses on
+unexpected bytes), lsof game-down guard (run BEFORE dnfile opens the DLL — dnPE's own mmap
+otherwise trips it), idempotent, backs up Game.dll. **The dxmt11 launcher auto-ensures both
+at every start (step 0b)** — covers game updates; repatch.sh does NOT cover Game.dll.
 
 ## IL opcode surgery: branch opcodes have STACK effects — brfalse pops, br doesn't (2026-08-27)
 
@@ -1157,3 +1169,17 @@ conditional, replace the VALUE (`ldarg.X`→`ldc.i4.0/1`) and keep the branch, r
 changing the branch opcode — it preserves stack shape by construction; (2) emulate stack
 effects over every path before writing any opcode change; (3) an IL patch without a
 boot-verify is not applied, it is armed.**
+
+Second and third failures, same day (boot-verify rounds 4 + 5): **truncating a method is
+the wrong primitive entirely — Mono linearly decodes the ENTIRE body, and dead code is not
+exempt from any of it.** Round 4: `ldc.i4.0; ret` over the first two bytes left the old
+third byte (a field-token fragment, 0x33) decoding as `bne.un.s` with an out-of-method
+target → `InvalidProgramException: IL_0002`, in unreachable code. Round 5's "fix" (nop-pad
+the whole tail) failed the SAME linear pass differently: **a `nop` tail falls off the end
+of the method** — the decoder needs the last instruction to be a terminator, kept reading,
+and hit the next method's tiny header (`IL_0021: beq.s IL_0095` = the neighbor's `2E 72`).
+**Rule (4), as finally measured: don't truncate. The safe primitive is VALUE SUBSTITUTION
+inside unchanged control flow — replace a load/call sequence with `ldc` + nops of identical
+length, leaving every branch, stack shape and the original terminator intact** (v2c: the
+11-byte `hasConflicts` load → `ldc.i4.0` + 10 nops; method computes `(0 & mask) != 0` =
+false). Boot-verify caught all three same-day failures; none reached a play session.

@@ -174,6 +174,34 @@ Post-edit gate: `bash -n` + standalone run of the inserted command; the echo int
 proves itself on the next natural launch (fail-open). Re-verify the ~line-131 anchor before
 inserting.
 
+**2026-08-27 ~17:1x — v2 attribution FALSIFIED by James's screenshots (badges unchanged on
+the patched DLL); real badge source pinned and patched (P2); launcher auto-ensure SHIPPED.**
+The notification v2 killed is a separate surface (menu toast). The badge chain, by xref:
+per-row `InputBindingField.get_warning` = `(binding.hasConflicts & mask) != 0` reading
+`ProxyBinding`'s conflict cache, which goes stale because every mod's `AddActions` re-runs
+`CheckConflicts` mid-registration (round-1's crash stack was the map of this); tab/mod-row ⚠
+aggregate from rows (mods declare no `SettingsUI*Warning` attributes). **P2** neuters the
+widget getter (prologue → `ldc.i4.0; ret`); `get_hasConflicts` itself left alive because the
+rebind-time NeedAskUser dialog reads it. Patcher rewritten as a two-patch set (P1+P2, per-
+patch state machine, BROKEN-V1 detection); applied 17:18, backup
+`Game.dll.bak-modconflict-20260827-171831`. Launcher gained step 0b (badge-patch
+auto-ensure, fail-open, `bash -n` + standalone-run gated) — the game-update chore is now
+automatic. Boot-verify round 4 = P2 IL validity + launcher line. **Badge-absence check:
+James's next session.**
+
+**2026-08-27 17:36 — P2 took three forms; v2c BOOT-VERIFIED CLEAN (round 6), thread closed
+pending James's visual check.** v2a (prologue `ldc.i4.0; ret`, stale tail) and v2b (nop-pad
+tail) were BOTH invalid IL — Mono linearly decodes the entire body: stale bytes must decode
+(round 4, `IL_0002 bne.un.s` from a token fragment) and a nop tail falls off the method end
+(round 5, `IL_0021 beq.s IL_0095` = the decoder reading the NEXT method's header `2E 72`,
+confirmed by hexdump). v2c = value substitution: the 11-byte `hasConflicts` load →
+`ldc.i4.0` + 10 nops, all original flow/terminator intact, body hand-decoded valid. Round 6:
+game alive, 0 `Invalid IL`, 0 mod-init errors, launcher 0b line printed. Full lesson set in
+GOTCHAS § "IL opcode surgery" (rules 1–4). Backups chain in Managed/; ledger 17:32. Machine
+left: game + Steam down (launcher's own clean-shutdown hook confirmed 0 residual).
+James's round-4 mid-verify quit was harmless (noted for the record: it proved the .app's
+already-running guard + the launcher's post-exit Steam cleanup work as designed).
+
 ## Performance: the deep optimization pass (RUNNING — P0–P2 measured 2026-08-24)
 
 James, 2026-08-23: *"take a deep hard look at optimizing efficiency"* — serious token budget
