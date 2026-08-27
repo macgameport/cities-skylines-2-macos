@@ -1117,3 +1117,27 @@ game's exit rewrite); the mobile direction is the same code path, DRY-verified, 
 the next laptop boot. Reporting subtlety worth keeping: the settings-already-set early exit
 initially swallowed the retina-ops report — the helper now flushes the DRY would-do list from
 `out()` and marks "retina realigned" on that path.
+
+## Mod keybind ⚠ badges arm at boot from FACTORY defaults — rebinds can't clear them (2026-08-27)
+
+The Options mod-row/tab ⚠ is a notification, not live state: boot `InitializeUI` →
+`InputManager.CheckConflicts` → `SetModConflictNotification` pushes "KeyBindingConflict" per
+mod input map; opening the section re-runs the check (via conflict-dirty →
+`ProcessActionsUpdate`) and pops it. The boot pass evaluates bindings **before per-user .coc
+overrides apply**, so it sees the mods' factory-default chords (which collide: FindIt/Traffic
+Ctrl+R, Traffic/quicksave Ctrl+S, trio/quick-set, Anarchy/vanilla PgUp/Dn) — which is why the
+badge returns every launch, clears on mere viewing, and why the 2026-08-25 disk rebinds fixed
+real collisions but never the badge. **General lesson: an indicator that clears on view
+without input is an acknowledgment pattern — do not debug it as a mirror of current config.**
+
+Conflict predicate (for future binding work, disassembled 1.6.0f1):
+`ProxyBinding.ConflictsWith` = both set + same device + `PathEquals` (+ usage overlap), where
+PathEquals includes modifiers UNLESS either action has `modifierOptions==0` (then base-key-only
+— `Alt+R` vs `Ctrl+Alt+R` would collide); `CanConflict` exempts whitelisted/linked pairs
+(how Anarchy's mimic-vanilla PgUp/Dn shares keys without flagging).
+
+Fix = 1-byte IL patch, `patch-modconflict-badge.py` (~/cs2-patch original, repo scripts/
+copy): flips `SetModConflictNotification`'s brfalse→br so every call takes the pop path.
+Sig-resolved via dnfile (refuses on ≠1 hit), lsof game-down guard, idempotent, backs up
+Game.dll. **Re-run after any CS2 game update** — Steam replaces Game.dll and repatch.sh does
+NOT cover it (engine-side only). Rebind-screen conflict UI is separate code, unaffected.

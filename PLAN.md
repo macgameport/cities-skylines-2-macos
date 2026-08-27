@@ -116,6 +116,29 @@ EasyZoning toggle to something unique (e.g. Ctrl+Alt+V) — if EZ starts badging
 expect de-supersetting Traffic's trio to clear Traffic too). Fallback: RE the badge computation
 in Game.dll (options UI) via dis_pdx.py. Until settled: badges are cosmetic, two clicks/boot.
 
+**2026-08-27 PM — MECHANISM PINNED by disassembly (supersedes both theories; E1/E2 moot), fix
+STAGED.** James asked for a fix; ran the RE fallback (dnfile scan + dis_pdx on Game.dll
+1.6.0f1). Chain: boot `InitializeUI` → `InputManager.CheckConflicts` → per-mod-map
+`SetModConflictNotification` pushes a "KeyBindingConflict" notification = the options ⚠;
+opening the section dirties conflicts → `ProcessActionsUpdate` re-runs `CheckConflicts` → clean
+→ pops ("KeyBindingConflictResolved"). Same code, different verdicts ⇒ the **boot pass runs
+before per-user .coc overrides apply and evaluates the mods' FACTORY defaults**, which do
+collide exactly (FindIt Ctrl+R ⟷ Traffic Ctrl+R · Traffic Ctrl+S ⟷ quicksave · trio ⟷
+quick-set · Anarchy PgUp/Dn ⟷ vanilla); EasyZoning's default collides with nothing = the one
+mod that never badges. So the 08-25 rebinds fixed the real conflicts but could never kill the
+badge — it's armed from state that predates them. (Conflict predicate detail for the record:
+`ProxyBinding.ConflictsWith` respects modifiers unless either side's action has
+`modifierOptions==0`, and `CanConflict` whitelists linked pairs — the superset theory wasn't
+needed.) **Fix:** 1-byte IL patch — `SetModConflictNotification`'s `brfalse` (0x39→0x38 br at
+file 0x22c1e6) makes every call take the pop/clear path; badges can never arm; the real
+conflict UI inside the rebind screens is separate code, untouched. Patcher:
+`~/cs2-patch/patch-modconflict-badge.py` (repo copy `scripts/`) — dnfile-resolved,
+sig-verified (exactly-one-hit or refuses), lsof game-down guard, idempotent, backup on apply;
+verify-only run 2026-08-27 = PATCHABLE at the derived offset. **To finish: run
+`~/cs2-patch/revenv/bin/python3 ~/cs2-patch/patch-modconflict-badge.py apply` with the game
+down, then boot-verify (clean main menu + no badges). Re-run after any CS2 game update**
+(Steam replaces Game.dll; script re-derives by signature). Ledger entry 2026-08-27 16:06.
+
 ## Performance: the deep optimization pass (RUNNING — P0–P2 measured 2026-08-24)
 
 James, 2026-08-23: *"take a deep hard look at optimizing efficiency"* — serious token budget
