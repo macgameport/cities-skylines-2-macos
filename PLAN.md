@@ -96,6 +96,26 @@ no Anarchy.coc exists and minting one from scratch is format-risk — one in-gam
 it properly if James wants that badge gone). Verify on next boot: Traffic + Find It badges
 should be gone; then confirm the game preserved the .coc values after that session exits.
 
+**2026-08-27 — REOPENED: verification split.** Disk half PASSED: all four rebind groups
+survived the game's settings-rewrite cycle (live `.coc`s re-checked post-14:43 session; the
+game canonicalizes to modifier-only deltas — `m_Path` omitted when the key matches the mod
+default — confirmed against pre-edit FindIt backup; `HasShownMConflictPanel` intact; Player.log
+has zero binding/conflict lines). Badge half FAILED, informatively: badges still appear **every
+launch** on Find It · Anarchy · Traffic (screenshots), all rebinds visibly live in the UI, no
+inline row warnings — and **opening a badged section clears its ⚠ with no input**. So the badge
+is a boot-time notice with per-session acknowledgment, NOT a live conflict indicator — the
+08-25 "fix conflicts ⇒ badges go" premise was wrong (conflicts were still worth fixing; chords
+no longer fight). Two candidate mechanisms, both fitting the badge set {FindIt, Anarchy,
+Traffic} and the non-badging {EasyZoning, MoveIt}: **(1) non-default/unregistrable-keybind
+notice** (FindIt 2 + Traffic 4 rebinds carry ↻ reset arrows; Anarchy's mimic'd PgUp/Dn rows are
+vanilla-owned; EZ is pure-default) · **(2) modifier-superset conflict detection** (Anarchy
+Alt+R ⊂ FindIt Ctrl+Alt+R badges both; Traffic trio Ctrl+Alt+1/2/3 ⊃ own quick-set
+Ctrl+1/2/3). **Decisive experiments (in-game, ~30 s each, read on next boot):** (E1) rebind
+EasyZoning toggle to something unique (e.g. Ctrl+Alt+V) — if EZ starts badging → theory 1;
+(E2) move FindIt Random Ctrl+Alt+R → Ctrl+Alt+F — if Anarchy stops badging → theory 2 (then
+expect de-supersetting Traffic's trio to clear Traffic too). Fallback: RE the badge computation
+in Game.dll (options UI) via dis_pdx.py. Until settled: badges are cosmetic, two clicks/boot.
+
 ## Performance: the deep optimization pass (RUNNING — P0–P2 measured 2026-08-24)
 
 James, 2026-08-23: *"take a deep hard look at optimizing efficiency"* — serious token budget
