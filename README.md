@@ -115,8 +115,7 @@ and `docs/dxmt-bugs/`.
 | `REFERENCES.md` | Upstream projects, recipes, sources |
 | `PLAN.md` | Roadmap / open threads |
 | `launchers/` | The one live launcher; dead-stack scripts archived with reasons |
-| `scripts/` | Minimal reproducers + `make-shortcut.sh` (builds the double-clickable launcher app — icon extracted from your own `Cities2.exe`, plus a persistent progress window for the Steam/licence wait) — see `scripts/README.md` |
-
+| `scripts/` | Minimal reproducers, `make-shortcut.sh` (builds the double-clickable launcher app — icon extracted from your own `Cities2.exe`, plus a persistent progress window for the Steam/licence wait), and the helpers the launcher runs each boot: `cs2-display-profile.sh` (per-display retina/DRS profile) and `patch-modconflict-badge.py` (removes the mod keybinding ⚠ badges) — see `scripts/README.md` |
 | `patches/` | The 16 publishable binary patches + `repatch.sh`. The Wine 11 path needs 10 of them, **all present** |
 | `docs/wine-bugs/` | Ready-to-file Wine bug reports for the three root causes |
 

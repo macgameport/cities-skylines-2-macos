@@ -117,7 +117,10 @@ expect de-supersetting Traffic's trio to clear Traffic too). Fallback: RE the ba
 in Game.dll (options UI) via dis_pdx.py. Until settled: badges are cosmetic, two clicks/boot.
 
 **2026-08-27 PM — MECHANISM PINNED by disassembly (supersedes both theories; E1/E2 moot), fix
-STAGED.** James asked for a fix; ran the RE fallback (dnfile scan + dis_pdx on Game.dll
+STAGED.** ⚠ **The badge ATTRIBUTION in this entry is wrong — falsified two entries below
+(the notification is a menu toast, not the ⚠; the badge is `InputBindingField.get_warning`).
+The stale-cache root cause and the boot-order finding below stand.** James asked for a fix;
+ran the RE fallback (dnfile scan + dis_pdx on Game.dll
 1.6.0f1). Chain: boot `InitializeUI` → `InputManager.CheckConflicts` → per-mod-map
 `SetModConflictNotification` pushes a "KeyBindingConflict" notification = the options ⚠;
 opening the section dirties conflicts → `ProcessActionsUpdate` re-runs `CheckConflicts` → clean
