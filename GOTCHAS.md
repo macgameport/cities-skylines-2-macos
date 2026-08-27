@@ -1040,3 +1040,40 @@ the `build-engine-1116.sh` / `install-webhelper-shim.sh` preflights use the same
 **Bonus trap:** bench/bisect scratch prefixes under /tmp keep their own logged-in steam.exe
 alive for hours after the test ends — and steal the account session while at it (see the
 session-swap entry above). End them: `WINEPREFIX=/tmp/<scratch> wineserver -k`.
+
+## Retina mode: native 3024×1964 costs ~13% stress-scene GPU — but the game's saved resolution is a ratchet (2026-08-26)
+
+Full campaign: `docs/plans/retina-swapchain-experiment.md` (triple-checked, then executed same
+session; rt- rows in the perf results doc). The standing facts:
+
+- **`RetinaMode=y` (+ LogPixels 192) works as designed on the self-built 11.16 engine**: Wine's
+  desktop becomes the panel-native 3024×1964, the borderless swapchain follows automatically
+  (Unity `Player.log` "Window resolution: 3024x1964", Metal HUD agrees), the compositor ×2
+  upscale — the laptop-panel blur — disappears, painted street names go razor sharp, and the
+  game UI scales proportionally (normal size). DPI is read from `HKCU\Control Panel\Desktop\
+  LogPixels` (primary); per-app `AppDefaults` scoping is deliberately unsupported for RetinaMode
+  (upstream comment: DPI/monitor geometry must be prefix-wide) — do not "fix" it into AppDefaults.
+- **Measured cost (stress bench, ×3 medians): gpuMs.average 32.31 → 36.42 = +12.7%** for 4× the
+  pixels — the scene is CPU/sim-bound, so GPU time responds sub-linearly. On the GPU-bound daily
+  city expect the *absolute* delta (~+4 ms GPU) to matter more: ~25 → ~30 ms class, i.e. 40 FPS →
+  mid-30s. Accidental middle point: 1920×1200 renders at 33.52 gpuMs (+3.7%).
+- **TRAP 1 — `Benchmark.coc` `screenResolution` (→ results.jsonl `resolution`) is NOT the
+  swapchain.** It is Unity's `Screen.currentResolution` = the *display-mode* view. Under retina,
+  winemac's mode list doubles, the game's saved resolution can suddenly match a mode, and winemac
+  *emulates* the mode change for borderless windows — so the field reports the saved value
+  (1920×1200 here) while the game demonstrably renders 3024×1964. Arbiter for what actually
+  rendered = `Player.log` "Window resolution" + the HUD, never this field.
+- **TRAP 2 — the saved resolution cannot be cleared from disk; the game re-derives and re-persists
+  it every run.** With a stale external-era 1920×1200 saved: run 1 under retina boots native, but
+  the game re-applies 1920×1200 (validation of the on-disk value against its mode list evidently
+  rejects 3024×1964), then at exit writes 1920×1200 into BOTH `Settings.coc` (`resolution` key —
+  which it also transiently drops and re-adds) AND Unity's Screenmanager registry values, flipping
+  `Resolution Use Native` 1 → 0. Consequence: the NEXT boot creates the window at 1920×1200 (soft
+  upscale blit). Setting both layers to 3024×1964 with the game closed survives exactly one boot
+  (that boot renders native) and is overwritten again on exit — measured across four launches.
+  **Stable retina daily use therefore needs a pre-boot assert (`Screenmanager Resolution Use
+  Native…=1`) in the launcher, or the in-game dropdown setting the game's own runtime value to
+  3024×1964 (untested — the dropdown may not offer it if the mode list filters it).**
+- Outcome 2026-08-26: **full revert, nothing adopted** (decision matrix row 4 — stable adoption
+  requires a launcher change outside the checked plan's blast radius). Machine byte-verified back
+  to the measured baseline state. The revert recipe lives in the plan §1.

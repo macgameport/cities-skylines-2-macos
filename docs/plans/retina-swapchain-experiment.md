@@ -1,6 +1,20 @@
 # Retina / native-swapchain sharpness experiment (laptop panel)
 
 > **Status: Triple-checked 2026-08-26 — build-ready-with-fixes (pass 1 + fitted pass 1b, all corrections folded).**
+> **🔧 As-built (2026-08-26, same session):** executed b0 ×3 · r0-native ×3 · accidental 1920×1200
+> ×1; **r1/r2 not run** — r0 passed its gate (median gpuMs.average 36.42 vs b0 32.31 = **1.127× ≤
+> 1.15**, shots sharp, UI normal-sized), making DRS-assisted native moot. **Outcome: matrix row 4,
+> full revert, byte-verified** — not on quality (native passed every gate) but because stable
+> adoption needs a pre-boot `Screenmanager Resolution Use Native=1` assert in the launcher, outside
+> this plan's declared blast radius ("launcher scripts are not touched"). Deviations: (1) the
+> results-row `resolution` field measures Unity's emulated *display-mode* view, not the swapchain —
+> arbiter moved live to `Player.log` "Window resolution" + HUD (validity-table criterion as
+> mis-specified); (2) the game's saved-1920×1200 ratchet (GOTCHAS § Retina mode, trap 2) — re-derived
+> and re-persisted to both layers on every exit, surviving pre-boot fixes of both — is the adoption
+> blocker; (3) shot cadence trimmed to 1/run after b0. Verify against: `~/cs2-patch/perf-runs/`
+> results.jsonl rt- rows · GOTCHAS § "Retina mode" · docs/perf-pass-results.md § "Retina series".
+> **Decision pending James** (PLAN.md § Decision pending): launcher assert (3 lines, one-line
+> revert) vs attended in-game dropdown test.
 > Tracking: PLAN.md § "Retina / native-swapchain experiment" (section created at build time;
 > personal-tier repo, no issue tracker). Raw run artifacts stay in `~/cs2-patch/perf-runs/` per the
 > publishability rule; only reduced numbers and decisions land here.

@@ -133,3 +133,24 @@ composition. On the GPU-bound daily scene the average-FPS gain should exceed the
 **Recommended daily driver (CONFIRMED — James's pop-in verdict 2026-08-24: "pretty solid", accepted):** DRS **Disabled** · **High SMAA** ·
 **levelOfDetail 0.25** · **mipbias 0** · everything else per the lean block. Revert = restore
 any `.bak`/series-base snapshot or re-select in Options.
+
+## Retina series (rt-, 2026-08-26) — laptop panel, current daily config
+
+> Protocol + full mechanism: [docs/plans/retina-swapchain-experiment.md](plans/retina-swapchain-experiment.md).
+> Baseline = the accepted daily driver (DRS Disabled · High SMAA · LOD 0.25 · mipbias 0) on the
+> **built-in panel** (no external display) — the first rt- rows ever measured there (every earlier
+> row in this doc ran 1920×1080 external-era; not comparable). ⚠ The results-row `resolution`
+> field reports Unity's *display-mode* view, not the swapchain (GOTCHAS § Retina mode, trap 1);
+> render resolution below is from `Player.log` "Window resolution" + HUD.
+
+| cell | render res | gpuMs avg | avgFps | 1%-low | note |
+|---|---|---|---|---|---|
+| rt-b0-1/2/3 | 1512×982 | 35.56 / 27.84 / 32.31 (**median 32.31**) | 29.25–31.21 | 26.3–35.0 | fresh same-panel baseline |
+| rt-r0, r0-3, r0-4 | **3024×1964 native** | 36.42 / 42.11 / 34.70 (**median 36.42**) | 24.7–25.2 | ~23 | **+12.7% median gpuMs for 4× pixels** — scene is sim-bound; expect ~+4 ms absolute on GPU-bound daily play |
+| rt-r0-2 | 1920×1200 (saved-res latch) | 33.52 | 26.59 | — | accidental curve point (GOTCHAS trap 2) |
+
+Verdicts: native sharpness is real and cheap on the stress scene (compositor upscale eliminated,
+UI normal-sized, street text legible); r1/r2 (DRS-at-native) were **not run** — r0 passing its
+gate made DRS-assisted native moot. **Not adopted**: the game re-persists its saved 1920×1200
+every exit (trap 2), so stable retina needs a one-line pre-boot Screenmanager assert in the
+launcher — pending James's call. Full revert executed + byte-verified same session.
