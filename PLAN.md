@@ -284,12 +284,16 @@ in the handler, or wrap in `finally`.
   (`mode = 'mobile' if internal(nd) else 'home'`, plus an "external present, no main flag" →
   home fallback), so a desktop Mac with no built-in panel correctly resolves to `home` — the
   logic ports as-is. **But `home` means retina off, DRS off, native 1:1**, which is only sane
-  because the Dell is 1920×1080. On a 4K panel that's 4× the pixels of the tuned working point
-  and on a 5K it's ~7× — at 23.1 ms GPU for 1080p High today, native would be unplayable.
-  The fix is already in the toolkit, not new code: a high-DPI `home` wants the *mobile*
-  treatment (DRS Constant 0.5 + CAS), which lands 4K back on a ~1080p render. Treat the profile
-  table as needing one new row — `home-hidpi` — the day a >1080p display arrives, and re-bench
-  rather than assuming 0.5 is the right factor. Also: set the refresh rate **in-game**, never in
+  because the *main* panel is 1920×1080. On a 4K panel that's 4× the pixels of the tuned working
+  point and on a 5K it's ~7× — at 23.1 ms GPU for 1080p High today, native would be unplayable.
+  ⚠ **Not hypothetical, and not contingent on a purchase (measured 2026-08-28):** the desk already
+  carries a **DELL U2720Q, 27" 3840×2160 (163 ppi, 60 Hz)** — today it is the *portrait secondary*
+  and the **DELL U2424H (24" 1920×1080, 120 Hz) is `spdisplays_main`**, which is the only reason
+  the profile is safe. **Making the U2720Q the main display is a one-setting change that would put
+  `home` at native 4K.** The fix is already in the toolkit, not new code: a high-DPI `home` wants
+  the *mobile* treatment (DRS Constant 0.5 + CAS), which lands 4K back on a ~1080p render. Treat
+  the profile table as needing one new row — `home-hidpi` — and re-bench rather than assuming 0.5
+  is the right factor. Also: set the refresh rate **in-game**, never in
   `Settings.coc` (measured not to take), or the mode change blanks the other display — GOTCHAS
   § "Second display gets blacked out".
 - **Metal HUD is OFF in the double-clickable shortcut (James, 2026-08-27, "for now").** The
