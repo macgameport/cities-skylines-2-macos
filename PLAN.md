@@ -379,13 +379,17 @@ in the handler, or wrap in `finally`.
      vanilla-wined3d-for-the-client split. Acted on the same day: `--single-process` and
      `--disable-gpu --single-process` tested (textless / no window respectively), out-of-process
      `--use-angle=gl|vulkan` tested (GPU process crashes ×3, same as default — the wall is
-     backend-independent). Still no maintainer reply. **Two evidence comments are on the thread**:
+     backend-independent). Still no maintainer reply. **Three evidence comments are on the thread**:
      the stock-vs-vendor sweep
      ([#5400445243](https://github.com/3Shain/dxmt/issues/141#issuecomment-5400445243)) and the
      `--in-process-gpu` results — renders but textless, with the steam.exe flag-filtering and
      file-size-only verification findings
-     ([#5403561498](https://github.com/3Shain/dxmt/issues/141#issuecomment-5403561498)). Watch for
-     a maintainer reply; we offered to run further diagnostics on this setup.
+     ([#5403561498](https://github.com/3Shain/dxmt/issues/141#issuecomment-5403561498)), and the
+     2026-08-28 eliminations — `--single-process` textless, backend-independent out-of-process
+     wall, and the vanilla-wined3d split landing yet still black
+     ([#5458926046](https://github.com/3Shain/dxmt/issues/141#issuecomment-5458926046), drafted in
+     `docs/dxmt-bugs/comment-141-vanilla-wined3d.md`). Watch for a maintainer reply; we offered to
+     run further diagnostics on this setup.
   3. **A DXMT release** — `3Shain/dxmt` releases page; cross-process present is the thing to grep
      release notes for.
   4. **Wine 11.17+** — not because a version regression exists (there is none; stock 11.0 is
