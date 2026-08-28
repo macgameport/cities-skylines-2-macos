@@ -337,11 +337,26 @@ in the handler, or wrap in `finally`.
     two installs were APFS clones sharing extents, and `du` was reporting logical size for each.
     Restoring it is instant and free via `cp -Rc` from the daily wrapper if ever wanted. See
     GOTCHAS § "`du` lies about disk on APFS".
-  - ▶ **Open lead if resumed:** why `--in-process-gpu` produces zero glyphs in Chromium 126 CEF
-    under Wine — the community report of this shim working dates to a March-2026 client, so a CEF
-    regression between those builds is the obvious suspect. Both durable findings (flag filtering,
-    size-only verification) are worth a dxmt#141 follow-up regardless.
-  - Evidence: GOTCHAS § "The webhelper shim renders everything EXCEPT text".
+  - ▶ **Open lead, RE-FRAMED 2026-08-28 — it is not the flag.** `--single-process` (never tested
+    before that date) renders *and drops every glyph* exactly like `--in-process-gpu`: 2,018,352 B
+    of real UI, zero text, bare dropdown carets, empty search field. So the cause is **in-process
+    GPU by any route**, not one switch, and "why does `--in-process-gpu` kill glyphs" was the wrong
+    question. The March-2026-client CEF-regression suspicion is unchanged and still untested
+    (revisit trigger 5). Both durable findings (flag filtering, size-only verification) are worth a
+    dxmt#141 follow-up regardless.
+  - ▶ **The one live route left: Steam's processes on vanilla wined3d, game keeps DXMT.** From
+    [mikey92 on dxmt#141](https://github.com/3Shain/dxmt/issues/141#issuecomment-5448572368)
+    (2026-08-28) + [BCD1210/soju](https://github.com/BCD1210/soju/blob/main/docs/STEAM-GAMES.md).
+    **Cannot be tried on this machine today:** every `d3d11.dll`/`dxgi.dll` here is DXMT's — both
+    arch trees and every `.bak` (5,304,320 B / 7,780 dxmt strings) — so there is no vanilla PE to
+    point a per-app override at. Cost to unblock: one `scripts/build-engine-1116.sh` run (~1 h);
+    step 3's `gmake install` lays down vanilla wine and step 4 overlays DXMT, so the vanilla
+    `d3d11.dll` + `dxgi.dll` exist in between. ⚠ Must come from the **same 11.16 build** — wine's
+    `d3d11.dll` talks to `wined3d.dll` over a per-release internal ABI, so the PK 11.0 tree is not
+    a donor. ⚠ Their rule "i386 stays vanilla" is **not** the explanation: `CS2dxmt11-pk110` runs
+    the same DXMT i386 build (7,785 dxmt strings) and renders Steam's text fine.
+  - Evidence: GOTCHAS §§ "The webhelper shim renders everything EXCEPT text" and "The glyph loss is
+    IN-PROCESS GPU itself". Harness: `scripts/steam-render-cell.sh` (one cell, capture-judged).
 
   **↻ Revisit triggers (checked periodically — James, 2026-08-24: "let's periodically look for a
   better solution").** Don't re-run the whole investigation; check these cheap signals, and only
@@ -352,7 +367,12 @@ in the handler, or wrap in `finally`.
      `--revert` after. (Also re-check whether Steam still verifies **file sizes only** — a switch
      to hashes kills the shim entirely.)
   2. **[dxmt#141](https://github.com/3Shain/dxmt/issues/141) activity** — any movement on
-     cross-process swapchain support is the real fix. **Two evidence comments are on the thread**:
+     cross-process swapchain support is the real fix. ✅ **FIRED 2026-08-28** — mikey92 posted an
+     independent reproduction (M4 Pro / macOS 26.5 / Homebrew `wine-stable` 11) plus the
+     vanilla-wined3d-for-the-client split. Acted on the same day: `--single-process` and
+     `--disable-gpu --single-process` tested (textless / no window respectively), out-of-process
+     `--use-angle=gl|vulkan` tested (GPU process crashes ×3, same as default — the wall is
+     backend-independent). Still no maintainer reply. **Two evidence comments are on the thread**:
      the stock-vs-vendor sweep
      ([#5400445243](https://github.com/3Shain/dxmt/issues/141#issuecomment-5400445243)) and the
      `--in-process-gpu` results — renders but textless, with the steam.exe flag-filtering and

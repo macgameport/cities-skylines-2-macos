@@ -968,6 +968,70 @@ split (play on `CS2dxmt11`, Steam UI on `CS2dxmt11-pk110`) stands as the practic
 **"Verifying file sizes only"**, so a size-padded replacement survives where an unpadded one is
 restored with exit 42.
 
+## The glyph loss is IN-PROCESS GPU itself, not `--in-process-gpu` — `--single-process` fails identically (2026-08-28)
+
+Prompted by [mikey92's dxmt#141 comment](https://github.com/3Shain/dxmt/issues/141#issuecomment-5448572368),
+which reports a stable Steam client on an M4 Pro / macOS 26.5 / Homebrew `wine-stable` 11 by
+running the *client* processes on vanilla wined3d and giving only games the DXMT builtins, with
+notpop's wrapper forcing `--disable-gpu --single-process`. `--single-process` had **never been
+tested here** (zero hits repo-wide before this date) — the whole earlier investigation used
+`--in-process-gpu`. It was a one-env-var test because the shim already reads `SHIM_ARGS`.
+
+**Result: `--single-process` renders exactly as much as `--in-process-gpu`, and loses text exactly
+the same way.** Five measured cells on the daily self-built 11.16 + DXMT engine, judged by
+per-window `screencapture` (black ≈ 15–41 KB, rendered ≈ 0.7–2.0 MB on the same windows):
+
+| cell | GPU location | gpu-process children (this prefix) | window | capture |
+|---|---|---|---|---|
+| `--disable-gpu --single-process` (mikey92's pair) | in-process | 0 | **none** | — hot spin, 174 % CPU |
+| **`--single-process`** | in-process | 0 | yes | **2,018,352 B — renders, ZERO glyphs** |
+| control, no shim, no flags | out-of-process | crashes ×3 | yes | 40,903 B (black) |
+| `--use-angle=gl` | out-of-process | crashes ×3 | yes | (see capture-blind note) |
+| `--use-angle=vulkan` | out-of-process | crashes ×3 | yes | (see capture-blind note) |
+
+**What this changes.** The open lead was *"why does `--in-process-gpu` kill glyphs?"* — that framing
+is now wrong. **Any route that puts Chromium's GPU in the browser process renders art and drops
+every glyph**, so the cause sits in the in-process-GPU path itself, not in one switch. Same
+signature both times: artwork, thumbnails, gradients, icons and chrome perfect; nav bar reduced to
+bare dropdown carets, empty search field, no titles or prices; the only readable text is baked into
+promo images.
+
+**And `--disable-gpu --single-process` is worse than either.** With no GPU *and* one process,
+Chromium cannot make a GL context at all — `gl_factory_win.cc(63) NOTREACHED`, `Failed to create
+GLES3 context, fallback to GLES2`, `ContextResult::kFatalFailure: Failed to create shared context
+for virtualization`, looping at ~174 % CPU with **no window ever appearing**. mikey92's pair works
+for them because their Steam client is on vanilla wined3d; on DXMT builtins it is a dead end,
+which matches their own report of a 10 s webhelper restart loop.
+
+**The cross-process wall is backend-independent.** Out-of-process, the GPU process crashes 3× in a
+launch regardless of ANGLE backend — default (D3D11), `gl`, and `vulkan` all identical. So this is
+not "DXMT lacks a D3D11 path"; nothing presents cross-process here.
+
+⚠ **Instrument note — validate before trusting an all-black reading.** Two cells ran while the
+display auto-locked; `screencapture` then produces **no file at all**, and the tell is
+`owner=loginwindow` at layer ≥1999 in `/tmp/winlist`. Per `winlist.swift`'s own header, capture a
+**known-good** window in the same pass — when the Firefox/Claude control also fails, the
+instrument is blind and the cell is void, not black. Hold the display awake (`caffeinate -d -i -u`)
+for any unattended cell.
+
+**Adopted from soju's writeup and worth keeping:** a stale Chromium `SingletonLock` in `htmlcache`
+silently turns the next Steam launch into `--silent` — i.e. **no window**, which reads exactly like
+a render failure. `scripts/steam-render-cell.sh` purges it per cell.
+
+**Still untested, and now the only live route:** Steam's processes on **vanilla wined3d** while the
+game keeps DXMT. It cannot be tried here today — every `d3d11.dll`/`dxgi.dll` on this machine is
+DXMT's, in **both** arch trees and in every `.bak` (all 5,304,320 B / 7,780 dxmt strings), so there
+is no vanilla PE to point a per-app override at. Harvesting one means a fresh
+`scripts/build-engine-1116.sh` run (~1 h): step 3's `gmake install` lays down vanilla wine, and
+step 4 is what overlays DXMT — the vanilla `d3d11.dll` + `dxgi.dll` exist in between.
+⚠ Version-couple it: wine's `d3d11.dll` talks to `wined3d.dll` over an internal, per-release ABI,
+so a vanilla PE must come from the **same 11.16 build**, not from the PK 11.0 tree.
+
+⚠ Note also that our i386 tree is DXMT (`lib/wine/i386-windows/d3d11.dll`, 5,369,856 B) where
+soju's rule 5 keeps i386 vanilla for the 32-bit steam.exe composer — **but that rule is not a
+necessary condition**: `CS2dxmt11-pk110` carries the same DXMT i386 build (7,785 dxmt strings) and
+renders Steam's text fine. Do not treat i386-vanilla as the explanation.
+
 ## `du` lies about disk on APFS: the two wrappers' 91 GB game installs were CLONES (2026-08-24)
 
 Both wrappers reported a 91 GB `Cities Skylines II` install, so deleting the redundant one in
