@@ -344,17 +344,24 @@ in the handler, or wrap in `finally`.
     question. The March-2026-client CEF-regression suspicion is unchanged and still untested
     (revisit trigger 5). Both durable findings (flag filtering, size-only verification) are worth a
     dxmt#141 follow-up regardless.
-  - ▶ **The one live route left: Steam's processes on vanilla wined3d, game keeps DXMT.** From
-    [mikey92 on dxmt#141](https://github.com/3Shain/dxmt/issues/141#issuecomment-5448572368)
-    (2026-08-28) + [BCD1210/soju](https://github.com/BCD1210/soju/blob/main/docs/STEAM-GAMES.md).
-    **Cannot be tried on this machine today:** every `d3d11.dll`/`dxgi.dll` here is DXMT's — both
-    arch trees and every `.bak` (5,304,320 B / 7,780 dxmt strings) — so there is no vanilla PE to
-    point a per-app override at. Cost to unblock: one `scripts/build-engine-1116.sh` run (~1 h);
-    step 3's `gmake install` lays down vanilla wine and step 4 overlays DXMT, so the vanilla
-    `d3d11.dll` + `dxgi.dll` exist in between. ⚠ Must come from the **same 11.16 build** — wine's
-    `d3d11.dll` talks to `wined3d.dll` over a per-release internal ABI, so the PK 11.0 tree is not
-    a donor. ⚠ Their rule "i386 stays vanilla" is **not** the explanation: `CS2dxmt11-pk110` runs
-    the same DXMT i386 build (7,785 dxmt strings) and renders Steam's text fine.
+  - ✅ **TESTED AND DEAD 2026-08-28 — Steam's processes on vanilla wined3d, game keeps DXMT.** The
+    route from [mikey92 on dxmt#141](https://github.com/3Shain/dxmt/issues/141#issuecomment-5448572368)
+    + [BCD1210/soju](https://github.com/BCD1210/soju/blob/main/docs/STEAM-GAMES.md). Built it: a
+    `build-engine-1116.sh` run stopped after step 3 yielded version-matched vanilla wine 11.16
+    `d3d11.dll`/`dxgi.dll` (they exist only between step 3's `gmake install` and step 4's DXMT
+    overlay). Wired it: builtin-marker strip at file offset 0x40 + global `builtin` / per-app
+    `native`. **The split provably landed** — `+loaddll` shows Steam on `d3d11: native` +
+    `wined3d: builtin` with no winemetal anywhere — and Steam is **still uniformly black
+    (108,343 B)**. Byte-identical with wined3d's Vulkan renderer, which is the tell: the D3D
+    implementation is not the variable, so the client's failure was never DXMT's missing
+    cross-process swapchain. The wall is the winemac presentation layer; the PK vendor patchset
+    stays the only thing that has ever rendered this. Also measured: wined3d's **GL** backend
+    cannot even `glClear` on macOS 26 (`GL_INVALID_FRAMEBUFFER_OPERATION`), while its **Vulkan**
+    renderer is healthy — correcting a stale GOTCHAS claim that it crashes. All reverted; game
+    re-verified on DXMT. Apparatus kept as `scripts/steam-vanilla-d3d-split.sh` (install/verify/
+    revert with backups), so a re-test after upstream winemac work is minutes, not an hour.
+  - ▶ **Remaining untried:** an older-CEF client pin (trigger 5) — now the only route left that
+    does not depend on someone else shipping engine-side cross-process presentation.
   - Evidence: GOTCHAS §§ "The webhelper shim renders everything EXCEPT text" and "The glyph loss is
     IN-PROCESS GPU itself". Harness: `scripts/steam-render-cell.sh` (one cell, capture-judged).
 

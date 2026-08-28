@@ -27,9 +27,16 @@ render — `glClear` throws `GL_INVALID_FRAMEBUFFER_OPERATION`. **Everything ren
 `wine notepad` shows a normal white window. So plain Win32 dialogs render (that's why Steam's
 "Steam Service Error" native dialog appears while its CEF UI is black). Only accelerated **GL** is broken.
 
-### 3. wined3d's Vulkan renderer CRASHES on macOS 26 — don't use it
-Setting `HKCU\Software\Wine\Direct3D\renderer = vulkan` makes wined3d use Vulkan… and it crashes
-(`dxtest` exits, apps die). DXVK is the *only* working accelerated path. Don't waste time on wined3d-vulkan.
+### 3. ⚠ CORRECTED 2026-08-28 — wined3d's Vulkan renderer no longer crashes; it just doesn't help
+**Original claim (DXVK era, kept for history):** setting `HKCU\Software\Wine\Direct3D\renderer =
+vulkan` makes wined3d use Vulkan… and it crashes (`dxtest` exits, apps die). DXVK is the only
+working accelerated path.
+**Re-measured on the self-built stock 11.16 engine:** it initialises cleanly — `err:winediag:
+wined3d_dll_init Using the Vulkan renderer`, MoltenVK 1.2.10 creates its VkInstances, and **zero**
+`GL_INVALID_FRAMEBUFFER_OPERATION` (the GL renderer throws that from `glClear` on the very same
+binary, see §2). So "it crashes" is stale. What is still true is that it **buys nothing here**:
+Steam's CEF is byte-identically black on the GL and Vulkan renderers alike (108,343 B both times),
+because the wall is presentation, not rasterization — see § "Taking DXMT out of Steam's path".
 
 ### 4. DXVK must be the macOS fork, and the FULL build
 Use **Gcenx/DXVK-macOS v1.10.3** (last version supporting Vulkan 1.2 — MoltenVK doesn't expose the
@@ -967,6 +974,61 @@ split (play on `CS2dxmt11`, Steam UI on `CS2dxmt11-pk110`) stands as the practic
 `--in-process-gpu` / `--disable-gpu` but forwards `--use-angle`; and Steam's integrity pass is
 **"Verifying file sizes only"**, so a size-padded replacement survives where an unpadded one is
 restored with exit 42.
+
+## Taking DXMT out of Steam's path entirely does NOT fix it — the vanilla-wined3d split, measured (2026-08-28)
+
+The last untried route from [mikey92's dxmt#141
+comment](https://github.com/3Shain/dxmt/issues/141#issuecomment-5448572368) and
+[BCD1210/soju](https://github.com/BCD1210/soju/blob/main/docs/STEAM-GAMES.md): stop trying to make
+DXMT serve Steam, and instead run the *client* on vanilla wined3d while the *game* keeps DXMT.
+**Built, installed, measured, reverted. It does not work here.**
+
+**Getting a vanilla PE cost a build.** Every `d3d11.dll`/`dxgi.dll` on this machine was DXMT's —
+both arch trees and every `.bak`. A `build-engine-1116.sh` run stopped after step 3 yields stock
+wine 11.16 (`gmake install`) *before* step 4 overlays DXMT; the vanilla PEs exist only in between.
+Harvested: x86_64 `d3d11.dll` 4,584,886 B, i386 3,817,450 B, both version-matched to the engine.
+
+⚠ **Do NOT identify a build by grepping for `dxmt`.** The harvested *vanilla* PEs carry **90**
+"dxmt" hits — all of them build paths in debug info, because the source tree is named
+`wine-11.16-dxmt`. That count would have failed the vanilla check and sent the whole trial down a
+wrong path. The real discriminator is the API surface, and it is unambiguous:
+
+| PE | Metal/winemetal refs | `wined3d_` refs |
+|---|---|---|
+| DXMT's `d3d11.dll` | **197** | 0 |
+| vanilla `d3d11.dll` | 0 | **1,237** |
+
+**The mechanism works exactly as soju documents it** — verified, not assumed. Wine marks its
+builtins with the 17-byte signature `"Wine builtin DLL\0"` at file offset **0x40**; `build_module`
+(`dlls/ntdll/loader.c`) computes `signature = base + sizeof(IMAGE_DOS_HEADER)` and `memcmp`s it, so
+a `native` override aimed at a wine-built PE is redirected straight back to the builtin. Flip one
+of those 17 bytes and it loads as true native. With that plus global `d3d11/dxgi=builtin` and
+per-app `native` for `steam.exe`/`steamwebhelper.exe`/`steamservice.exe`, `+loaddll` confirms the
+split landed:
+
+```
+Loaded L"C:\windows\system32\d3d11.dll" ...: native     <- vanilla, in Steam's processes
+Loaded L"C:\windows\system32\wined3d.dll" ...: builtin
+(no winemetal anywhere in Steam's tree)                    <- DXMT fully out of the path
+```
+
+**Result: still a uniformly black window, 108,343 B.** And the same 108,343 B with wined3d's
+*Vulkan* renderer — byte-identical, which is the tell: **the D3D implementation is not the
+variable.** Swapping out the entire D3D stack changed nothing, so the failure is not DXMT's
+missing cross-process swapchain for the *client*; it is the winemac/cross-process presentation
+layer, exactly as § "Embedded Chromium NEVER rendered on stock Wine" concluded. The PK vendor
+patchset remains the only thing that has ever made this render.
+
+**A second reason the route was never going to work as written:** wined3d's **GL** backend is
+broken on macOS 26 at the most basic level — `err:d3d:wined3d_check_gl_call
+GL_INVALID_FRAMEBUFFER_OPERATION (0x506) from glClear`. It cannot clear a buffer. (Its Vulkan
+renderer is healthy, which is the correction in § Rendering 3.)
+
+**Cost/benefit if anyone reconsiders:** ~1 h build + ~20 min to wire and measure. The two-wrapper
+split (play on `CS2dxmt11`, Steam UI on `CS2dxmt11-pk110`) remains the practical answer.
+`scripts/steam-vanilla-d3d-split.sh` keeps the whole apparatus — install / verify / revert, with
+backups — so re-testing after an upstream winemac change is minutes, not another hour.
+**Everything was reverted**; the game path re-verified as `d3d11: builtin` + `winemetal: builtin`.
 
 ## The glyph loss is IN-PROCESS GPU itself, not `--in-process-gpu` — `--single-process` fails identically (2026-08-28)
 
