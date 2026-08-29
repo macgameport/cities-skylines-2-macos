@@ -1387,11 +1387,40 @@ vanilla-wined3d split, but per notpop's own README their stack also carries the 
 since we cannot see their specific install — and it makes the "which EGL display initializes"
 question much less interesting than "are you on notpop's patched `winemac.so` and DXMT fork?"
 
-**Trial status: NOT attempted.** Half 1 (rebuild one wine module with different CFLAGS) is ~20 min
-and we have the 11.16 source tree. Half 2 (build DXMT from source via meson + a native LLVM path,
-two cross-files, 64- and 32-bit) is a **toolchain we have never stood up** — every DXMT binary here
-was *reused* from the Wine 11.0 + DXMT base engine, never compiled. Treat notpop's route as its own
-mini-project, not a pre-post errand.
+**HALF 1 TRIALLED THE SAME DAY — built, gated, measured, and it changes nothing on its own.**
+`scripts/build-winemac-visibility.sh` rebuilds **only** `dlls/winemac.drv/winemac.so` from the same
+DXMT-patched 11.16 source the engine uses (`wineandaqua-dxmt.patch`), with the engine's exact
+configure line plus `CFLAGS/CXXFLAGS='-fvisibility=default -O2 -Wno-error'`. Result:
+
+| | public TEXT symbols | `macdrv_*` public |
+|---|---|---|
+| installed engine | **0** | 0 |
+| rebuilt module | **213** ✅ (notpop's gate is ≥100) | **183** |
+
+and the exports are exactly the ones the fork needs — `macdrv_view_create_metal_view`,
+`macdrv_view_get_metal_layer`, `macdrv_view_release_metal_view`,
+`macdrv_client_surface_acquire_metal_swapchain`, plus `get_win_data`/`release_win_data` (the
+`macdrv_win_data` accessors named in notpop's bug description).
+
+**Installed into a clone wrapper it is ABI-clean but inert**: wine 11.16 starts, no driver errors,
+DXMT still reports Apple M3 Max at **FL 11_1** — and Steam is **still black (108,343 B**, GPU
+process healthy, 1 child, 0 crashes**)**. That is the expected result: per notpop's own README the
+flag exists to make macdrv's API *callable by* the forked DXMT, so it is an enabler, not a fix.
+**Half 1 is necessary-not-sufficient; the fork is the active ingredient.**
+
+⚠ **The first run of that cell reported "no window" and was WRONG** — Steam was still verifying its
+install at the 95 s mark. Re-run at `--wait 165` it produced the window. **A no-window reading on a
+freshly-cloned wrapper means "not finished starting" until a longer wait says otherwise.**
+⚠ Also ruled out while diagnosing that: `Wine cannot find the FreeType font library` appears in
+**every** Steam cell including the one that renders (17 occurrences in the successful
+`--single-process` run, 59 in others). It is pre-existing noise, not a symptom — do not chase it.
+
+**HALF 2 status: NOT attempted — toolchain absent.** Measured 2026-08-29: **`meson`, `ninja`, `llvm-config` and `cmake` are all
+missing** on this machine (only Apple clang + git). notpop's `07-build-dxmt-fork.sh` needs meson
+with `-Dnative_llvm_path` and two cross-files, built twice (64- and 32-bit). **`notpop/dxmt` also
+publishes NO releases**, so there is no prebuilt fork to drop in — it must be compiled. Every DXMT
+binary in this project was *reused* from the Wine 11.0 + DXMT base engine, never compiled. Standing
+up that toolchain is ~2-3 GB of brew installs and its own mini-project.
 
 **Also eliminated today, both never previously run** (daily wrapper, capture-judged):
 `-cef-force-gpu` → black **108,343 B**, GPU process survives (1 child, no crashes) ·
