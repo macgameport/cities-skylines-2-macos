@@ -406,7 +406,16 @@ in the handler, or wrap in `finally`.
     and vanilla wined3d tops out at **feature level 9_3** (even with `renderer=vulkan` correctly
     identifying the M3 Max) where DXMT reaches **11_0**. A 9_3 device cannot serve Chromium's D3D11
     backend, so the route is dead here — **for this reason, not the presentation-wall reason given
-    on 08-28.** ⚠ Scratch-prefix traps that cost ~15 min of apparent hang: wine refuses a
+    on 08-28.** Feature level asked **both ways** (NULL list and explicit `{11_1..9_3}`) before
+    publishing — same answer; DXMT returns **11_1** on the explicit list.
+    ⚠ **This also invalidates EVERY Steam-side cell run against the split, 08-28 and 08-29 alike** —
+    all used the broken marker-strip wiring, so none of them measured a vanilla-wined3d client.
+    **A valid Steam-side test of the split has never been run here** and cannot be, with this trick:
+    the working wiring is engine-global and would take DXMT from the game. It needs its own wrapper
+    (cloned tree + vanilla builtins + a Steam-bearing prefix) — NOT YET BUILT. Do not describe the
+    split's Steam behaviour as measured. Also **not** established: that FL 9_3 is what breaks CEF —
+    the `GLES 3.0 > max supported 2.0` log line is consistent with it but was captured on the broken
+    wiring, so it is correlation, not a chain. ⚠ Scratch-prefix traps that cost ~15 min of apparent hang: wine refuses a
     `WINEPREFIX` under `/tmp`, and a fresh-prefix `wineboot` blocks silently on the **Wine Mono
     installer dialog** (always use `WINEDLLOVERRIDES="mscoree=d;mshtml=d"`); orphaned `wineboot.exe`
     resists `pkill -f` because wine argv is Windows-style — kill by PID after an `lsof` check.

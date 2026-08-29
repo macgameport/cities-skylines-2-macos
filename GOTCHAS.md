@@ -1235,9 +1235,9 @@ installed as **true builtins** (marker intact) into an APFS-cloned wine tree
 
 | configuration | adapter reported | `CheckInterfaceSupport` | `D3D11CreateDevice` |
 |---|---|---|---|
-| **DXMT** | **Apple M3 Max** (0x106B / 0x1A0603F1) | **S_OK** | **FL `0xB000` = 11_0** |
-| vanilla wined3d, GL renderer | *"NVIDIA GeForce 6800"* (0x10DE/0x0041 — wined3d's fallback card) | `0x887A0004` **DXGI_ERROR_UNSUPPORTED** | FL `0x9300` = **9_3** |
-| vanilla wined3d, `renderer=vulkan` | **Apple M3 Max** (correct) | `0x887A0004` **DXGI_ERROR_UNSUPPORTED** | FL `0x9300` = **9_3** |
+| **DXMT** | **Apple M3 Max** (0x106B / 0x1A0603F1) | **S_OK** | **FL `0xB100` = 11_1** (explicit list; `0xB000` = 11_0 via NULL list) |
+| vanilla wined3d, GL renderer | *"NVIDIA GeForce 6800"* (0x10DE/0x0041 — wined3d's fallback card) | `0x887A0004` **DXGI_ERROR_UNSUPPORTED** | FL `0x9300` = **9_3** (both forms) |
+| vanilla wined3d, `renderer=vulkan` | **Apple M3 Max** (correct) | `0x887A0004` **DXGI_ERROR_UNSUPPORTED** | FL `0x9300` = **9_3** (both forms) |
 
 Three things fall out, and the middle one is the answer:
 
@@ -1248,11 +1248,28 @@ Three things fall out, and the middle one is the answer:
    driver version from DXGI Adapter" is literally wined3d's dxgi returning `DXGI_ERROR_UNSUPPORTED`
    from `CheckInterfaceSupport`. DXMT returns `S_OK`. This is now a measured API delta rather than
    an inference from a CEF log.
-3. **Vanilla wined3d tops out at feature level 9_3 here — DXMT reaches 11_0.** That holds even with
-   the Vulkan renderer correctly identifying the M3 Max, so it is not the fallback-adapter bug. A
-   9_3 device cannot serve Chromium's D3D11 backend, so **the vanilla-wined3d split cannot work on
-   this machine regardless of how it is wired.** The route is dead — but for this reason, not the
-   presentation-wall reason given on 08-28.
+3. **Vanilla wined3d tops out at feature level 9_3 here — DXMT reaches 11_1.** That holds even with
+   the Vulkan renderer correctly identifying the M3 Max, so it is not the fallback-adapter bug.
+   ⚠ **Asked BOTH ways before publishing**, because the first pass used only `pFeatureLevels=NULL`
+   (the runtime's default list) and a single-form measurement is how this project has produced a
+   wrong headline number before: with an **explicit** `{11_1, 11_0, 10_1, 10_0, 9_3}` array,
+   vanilla wined3d still returns **9_3** and DXMT returns **11_1**. The probe now prints both.
+
+⚠ **Consequence that invalidates more than it looks: EVERY Steam cell ever run against the split —
+08-28 and 08-29 alike — used the broken marker-strip wiring.** Those cells were not measuring a
+vanilla-wined3d client; they were measuring a client whose `d3d11.dll` aborts at device creation.
+The "no window, ~174 % spin" rows say nothing about wined3d. **A valid Steam-side test of the split
+has still never been run here**, and it cannot be run with the marker-strip trick at all — the
+true-builtin wiring is engine-global, so it would take the game's DXMT away too. It needs a
+separate wrapper (clone the tree, install vanilla builtins, point it at a Steam-bearing prefix).
+Not yet done; do not describe the split's Steam behaviour as measured until it is.
+
+**What is NOT established:** that FL 9_3 is what breaks CEF. The `Requested GLES version (3.0) is
+greater than max supported (2, 0)` line in `cef_log.txt` is *consistent* with an ANGLE D3D11 display
+on a sub-10_0 device, but it was logged in a cell whose d3d11 aborts, so ANGLE may never have
+reached a D3D11 device at all — the line could equally come from the GL or SwANGLE display. Report
+the two measured deltas (feature level, `CheckInterfaceSupport` HRESULT); do not claim the causal
+chain without a valid Steam-side run.
 
 ⚠ Two traps found setting the scratch prefix up, both of which cost ~15 min of apparent hang:
 wine **refuses a `WINEPREFIX` under `/tmp`** ("is not owned by you"), and a fresh-prefix `wineboot`

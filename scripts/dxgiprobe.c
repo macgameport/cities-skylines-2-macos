@@ -44,12 +44,35 @@ int main(void)
            (unsigned)(umd.LowPart  >> 16), (unsigned)(umd.LowPart  & 0xFFFF));
     printf("VERDICT: driver-version query %s\n", SUCCEEDED(hr) ? "SUPPORTED" : "REFUSED (ANGLE logs its error here)");
 
-    /* Second half of what ANGLE needs: does a D3D11 device come up at all? */
+    /* Second half of what ANGLE needs: does a D3D11 device come up, and at what level?
+     * ⚠ Ask BOTH ways. Passing pFeatureLevels=NULL uses the runtime's default list, and a
+     * wrapper is free to interpret that differently from an explicit array — measuring only
+     * the NULL form once produced a headline "9_3" that had to be re-checked before it was
+     * published. The explicit array is the one to quote. */
     ID3D11Device *dev = NULL;
     D3D_FEATURE_LEVEL fl = 0;
     hr = D3D11CreateDevice(adapter, D3D_DRIVER_TYPE_UNKNOWN, NULL, 0, NULL, 0,
                            D3D11_SDK_VERSION, &dev, &fl, NULL);
-    printf("D3D11CreateDevice            hr=0x%08lX  featureLevel=0x%04X\n",
+    printf("D3D11CreateDevice (NULL list)      hr=0x%08lX  featureLevel=0x%04X\n",
            (unsigned long)hr, (unsigned)fl);
+    if (dev) { dev->lpVtbl->Release(dev); dev = NULL; }
+
+    static const D3D_FEATURE_LEVEL want[] = {
+        D3D_FEATURE_LEVEL_11_1, D3D_FEATURE_LEVEL_11_0,
+        D3D_FEATURE_LEVEL_10_1, D3D_FEATURE_LEVEL_10_0, D3D_FEATURE_LEVEL_9_3,
+    };
+    fl = 0;
+    hr = D3D11CreateDevice(adapter, D3D_DRIVER_TYPE_UNKNOWN, NULL, 0,
+                           want, sizeof(want) / sizeof(want[0]),
+                           D3D11_SDK_VERSION, &dev, &fl, NULL);
+    printf("D3D11CreateDevice (explicit 11_1..9_3)  hr=0x%08lX  featureLevel=0x%04X\n",
+           (unsigned long)hr, (unsigned)fl);
+
+    /* Chromium needs ES3 from ANGLE; ANGLE's D3D11 backend only offers ES3 at FL>=10_0, which
+     * is exactly the "Requested GLES version (3.0) is greater than max supported (2, 0)" line
+     * in cef_log.txt. Print the verdict in those terms. */
+    printf("ANGLE-relevant: FL %s 10_0 -> ANGLE D3D11 can offer %s\n",
+           (fl >= D3D_FEATURE_LEVEL_10_0) ? ">=" : "<",
+           (fl >= D3D_FEATURE_LEVEL_10_0) ? "GLES 3.x" : "GLES 2.0 ONLY");
     return 0;
 }
