@@ -11,8 +11,12 @@
 > it hangs invisibly on the wine-mono dialog and surfaces as a bogus "Steam token expired".
 > **Verify against:** `scripts/build-engine-1116.sh` · `docs/wine-bugs/measurement-engine1116.txt`
 > (every gate's raw numbers) · `scripts/run-minrepro3.sh` (hardened harness).
-> **Not done:** V2 log diff, V6b boot-clean, V9 borderless flip — deferred to the next launch;
-> dxmt#206 report; old wrapper retirement (parked as `CS2dxmt11-pk110.app`, decide ~2026-08-30).
+> **Not done:** V2 log diff, V6b boot-clean, V9 borderless flip — deferred to the next launch.
+> **Both other follow-ups are now CLOSED, not pending (2026-08-29):** the dxmt#206 report is moot —
+> 3Shain closed the issue 2026-08-24 as a duplicate of #183, so §7.3's "report posted / comment URL
+> recorded" cannot be satisfied and is retired; and the old wrapper was **not** retired — it was
+> repurposed as the permanent storefront wrapper (`CS2dxmt11-pk110.app` behind
+> `CS2 Steam Store.app`), so §7.1's deletion step and its ~2026-08-30 decision date are void.
 > **Second use found 2026-08-28 — this script is also the only source of VANILLA wine PEs.**
 > Step 3's `gmake install` lays down stock wine 11.16 into `$E`; step 4 is what overlays DXMT's
 > `d3d11`/`dxgi`/`winemetal` on top. Run steps 0–3 only (`head -113` of the script, `CS2_BUILD_DIR`

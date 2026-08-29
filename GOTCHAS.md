@@ -442,7 +442,7 @@ keyboard as Apple+Shift+F. First use: Find It's search default (plain Ctrl+F, sh
 conflict ⚠) was rebound to ⌘⇧F — `FindIt.coc` `SearchKeyBinding` now carries `shift`+`ctrl`
 modifiers over the default `f`, which is exactly that chord as the game spells it.
 
-## Alt-tab still freezes the game — presentation, NOT refresh rate (2026-08-22)
+## ✅ SOLVED by wine 11.16 — alt-tab freeze is presentation, NOT refresh rate (2026-08-22; kept for the mechanism)
 
 **Separate problem from the one above, and NOT fixed by matching refresh rate.** After switching away
 and back, the game accepts input (one action registers) but **the screen never redraws**.
@@ -505,7 +505,9 @@ nothing.
     NOT 11.15. Upgrading the engine would retire this defect; the 10-patch stack would need
     re-validating on 11.16 first.
   - **Filed upstream 2026-08-23 as [dxmt#206](https://github.com/3Shain/dxmt/issues/206)** (AI
-    assistance disclosed; no PR per their policy). Watch the issue for maintainer follow-ups.
+    assistance disclosed; no PR per their policy). **CLOSED 2026-08-24 by 3Shain as
+    "duplication of [#183](https://github.com/3Shain/dxmt/issues/183)"** — that one line was the
+    only maintainer response. #183 is still open, so anything further on this defect goes there.
   - Diagnostic kit that produced this: `scripts/diag-launch-dxmt11.sh` (WINEDEBUG trace) +
     `scripts/capture-freeze.sh` run while frozen. ⚠ The canonical launcher hard-set
     `WINEDEBUG=-all` and silently ate the first diag run's trace — it now respects a caller's
@@ -529,7 +531,9 @@ gives this freeze), so it is not renderer-specific.
   The screen comes back LIVE. Trace shows NO new swapchain at the toggle — the game simply
   switches to presenting its windowed chain, which is the visible one. Mechanism confirmed
   from a second angle.
-- Exclusive Fullscreen remains freeze-on-alt-tab until dxmt#206 is fixed upstream.
+- Exclusive Fullscreen remains freeze-on-alt-tab **on the wine 11.0 wrappers** (`CS2dxmt11-pk110`,
+  `S734M`). On the daily 11.16 engine it is fixed — see the ✅ line above. The fix came from Wine,
+  not from dxmt#206, which the maintainer closed as a duplicate.
 
 **Old practical rule (superseded): don't alt-tab out of exclusive fullscreen.** Use the windowed launcher
 (`explorer /desktop=`) for sessions where you must switch between the game and a terminal; use

@@ -33,11 +33,15 @@ carries the fix whichever it is. Verified end to end: the reproducer says `STALE
 and `LIVE` on our 11.16 build (`scripts/run-minrepro3.sh` computes the verdict), and the game
 confirms it.
 
-**Filed as [3Shain/dxmt#206](https://github.com/3Shain/dxmt/issues/206)** (open, 7 comments, no
-maintainer response yet) with the trace, the standalone reproducer, and the wine-version
-finding. AI assistance disclosed per their policy; no PR, ever — any DXMT-side fix is theirs.
-⚠ **Still to post:** the game-level confirmation from a *stock-source* 11.16 build, which is the
-thing nobody else has reported.
+**Filed as [3Shain/dxmt#206](https://github.com/3Shain/dxmt/issues/206)** with the trace, the
+standalone reproducer, and the wine-version finding. AI assistance disclosed per their policy;
+no PR, ever — any DXMT-side fix is theirs. **CLOSED by the maintainer 2026-08-24** — 3Shain's
+sole comment on the thread was *"duplication of #183"*. 8 comments; state re-measured
+2026-08-29 (`gh issue view 206 --repo 3Shain/dxmt`).
+⚠ **Still unposted, and it now needs a new home:** the game-level confirmation from a
+*stock-source* 11.16 build — the thing nobody else has reported. #206 is closed, so it goes on
+[#183](https://github.com/3Shain/dxmt/issues/183) (open/reopened, 2 comments, last touched
+2026-07-17) or nowhere. James's call.
 
 **Delivered instead of waiting:** `scripts/build-engine-1116.sh` builds the engine from official
 Wine source in ~1 hour, redistributing nothing. Full plan, gates and as-built record:
