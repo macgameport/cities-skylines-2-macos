@@ -101,7 +101,14 @@ and `docs/dxmt-bugs/`.
    from its own command line (`--use-angle` does forward). Injecting `--in-process-gpu` at
    steamwebhelper via a shim (`scripts/install-webhelper-shim.sh`) **does** make the window
    render — but Chromium then draws no text at all, on every engine tested, so it is not a
-   usable workaround today. Details in [GOTCHAS.md](GOTCHAS.md).
+   usable workaround today. **`--single-process` behaves identically** (2026-08-28), so the
+   glyph loss is in-process GPU by *any* route, not one switch. Out-of-process the GPU process
+   crash-loops on **every** ANGLE backend (default / `gl` / `vulkan`). And running the Steam
+   client on **vanilla wined3d** while the game keeps DXMT — the split verified landing via
+   `+loaddll` — leaves the window black at the *same byte size* on both wined3d renderers, so
+   the storefront's failure was never DXMT's missing cross-process swapchain; it is the winemac
+   presentation layer. Apparatus kept as `scripts/steam-vanilla-d3d-split.sh` +
+   `scripts/steam-render-cell.sh`. Details in [GOTCHAS.md](GOTCHAS.md).
 
 ## Repository layout
 

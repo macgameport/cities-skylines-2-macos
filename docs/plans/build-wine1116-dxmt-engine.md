@@ -13,6 +13,19 @@
 > (every gate's raw numbers) · `scripts/run-minrepro3.sh` (hardened harness).
 > **Not done:** V2 log diff, V6b boot-clean, V9 borderless flip — deferred to the next launch;
 > dxmt#206 report; old wrapper retirement (parked as `CS2dxmt11-pk110.app`, decide ~2026-08-30).
+> **Second use found 2026-08-28 — this script is also the only source of VANILLA wine PEs.**
+> Step 3's `gmake install` lays down stock wine 11.16 into `$E`; step 4 is what overlays DXMT's
+> `d3d11`/`dxgi`/`winemetal` on top. Run steps 0–3 only (`head -113` of the script, `CS2_BUILD_DIR`
+> set to somewhere persistent) and the vanilla `d3d11.dll` + `dxgi.dll` exist in
+> `$E/lib/wine/{x86_64,i386}-windows/` — version-matched to the engine, which matters because
+> wine's `d3d11` talks to `wined3d` over a per-release internal ABI. Used for the
+> vanilla-wined3d Steam split (GOTCHAS § "Taking DXMT out of Steam's path"); a harvested set is
+> kept at `~/cs2-patch/build-1116/vanilla-1116/` along with the full stock install, so the next
+> vanilla question costs minutes rather than another hour's build.
+> ⚠ Two traps if you re-run it: the script derives `REPO` from its own location, so a copy placed
+> outside `scripts/` cannot find `wineandaqua-dxmt.patch`; and **never let two instances share a
+> build dir** — a second configure racing the first silently produced a config with freetype and
+> gnutls both `#undef`, which gate G0 exists to catch.
 > **Post-ship addition (2026-08-24, commit `7b634fa`):** step 7 appended to the script — after
 > the engine swap it preserves the 11.0 wrapper (APFS clone via `scripts/make-steam-shortcut.sh`,
 > game + `appmanifest_949230.acf` stripped) and installs `CS2 Steam Store.app`, resolving the

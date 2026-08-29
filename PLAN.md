@@ -296,6 +296,12 @@ in the handler, or wrap in `finally`.
   is the right factor. Also: set the refresh rate **in-game**, never in
   `Settings.coc` (measured not to take), or the mode change blanks the other display — GOTCHAS
   § "Second display gets blacked out".
+- **`scripts/README.md` documents 25 of 40 source scripts — 15 have no mention at all (measured
+  2026-08-28; 50 files in `scripts/`, 10 of them compiled `.exe` companions that need no row).** Pre-existing drift, not from any one session. Unmentioned and worth rows if
+  anyone touches them: `minrepro{,2,3}.c` + their `run-minrepro*.sh` harnesses, `perf-bench.sh`,
+  `perf-run.sh`, `capture-freeze.sh`, `diag-launch-dxmt11.sh`, `make-shortcut.sh`,
+  `make-steam-shortcut.sh`, `pe-icon.py`, `whwrapper_ipgpu.c`, `wineandaqua-dxmt.patch`,
+  `build-engine-1116.sh`. Check with: for each file, `grep -qF "$f" scripts/README.md`.
 - **Metal HUD is OFF in the double-clickable shortcut (James, 2026-08-27, "for now").** The
   `.app` was previously generated with `HUD=1`; regenerated without it, so the perf overlay no
   longer appears in normal play. Restore whenever wanted:
