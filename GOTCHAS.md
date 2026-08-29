@@ -1185,6 +1185,83 @@ marker back), all per-app overrides deleted, shim reverted to the original 7,489
 and the game path re-checked with the now-working `--verify` — `winemetal.dll builtin`,
 `DXGI.DLL builtin`, `d3d11.dll builtin`.
 
+## ⚠ The split never gave Steam a WORKING D3D11 — a load is not an implementation (2026-08-29)
+
+**This corrects the 2026-08-28 conclusion two sections up, and the comment posted from it.** Asked
+whether anything else was worth testing before replying to mikey92, the answer turned out to be
+yes, and it inverted the result.
+
+`scripts/dxgiprobe.c` (new) calls the *exact* query ANGLE's D3D11 renderer fails on —
+`IDXGIAdapter::CheckInterfaceSupport(__uuidof(IDXGIDevice), &umdVersion)`, which is what
+`Renderer11::populateRenderer11DeviceCaps` uses for the driver version — and then tries
+`D3D11CreateDevice`. Build:
+`x86_64-w64-mingw32-gcc dxgiprobe.c -o dxgiprobe.exe -ld3d11 -ldxgi -ldxguid -luuid`.
+
+| configuration | `CheckInterfaceSupport` | `D3D11CreateDevice` |
+|---|---|---|
+| **DXMT** (`d3d11=b,dxgi=b`) | **`0x00000000` S_OK** | **`0x00000000`, FL `0xB000`** |
+| vanilla d3d11 + vanilla dxgi (`n,n`) | — never reached — | **abort** |
+| vanilla d3d11 + DXMT dxgi (`n,b`) | — never reached — | **abort** |
+| DXMT d3d11 + vanilla dxgi (`b,n`) | `0x00000000` S_OK | `0x00000000`, FL `0xB000` |
+
+Both vanilla-`d3d11` rows die before the probe's first `printf`:
+
+```
+wine: Call from 00006FFFFFC16AEA to unimplemented function dxgi.dll.DXGID3D10CreateDevice, aborting
+```
+
+with **either** dxgi underneath it. (String counts: the harvested vanilla `dxgi.dll` carries
+`DXGID3D10CreateDevice` **7** times; DXMT's carries it **0** — so DXMT's dxgi does not export it
+at all, and the vanilla one exports it as a winebuild stub.)
+
+**What this overturns.** The 08-28 finding read: *the split provably landed, Steam is still black,
+byte-identical on wined3d's GL and Vulkan renderers — therefore the D3D implementation is not the
+variable and the client's black window was never DXMT's missing cross-process swapchain.* That
+comparison was against a **non-functional** alternative. `+loaddll` proved the vanilla PE **loaded**;
+it never proved the PE **worked**, and a d3d11 that aborts at device creation cannot render
+anything by any route. "Black either way" was therefore never evidence about DXMT. The
+byte-identical GL-vs-Vulkan reading has the same hole — both runs were black for the same trivial
+reason.
+
+⚠ **The transferable rule, and the one this whole thread kept missing: a module load is not a
+working implementation.** Verify any swapped graphics DLL with a **device-creation probe**
+(`scripts/dxgiprobe.exe`), never with `+loaddll` alone. Three separate sessions took a `native`
+line in a loaddll trace as proof the swap had taken effect.
+
+**RESOLVED the same session — wired properly, vanilla wined3d works, and it is still disqualified,
+for a reason nothing had measured before.** The discriminator: vanilla `d3d11.dll` + `dxgi.dll`
+installed as **true builtins** (marker intact) into an APFS-cloned wine tree
+(`cp -Rc`, instant and free), driven from a scratch prefix.
+
+| configuration | adapter reported | `CheckInterfaceSupport` | `D3D11CreateDevice` |
+|---|---|---|---|
+| **DXMT** | **Apple M3 Max** (0x106B / 0x1A0603F1) | **S_OK** | **FL `0xB000` = 11_0** |
+| vanilla wined3d, GL renderer | *"NVIDIA GeForce 6800"* (0x10DE/0x0041 — wined3d's fallback card) | `0x887A0004` **DXGI_ERROR_UNSUPPORTED** | FL `0x9300` = **9_3** |
+| vanilla wined3d, `renderer=vulkan` | **Apple M3 Max** (correct) | `0x887A0004` **DXGI_ERROR_UNSUPPORTED** | FL `0x9300` = **9_3** |
+
+Three things fall out, and the middle one is the answer:
+
+1. **The marker-strip/`native` trick is what aborts, not wined3d.** As true builtins the same PEs
+   create a device fine. So the split *as wired here* was broken; soju's technique needs different
+   wiring on this stack.
+2. **`0x887A0004` is `Renderer11.cpp:1108` — reproduced outside Chromium.** ANGLE's "Error querying
+   driver version from DXGI Adapter" is literally wined3d's dxgi returning `DXGI_ERROR_UNSUPPORTED`
+   from `CheckInterfaceSupport`. DXMT returns `S_OK`. This is now a measured API delta rather than
+   an inference from a CEF log.
+3. **Vanilla wined3d tops out at feature level 9_3 here — DXMT reaches 11_0.** That holds even with
+   the Vulkan renderer correctly identifying the M3 Max, so it is not the fallback-adapter bug. A
+   9_3 device cannot serve Chromium's D3D11 backend, so **the vanilla-wined3d split cannot work on
+   this machine regardless of how it is wired.** The route is dead — but for this reason, not the
+   presentation-wall reason given on 08-28.
+
+⚠ Two traps found setting the scratch prefix up, both of which cost ~15 min of apparent hang:
+wine **refuses a `WINEPREFIX` under `/tmp`** ("is not owned by you"), and a fresh-prefix `wineboot`
+**blocks on the Wine Mono installer dialog** with no console output at all — it looks exactly like
+a hang. Always create scratch prefixes with `WINEDLLOVERRIDES="mscoree=d;mshtml=d"`.
+⚠ And the orphaned `wineboot.exe` processes could **not** be killed with `pkill -f wine-vanilla-test`
+— wine processes carry Windows-style argv, the same attribution trap this repo already documents
+for steam.exe. Kill by PID after checking `lsof` against the prefix.
+
 ## `du` lies about disk on APFS: the two wrappers' 91 GB game installs were CLONES (2026-08-24)
 
 Both wrappers reported a 91 GB `Cities Skylines II` install, so deleting the redundant one in

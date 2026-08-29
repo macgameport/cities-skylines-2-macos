@@ -393,6 +393,23 @@ in the handler, or wrap in `finally`.
     `--use-gl=swiftshader` is a dead switch on this CEF (software selection moved to
     `--use-angle=swiftshader`, measured textless 2026-08-24); don't re-chase it from the Battle.net
     data point. All reverted; game re-verified on DXMT via the fixed `--verify`.
+  - ⚠ **PARTIAL RETRACTION of the 08-28 finding, same session — `scripts/dxgiprobe.c` (new).** Asked
+    whether anything else was worth testing before replying, the answer was yes and it inverted the
+    result. **The 08-28 split was BROKEN:** the marker-strip + `native` route aborts at device
+    creation (`unimplemented function dxgi.dll.DXGID3D10CreateDevice`) with either dxgi, so
+    "swapping the whole D3D stack changes nothing" compared DXMT against a d3d11 that never worked.
+    `+loaddll` proved a **load**, not an implementation — the mistake this thread repeated three
+    times. Installed as **true builtins** (marker intact, cloned tree, scratch prefix) the same PEs
+    do create a device, and the real blockers are now measured, not inferred: wined3d's dxgi returns
+    **`0x887A0004 DXGI_ERROR_UNSUPPORTED`** from `CheckInterfaceSupport(IDXGIDevice)` — *that is
+    ANGLE's `Renderer11.cpp:1108` error, reproduced outside Chromium* — where DXMT returns `S_OK`;
+    and vanilla wined3d tops out at **feature level 9_3** (even with `renderer=vulkan` correctly
+    identifying the M3 Max) where DXMT reaches **11_0**. A 9_3 device cannot serve Chromium's D3D11
+    backend, so the route is dead here — **for this reason, not the presentation-wall reason given
+    on 08-28.** ⚠ Scratch-prefix traps that cost ~15 min of apparent hang: wine refuses a
+    `WINEPREFIX` under `/tmp`, and a fresh-prefix `wineboot` blocks silently on the **Wine Mono
+    installer dialog** (always use `WINEDLLOVERRIDES="mscoree=d;mshtml=d"`); orphaned `wineboot.exe`
+    resists `pkill -f` because wine argv is Windows-style — kill by PID after an `lsof` check.
   - ▶ **Remaining untried:** an older-CEF client pin (trigger 5) — now the only route left that
     does not depend on someone else shipping engine-side cross-process presentation.
   - Evidence: GOTCHAS §§ "The webhelper shim renders everything EXCEPT text" and "The glyph loss is
@@ -427,8 +444,10 @@ in the handler, or wrap in `finally`.
      the shim, and Battle.net's CEF rendering text under `--in-process-gpu --use-gl=swiftshader`.
      The cell was genuinely missing and has now been run — see the "CLOSED HARDER" bullet above.
      A **fourth** comment is drafted at `docs/dxmt-bugs/comment-141-split-plus-pair.md` and is
-     **not yet posted**; it asks the one question that would settle the divergence — which EGL
-     display type initializes in *their* `cef_log.txt`, since on this machine all three fail.
+     **not yet posted**; it opens with the partial retraction above and asks mikey92 to run
+     `scripts/dxgiprobe.exe` on their stack — if they get feature level **11_0** and `S_OK`, the
+     variable between the two setups is wine 11.0 vs 11.16 or macOS 26.5 vs 26.6.2 and their split
+     is legitimately viable, which is a far more useful conclusion than the presentation-layer one.
      Still no maintainer reply.
   3. **A DXMT release** — `3Shain/dxmt` releases page; cross-process present is the thing to grep
      release notes for.
