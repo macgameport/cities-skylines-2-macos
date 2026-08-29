@@ -370,6 +370,29 @@ in the handler, or wrap in `finally`.
     renderer is healthy — correcting a stale GOTCHAS claim that it crashes. All reverted; game
     re-verified on DXMT. Apparatus kept as `scripts/steam-vanilla-d3d-split.sh` (install/verify/
     revert with backups), so a re-test after upstream winemac work is minutes, not an hour.
+  - ✅ **CLOSED HARDER 2026-08-29 — the split COMBINED with the in-process shim, mikey92's actual
+    daily config.** They were right that the cell was missing: 08-28 tested the split with default
+    out-of-process CEF, and the `--disable-gpu --single-process` pair only on a DXMT client. Run
+    together, on vanilla wined3d, **no window appears at all** (174 % hot spin) — and the same is
+    true of `--single-process` alone and of `--in-process-gpu --use-gl=swiftshader`. Control on the
+    same harness, same session: DXMT + `--single-process` → **1,810,329 B rendered** at 9 % CPU
+    (zero glyphs, as always), so the three nulls are measurements, not a broken rig.
+    ⚠ **Sharpens the 08-28 conclusion rather than repeating it.** "The D3D implementation is not
+    the variable" holds **out-of-process only**. In-process it is decisive, and ANGLE says why:
+    `Renderer11.cpp:1108 populateRenderer11DeviceCaps: Error querying driver version from DXGI
+    Adapter` (D3D11) · `Requested GLES version (3.0) is greater than max supported (2, 0)` (GL) ·
+    `SwANGLE ... Internal Vulkan error (-9)` → `Initialization of all EGL display types failed` →
+    the `gl_factory_win.cc(63)` NOTREACHED loop. **DXMT is the only D3D11 on this stack that gives
+    Chromium a working ANGLE display**; the split removes the one path that initializes.
+    ⚠ **Reproduction trap, and the first run of this cell was invalid because of it:** wine keys
+    `AppDefaults` on the executable's FILE NAME, and the shim renames the real CEF binary to
+    `steamwebhelper_real.exe` — so the split's per-app list missed the only process that loads
+    d3d11 and it fell through to the global `builtin` (= DXMT). `steam-vanilla-d3d-split.sh` now
+    carries that name. Also fixed there: `--verify` could never return (`dxtest.exe` renders
+    forever; `head` doesn't kill it because grep block-buffers) — now time-boxed.
+    `--use-gl=swiftshader` is a dead switch on this CEF (software selection moved to
+    `--use-angle=swiftshader`, measured textless 2026-08-24); don't re-chase it from the Battle.net
+    data point. All reverted; game re-verified on DXMT via the fixed `--verify`.
   - ▶ **Remaining untried:** an older-CEF client pin (trigger 5) — now the only route left that
     does not depend on someone else shipping engine-side cross-process presentation.
   - Evidence: GOTCHAS §§ "The webhelper shim renders everything EXCEPT text" and "The glyph loss is
@@ -398,8 +421,15 @@ in the handler, or wrap in `finally`.
      2026-08-28 eliminations — `--single-process` textless, backend-independent out-of-process
      wall, and the vanilla-wined3d split landing yet still black
      ([#5458926046](https://github.com/3Shain/dxmt/issues/141#issuecomment-5458926046), drafted in
-     `docs/dxmt-bugs/comment-141-vanilla-wined3d.md`). Watch for a maintainer reply; we offered to
-     run further diagnostics on this setup.
+     `docs/dxmt-bugs/comment-141-vanilla-wined3d.md`). ✅ **FIRED AGAIN 2026-08-29** — mikey92
+     replied naming the one untested cell (split **plus** the `--disable-gpu --single-process`
+     pair, which they run daily) and adding two details: `-noverifyfiles` instead of size-padding
+     the shim, and Battle.net's CEF rendering text under `--in-process-gpu --use-gl=swiftshader`.
+     The cell was genuinely missing and has now been run — see the "CLOSED HARDER" bullet above.
+     A **fourth** comment is drafted at `docs/dxmt-bugs/comment-141-split-plus-pair.md` and is
+     **not yet posted**; it asks the one question that would settle the divergence — which EGL
+     display type initializes in *their* `cef_log.txt`, since on this machine all three fail.
+     Still no maintainer reply.
   3. **A DXMT release** — `3Shain/dxmt` releases page; cross-process present is the thing to grep
      release notes for.
   4. **Wine 11.17+** — not because a version regression exists (there is none; stock 11.0 is

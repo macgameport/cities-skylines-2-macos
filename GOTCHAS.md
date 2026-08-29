@@ -1018,9 +1018,11 @@ Loaded L"C:\windows\system32\wined3d.dll" ...: builtin
 
 **Result: still a uniformly black window, 108,343 B.** And the same 108,343 B with wined3d's
 *Vulkan* renderer — byte-identical, which is the tell: **the D3D implementation is not the
-variable.** Swapping out the entire D3D stack changed nothing, so the failure is not DXMT's
-missing cross-process swapchain for the *client*; it is the winemac/cross-process presentation
-layer, exactly as § "Embedded Chromium NEVER rendered on stock Wine" concluded. The PK vendor
+variable — OUT-OF-PROCESS.** (⚠ Scoped 2026-08-29: *in-process* it is decisive and the sign flips —
+DXMT renders, vanilla wined3d produces no window at all. See § "The vanilla-wined3d split is
+strictly WORSE than DXMT for Steam's CEF".) Swapping out the entire D3D stack changed nothing, so
+the failure is not DXMT's missing cross-process swapchain for the *client*; it is the
+winemac/cross-process presentation layer, exactly as § "Embedded Chromium NEVER rendered on stock Wine" concluded. The PK vendor
 patchset remains the only thing that has ever made this render.
 
 **A second reason the route was never going to work as written:** wined3d's **GL** backend is
@@ -1084,7 +1086,12 @@ for any unattended cell.
 silently turns the next Steam launch into `--silent` — i.e. **no window**, which reads exactly like
 a render failure. `scripts/steam-render-cell.sh` purges it per cell.
 
-**Still untested, and now the only live route:** Steam's processes on **vanilla wined3d** while the
+⚠ **SUPERSEDED — this route was built and measured the same day, and again on 2026-08-29 in
+combination with the shim. It does not work; it is strictly worse.** See § "Taking DXMT out of
+Steam's path entirely does NOT fix it" and § "The vanilla-wined3d split is strictly WORSE than
+DXMT for Steam's CEF". The paragraph below is kept for the harvesting recipe only.
+
+**Was untested at the time of writing:** Steam's processes on **vanilla wined3d** while the
 game keeps DXMT. It cannot be tried here today — every `d3d11.dll`/`dxgi.dll` on this machine is
 DXMT's, in **both** arch trees and in every `.bak` (all 5,304,320 B / 7,780 dxmt strings), so there
 is no vanilla PE to point a per-app override at. Harvesting one means a fresh
@@ -1097,6 +1104,86 @@ so a vanilla PE must come from the **same 11.16 build**, not from the PK 11.0 tr
 soju's rule 5 keeps i386 vanilla for the 32-bit steam.exe composer — **but that rule is not a
 necessary condition**: `CS2dxmt11-pk110` carries the same DXMT i386 build (7,785 dxmt strings) and
 renders Steam's text fine. Do not treat i386-vanilla as the explanation.
+
+## The vanilla-wined3d split is strictly WORSE than DXMT for Steam's CEF — and the trap that nearly voided the test (2026-08-29)
+
+[mikey92 on dxmt#141](https://github.com/3Shain/dxmt/issues/141) pointed out a real hole in the
+2026-08-28 matrix: the split had only ever been run with **default out-of-process CEF**, and the
+`--disable-gpu --single-process` pair had only ever been run on a **DXMT** client. The cell they
+actually use daily — *both together* — had never been run here. They were right, it hadn't. It has
+now, and it makes things worse rather than better.
+
+⚠ **The trap, first — it silently invalidates any "split + shim" cell.** Wine keys
+`HKCU\Software\Wine\AppDefaults\<exe>\DllOverrides` on the executable's **file name**, and
+`install-webhelper-shim.sh` renames the real CEF binary to **`steamwebhelper_real.exe`** (the shim
+takes the original name). So a split whose per-app list is `steam.exe steamwebhelper.exe
+steamservice.exe` does **not** cover the process that actually loads d3d11 — it falls through to
+the *global* override, which this split deliberately pins to `builtin` **= DXMT**. The first
+combined cell ran clean, produced a plausible result, and was testing the DXMT client. The two
+mechanisms only compose if **both** names are in the list; `steam-vanilla-d3d-split.sh` now carries
+`steamwebhelper_real.exe` with that reasoning inline. Proof the fix landed, from `+loaddll` inside
+the webhelper's own process tree: `dxgi.dll … native`, `wined3d.dll … builtin`, **no winemetal
+anywhere**, alongside `steamwebhelper_real.exe`, `libcef.dll` and ANGLE's `libglesv2.dll`.
+
+**Four cells, one variable at a time, judged by per-window capture:**
+
+| cell | client d3d11 | shim args | window | CPU | result |
+|---|---|---|---|---|---|
+| `split-pair-v2` | vanilla wined3d | `--disable-gpu --single-process` | **none** | 174 % | mikey92's exact pair — hot spin |
+| `split-ipgpu-swiftshader` | vanilla wined3d | `--in-process-gpu --use-gl=swiftshader` | **none** | 172 % | hot spin |
+| `split-single` | vanilla wined3d | `--single-process` | **none** | 173 % | hot spin |
+| **control** — `dxmt-single-control` | **DXMT** | `--single-process` | **yes** | **9.0 %** | **1,810,329 B rendered, ZERO glyphs** |
+
+The control is the load-bearing row: it reproduces the 2026-08-28 reading (2,018,352 B then,
+1,810,329 B now) on the same harness in the same session, so the three "no window" results are
+measurements, not a broken rig. Store artwork, thumbnails, gradients and chrome are perfect; the
+nav bar is six bare dropdown carets, the search field is empty, and no capsule has a title or
+price. The only readable text is baked into promo images.
+
+**Why the split fails — ANGLE names it, so this is not inference.** On vanilla wined3d *every* EGL
+display type fails, in this order:
+
+```
+Renderer11.cpp:1108 (rx::Renderer11::populateRenderer11DeviceCaps):
+    Error querying driver version from DXGI Adapter.              <- D3D11 path
+eglCreateContext: Requested GLES version (3.0) is greater than max supported (2, 0).   <- GL path
+eglInitialize SwANGLE failed with error EGL_NOT_INITIALIZED
+    Internal Vulkan error (-9): The requested version of Vulkan is not supported ...   <- SwANGLE
+Initialization of all EGL display types failed.
+GLDisplayEGL::Initialize failed.
+gl_factory_win.cc(63)] NOTREACHED hit.        <- then loops ~1,043,304 times in one 95 s cell
+```
+
+So the conclusion inverts the intuition the split was built on: **DXMT is the only D3D11 on this
+stack that gives Chromium a working ANGLE display.** Its DXGI answers
+`populateRenderer11DeviceCaps`; vanilla wined3d's does not, and neither fallback is available
+(wined3d's GL backend caps at GLES 2.0 here — consistent with its `GL_INVALID_FRAMEBUFFER_OPERATION
+from glClear` on macOS 26 — and SwANGLE's Vulkan is rejected outright). Taking DXMT out of the
+client's path removes the one path that works.
+
+**`--use-gl=swiftshader` is a dead switch on this CEF, not a missing idea.** Modern Chromium moved
+software selection to `--use-angle=swiftshader`, which was **already measured here on 2026-08-24**
+(with `--in-process-gpu` + `vulkan-1=n,b`) and renders art with no glyphs like every other
+in-process route. The `--use-gl` spelling is worse than useless: it converts a *working*
+`--in-process-gpu` cell into the same NOTREACHED loop. Don't re-chase it from the Battle.net
+data point.
+
+**Worth keeping from mikey92 regardless:** starting steam.exe with **`-noverifyfiles`** stops the
+integrity pass from restoring a replaced `steamwebhelper.exe`, which is a cleaner alternative to
+size-padding the shim (§ "Verifying file sizes only"). Our padded shim passes either way, so this
+was not adopted — but it is the fix if Valve ever switches from sizes to hashes.
+
+**Fixed in passing — `--verify` could never return.** `dxtest.exe` renders forever (its message
+loop exits only on `WM_QUIT`), and piping it to `head` does **not** kill it because grep
+block-buffers, so the SIGPIPE never arrives. Two `--verify` runs this session were written off as
+"timed out" when the probe was doing exactly what it was written to do. macOS has no coreutils
+`timeout`; the branch now launches, polls the log for up to 25 s, and kills. A verification step
+that hangs is worse than none — the script's own output tells you to run it.
+
+**Everything reverted and re-verified**: DXMT builtins restored (`metal=197 wined3d=0`, builtin
+marker back), all per-app overrides deleted, shim reverted to the original 7,489,176 B webhelper,
+and the game path re-checked with the now-working `--verify` — `winemetal.dll builtin`,
+`DXGI.DLL builtin`, `d3d11.dll builtin`.
 
 ## `du` lies about disk on APFS: the two wrappers' 91 GB game installs were CLONES (2026-08-24)
 

@@ -56,7 +56,14 @@ export WINEDEBUG="${WINEDEBUG:--all}"
 SYS32="$WINEPREFIX/drive_c/windows/system32"
 SYSWOW="$WINEPREFIX/drive_c/windows/syswow64"
 BAK="$WINEPREFIX/drive_c/windows/.dxmt-d3d-backup"
-STEAM_EXES="steam.exe steamwebhelper.exe steamservice.exe"
+# ⚠ steamwebhelper_real.exe is LOAD-BEARING, not a nicety. Wine keys AppDefaults on the
+# executable's FILE NAME, and install-webhelper-shim.sh renames the real CEF binary to
+# steamwebhelper_real.exe (the shim takes the original name). So the process that actually
+# loads d3d11 is steamwebhelper_real.exe — without this entry it falls through to the GLOBAL
+# override (= builtin = DXMT) and a "split + shim" cell silently tests the DXMT client instead
+# of the vanilla one. Measured 2026-08-29: cell `split-pair` looked like a valid combined test
+# and was not. Combining the two mechanisms REQUIRES both names.
+STEAM_EXES="steam.exe steamwebhelper.exe steamwebhelper_real.exe steamservice.exe"
 die(){ echo "ERROR: $1"; exit 1; }
 [ -x "$WINE" ] || die "no wine at $WINE"
 
@@ -160,7 +167,19 @@ verify)
   T="$(cd "$(dirname "$0")" && pwd)/dxtest.exe"
   [ -f "$T" ] || die "no dxtest.exe next to this script"
   echo "== loading a D3D11 app (dxtest.exe) with +loaddll — expect BUILTIN d3d11 = DXMT"
-  out=$(WINEDEBUG=+loaddll DXMT_LOG_LEVEL=info "$WINE" "$T" 2>&1 | grep -iE "d3d11\.dll|dxgi\.dll|winemetal" | head -8)
+  # ⚠ dxtest.exe renders FOREVER (its message loop has no exit but WM_QUIT), so this must be
+  # time-boxed or --verify never returns. Piping to `head` does NOT save you: grep block-buffers,
+  # so the SIGPIPE that would kill it never arrives. Measured 2026-08-29 — two --verify runs were
+  # reported as "timed out" when in fact the probe was working exactly as written.
+  # macOS has no coreutils `timeout`; launch, sample, kill.
+  LOG=$(mktemp -t dxsplit-verify)
+  WINEDEBUG=+loaddll DXMT_LOG_LEVEL=info "$WINE" "$T" >"$LOG" 2>&1 &
+  VPID=$!
+  for _ in $(seq 25); do grep -qi "d3d11\.dll" "$LOG" 2>/dev/null && break; sleep 1; done
+  kill "$VPID" 2>/dev/null; pkill -f "dxtest.exe" 2>/dev/null
+  out=$(grep -iE "d3d11\.dll|dxgi\.dll|winemetal" "$LOG" | head -8)
+  rm -f "$LOG"
+  [ -n "$out" ] || echo "  ⚠ no module-load lines captured — probe did not reach D3D11 (check wine/prefix)"
   echo "$out" | sed 's/^/  /'
   echo "$out" | grep -qi "d3d11.dll.*builtin" \
     && echo "  VERDICT: game path still resolves d3d11 -> builtin (DXMT). Good." \
