@@ -2,89 +2,101 @@
 
 Draft reply to mikey92's "one cell is still missing" comment. Prior comments on the thread:
 5400445243 (stock-vs-vendor sweep) · 5403561498 (`--in-process-gpu`: renders but textless) ·
-5458926046 (vanilla-wined3d split, out-of-process: black — **retracted below**).
+5458926046 (vanilla-wined3d split — **its argument is retracted below; its conclusion survives on
+different evidence**).
 
 Status: **not yet posted.**
 
 ---
 
-@mikey92 — you were right that a cell was missing, and chasing it turned up something more useful
-than an answer to it: **my previous comment on this thread was wrong, and I need to retract it.**
-My split was broken, so
-[#5458926046](https://github.com/3Shain/dxmt/issues/141#issuecomment-5458926046) compared DXMT
-against a D3D11 that never worked. Here's the corrected picture, plus a small ask that would tell
-us why your setup works and mine doesn't.
+@mikey92 — you were right that a cell was missing, and chasing it broke my previous comment open.
+Short version: **my split was wired wrong, so
+[#5458926046](https://github.com/3Shain/dxmt/issues/141#issuecomment-5458926046) argued from a
+D3D11 that never worked.** I've since built the test properly and run your config on it. Full
+results below, plus a one-command ask that would explain the difference between our machines.
 
-**1. The retraction.** I wired the split with soju's technique — strip the `"Wine builtin DLL\0"`
-marker at file offset `0x40` so a `native` override loads a wine-built PE — and verified it with
-`+loaddll`, which duly showed `d3d11.dll … native` inside Steam's processes. That proved the PE
-**loaded**. It did not prove it **worked**, and it didn't. A 50-line probe that creates a device
-never reaches its first `printf` on that wiring:
+**1. The retraction.** I wired the split with soju's marker-strip technique — flip a byte in
+`"Wine builtin DLL\0"` at offset `0x40` so a `native` override loads a wine-built PE — and verified
+it with `+loaddll`, which duly showed `d3d11.dll … native` inside Steam's processes. That proved
+the PE **loaded**. It did not prove it **worked**. A device-creation probe never reaches its first
+`printf` on that wiring:
 
 ```
 wine: Call from ... to unimplemented function dxgi.dll.DXGID3D10CreateDevice, aborting
 ```
 
-— with either dxgi underneath it. So "the split landed and Steam is still black, byte-identical on
-wined3d's GL and Vulkan renderers" was measuring a d3d11 that aborts at device creation. It carried
-no information about DXMT, and the conclusion I drew from it — that the client's black window was
-never DXMT's missing cross-process swapchain — is **not supported**. **A module load is not a
-working implementation.** That one's on me.
+So every Steam cell I ran against the split, on both dates, was measuring a client whose `d3d11`
+aborts at `CreateDevice`. **A module load is not a working implementation** — that one's on me.
 
-⚠ **It also invalidates every Steam-side cell I've run against the split, on both dates** — they
-were all on that wiring. So I can't tell you what your pair does on a *working* vanilla-wined3d
-client; nobody has measured that here. The marker-strip trick can't be fixed into one, either: the
-wiring that does work is engine-global, which would take DXMT away from the game too. A valid test
-needs a separate wrapper, which I haven't built yet.
-
-**2. What a correctly-wired vanilla wined3d actually does.** Installing the same vanilla PEs as
-*true builtins* (marker intact) in a cloned wine tree, driven from a scratch prefix — self-built
+**2. So I built the test properly.** The wiring that *does* work — vanilla `d3d11`+`dxgi` as true
+builtins in `lib/wine/*/`, marker intact — is engine-global, so it can't live in the wrapper that
+also runs the game. It needs its own bundle. On APFS that's free: `cp -Rc` clones the 103 GB
+wrapper in seconds, then swap the two builtins. Probe in that clone's own Steam prefix, self-built
 stock wine 11.16, M3 Max, macOS 26.6.2:
 
-| configuration | adapter reported | `CheckInterfaceSupport(IDXGIDevice)` | max feature level |
+| | adapter | `CheckInterfaceSupport(IDXGIDevice)` | max feature level |
 |---|---|---|---|
-| **DXMT v0.80** | **Apple M3 Max** | **`S_OK`** | **`0xB100` = 11_1** |
-| vanilla wined3d, GL renderer | "NVIDIA GeForce 6800" (0x10DE/0x0041 — the fallback card) | `0x887A0004` `DXGI_ERROR_UNSUPPORTED` | `0x9300` = **9_3** |
-| vanilla wined3d, `renderer=vulkan` | **Apple M3 Max** (correct) | `0x887A0004` `DXGI_ERROR_UNSUPPORTED` | `0x9300` = **9_3** |
+| **DXMT v0.80** | Apple M3 Max | **`S_OK`** | **`0xB100` = 11_1** |
+| vanilla wined3d (GL) | "NVIDIA GeForce 6800" — the fallback card | `0x887A0004` `DXGI_ERROR_UNSUPPORTED` | `0x9300` = **9_3** |
+| vanilla wined3d (`renderer=vulkan`) | Apple M3 Max (correct) | `0x887A0004` | `0x9300` = **9_3** |
 
-Two measured deltas, and I asked for the feature level **both ways** — `pFeatureLevels=NULL` and an
-explicit `{11_1, 11_0, 10_1, 10_0, 9_3}` array — because a single-form reading is exactly how you
-publish a wrong number. Same answer both times.
+Feature level asked both ways — `pFeatureLevels=NULL` and an explicit `{11_1…9_3}` array — same
+answer. `0x887A0004` is literally what ANGLE reports as `Renderer11.cpp:1108 Error querying driver
+version from DXGI Adapter`, now measured as a plain API return rather than inferred from a log.
 
-- **`0x887A0004` is `Renderer11.cpp:1108`.** ANGLE's `Error querying driver version from DXGI
-  Adapter` is literally wined3d's dxgi returning `DXGI_ERROR_UNSUPPORTED` from
-  `CheckInterfaceSupport`, where DXMT returns `S_OK`. That's an API delta now, not an inference
-  from a CEF log.
-- **wined3d gives me feature level 9_3; DXMT gives 11_1** — even with the Vulkan renderer correctly
-  identifying the M3 Max, so it isn't the fallback-adapter bug.
+**3. Your config, on a genuinely working vanilla-wined3d client.** Every cell capture-judged, with
+the instrument validated each time:
 
-I'll stop short of the obvious next sentence: I *can't* yet say FL 9_3 is what breaks CEF. The
-`Requested GLES version (3.0) is greater than max supported (2, 0)` line in my `cef_log.txt` is
-consistent with an ANGLE D3D11 display on a sub-10_0 device, but it was logged on the broken wiring
-where ANGLE may never have reached a D3D11 device at all. Correlation, not chain.
+| client | switches | gpu children | crashes | window |
+|---|---|---|---|---|
+| **vanilla wined3d** | none (out-of-process) | **1** | **0** | black, 30,482 B |
+| **vanilla wined3d** | none, `renderer=vulkan` | **1** | **0** | black, 30,482 B — byte-identical |
+| **vanilla wined3d** | `--in-process-gpu` | 0 | 0 | **none** |
+| **vanilla wined3d** | `--single-process` | 0 | 0 | **none** |
+| **vanilla wined3d** | `--disable-gpu --single-process` (yours) | 0 | 0 | **none**, 174 % spin |
+| DXMT | none (out-of-process) | — | **×3** | black, ~40 KB |
+| DXMT | `--in-process-gpu` | 0 | 0 | renders, zero glyphs |
+| DXMT | `--single-process` | 0 | 0 | **renders, 1,810,329 B**, zero glyphs |
+| DXMT | `--disable-gpu --single-process` | 0 | 0 | none |
 
-**3. `--use-gl=swiftshader` is a dead switch on this CEF.** Chromium moved software selection to
-`--use-angle=swiftshader`, which I'd measured on 08-24 — renders art, no glyphs, like every
-in-process route. The `--use-gl` spelling turns a *working* `--in-process-gpu` cell into a
-`gl_factory_win.cc(63)` NOTREACHED loop. Good Battle.net data point; it doesn't transfer here.
+**On this machine DXMT is strictly better than vanilla wined3d at every cell** — the split isn't a
+missed opportunity here, it's a downgrade. And the CEF log from a *working* vanilla client finally
+makes the chain attributable end to end:
 
-**4. A reproduction trap, if your wrapper renames the webhelper.** Wine keys `AppDefaults` on the
-executable's **file name**. My shim takes the name `steamwebhelper.exe` and the real CEF binary
-becomes `steamwebhelper_real.exe` — so my first run of your cell missed the only process that loads
-d3d11 and silently fell through to the global override. It ran clean and looked completely valid.
+```
+Renderer11.cpp (populateRenderer11DeviceCaps): Error querying driver version from DXGI Adapter.
+eglCreateContext: Requested GLES version (3.0) is greater than max supported (2, 0).
+eglInitialize SwANGLE failed with error EGL_NOT_INITIALIZED
+Initialization of all EGL display types failed.  ->  gl_factory_win.cc(63) NOTREACHED (×1,127,264)
+```
 
-**5. `-noverifyfiles` — thanks, that's the better half of the trick.** My shim is zero-padded to the
-original's byte count, which passes because Steam's bootstrap says "Verifying file sizes only", but
-padding is the fragile part and yours isn't.
+FL 9_3 lets ANGLE offer **GLES 2.0 only**; CEF asks for **3.0**; every display type then fails —
+which is why the in-process modes that at least render on DXMT produce no window at all here.
 
-**The ask, and it's small.** Would you run the probe on your setup? ~50 lines, no dependencies:
+**4. One row is worth more than the rest, and it partly rescues the comment I'm retracting.**
+Out-of-process on vanilla wined3d, the **GPU process is healthy — one child, zero crashes** (on
+DXMT it crashes 3× per launch) — and the window is **still black, byte-identical across wined3d's
+GL and Vulkan renderers**. A healthy cross-process GPU that still can't present is a
+presentation-layer wall independent of D3D. So my earlier conclusion appears to be right; the
+argument I gave for it just wasn't.
+
+**5. Smaller things.** `--use-gl=swiftshader` is a dead switch on this CEF — Chromium moved software
+selection to `--use-angle=swiftshader`, which I measured on 08-24 (renders art, no glyphs); the
+`--use-gl` spelling turns a *working* `--in-process-gpu` cell into the NOTREACHED loop above. Good
+Battle.net data point, doesn't transfer. And a trap if your wrapper renames the webhelper: wine keys
+`AppDefaults` on the executable's **file name**, so with a shim occupying `steamwebhelper.exe` the
+real binary becomes `steamwebhelper_real.exe` and a per-app override that doesn't name it silently
+misses the only process that loads d3d11. That's what made my first run of your cell look valid.
+Also: thanks for `-noverifyfiles` — my shim is zero-padded to the original's byte count, which
+passes "Verifying file sizes only", but padding is the fragile half and yours isn't.
+
+**The ask.** Would you run the probe on your stack? ~50 lines, no dependencies:
 [`scripts/dxgiprobe.c`](https://github.com/macgameport/cities-skylines-2-macos/blob/main/scripts/dxgiprobe.c),
 built with `x86_64-w64-mingw32-gcc dxgiprobe.c -o dxgiprobe.exe -ld3d11 -ldxgi -ldxguid -luuid`,
-run inside your prefix with the split active. If you get a real adapter at **feature level 11_x**,
-then wined3d is genuinely serving D3D11 on your stack, the variable between us is wine 11.0 vs
-11.16 or macOS 26.5 vs 26.6.2, and your split is legitimately viable where mine is capped — a far
-more useful conclusion than the presentation-layer one I posted. If you get **9_3** and
-`0x887A0004` like me, then something other than D3D11 is carrying your client, and that's worth
-knowing too.
+run in your prefix with the split active. If you get a real adapter at **feature level 11_x**, then
+wined3d is serving D3D11 properly on wine 11.0 / macOS 26.5 where mine caps at 9_3 on 11.16 /
+26.6.2 — your split is viable and mine is blocked by a feature-level cap, which is a far more
+actionable finding than anything else on this thread. If you get **9_3** and `0x887A0004` like me,
+then something other than D3D11 is carrying your client and that's worth knowing too.
 
 *(Analysis and testing done with AI assistance, per the project's policy.)*

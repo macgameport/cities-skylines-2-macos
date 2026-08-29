@@ -1255,8 +1255,9 @@ Three things fall out, and the middle one is the answer:
    wrong headline number before: with an **explicit** `{11_1, 11_0, 10_1, 10_0, 9_3}` array,
    vanilla wined3d still returns **9_3** and DXMT returns **11_1**. The probe now prints both.
 
-⚠ **Consequence that invalidates more than it looks: EVERY Steam cell ever run against the split —
-08-28 and 08-29 alike — used the broken marker-strip wiring.** Those cells were not measuring a
+⚠ **RESOLVED — the valid test was built and run the same day; see the next section.** The finding
+below stands as the reason it was needed: **every Steam cell run against the split before that point
+— 08-28 and 08-29 alike — used the broken marker-strip wiring.** Those cells were not measuring a
 vanilla-wined3d client; they were measuring a client whose `d3d11.dll` aborts at device creation.
 The "no window, ~174 % spin" rows say nothing about wined3d. **A valid Steam-side test of the split
 has still never been run here**, and it cannot be run with the marker-strip trick at all — the
@@ -1264,12 +1265,10 @@ true-builtin wiring is engine-global, so it would take the game's DXMT away too.
 separate wrapper (clone the tree, install vanilla builtins, point it at a Steam-bearing prefix).
 Not yet done; do not describe the split's Steam behaviour as measured until it is.
 
-**What is NOT established:** that FL 9_3 is what breaks CEF. The `Requested GLES version (3.0) is
-greater than max supported (2, 0)` line in `cef_log.txt` is *consistent* with an ANGLE D3D11 display
-on a sub-10_0 device, but it was logged in a cell whose d3d11 aborts, so ANGLE may never have
-reached a D3D11 device at all — the line could equally come from the GL or SwANGLE display. Report
-the two measured deltas (feature level, `CheckInterfaceSupport` HRESULT); do not claim the causal
-chain without a valid Steam-side run.
+**Was NOT established at this point:** that FL 9_3 is what breaks CEF — the `Requested GLES version
+(3.0) is greater than max supported (2, 0)` line was logged in a cell whose d3d11 aborts, so ANGLE
+may never have reached a D3D11 device. ✅ **Settled by the valid run in the next section**, where the
+same line appears on a working FL 9_3 device.
 
 ⚠ Two traps found setting the scratch prefix up, both of which cost ~15 min of apparent hang:
 wine **refuses a `WINEPREFIX` under `/tmp`** ("is not owned by you"), and a fresh-prefix `wineboot`
@@ -1278,6 +1277,71 @@ a hang. Always create scratch prefixes with `WINEDLLOVERRIDES="mscoree=d;mshtml=
 ⚠ And the orphaned `wineboot.exe` processes could **not** be killed with `pkill -f wine-vanilla-test`
 — wine processes carry Windows-style argv, the same attribution trap this repo already documents
 for steam.exe. Kill by PID after checking `lsof` against the prefix.
+
+## The valid Steam-side test at last: DXMT beats vanilla wined3d at EVERY cell (2026-08-29)
+
+The section above closed with "a valid Steam-side test of the split has never been run here." It has
+now. `scripts/make-vanilla-wrapper.sh` builds the thing that makes it possible: an APFS clone of the
+daily wrapper (`cp -Rc`, ~0 disk on a 103 GB bundle) whose **wine tree** carries the vanilla
+`d3d11.dll`/`dxgi.dll` as **true builtins, marker intact**. That wiring is engine-global — which is
+exactly why it cannot be done in the daily wrapper, and why a separate bundle was the only route.
+
+Probe first, in the clone's own Steam-bearing prefix: **FL `0x9300` (9_3) both ways, adapter
+"NVIDIA GeForce 6800" (wined3d's fallback card), `CheckInterfaceSupport` = `0x887A0004`.** Same
+numbers as the scratch prefix, so the wrapper is a faithful vehicle.
+
+**Client on REAL vanilla wined3d** (all capture-judged, instrument validated every cell):
+
+| switches | gpu-process children | crashes | window |
+|---|---|---|---|
+| none — out-of-process, GL renderer | **1** | **0** | black, **30,482 B** |
+| none — out-of-process, `renderer=vulkan` | **1** | **0** | black, **30,482 B — byte-identical** |
+| `--in-process-gpu` | 0 | 0 | **none** |
+| `--single-process` | 0 | 0 | **none** |
+| `--disable-gpu --single-process` (mikey92's pair) | 0 | 0 | **none**, 174 % spin |
+
+**Same cells on DXMT**, for the comparison that was never valid before:
+
+| switches | gpu-process children | crashes | window |
+|---|---|---|---|
+| none — out-of-process | crashes | **×3** | black, ~40 KB |
+| `--in-process-gpu` | 0 | 0 | **renders**, zero glyphs |
+| `--single-process` | 0 | 0 | **renders, 1,810,329 B**, zero glyphs |
+| `--disable-gpu --single-process` | 0 | 0 | none |
+
+**Conclusion, now properly evidenced: on this machine DXMT is strictly better than vanilla wined3d
+at every cell.** The split isn't a missed opportunity; it's a downgrade. The in-process modes that
+buy a rendered (if textless) window on DXMT produce **no window at all** on wined3d, and the CEF log
+from a *working* vanilla client finally makes the chain attributable end to end:
+
+```
+Renderer11.cpp (populateRenderer11DeviceCaps): Error querying driver version from DXGI Adapter.
+eglCreateContext: Requested GLES version (3.0) is greater than max supported (2, 0).
+eglInitialize SwANGLE failed with error EGL_NOT_INITIALIZED
+Initialization of all EGL display types failed. -> gl_factory_win.cc(63) NOTREACHED (×1,127,264)
+```
+
+A FL 9_3 D3D11 device lets ANGLE offer **GLES 2.0 only**; CEF asks for **3.0**; every EGL display
+type then fails. On 08-29 this was explicitly flagged as correlation-not-chain because the log came
+from the broken wiring — this run had a genuinely working D3D11 device, so the attribution holds.
+
+⚠ **And the 08-28 conclusion turns out to be right for reasons it never had.** Its *reasoning* was
+invalid (it compared against a d3d11 that aborts). But the out-of-process rows above are the
+evidence it lacked: on vanilla wined3d the **GPU process is healthy — 1 child, zero crashes** — and
+the window is **still black, byte-identical across wined3d's GL and Vulkan renderers**. A healthy
+cross-process GPU that still cannot present is a presentation-layer wall, independent of D3D. So
+keep the conclusion, discard the old argument for it, and cite these rows instead.
+
+⚠ **Harness trap found here: with the shim installed, an empty `--shim-args` is NOT "no flags."**
+`steamwebhelper-shim.c` falls back to its compiled `APPEND` default of `--in-process-gpu` when
+`SHIM_ARGS` is unset, so a "control" cell run with the shim in place silently tests in-process GPU.
+One cell was thrown away to this. **For a true out-of-process control, revert the shim** — don't
+just omit `--shim-args`.
+
+**Tooling kept:** `scripts/make-vanilla-wrapper.sh` (`--build` / `--verify` / `--remove`) and
+`scripts/dxgiprobe.c`. The wrapper itself was **removed** after the run — a Steam-bearing,
+DXMT-less bundle sitting in `~/Applications` next to the real ones is a footgun, and `--build`
+recreates it in about a minute.
 
 ## `du` lies about disk on APFS: the two wrappers' 91 GB game installs were CLONES (2026-08-24)
 

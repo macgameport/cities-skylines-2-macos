@@ -412,10 +412,24 @@ in the handler, or wrap in `finally`.
     all used the broken marker-strip wiring, so none of them measured a vanilla-wined3d client.
     **A valid Steam-side test of the split has never been run here** and cannot be, with this trick:
     the working wiring is engine-global and would take DXMT from the game. It needs its own wrapper
-    (cloned tree + vanilla builtins + a Steam-bearing prefix) — NOT YET BUILT. Do not describe the
-    split's Steam behaviour as measured. Also **not** established: that FL 9_3 is what breaks CEF —
-    the `GLES 3.0 > max supported 2.0` log line is consistent with it but was captured on the broken
-    wiring, so it is correlation, not a chain. ⚠ Scratch-prefix traps that cost ~15 min of apparent hang: wine refuses a
+    (cloned tree + vanilla builtins + a Steam-bearing prefix). ✅ **BUILT AND RUN the same day** —
+    `scripts/make-vanilla-wrapper.sh` (`--build`/`--verify`/`--remove`) clones the daily wrapper with
+    `cp -Rc` (~0 disk on 103 GB) and installs the vanilla builtins marker-INTACT.
+  - ✅ **THE VALID TEST, 2026-08-29: DXMT beats vanilla wined3d at EVERY cell.** On a real
+    vanilla-wined3d client — out-of-process black 30,482 B (GL **and** `renderer=vulkan`,
+    byte-identical); `--in-process-gpu`, `--single-process` and mikey92's pair all produce **no
+    window at all**. On DXMT the same in-process flags **render** (1,810,329 B, zero glyphs). So the
+    split is a **downgrade**, not a missed opportunity. The chain is now attributable because the
+    device works: FL 9_3 → ANGLE offers GLES 2.0 only → CEF asks 3.0 → `Initialization of all EGL
+    display types failed` → the NOTREACHED loop.
+    ⚠ **And it rescues the 08-28 conclusion on new evidence:** out-of-process on vanilla wined3d the
+    **GPU process is HEALTHY (1 child, 0 crashes** — DXMT crashes ×3**)** and the window is still
+    black. A healthy cross-process GPU that cannot present *is* a presentation-layer wall
+    independent of D3D. Keep the conclusion, cite these rows, discard the old argument.
+    ⚠ **Harness trap:** with the shim installed, an **empty `--shim-args` is not "no flags"** — the
+    shim falls back to its compiled `--in-process-gpu`. Revert the shim for a true control; one cell
+    was thrown away to this. The throwaway wrapper was **removed** after the run (footgun: a
+    Steam-bearing, DXMT-less bundle beside the real ones); `--build` recreates it in ~1 min. ⚠ Scratch-prefix traps that cost ~15 min of apparent hang: wine refuses a
     `WINEPREFIX` under `/tmp`, and a fresh-prefix `wineboot` blocks silently on the **Wine Mono
     installer dialog** (always use `WINEDLLOVERRIDES="mscoree=d;mshtml=d"`); orphaned `wineboot.exe`
     resists `pkill -f` because wine argv is Windows-style — kill by PID after an `lsof` check.
@@ -454,7 +468,7 @@ in the handler, or wrap in `finally`.
      The cell was genuinely missing and has now been run — see the "CLOSED HARDER" bullet above.
      A **fourth** comment is drafted at `docs/dxmt-bugs/comment-141-split-plus-pair.md` and is
      **not yet posted**; it opens with the partial retraction above and asks mikey92 to run
-     `scripts/dxgiprobe.exe` on their stack — if they get feature level **11_0** and `S_OK`, the
+     `scripts/dxgiprobe.exe` on their stack — if they get feature level **11_x** and `S_OK`, the
      variable between the two setups is wine 11.0 vs 11.16 or macOS 26.5 vs 26.6.2 and their split
      is legitimately viable, which is a far more useful conclusion than the presentation-layer one.
      Still no maintainer reply.
