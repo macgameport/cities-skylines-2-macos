@@ -63,6 +63,28 @@ so treat "it's impossible" posts as *outdated*, but they're accurate about the d
 - **MacStories — "I Tried to Run Cities: Skylines 2 on My M2 MacBook Air via GPTK…"** — documents the GPTK failure.
   https://www.macstories.net/stories/i-tried-to-run-cities-skylines-2-on-my-m2-macbook-air-via-apples-game-porting-toolkit-and-i-discovered-a-great-app-instead/
 
+## Steam client UI under Wine on macOS (the black-CEF problem) — added 2026-08-29
+- ⭐⭐ **notpop/steam-on-m1-wine** — **the most relevant source to this project, and it was missing
+  from this index until 2026-08-29.** Runs Windows Steam + D3D11 games on Apple Silicon, and its
+  Steam UI *renders with text*. Two ingredients we do not have: `winemac.so` rebuilt with
+  `-fvisibility=default` (`scripts/08-patch-wine-visibility.sh` — "to make macdrv's public API
+  callable by third-party Metal layers", gated on `nm -g` ≥100 public text symbols), and a **DXMT
+  fork** rewriting `_CreateMetalViewFromHWND`. https://github.com/notpop/steam-on-m1-wine
+- ⭐ **notpop/dxmt @ `debug/present-path-tracing`** (`924a607`) — the fork, ~150 lines over upstream,
+  working around two Wine 11 bugs: `macdrv_win_data` not exposing a usable NSView at swap-chain
+  creation, and an `OnMainThread` re-entrance deadlock. https://github.com/notpop/dxmt
+- **BCD1210/soju** — the vanilla-wined3d-for-the-client split (client on wined3d, games on DXMT).
+  Built and measured here 2026-08-28/29: **does not work on this stack** (wined3d caps at FL 9_3).
+  https://github.com/BCD1210/soju
+- **3Shain/dxmt#141** — cross-process swapchain; our four evidence comments live here.
+  https://github.com/3Shain/dxmt/issues/141
+
+> ⚠ **Lesson (2026-08-29):** three of the steamwebhelper-specific sources already listed below
+> (`domschl/WinSteamOnMac`, `mybyways`, `MelonForAll/vineport`) were never revisited once the
+> black-CEF problem was actually characterised, and `notpop` was never listed at all — while a
+> month of measurement went into re-deriving the problem locally. **Re-read the source index when
+> the problem statement changes**, not just when starting out.
+
 ## Reference / background
 - **AppleGamingWiki — CrossOver** (the paid baseline). https://www.applegamingwiki.com/wiki/CrossOver
 - **AppleGamingWiki — Game Porting Toolkit.** https://www.applegamingwiki.com/wiki/Game_Porting_Toolkit
