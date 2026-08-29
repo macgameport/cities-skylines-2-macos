@@ -80,7 +80,9 @@ GL and Vulkan renderers**. A healthy cross-process GPU that still can't present 
 presentation-layer wall independent of D3D. So my earlier conclusion appears to be right; the
 argument I gave for it just wasn't.
 
-**5. Smaller things.** `--use-gl=swiftshader` is a dead switch on this CEF — Chromium moved software
+**5. Smaller things.** Also eliminated today, both previously untried: `-cef-force-gpu` and
+`--use-angle=d3d9` — each black at 108,343 B, though notably the GPU process survives under both.
+`--use-gl=swiftshader` is a dead switch on this CEF — Chromium moved software
 selection to `--use-angle=swiftshader`, which I measured on 08-24 (renders art, no glyphs); the
 `--use-gl` spelling turns a *working* `--in-process-gpu` cell into the NOTREACHED loop above. Good
 Battle.net data point, doesn't transfer. And a trap if your wrapper renames the webhelper: wine keys
@@ -90,7 +92,42 @@ misses the only process that loads d3d11. That's what made my first run of your 
 Also: thanks for `-noverifyfiles` — my shim is zero-padded to the original's byte count, which
 passes "Verifying file sizes only", but padding is the fragile half and yours isn't.
 
-**The ask.** Would you run the probe on your stack? ~50 lines, no dependencies:
+**6. The thing I should have checked first — and it may mean your split isn't what's carrying your
+client.** I went and read [notpop/steam-on-m1-wine](https://github.com/notpop/steam-on-m1-wine),
+which is where the wrapper originates. Per its own README the enabler isn't the vanilla-wined3d
+split; it's two things I don't have:
+
+- **`winemac.so` rebuilt with `-fvisibility=default`** (`scripts/08-patch-wine-visibility.sh`) —
+  *"to make macdrv's public API callable by third-party Metal layers"*. One module:
+  `CFLAGS='-fvisibility=default -O2 -Wno-error'`, then `make dlls/winemac.drv/winemac.so`. Their own
+  success gate is `nm -g` showing **≥100 public text symbols**.
+- **A DXMT fork** — `notpop/dxmt@debug/present-path-tracing`, ~150 lines over upstream, which
+  *"rewrites `_CreateMetalViewFromHWND`"* around two Wine 11 bugs (`macdrv_win_data` not exposing a
+  usable NSView at swap-chain creation; `OnMainThread` re-entrance deadlock).
+
+I measured the visibility half here straight away:
+
+| engine | global syms in `winemac.so` | public TEXT (`T`) | renders Steam? |
+|---|---|---|---|
+| my self-built stock 11.16 + DXMT | 550 | **0** | no |
+| the CrossOver-lineage build I use as a workaround | 535 | **0** | **yes** |
+| notpop's patched build | — | **≥100** (their gate) | yes |
+
+Which says something I think is genuinely useful to this issue: **there are at least three
+independent mechanisms here, and symbol visibility is not the one the vendor build uses** — it
+renders Steam while exporting exactly as little as mine does. The helpers themselves are present
+in my `winemac.so` by name (`macdrv_view_create_metal_view`, `macdrv_view_get_metal_layer`,
+`macdrv_view_release_metal_view`) and `winemetal.dll` carries `CreateMetalViewFromHWND`; they're
+just not *exported*, which is the gap that flag closes.
+
+So — genuine question rather than a correction, since I can't see your install: **are you running
+notpop's patched `winemac.so` and the DXMT fork, or stock Homebrew `wine-stable` 11.0 with only the
+split?** If it's the former, then the split may be incidental and the real fix for this issue is
+upstreaming that `_CreateMetalViewFromHWND` rewrite plus whatever visibility change it needs — which
+is a much more actionable outcome for #141 than anything I've posted. I haven't tried that route
+yet: the wine half is ~20 minutes, but I've never built DXMT from source, so it's its own project.
+
+**The ask.** Alongside that, would you run the probe on your stack? ~50 lines, no dependencies:
 [`scripts/dxgiprobe.c`](https://github.com/macgameport/cities-skylines-2-macos/blob/main/scripts/dxgiprobe.c),
 built with `x86_64-w64-mingw32-gcc dxgiprobe.c -o dxgiprobe.exe -ld3d11 -ldxgi -ldxguid -luuid`,
 run in your prefix with the split active. If you get a real adapter at **feature level 11_x**, then

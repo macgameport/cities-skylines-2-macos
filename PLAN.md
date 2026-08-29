@@ -433,8 +433,25 @@ in the handler, or wrap in `finally`.
     `WINEPREFIX` under `/tmp`, and a fresh-prefix `wineboot` blocks silently on the **Wine Mono
     installer dialog** (always use `WINEDLLOVERRIDES="mscoree=d;mshtml=d"`); orphaned `wineboot.exe`
     resists `pkill -f` because wine argv is Windows-style — kill by PID after an `lsof` check.
-  - ▶ **Remaining untried:** an older-CEF client pin (trigger 5) — now the only route left that
-    does not depend on someone else shipping engine-side cross-process presentation.
+  - ▶▶ **NEW ROUTE, and the most promising one on the board — notpop's two ingredients (2026-08-29).**
+    Reading [notpop/steam-on-m1-wine](https://github.com/notpop/steam-on-m1-wine) (the wrapper's
+    origin; never opened by this project before today) shows the enabler is **not** the split:
+    (1) **`winemac.so` rebuilt with `-fvisibility=default`** — one module,
+    `CFLAGS='-fvisibility=default -O2 -Wno-error'` + `make dlls/winemac.drv/winemac.so`; their gate
+    is `nm -g` ≥100 public text symbols; and (2) a **DXMT fork**
+    `notpop/dxmt@debug/present-path-tracing` (`924a607`), ~150 lines, rewriting
+    `_CreateMetalViewFromHWND` around two Wine 11 bugs. **Measured here:** our `winemac.so` exports
+    **0** public text symbols — but so does **PK's, which renders Steam**, so visibility is NOT
+    PK's mechanism and this is a genuine THIRD path. Helpers are present-but-unexported in ours
+    (`macdrv_view_create_metal_view` etc.; `winemetal.dll` has `CreateMetalViewFromHWND`).
+    **Sequencing:** half 1 is ~20 min against the existing 11.16 source tree; half 2 needs a
+    **DXMT-from-source toolchain we have never stood up** (meson + native LLVM path + two
+    cross-files, 64- and 32-bit — every DXMT binary here was *reused*, never compiled). Own
+    mini-project; do not treat as an errand.
+  - ▶ **Remaining untried (lower priority now):** an older-CEF client pin (trigger 5).
+  - ✅ **Eliminated 2026-08-29, both never previously run:** `-cef-force-gpu` → black 108,343 B
+    (GPU process survives) · `--use-angle=d3d9` → black 108,343 B. ANGLE's D3D9 backend and Steam's
+    own force-GPU switch join `d3d11`/`gl`/`vulkan`/`swiftshader` on the dead list.
   - Evidence: GOTCHAS §§ "The webhelper shim renders everything EXCEPT text" and "The glyph loss is
     IN-PROCESS GPU itself". Harness: `scripts/steam-render-cell.sh` (one cell, capture-judged).
 

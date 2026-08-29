@@ -1343,6 +1343,61 @@ just omit `--shim-args`.
 DXMT-less bundle sitting in `~/Applications` next to the real ones is a footgun, and `--build`
 recreates it in about a minute.
 
+## There is a THIRD mechanism for Steam's CEF, and we had never read its source (2026-08-29)
+
+Asked "are there other sources of workarounds to check before posting?", the answer was yes, and it
+reframes the whole thread. mikey92's wrapper comes from **[notpop/steam-on-m1-wine](https://github.com/notpop/steam-on-m1-wine)**
+— a source `REFERENCES.md` never listed and this project had never opened (zero hits repo-wide
+before today). Its README says the enabler is **not** the vanilla-wined3d split at all. It is two
+things we do not have:
+
+1. **`winemac.so` rebuilt with `-fvisibility=default`** (`scripts/08-patch-wine-visibility.sh`),
+   *"to make macdrv's public API callable by third-party Metal layers"* — one module, not the whole
+   tree: `configure --enable-win64 --disable-tests CFLAGS='-fvisibility=default -O2 -Wno-error'`
+   then `make dlls/winemac.drv/winemac.so`. Their own success check is `nm -g` showing **≥100
+   public text symbols**.
+2. **A DXMT fork** — `notpop/dxmt@debug/present-path-tracing`
+   (`924a607e3eee06fad5be6f176d8510bb08bc418d`), ~150 lines over upstream, which *"rewrites
+   `_CreateMetalViewFromHWND` around two Wine 11 bugs"*: `macdrv_win_data` no longer exposing a
+   usable NSView at swap-chain creation, and wrapping macdrv's Metal helpers in Wine's
+   `OnMainThread` deadlocking on re-entrance.
+
+**Measured here immediately, and the numbers matter:**
+
+| engine | global syms in `winemac.so` | **public TEXT (`T`)** | renders Steam? |
+|---|---|---|---|
+| our self-built stock 11.16 + DXMT | 550 | **0** (2 `S` + 1 `D _macdrv_functions`; the rest `U`) | no |
+| **PK 11.0 vendor build** | 535 | **0** (2 `S`) | **YES** |
+| notpop's patched build | — | **≥100** (their gate) | yes |
+
+**So there are at least THREE independent mechanisms, and symbol visibility is not the one PK
+uses.** PK renders Steam while exporting exactly as little as we do — which *confirms* the
+2026-08-24 PM-2 conclusion (PK wins via its vendor patchset) rather than replacing it, and shows
+notpop's route is a genuinely separate third path that our engine has never had.
+
+Supporting detail: our `winemac.so` does contain the helpers by name —
+`macdrv_view_create_metal_view`, `macdrv_view_get_metal_layer`, `macdrv_view_release_metal_view`
+(plus `my_`-prefixed variants) — and `winemetal.dll` in **both** wrappers carries
+`CreateMetalViewFromHWND`. The functions are all present; they are simply not *exported*, which is
+exactly the gap `-fvisibility=default` closes.
+
+⚠ **What this means for the reply to mikey92:** they attribute their working client to the
+vanilla-wined3d split, but per notpop's own README their stack also carries the visibility rebuild
+**and** the forked DXMT. The split may not be what is carrying it. That is worth raising — carefully,
+since we cannot see their specific install — and it makes the "which EGL display initializes"
+question much less interesting than "are you on notpop's patched `winemac.so` and DXMT fork?"
+
+**Trial status: NOT attempted.** Half 1 (rebuild one wine module with different CFLAGS) is ~20 min
+and we have the 11.16 source tree. Half 2 (build DXMT from source via meson + a native LLVM path,
+two cross-files, 64- and 32-bit) is a **toolchain we have never stood up** — every DXMT binary here
+was *reused* from the Wine 11.0 + DXMT base engine, never compiled. Treat notpop's route as its own
+mini-project, not a pre-post errand.
+
+**Also eliminated today, both never previously run** (daily wrapper, capture-judged):
+`-cef-force-gpu` → black **108,343 B**, GPU process survives (1 child, no crashes) ·
+`--use-angle=d3d9` → black **108,343 B**, same. So ANGLE's D3D9 backend and Steam's own
+force-GPU switch join `d3d11`/`gl`/`vulkan`/`swiftshader` on the eliminated list.
+
 ## `du` lies about disk on APFS: the two wrappers' 91 GB game installs were CLONES (2026-08-24)
 
 Both wrappers reported a 91 GB `Cities Skylines II` install, so deleting the redundant one in
