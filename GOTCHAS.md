@@ -1951,6 +1951,42 @@ mapping is not yet exercised for them. A proper implementation should re-positio
 `WM_MACDRV_WINDOWPOSCHANGED` rather than only at creation; without that, a widget that moves or
 resizes after its layer is hosted keeps a stale frame.
 
+## Glyph-atlas texture path ELIMINATED — `scripts/r8test.c` (2026-08-29)
+
+Skia uploads glyph masks as single-channel textures and samples them; if that silently yielded
+zero, text would vanish while artwork drew. **It does not.** `scripts/r8test.c` is a headless
+D3D11 probe — no window, no Steam, no compositor — that uploads a known-white texture, samples it
+in a pixel shader, copies the render target to a staging texture and **reads the pixel values back
+as numbers**. On the daily DXMT v0.80 engine, feature level 11_0:
+
+| path | R8G8B8A8 (control) | R8_UNORM | A8_UNORM |
+|---|---|---|---|
+| immutable initial data | **255** | **255** | **255** |
+| `UpdateSubresource`, strip at a time (how an atlas grows) | — | **255** | **255** |
+| `Map(WRITE_DISCARD)` on a DYNAMIC texture | — | **255** | — |
+
+⚠ **The first run reported `A8_UNORM` BLACK, and that was MY BUG, not DXMT's.** The shader read
+`.r`, but `A8_UNORM` legitimately samples as `(0,0,0,A)` — reading `.r` returns 0 on correct
+hardware too. Caught before it was written up as a finding; the shader now takes `max(t.r, t.a)`.
+**A single-channel format test that reads the wrong channel manufactures the exact bug it is looking
+for.**
+
+**So the glyph defect is not the texture path.** Creation, both single-channel formats, both
+incremental upload routes, and sampling all behave correctly.
+
+**What is now eliminated, cumulatively:** font enumeration (924 GDI / 204 DirectWrite families,
+identical to the PK build that renders text — 2026-08-24) · texture format, upload and sampling
+(this section) · presentation architecture (in-process GPU, out-of-process, CAContext remote layer)
+· occlusion (per-child geometry mapped; more widgets appeared, still no text) · DirectComposition ·
+`--use-angle=swiftshader`, `--disable-lcd-text`, `--disable-direct-write`, `--disable-gpu-*` (2026-08-24).
+
+**The next probe, and it is a small one:** does **DirectWrite actually rasterise** on this stack?
+Fonts *enumerate*, and `dwrite.so` carries all 56 `pFT_*` pointers — but nothing here has ever
+checked that a glyph run produces non-empty coverage. `IDWriteFactory` →
+`IDWriteGlyphRunAnalysis` → `CreateAlphaTexture` and sum the bytes: non-zero means rasterisation
+works and the fault is further up in Skia; all-zero means the text never exists as pixels in the
+first place, which would explain every observation in this whole thread at once.
+
 ## `du` lies about disk on APFS: the two wrappers' 91 GB game installs were CLONES (2026-08-24)
 
 Both wrappers reported a 91 GB `Cities Skylines II` install, so deleting the redundant one in
