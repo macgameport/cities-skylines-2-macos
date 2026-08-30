@@ -154,7 +154,13 @@ else
   note "Starting Steam…"
   # a stale 0-byte .crash marker makes steam.exe exit 1 and never start — clear it first
   rm -f "$WINEPREFIX/drive_c/Program Files (x86)/Steam/.crash" 2>/dev/null
-  nohup "$WINE" "$STEAM" -silent -no-cef-sandbox >/dev/null 2>&1 &
+  # ⚠ NEVER `nohup` here (nor `env`, `setsid`, `bash -c`). macOS PURGES DYLD_* when exec'ing a
+  # SIP-protected system binary, and this engine's win32u.so has only an `@loader_path/` rpath,
+  # so stripping DYLD_FALLBACK_LIBRARY_PATH leaves wine unable to load its own
+  # libfreetype.dylib and Steam renders with NO TEXT. Measured 2026-08-30 — it is why Steam had
+  # no glyphs for a week while the game (launched directly) was fine.
+  # `disown` is a shell builtin: no exec, nothing to strip.
+  "$WINE" "$STEAM" -silent -no-cef-sandbox >/dev/null 2>&1 & disown
   STARTED_STEAM=1
   ok=0
   for i in $(seq 1 40); do

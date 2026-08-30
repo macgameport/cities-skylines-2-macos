@@ -116,12 +116,24 @@ done
 
 if [ -n "$running" ]; then
   # Forward an open-main to the running instance — Steam raises its own window.
-  nohup "$SS/wine/bin/wine64" "$STEAM" "steam://open/main" >/dev/null 2>&1 &
+  # ⚠ NEVER `nohup` here (nor `env`, `setsid`, `bash -c`). macOS PURGES DYLD_* when exec'ing a
+  # SIP-protected system binary, and this engine's win32u.so has only an `@loader_path/` rpath,
+  # so stripping DYLD_FALLBACK_LIBRARY_PATH leaves wine unable to load its own
+  # libfreetype.dylib and Steam renders with NO TEXT. Measured 2026-08-30 — it is why Steam had
+  # no glyphs for a week while the game (launched directly) was fine.
+  # `disown` is a shell builtin: no exec, nothing to strip.
+  "$SS/wine/bin/wine64" "$STEAM" "steam://open/main" >/dev/null 2>&1 & disown
   osascript -e 'display notification "Steam is already running — bringing up its window." with title "CS2 Steam Store"' >/dev/null 2>&1
 else
   # a stale 0-byte .crash marker makes steam.exe exit 1 and never start — clear it first
   rm -f "$WINEPREFIX/drive_c/Program Files (x86)/Steam/.crash" 2>/dev/null
-  nohup "$SS/wine/bin/wine64" "$STEAM" -no-cef-sandbox >/dev/null 2>&1 &
+  # ⚠ NEVER `nohup` here (nor `env`, `setsid`, `bash -c`). macOS PURGES DYLD_* when exec'ing a
+  # SIP-protected system binary, and this engine's win32u.so has only an `@loader_path/` rpath,
+  # so stripping DYLD_FALLBACK_LIBRARY_PATH leaves wine unable to load its own
+  # libfreetype.dylib and Steam renders with NO TEXT. Measured 2026-08-30 — it is why Steam had
+  # no glyphs for a week while the game (launched directly) was fine.
+  # `disown` is a shell builtin: no exec, nothing to strip.
+  "$SS/wine/bin/wine64" "$STEAM" -no-cef-sandbox >/dev/null 2>&1 & disown
   osascript -e 'display notification "Starting Steam in the storefront wrapper — window takes ~20 s." with title "CS2 Steam Store"' >/dev/null 2>&1
 fi
 exit 0
