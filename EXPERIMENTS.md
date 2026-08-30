@@ -21,6 +21,19 @@ capture were not prefix-filtered (so another wrapper's Steam supplied a **false 
 None of the three were detectable after the fact, because **no artifact recorded the configuration
 a result was measured under.** That is what this ledger fixes.
 
+## ⚠ The git log is NOT a source of truth for this thread
+
+`git log` is immutable, and the commit subjects written between 2026-08-24 and 2026-08-30 assert
+conclusions this ledger has since withdrawn — *"eliminate text RASTERISATION"*, *"the glyph story
+resolves"*, *"no wine-version bisect is warranted"*, *"macOS is not the variable"*. They were
+honest when written and they are wrong now, and nothing in a commit message can be edited to say so.
+
+**Rule: for anything in the Steam-UI thread, the register below outranks any commit subject, README
+line, or `GOTCHAS.md` heading text.** Several headings still read "ELIMINATED" or "SOLVED" with a
+`Ledger:` banner directly beneath them retracting exactly that word — the banner wins. Headings were
+deliberately left alone so the history stays greppable and the retraction stays visible next to the
+claim it retracts.
+
 ## The rule: three columns, never fused
 
 | column | what it is | when it changes |
@@ -71,6 +84,27 @@ Our engine's `config.h` has `SONAME_LIBFREETYPE "libfreetype.dylib"` (unversione
 PK's `win32u.so` asks for `libfreetype.6.dylib`. Both names exist in every wrapper's `Frameworks/`
 (the unversioned one as a symlink, present on the canonical wrapper since 2026-08-23).
 
+**Sharpened 2026-08-30 (second pass).** A bare `dlopen("libfreetype.dylib")` with **no** DYLD
+variable set FAILS — dyld's built-in fallback is `/usr/lib` only, and macOS ships no
+`/usr/lib/libfreetype.dylib`. It SUCCEEDS the moment the engine's own `wine/lib` is on
+`DYLD_FALLBACK_LIBRARY_PATH`, on **both** engines. Our launcher and the cell harness both export
+exactly that (`launch-cs2-dxmt11.sh:63`, `steam-render-cell.sh:65`), and `cell-fingerprint.sh`
+confirms it resolves — yet the same cell logs 61 FreeType failures once Steam is running.
+
+So the variable is neither the engine nor the library: **something in Steam's own process tree
+replaces or clears `DYLD_FALLBACK_LIBRARY_PATH` for its children.** Setting `DYLD_LIBRARY_PATH`
+instead — searched *first*, and not the variable a runtime would overwrite — is the next cell.
+
+> ⚠ **`wine notepad` is a BLIND font probe — do not use it.** With DYLD completely unset it still
+> logs **zero** "cannot find the FreeType font library" messages, so it cannot distinguish a
+> working font backend from a broken one. Validate any replacement probe by breaking it on purpose
+> first. (Cost this session: one A/B that read as a clean result and proved nothing.)
+
+> ⚠ **`cell-fingerprint.sh`'s library check has a blind spot, by construction.** It probes with the
+> env *the harness exports*, so it answers "can this library be resolved from here?" — not "will the
+> process that matters resolve it?". It would have passed every one of the 41 contaminated cells.
+> It is a precondition, not a verdict; the FreeType count in the cell's own `stdout.txt` is the verdict.
+
 **Already eliminated — do not re-test these.** Each was measured on 2026-08-30; re-running them is
 the circle this ledger exists to break.
 
@@ -82,6 +116,9 @@ the circle this ledger exists to break.
 | the real Steam prefix is different | the GDI font probe resolves fine **in the real Steam prefix**, script-style env, both bitnesses |
 | 32-bit processes can't reach the libs | 32- and 64-bit GDI probes return **identical** metrics on both engines (Arial, height 16, extent 29×16) |
 | old-style vs new-WoW64 | all three engines are new-WoW64 — `lib/wine/` has no `i386-unix` in any of them |
+| the engine itself can't resolve the soname | **both** engines resolve a bare `dlopen("libfreetype.dylib")` when their own `wine/lib` is on `DYLD_FALLBACK_LIBRARY_PATH` (2026-08-30, `~/cs2-patch/dlprobe`, x86_64). The engine is not the variable |
+| Homebrew's copy is the one being found | `/opt/homebrew/lib/libfreetype.dylib` is **arm64** — an x86_64 wine could never load it, whatever the path says. Every engine ships its own `x86_64` copy in `wine/lib` |
+| a stale `wineserver` pins a bad environment | started `wineserver` with and without the DYLD var, then launched a wine GUI process each way — no difference (but see the ⚠ below: that probe turned out to be blind) |
 | `$HOME/lib` shadowing / fallback | `$HOME/lib` is **not** a dyld fallback on this macOS; the only default is `/usr/lib`, and none of the three libs is in any default fallback dir |
 | the shim sanitises the environment | the failure reproduces on plain no-shim launches (`exp_7b9920`) |
 

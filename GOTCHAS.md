@@ -8,6 +8,22 @@
 > `VK_ERROR_DEVICE_LOST` are **historical** unless they also mention D3DMetal.
 > Current setup: [`../README.md`](README.md) · Patch detail: [`docs/patch-inventory.md`](docs/patch-inventory.md)
 
+> **Every section has been audited against the 2026-08-30 library audit — so a section with no
+> `Ledger:` banner is "audited, unaffected", NOT "not yet looked at".** All 60 were classified;
+> 24 carry a banner. If you add a section, classify it, and re-run `python3 scripts/check-experiments.py`.
+>
+> The audit found three confounds in the Steam-UI cells, and they bite different claims:
+>
+> | confound | what it breaks | what it does NOT break |
+> |---|---|---|
+> | **no font library** — wine could not resolve `libfreetype.dylib`, printed one line, continued with no font backend | any claim about **text / glyphs** | black-vs-rendered judgments; a missing font backend draws art, it does not blank a window |
+> | **shim in the wrong `cef` dir** — installed in `cef.win7x64`, Steam runs `cef.win64` | any claim about **injected switches** (`--shim-args`) | cells that injected nothing |
+> | **unfiltered `ps` / window capture** — another wrapper's Steam could supply the window | any **PASS** read off a window capture alone | a claim corroborated by a counter that only our patched engine emits |
+>
+> So the load-bearing distinction throughout this file is **"did it render at all?" (mostly survives)**
+> versus **"did it render text?" (mostly void)**. Source-derived and standalone-PE results
+> (C3, the `dxgiprobe` work) are untouched by all three. Full register: [`../EXPERIMENTS.md`](EXPERIMENTS.md)
+
 
 Hard-won traps from getting Cities: Skylines II running for free on macOS 26 / M3 Max.
 Context: the wider community says this is impossible (see REFERENCES.md) — so these are mostly undocumented.
@@ -812,6 +828,12 @@ build on `grep -c 'exit_code=-1073740791' cef_log.txt` — machine-readable, no 
 
 ## Embedded Chromium NEVER rendered on stock Wine here — the PK vendor patchset is the enabler (2026-08-24 PM-2)
 
+> **Ledger: `PARTIAL`.** Evidence **not retained** (predates the store). The *measurements* — stock
+> 11.0/11.15/11.16 blank, PK rendered, transplants blank — are blank-vs-rendered judgments and are
+> font-independent, so they survive. The *attribution* does not: "the PK patchset is the enabler" was
+> superseded by the cross-process CHILD-window root cause (C3), which explains the same results
+> without any vendor-patchset magic. Keep the table, drop the conclusion.
+
 The afternoon's controlled program (three stock builds + env probes + patch test + module
 transplants; driver `~/cs2-patch/bisect/`, results ledger `/tmp/bisect/results.log` while it
 lives) settles the causal chain and **supersedes the version-regression attribution above**:
@@ -865,6 +887,11 @@ visual work until the user unlocks).
 
 ## Mechanism CONFIRMED by elimination (2026-08-24 evening): cross-process PRESENTATION is the wall; PK wins only via its GPU path
 
+> **Ledger: `PARTIAL`.** Evidence **not retained**. "Cross-process presentation is the wall" was
+> right and is now pinned precisely — cross-process **CHILD** windows, C3 — but "CONFIRMED by
+> elimination" overstates what these cells could show: they were black-vs-white captures with no
+> prefix filtering. The direction held; treat the certainty as borrowed from C3, not earned here.
+
 Final round of measured cells (post-unlock), which corrects the "mechanism model" line in the
 previous section — the model said PK carries generic cross-process surface support; it does not:
 
@@ -897,6 +924,10 @@ dxmt#141 lacks; comment pending James's go-ahead.
 
 ## ⚠ PARTIAL — see the correction section below: the shim fixes RENDERING but NOT TEXT.
 ## Steam's visible UI CAN render on stock Wine + DXMT — the webhelper shim (2026-08-24 evening)
+
+> **Ledger: `PARTIAL`.** The **rendering** half stands (a 9,659 B black window became 80,714 B of
+> real UI — font-independent). The **"but not text"** half is void: this engine could not load
+> `libfreetype.dylib` in any Steam cell, so no run of it could ever have shown a glyph. See C4.
 
 Reverses the "no way to get Steam working on 11.16" conclusion. **Measured working in a
 sandbox prefix: the Steam login window rendered fully** (logo, fields, QR) on the self-built
@@ -943,6 +974,16 @@ for long-session stability before calling it the project default.
 
 ## The webhelper shim renders everything EXCEPT text — `--in-process-gpu` is what kills glyphs (2026-08-24 late)
 
+> **Ledger: `VOID` (C4).** Both halves fail, for different reasons. The self-built-engine half is
+> explained without invoking any GPU mode: that engine resolved no font library under Steam, so
+> "not one glyph" was guaranteed. The **PK** half looks like a clean control — PK resolves FreeType
+> — but the 2026-08-24 PK-with-shim run **predates the evidence store and is not retained**, and the
+> only indexed PK cell (`exp_8d065a`) had *no shim in that prefix*, so `--shim-args` never applied
+> (C7). There is therefore no surviving measurement of PK **with** in-process GPU.
+> ⚠ So "in-process GPU breaks glyphs" is currently supported by **nothing** measured under a
+> recorded config — including the inline 2026-08-30 correction below, which rests on the same
+> mislabeled cell. Re-run it before repeating it anywhere.
+
 Correction to the section above, which called the shim a fix on the strength of a login window
 that had rendered *images and layout*. It had **no text either** — the blank blue button should
 have been the tell. With the shim, Steam draws artwork, thumbnails, gradients, icons and chrome
@@ -983,6 +1024,10 @@ split (play on `CS2dxmt11`, Steam UI on `CS2dxmt11-pk110`) stands as the practic
 restored with exit 42.
 
 ## Taking DXMT out of Steam's path entirely does NOT fix it — the vanilla-wined3d split, measured (2026-08-28)
+
+> **Ledger: `RETRACTED`.** Evidence **not retained**. Superseded two sections down: the split never
+> gave Steam a *working* D3D11 at all, so this cell measured a broken configuration and read the
+> result as a property of the split. The build notes stay useful; the verdict does not.
 
 The last untried route from [mikey92's dxmt#141
 comment](https://github.com/3Shain/dxmt/issues/141#issuecomment-5448572368) and
@@ -1112,6 +1157,12 @@ renders Steam's text fine. Do not treat i386-vanilla as the explanation.
 
 ## The vanilla-wined3d split is strictly WORSE than DXMT for Steam's CEF — and the trap that nearly voided the test (2026-08-29)
 
+> **Ledger: `VOID`.** Evidence: `exp_a886cb`, `exp_7ae4c7`, `exp_0dbb6c`, `exp_cc3bb9`, `exp_154886`
+> — every cell ran with no font library, and the `--shim-args` cells were shimmed in `cef.win7x64`
+> while Steam runs `cef.win64`, so the injected switches never reached CEF. Neither side of the
+> comparison was the configuration it is labelled with. The **DllOverrides-keyed-on-exe-name trap**
+> documented here is a real, re-verifiable mechanism and is worth keeping.
+
 [mikey92 on dxmt#141](https://github.com/3Shain/dxmt/issues/141) pointed out a real hole in the
 2026-08-28 matrix: the split had only ever been run with **default out-of-process CEF**, and the
 `--disable-gpu --single-process` pair had only ever been run on a **DXMT** client. The cell they
@@ -1191,6 +1242,10 @@ and the game path re-checked with the now-working `--verify` — `winemetal.dll 
 `DXGI.DLL builtin`, `d3d11.dll builtin`.
 
 ## ⚠ The split never gave Steam a WORKING D3D11 — a load is not an implementation (2026-08-29)
+
+> **Ledger: `SUPPORTED`.** Unaffected by the 2026-08-30 audit: this is a `dxgiprobe` result, and a
+> standalone PE resolves its libraries normally (the same property that invalidated C5/C6 as
+> *eliminations* makes it sound here — the question asked is about D3D11, not fonts).
 
 **This corrects the 2026-08-28 conclusion two sections up, and the comment posted from it.** Asked
 whether anything else was worth testing before replying to mikey92, the answer turned out to be
@@ -1490,6 +1545,10 @@ force-GPU switch join `d3d11`/`gl`/`vulkan`/`swiftshader` on the eliminated list
 
 ## ✅ notpop's fork BUILT and TESTED — it does not fix the Steam client, and that restores dxmt#141 (2026-08-29)
 
+> **Ledger: `PARTIAL`.** Evidence: `exp_454e00`, `exp_56dbae`, `exp_3206bc` — all ran with no font
+> library. "Still black" is a font-independent judgment and survives; anything this section implies
+> about **text** does not. The build recipe (Metal Toolchain gate) is unaffected.
+
 Both halves of the third mechanism were built and run end to end. The result is decisive and it
 points back at the issue itself.
 
@@ -1605,6 +1664,9 @@ winemac/win32u/wineserver).
 
 ## Cross-process, all the way down: wine's own branch is OFFSCREEN, and that is the real wall (2026-08-29)
 
+> **Ledger: `SUPPORTED` (C3).** Derived from reading wine's source, not from a render cell —
+> unaffected by the library audit. Corrected in-thread by the next section, not by the audit.
+
 Pulling the thread past the DXMT guard produced the complete chain. Four refusals stack, and
 removing them one at a time gets a *Metal view* for a foreign HWND — but never a *pixel* in the
 foreign window.
@@ -1669,6 +1731,9 @@ surface when there is no `win_data` to own it. Diagnostic build only.
 
 ## The cross-process compositing already EXISTS — DXMT just can't reach it (2026-08-29)
 
+> **Ledger: `SUPPORTED` (C3).** Source-derived (the CAContext route is read out of our own patched
+> winemac), so no render cell is load-bearing here.
+
 The previous section concluded the wall was "no cross-process compositing." **That was wrong, and
 the correction is the most actionable thing in this whole thread.** The machinery is written,
 shipping, and in use — DXMT is simply not given access to it.
@@ -1721,6 +1786,10 @@ such:** a Vulkan app should already be able to present into a foreign HWND on th
 measuring before relying on any of the above.
 
 ## 🎯 FINAL: the blocker is cross-process CHILD windows, and it is a one-line FIXME in wine (2026-08-29)
+
+> **Ledger: `SUPPORTED` (C3).** The four-refusal chain is source-derived and each removal was
+> observed in our own engine's logs — font-independent. Confirmed downstream by the patch that
+> renders.
 
 Wiring DXMT to wine's existing CAContext route located the bottom of the whole thread. Four
 refusals, each removed in turn, each handing off to the next:
@@ -1806,6 +1875,12 @@ forked DXMT + `dxmt_acquire_remote_layer` + child path). Log into Steam in it on
 `cross-process CHILD hwnd … -> hosting remote layer on root`.
 
 ## ✅ IT RENDERS — the cross-process CHILD patch fixes Steam's black client (2026-08-29)
+
+> **Ledger: `SUPPORTED` (C3).** The capture predates prefix-filtering, so the window PNG alone would
+> be open to the foreign-Steam false PASS (trap 6) — but the **44 `cross-process CHILD hwnd → root`
+> firings** come from a counter that exists only in our patched engine, which no other wrapper's
+> Steam could produce. That is what makes this one safe. Rendering only: this cell says nothing
+> about text.
 
 **The wine patch works.** Steam's storefront composites into the window for the first time in this
 investigation, in the *stock* configuration that has been uniformly black throughout.
