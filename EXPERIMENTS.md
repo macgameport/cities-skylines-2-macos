@@ -146,6 +146,22 @@ line, or a heading in `GOTCHAS.md` / `docs/steam-ui-investigation.md`.** Several
 deliberately left alone so the history stays greppable and the retraction stays visible next to the
 claim it retracts.
 
+## Network is part of the config (added 2026-08-30)
+
+**A Steam that cannot reach the network renders an empty/offline client, and in a window capture
+that is indistinguishable from the presentation failure this harness exists to measure.** VPN flaps
+are a recurring event on this machine, so `cell-fingerprint.sh` now records `network` and
+`vpn_interfaces` in every `config.json`, and **refuses the cell outright** if the network is down.
+
+It also explains a hang misdiagnosed the same day: a `steam.exe -shutdown` that blocked past three
+minutes was blamed on wine being slow to spawn the helper process. Steam's shutdown does network
+work — logging off, flushing state — so a flapping tunnel stalls it. The instrument now records the
+thing that would have told us.
+
+⚠ Today's load-bearing cells are **not** affected: `exp_d7dd0d` rendered the live storefront with
+real content (game titles, review counts), which an offline client cannot produce. That was luck
+rather than instrumentation, which is the whole reason for this entry.
+
 ## The rule: three columns, never fused
 
 | column | what it is | when it changes |

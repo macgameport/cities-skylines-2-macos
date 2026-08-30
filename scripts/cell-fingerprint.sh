@@ -91,6 +91,24 @@ if [ -n "$PROBE" ]; then
   done <<< "$(printf '%s\n' "$RES" | grep -E '^(OK|FAIL)	')"
 fi
 
+# ---------------------------------------------------------------- P4b: network reachability
+# A Steam that cannot reach the network renders an empty/offline client, which in a window capture
+# is INDISTINGUISHABLE from the presentation bug this harness exists to measure. VPN flaps are a
+# recurring event on this machine, so the state gets recorded rather than assumed.
+NET="unknown"; VPNIF=""
+if ping -c1 -t2 api.steampowered.com >/dev/null 2>&1; then NET="up"; else
+  ping -c1 -t2 1.1.1.1 >/dev/null 2>&1 && NET="dns-or-steam-unreachable" || NET="down"
+fi
+for i in $(ifconfig 2>/dev/null | grep -oE '^(utun|ipsec|ppp)[0-9]*' ); do
+  ifconfig "$i" 2>/dev/null | grep -q 'inet ' && VPNIF="$VPNIF $i"
+done
+VPNIF="${VPNIF# }"; [ -n "$VPNIF" ] || VPNIF="none"
+case "$NET" in
+  up)   ok   "network: steam reachable (vpn ifaces: $VPNIF)" ;;
+  down) fatal "network DOWN — a Steam that cannot connect renders an empty client and will read as a presentation failure" ;;
+  *)    warn "network: steam API unreachable but internet is up (vpn ifaces: $VPNIF) — an offline Steam confounds the capture" ;;
+esac
+
 # ---------------------------------------------------------------- P5: shim placement
 CEF_JSON=""; SHIM_SUMMARY="none"
 if [ -d "$S/bin/cef" ]; then
@@ -171,6 +189,8 @@ $(printf '%s' "$LIBS_JSON" | sed '$ s/,$//')
   "cef_dirs": {
 $(printf '%s' "$CEF_JSON" | sed '$ s/,$//')
   },
+  "network": "$NET",
+  "vpn_interfaces": "$VPNIF",
   "foreign_steam_processes": $FOREIGN,
   "os": "$(sw_vers -productVersion 2>/dev/null)",
   "hw": "$(sysctl -n machdep.cpu.brand_string 2>/dev/null)",
