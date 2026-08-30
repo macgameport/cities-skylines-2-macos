@@ -29,9 +29,27 @@ compositing or macOS was ever wrong.** A week of eliminations chased an artifact
 apparatus. The daily launcher was never affected — it execs wine directly — which is exactly why the
 *game* had fonts the whole time and only *cells* did not.
 
-**Durable fix (not yet built):** rebuild the engine's unix `.so` set with
-`-Wl,-rpath,@loader_path/../../` so `win32u` resolves its own libraries the way PK's does and no
-launch path can strip it again. Belongs in `docs/plans/build-wine1116-dxmt-engine.md`.
+**✅ Durable fix APPLIED 2026-08-30 — and it needed no rebuild.** `install_name_tool -add_rpath
+"@loader_path/../../"` on the four modules that dlopen a bare soname (`win32u`, `dwrite`, `crypt32`,
+`secur32`), then `codesign -f -s -` because add_rpath invalidates the ad-hoc signature. The engine
+now resolves its own libraries the way PK's does.
+
+| test | before | after |
+|---|---|---|
+| `wine notepad`, **no DYLD var at all** | 7 FreeType failures | **0** |
+| Steam via **`nohup` AND no DYLD** — the exact broken combination | 63 failures, no glyph coverage | **0 failures, `GLYPHS RASTERISE` in-tree** |
+| game boot | — | `MainMenu reached`, log timestamp postdating the change |
+
+**Two premises checked rather than assumed, because both could have sunk this:**
+- **PK really is immune** — measured directly this time (`wine notepad`, PK, no DYLD → **0**
+  failures). The earlier claim was inferred from the rpath difference alone and had never been run.
+- **A bare-soname `dlopen` really does consult `LC_RPATH`.** dyld only uses rpath for `@rpath/…`
+  load commands, so this was genuinely in doubt. Verified with a purpose-built x86_64 probe
+  carrying a baked-in rpath: it resolves `libfreetype.dylib` with every DYLD var unset.
+
+Made durable in `scripts/build-engine-1116.sh` (step 8) so a rebuild does not silently lose it.
+⚠ That step was appended using `$ENGINE`, which **does not exist** in that script — it would have
+skipped every module in silence. Corrected to `$E` and dry-run against the real tree.
 
 ### ⛔ BLOCKED: winemac's CHILD patch alone does nothing — the chain starts in DXMT (2026-08-30)
 
