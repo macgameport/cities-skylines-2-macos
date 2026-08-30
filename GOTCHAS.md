@@ -1711,6 +1711,54 @@ Wine's Vulkan path is the existence proof that the route works. ⚠ **Untested p
 such:** a Vulkan app should already be able to present into a foreign HWND on this engine. Worth
 measuring before relying on any of the above.
 
+## 🎯 FINAL: the blocker is cross-process CHILD windows, and it is a one-line FIXME in wine (2026-08-29)
+
+Wiring DXMT to wine's existing CAContext route located the bottom of the whole thread. Four
+refusals, each removed in turn, each handing off to the next:
+
+| # | refusal | where | removed by |
+|---|---|---|---|
+| 1 | `cross-process swapchain not supported yet` (returns before trying) | DXMT `d3d11_swapchain.cpp:1102` | `scripts/dxmt-force-crossprocess.patch` |
+| 2 | `macdrv_get_cocoa_window` NULL — `win_datas` is process-local | winemac `window.c:223` | new ABI entry (below) |
+| 3 | `my_get_win_data` refuses a foreign HWND | winemac `macdrv_main.c` | `scripts/winemac-foreign-hwnd.patch` |
+| 4 | **`Cross-process child window Metal swapchains are not implemented`** | winemac `window.c:1176` | **nothing — this is the wall** |
+
+**The new ABI entry works.** `macdrv_functions_t` gained
+`dxmt_acquire_remote_layer(HWND, macdrv_view*)` (sizeof 80 → **88**; both trees rebuilt in lockstep),
+DXMT's `_CreateMetalViewFromHWND` calls it when `macdrv_get_cocoa_window` returns NULL, and the
+measurement shows the route is live: **guard forced 6×, REMOTE path taken 6×** in one launch.
+
+**And then wine says no, precisely:**
+
+```
+fixme:macdrv:macdrv_client_surface_acquire_metal_swapchain
+    Cross-process child window Metal swapchains are not implemented
+```
+
+**6 occurrences, matching the 6 attempts.** The branch is
+`if (NtUserGetAncestor(hwnd, GA_ROOT) != hwnd) return FALSE;` — wine's cross-process CAContext route
+is implemented **only for root windows**, and Steam's CEF presents into a **child** HWND.
+
+**So the entire investigation reduces to one sentence:** *Steam's CEF renders to a cross-process
+**child** window, and winemac implements cross-process Metal swapchains only for **root** windows.*
+
+Everything else now follows without hand-waving — games work (same-process); notpop's fork fixes the
+same-process view path (its evidence is a game); the vanilla-wined3d split sidesteps DXMT entirely
+(and is FL-9_3-capped here); and no DXMT-side change can help, because the unimplemented case is in
+wine's macdrv.
+
+⚠ **Note the FIXME is invisible under the harness's usual logging.** `WINEDEBUG=-all` hides it, and
+even `err+all` hides it — FIXME is its own class. It needs `+macdrv`. Two earlier cells reported
+"no Cross-process child FIXME: 0" purely for that reason and were **wrong**; the correct reading
+required `WINEDEBUG=err+all,+macdrv`. Do not conclude "branch not taken" from a channel you have
+not enabled.
+
+**Fix shape, for anyone picking this up:** implement the child-window case in
+`macdrv_client_surface_acquire_metal_swapchain` — the root-window path already builds a
+`CAContextSwapChain` and posts `WM_MACDRV_CREATE_REMOTE_LAYER` to the owner, which hosts it via
+`CALayerHost`. A child window additionally needs its rect mapped into the owner's coordinate space
+and the hosted layer positioned/clipped there. **That is a wine patch, not a DXMT patch.**
+
 ## `du` lies about disk on APFS: the two wrappers' 91 GB game installs were CLONES (2026-08-24)
 
 Both wrappers reported a 91 GB `Cities Skylines II` install, so deleting the redundant one in

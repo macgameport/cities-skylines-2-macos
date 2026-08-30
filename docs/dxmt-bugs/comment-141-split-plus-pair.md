@@ -249,7 +249,39 @@ because of that), the patch leaks the client surface since there's no `win_data`
 same run logs some MoltenVK/gnutls load failures I have **not** controlled for and am not
 attributing to the patch.
 
-**So, having chased all three routes to the end: this issue is the fix.** The vanilla-wined3d split
+**11. And wiring that up found the bottom.** I added
+`dxmt_acquire_remote_layer(HWND, macdrv_view*)` to `macdrv_functions_t` (sizeof 80 → 88, both trees
+rebuilt in lockstep) and had `_CreateMetalViewFromHWND` call it whenever `macdrv_get_cocoa_window`
+returns NULL. The route goes live — guard forced 6×, remote path taken 6× in one launch — and then
+wine answers, precisely:
+
+```
+fixme:macdrv:macdrv_client_surface_acquire_metal_swapchain
+    Cross-process child window Metal swapchains are not implemented
+```
+
+Six occurrences, matching the six attempts. The branch is
+`if (NtUserGetAncestor(hwnd, GA_ROOT) != hwnd) return FALSE;` — **wine's cross-process CAContext
+route is implemented only for root windows, and Steam's CEF presents into a child HWND.**
+
+So the whole thing reduces to one sentence: *Steam's CEF renders to a cross-process **child**
+window, and winemac implements cross-process Metal swapchains only for **root** windows.* Which
+also explains, without hand-waving, everything else in this comment — games work because they're
+same-process; notpop's fork fixes the same-process view path, hence a game as its evidence; the
+vanilla-wined3d split sidesteps DXMT entirely.
+
+**Which means, respectfully, that #141 may not be actionable on the DXMT side at all.** The
+unimplemented case is in winemac's `macdrv_client_surface_acquire_metal_swapchain`. The root-window
+path there already builds a `CAContextSwapChain` and posts `WM_MACDRV_CREATE_REMOTE_LAYER` to the
+owning process, which hosts it via `CALayerHost`; a child window additionally needs its rect mapped
+into the owner's coordinate space and the hosted layer positioned and clipped there. That's a wine
+patch. I'm happy to attempt it and report back if that's useful.
+
+(One trap for anyone reproducing: that FIXME is invisible under `WINEDEBUG=-all` *and* under
+`err+all` — FIXME is its own class. Two of my earlier cells read "0 occurrences" purely for that
+reason. You need `+macdrv`.)
+
+**So, having chased every route to the end: this issue is the fix — but the fix lives in wine.** The vanilla-wined3d split
 is capped at FL 9_3 here; notpop's visibility + fork route fixes games, not the client; and the only
 thing left standing between Steam's CEF and a rendered window on DXMT is cross-process swapchain
 support — which is what #141 has said from the start. I'd rather report that than another
