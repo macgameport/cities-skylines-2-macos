@@ -1415,7 +1415,61 @@ freshly-cloned wrapper means "not finished starting" until a longer wait says ot
 **every** Steam cell including the one that renders (17 occurrences in the successful
 `--single-process` run, 59 in others). It is pre-existing noise, not a symptom — do not chase it.
 
-**HALF 2 status: NOT attempted — toolchain absent.** Measured 2026-08-29: **`meson`, `ninja`, `llvm-config` and `cmake` are all
+**HALF 2 ATTEMPTED — it gets all the way to the Metal shader compiler and stops there.**
+`scripts/build-dxmt-fork.sh` captures the whole verified recipe. What was learned:
+
+- ⚠ **Do NOT build LLVM from source.** notpop's own script compiles `llvmorg-15.0.7` (~1 h). It is
+  unnecessary: the fork's meson default `native_llvm_path` is already **`/usr/local/opt/llvm@15`**,
+  i.e. the **Intel**-Homebrew prefix, because airconv links LLVM as a macOS **x86_64** static lib to
+  match our x86_64 wine. An Intel Homebrew already exists on this machine, so
+  `arch -x86_64 /usr/local/bin/brew install llvm@15 zstd` drops a bottle at exactly that path with
+  `libLLVMCore.a` present — **minutes instead of an hour**. (The arm64 `/opt/homebrew` `llvm@15` is
+  the wrong arch and will not do.)
+- **meson configures cleanly against our own engine**: `-Dwine_install_path=…/engine-1116` resolves
+  `winecrt0`, `ntdll`, `dbghelp` and `bin/winebuild`. 16 targets, no complaints.
+- **A real portability bug in the fork, found and fixed here:** `src/util/com/com_guid.cpp` uses
+  `std::setfill`/`std::setw` without `#include <iomanip>`. Older GCC pulled it in transitively; our
+  mingw-w64 does not. One line — kept as `scripts/dxmt-fork-iomanip.patch`, and worth sending to
+  notpop. With it applied the **entire C++ side builds clean**.
+- 🚧 **The remaining blocker is FULL XCODE, and only that.** The build compiles Metal shaders with
+  `xcrun -sdk macosx metal`, which ships with Xcode.app and is **not** in the Command Line Tools
+  (this machine has CLT only: `xcode-select -p` → `/Library/Developer/CommandLineTools`). Measured:
+  of 7 remaining `FAILED` lines, **7 are `unable to find utility "metal"` and 0 are anything else**.
+  Fix is the user's: install Xcode from the App Store, then
+  `sudo xcode-select -s /Applications/Xcode.app/Contents/Developer` (and
+  `xcodebuild -downloadComponent MetalToolchain` if `xcrun -f metal` still fails). Neither is
+  runnable unattended.
+
+⚠ **`meson compile … | tail` reported the failing build as exit 0** and it was briefly read as a
+success. Same class as the `<cmd> | tail` trap in the engineering rules — **capture to a log and
+read the real `$?`**. `build-dxmt-fork.sh` does that.
+
+**What the fork's commit message says — the best statement of this bug that exists anywhere**, and
+it is worth quoting to dxmt#141 whether or not we ever build it. Two stacked root causes, both with
+file:line:
+1. `struct macdrv_win_data` is the wrong place to read the NSView: **Wine 11 renamed the field to
+   `client_view` and only populates it in the GDI present path**
+   (`dlls/winemac.drv/window.c:1131-1135`, `macdrv_client_surface_present()`). At `IDXGISwapChain`
+   creation time it is **always NULL**, so the old code handed `macdrv_view_create_metal_view` a
+   NULL view and returned silently empty.
+2. `macdrv_view_create_metal_view` / `_get_metal_layer` / `_release_metal_view`
+   (`cocoa_window.m:3941/3954/3966`) **already dispatch through `OnMainThread(^{…})`**. Wrapping
+   them in another `OnMainThread` in the unixlib is nested main-thread dispatch — and `OnMainThread`
+   (`cocoa_event.m:489`) is `OnMainThreadAsync` + wait, so **the outer wait deadlocks against the
+   inner block**.
+
+The rewrite reaches the NSView via the stable public `macdrv_get_cocoa_window(HWND, BOOL)` plus
+`[NSWindow contentView]`, dispatches only the contentView lookup, and calls the Metal helpers
+directly from the NtUser caller thread so their internal main-thread hops are not re-entered.
+
+⚠ **Read their verification claim precisely: it is a GAME, not the Steam client.** *"Verified on
+Apple Silicon M1 + macOS Tahoe 26.4 + Wine 11.0 rebuilt with `-fvisibility=default`, running the
+32-bit Unity 6000 game 幻獣大農場 (Steam AppID 3659410): Present1 returns hr=0x0 every frame."*
+So the fork is evidenced for **game** presentation. Whether it also fixes the **CEF client** is not
+claimed there — which is exactly the question to put to mikey92, since their Steam UI may be riding
+on the `--disable-gpu --single-process` wrapper rather than on this patch.
+
+ Measured 2026-08-29: **`meson`, `ninja`, `llvm-config` and `cmake` are all
 missing** on this machine (only Apple clang + git). notpop's `07-build-dxmt-fork.sh` needs meson
 with `-Dnative_llvm_path` and two cross-files, built twice (64- and 32-bit). **`notpop/dxmt` also
 publishes NO releases**, so there is no prebuilt fork to drop in — it must be compiled. Every DXMT
