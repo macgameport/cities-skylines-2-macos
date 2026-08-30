@@ -56,6 +56,7 @@ authorship on purpose, and the already-posted dxmt#141 comments stay under `jvsp
 |---|---|---|
 | git commits | `includeIf gitdir:~/Documents/github/cs2/` → `~/.gitconfig-cs2` | this project commits as `iosoceans <iosoceans@pm.me>`; everything else stays `jvspearman`. Survives a fresh clone. |
 | `gh` CLI | separate config dir `~/.config/gh-cs2` | keeps `~/.config/gh` (jvspearman) untouched |
+| git push/fetch | `credential.https://github.com.helper` in `~/.gitconfig-cs2` → `gh auth git-credential` with the project config dir | **pushes** as `iosoceans` too, not just commit authorship. Without it git uses the default keychain credential and pushes to this PUBLIC repo appear in the personal account's activity feed. Other repos keep `osxkeychain`. |
 | interactive shell | `gh()` wrapper in `~/.zshrc` | any `gh` run from inside the project tree uses the project config dir automatically |
 
 ⚠ **Agents: the zsh wrapper does NOT apply to you.** Claude's Bash tool runs **bash** and does not
