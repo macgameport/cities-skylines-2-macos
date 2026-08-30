@@ -39,6 +39,11 @@ qr*.png
 dumps/
 Player.log
 *.log
+# Steam writes its own logs into the CWD, and the cell harness runs Steam with the repo as CWD,
+# so logs/webhelper.txt appears here after any render cell. Runtime artifact, never project
+# content — it was committed once by accident (4ec10b6, clean of personal info) and untracked.
+logs/
+
 prefix/
 Bottles/
 
