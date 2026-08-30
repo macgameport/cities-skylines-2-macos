@@ -77,7 +77,7 @@ Each row: what we believe, what it rests on, and what would overturn it. **Audit
 | C8 | macOS is not the variable; wine-stable 11.0 renders where our 11.16 does not | `RETRACTED` | `exp_fb79d9` vs `exp_53a8e6` | Not a controlled comparison: one side had the shim and a working font backend, the other had neither. Retracted 2026-08-30, same day it was committed. |
 | C9 | DXMT beats vanilla wined3d at every cell (wined3d gets FL 9_3 only) | `UNREVIEWED` | `scripts/dxgiprobe.c`, the `vanilla-*` cells | The feature-level measurement comes from a standalone probe and is font-independent, so it plausibly survives — but it has **not** been re-audited against the config rules. Do not cite as settled. |
 | C10 | Our self-built 11.16 loses FreeType/gnutls/MoltenVK **under Steam** while PK 11.0 does not | `SUPPORTED` | `exp_7b9920` (61 FT) vs `exp_8d065a` (0), same script; `exp_54cc10`/`exp_a96ecc` (61/59 FT) — **void-ok:** the library failure *is* the measurement here, not a defect in it | Both plain no-shim launches, so the shim asymmetry does not explain it. Standalone PEs resolve fine on both engines (32- and 64-bit, fresh prefix and real prefix, identical metrics). **This is the open lead.** |
-| C11 | The FreeType failure removes **GDI** fonts but **not DirectWrite** — so it does not, on its own, explain Chromium's missing glyphs | `PARTIAL` | `exp_95fb82` — first probe ever run *inside* Steam's process tree (the shim, `SHIM_FONTPROBE`) — **void-ok:** the library failure is the condition being measured, not a defect in the measurement | Measured in-tree: **GDI 0 families, DirectWrite 204, `hr=S_OK`**, in a cell logging 63 FreeType failures and showing a black window. Shell control on the same engine: GDI **924** with `DYLD_FALLBACK` set, **0** without; DirectWrite **204** either way. ⚠ A family *count* is not proof of rasterisation — nothing yet draws a glyph and checks pixels. That probe is the next step, and it is what would settle C4. |
+| C11 | Without FreeType, DirectWrite **enumerates 204 families but rasterises nothing** — so the font failure IS sufficient to explain zero glyphs, and the family count is a decoy | `SUPPORTED` | `exp_4b9824`, `exp_95fb82` (in Steam's tree, via the shim) + shell A/B on the same engine — **void-ok:** the library failure is the condition under measurement, not a defect in it | **In-tree: DWrite 204 families, `hr=S_OK`, glyph run `ABC@32` → bounds `0x0`, nonzero `0`, sum `0`.** Shell control, same engine, same probe: with `DYLD_FALLBACK` set → `71x23`, nonzero `545`, sum `138975`; without → `0x0`, `0`, `0`. Only rasterisation moves; the family count is **204 either way**. The 545/138975 figures reproduce `dwritetest.c`'s recorded ALIASED numbers exactly, which independently validates the port. Overturned by: a cell where in-tree rasterisation is non-zero and text is still missing. |
 
 ### Open lead (C10) — why does our engine lose FreeType *only* under Steam?
 
@@ -104,23 +104,27 @@ Both cells are the first ever recorded with a full `config.json`, and both confi
 works: `steamwebhelper.exe` spawns `steamwebhelper_real.exe` children in `cef.win64`. So a
 CPU-raster cell is finally possible — that is the next real experiment, not another env tweak.
 
-### ⚠ The audit's own mechanism is now in question (2026-08-30, second pass)
+### ✅ The audit's mechanism, finally MEASURED rather than inferred (2026-08-30, second pass)
 
-This file opens by saying 41 of 43 cells "render art and no glyphs" because they had no font
-backend. **The correlation is real; the mechanism is not established, and one half of it is now
-measured false.** Chromium renders text through **DirectWrite**, and DirectWrite reports **204
-families with `S_OK` inside the failing process tree** (`exp_95fb82`). Only **GDI** collapses to 0.
+This file opens by saying 41 of 43 cells "render art and no glyphs" because they had no font backend.
+That was a **correlation** — the two clean cells were the two that showed text — and it has now been
+measured directly, inside the failing process tree, by a probe in the webhelper shim (`exp_4b9824`):
 
-So "those cells could not have shown text anyway" — the sentence the blanket `VOID` rests on — does
-not follow from the FreeType failure. What still stands, unchanged, is the *other* reason those
-cells are untrustworthy: **their configuration was never recorded**, and two of them were confounded
-by shim placement and unfiltered capture. That was always the stronger argument. Keep the retractions
-on those grounds; stop citing "no fonts" as the reason.
+| | GDI families | DWrite families | DWrite rasterises `ABC@32` |
+|---|---|---|---|
+| **inside Steam's tree** | 0 | **204**, `S_OK` | **`0x0`, nonzero 0, sum 0 — nothing** |
+| shell, same engine, DYLD set | 924 | 204 | `71x23`, nonzero **545**, sum **138975** |
+| shell, same engine, DYLD unset | 0 | 204 | `0x0`, **0**, **0** |
 
-**What would settle it:** rasterise in-tree, do not enumerate. Draw a known string through
-DirectWrite inside the shim and count non-background pixels. 204 families with a dead rasteriser and
-204 families that actually draw are indistinguishable from a count, and this thread has already paid
-once for treating a load as an implementation (§ "a load is not an implementation").
+**Chromium draws text through DirectWrite, and DirectWrite in that state cannot produce a single
+pixel of glyph coverage.** The mechanism is real and the blanket `VOID` is correct on its own terms.
+
+⚠ **This corrects a claim made earlier in this same session, and the error is instructive.** An hour
+before, only *enumeration* had been measured — 204 families, `S_OK` — and C11 was written to say the
+font failure "does not explain Chromium's missing glyphs." **That was wrong, from exactly the trap
+this thread already documents: a load is not an implementation.** 204 families with a dead rasteriser
+and 204 that actually draw are indistinguishable from a count. The rasterisation probe reverses the
+conclusion. **Never conclude from an enumeration what only a rasterisation can tell you.**
 
 **Still open.** What remains is to catch the failure in the act. The remaining hypothesis
 worth testing is that macOS strips `DYLD_*` across the exec into wine's preloader for Steam's
@@ -239,8 +243,9 @@ may belong to a different wrapper's Steam.
 | exp_54cc10 | 2026-08-30 13:24 | `dyldpath-first` | 61 | 0 | 0 | black | VOID-LIBS |
 | exp_a96ecc | 2026-08-30 13:27 | `dyld-env-probe` | 59 | 0 | 0 | black | VOID-LIBS |
 | exp_95fb82 | 2026-08-30 14:23 | `fontprobe-intree` | 63 | 0 | 0 | black | VOID-LIBS |
+| exp_4b9824 | 2026-08-30 14:28 | `raster-intree` | 63 | 0 | 0 | black | VOID-LIBS |
 
-46 cells · 44 VOID-LIBS · 2 candidate
+47 cells · 45 VOID-LIBS · 2 candidate
 ---
 
 ## Running a cell (the procedure this ledger assumes)

@@ -76,18 +76,71 @@ static void font_probe(void)
     ReleaseDC(NULL, dc);
 
     UINT32 dw = 0; HRESULT hr;
+    int ras_w = 0, ras_h = 0; UINT32 ras_nz = 0; unsigned long ras_sum = 0;
     IDWriteFactory *f = NULL;
     hr = DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED, &IID_IDWriteFactory, (IUnknown **)&f);
     if (SUCCEEDED(hr) && f) {
         IDWriteFontCollection *c = NULL;
         if (SUCCEEDED(IDWriteFactory_GetSystemFontCollection(f, &c, TRUE)) && c) {
             dw = IDWriteFontCollection_GetFontFamilyCount(c);
+            /* Enumeration is not rasterisation. 204 families with a dead rasteriser and 204 that
+               actually draw are indistinguishable from a count, and this thread has already paid
+               once for reading a load as an implementation. So rasterise "ABC" and sum the alpha
+               coverage — nonzero here means glyphs CAN be drawn and the fault is higher up. */
+            UINT32 idx0 = 0; BOOL ex = FALSE;
+            IDWriteFontCollection_FindFamilyName(c, L"Arial", &idx0, &ex);
+            if (!ex) idx0 = 0;
+            IDWriteFontFamily *fam = NULL;
+            if (dw && SUCCEEDED(IDWriteFontCollection_GetFontFamily(c, idx0, &fam)) && fam) {
+                IDWriteFont *fo = NULL;
+                if (SUCCEEDED(IDWriteFontFamily_GetFirstMatchingFont(fam, DWRITE_FONT_WEIGHT_NORMAL,
+                        DWRITE_FONT_STRETCH_NORMAL, DWRITE_FONT_STYLE_NORMAL, &fo)) && fo) {
+                    IDWriteFontFace *face = NULL;
+                    if (SUCCEEDED(IDWriteFont_CreateFontFace(fo, &face)) && face) {
+                        UINT32 cps[3] = { 'A', 'B', 'C' }; UINT16 gi[3] = {0};
+                        FLOAT adv[3] = {24.0f,24.0f,24.0f}; DWRITE_GLYPH_OFFSET go[3] = {{0,0},{0,0},{0,0}};
+                        if (SUCCEEDED(IDWriteFontFace_GetGlyphIndices(face, cps, 3, gi))) {
+                            DWRITE_GLYPH_RUN run; ZeroMemory(&run, sizeof(run));
+                            run.fontFace = face; run.fontEmSize = 32.0f; run.glyphCount = 3;
+                            run.glyphIndices = gi; run.glyphAdvances = adv; run.glyphOffsets = go;
+                            IDWriteGlyphRunAnalysis *an = NULL;
+                            if (SUCCEEDED(IDWriteFactory_CreateGlyphRunAnalysis(f, &run, 1.0f, NULL,
+                                    DWRITE_RENDERING_MODE_ALIASED, DWRITE_MEASURING_MODE_NATURAL,
+                                    0.0f, 0.0f, &an)) && an) {
+                                RECT r = {0,0,0,0};
+                                if (SUCCEEDED(IDWriteGlyphRunAnalysis_GetAlphaTextureBounds(an,
+                                        DWRITE_TEXTURE_ALIASED_1x1, &r))) {
+                                    ras_w = r.right - r.left; ras_h = r.bottom - r.top;
+                                    if (ras_w > 0 && ras_h > 0) {
+                                        UINT32 sz = (UINT32)(ras_w * ras_h);
+                                        BYTE *b = (BYTE *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sz);
+                                        if (b) {
+                                            if (SUCCEEDED(IDWriteGlyphRunAnalysis_CreateAlphaTexture(an,
+                                                    DWRITE_TEXTURE_ALIASED_1x1, &r, b, sz))) {
+                                                UINT32 i; for (i = 0; i < sz; i++)
+                                                    { ras_sum += b[i]; if (b[i]) ras_nz++; }
+                                            }
+                                            HeapFree(GetProcessHeap(), 0, b);
+                                        }
+                                    }
+                                }
+                                IDWriteGlyphRunAnalysis_Release(an);
+                            }
+                        }
+                        IDWriteFontFace_Release(face);
+                    }
+                    IDWriteFont_Release(fo);
+                }
+                IDWriteFontFamily_Release(fam);
+            }
             IDWriteFontCollection_Release(c);
         } else hr = E_FAIL;
         IDWriteFactory_Release(f);
     }
-    wsprintfA(buf, "[fontprobe] pid=%lu GDI=%d DWrite=%u hr=0x%08lx  (DWrite 0 => Chromium draws no text)\n",
-              (unsigned long)GetCurrentProcessId(), gdi, dw, (unsigned long)hr);
+    wsprintfA(buf, "[fontprobe] pid=%lu GDI=%d DWrite=%u hr=0x%08lx  raster ABC@32 %dx%d nonzero=%u sum=%lu  %s\n",
+              (unsigned long)GetCurrentProcessId(), gdi, dw, (unsigned long)hr,
+              ras_w, ras_h, ras_nz, ras_sum,
+              ras_sum ? "GLYPHS RASTERISE" : "*** NO GLYPH COVERAGE ***");
     log_line(buf);
 }
 
