@@ -117,6 +117,12 @@ n=0; for p in $(pgrep -f "[-]-type=gpu-process" 2>/dev/null); do _owns "$p" && n
 echo "--- gpu-process children in this prefix: $n  (0 = in-process mode took effect) ---"
 echo "--- gpu-process crashes this launch ---"
 grep -c "GPU process has crashed" "$S/logs/cef_log.txt" 2>/dev/null || echo 0
+# ⚠ DO NOT add a `ps eww` env dump here. It was tried 2026-08-30 and it is BLIND: macOS refuses to
+# show another process's environment, returning empty even for a process you own with the variable
+# definitely set (validated against a sentinel). It reports "the var did not survive" for every
+# process on the machine, which reads exactly like a finding. `wine cmd /c set` is no substitute —
+# that is the Windows env block and carries no DYLD_*. To measure this, instrument something running
+# INSIDE the target: the webhelper shim is our own code and already runs there. See EXPERIMENTS.md C10.
 echo "--- switches on the real webhelper cmdline (proves the flag survived steam.exe) ---"
 # trap 6: `ps | head -1` picks whichever webhelper ps lists first — which may belong to ANOTHER
 # wrapper's Steam, turning a foreign client's flags into a false PASS here. Attribute by open files.

@@ -76,7 +76,7 @@ Each row: what we believe, what it rests on, and what would overturn it. **Audit
 | C7 | CPU raster renders Steam **with text** on an 11.0-lineage engine | `PARTIAL` | `exp_8d065a`, `exp_fb79d9` | `winestable-cpuraster` is genuine — shim installed, libs resolve, text visible. **`pk-cpuraster` is mislabeled**: that prefix has no shim, so `--shim-args` never applied and it was an ordinary launch, not CPU raster. |
 | C8 | macOS is not the variable; wine-stable 11.0 renders where our 11.16 does not | `RETRACTED` | `exp_fb79d9` vs `exp_53a8e6` | Not a controlled comparison: one side had the shim and a working font backend, the other had neither. Retracted 2026-08-30, same day it was committed. |
 | C9 | DXMT beats vanilla wined3d at every cell (wined3d gets FL 9_3 only) | `UNREVIEWED` | `scripts/dxgiprobe.c`, the `vanilla-*` cells | The feature-level measurement comes from a standalone probe and is font-independent, so it plausibly survives — but it has **not** been re-audited against the config rules. Do not cite as settled. |
-| C10 | Our self-built 11.16 loses FreeType/gnutls/MoltenVK **under Steam** while PK 11.0 does not | `SUPPORTED` | `exp_7b9920` (61 FT) vs `exp_8d065a` (0), same script — **void-ok:** the library failure *is* the measurement here, not a defect in it | Both plain no-shim launches, so the shim asymmetry does not explain it. Standalone PEs resolve fine on both engines (32- and 64-bit, fresh prefix and real prefix, identical metrics). **This is the open lead.** |
+| C10 | Our self-built 11.16 loses FreeType/gnutls/MoltenVK **under Steam** while PK 11.0 does not | `SUPPORTED` | `exp_7b9920` (61 FT) vs `exp_8d065a` (0), same script; `exp_54cc10`/`exp_a96ecc` (61/59 FT) — **void-ok:** the library failure *is* the measurement here, not a defect in it | Both plain no-shim launches, so the shim asymmetry does not explain it. Standalone PEs resolve fine on both engines (32- and 64-bit, fresh prefix and real prefix, identical metrics). **This is the open lead.** |
 
 ### Open lead (C10) — why does our engine lose FreeType *only* under Steam?
 
@@ -91,14 +91,35 @@ variable set FAILS — dyld's built-in fallback is `/usr/lib` only, and macOS sh
 exactly that (`launch-cs2-dxmt11.sh:63`, `steam-render-cell.sh:65`), and `cell-fingerprint.sh`
 confirms it resolves — yet the same cell logs 61 FreeType failures once Steam is running.
 
-So the variable is neither the engine nor the library: **something in Steam's own process tree
-replaces or clears `DYLD_FALLBACK_LIBRARY_PATH` for its children.** Setting `DYLD_LIBRARY_PATH`
-instead — searched *first*, and not the variable a runtime would overwrite — is the next cell.
+So the variable is neither the engine nor the library.
+
+**Tested and FALSIFIED 2026-08-30: it is not variable priority.** The obvious next move was
+`DYLD_LIBRARY_PATH` — searched *first*, and not the variable a runtime would overwrite. Two cells
+ran with it set alongside the fallback (`exp_54cc10` 61 FreeType failures, `exp_a96ecc` 59). No
+improvement, so "Steam overwrites the fallback path and the fix is a higher-priority variable" is
+dead. Do not re-run it.
+
+Both cells are the first ever recorded with a full `config.json`, and both confirm the shim now
+works: `steamwebhelper.exe` spawns `steamwebhelper_real.exe` children in `cef.win64`. So a
+CPU-raster cell is finally possible — that is the next real experiment, not another env tweak.
+
+**Still open.** What remains is to catch the failure in the act, and the honest state is that we
+have no working instrument for it yet (see the three blind ones below). The remaining hypothesis
+worth testing is that macOS strips `DYLD_*` across the exec into wine's preloader for Steam's
+children specifically — which would have to be measured *inside* the process, e.g. by extending
+the webhelper shim (our own code, already running there) to log the environment it actually sees.
 
 > ⚠ **`wine notepad` is a BLIND font probe — do not use it.** With DYLD completely unset it still
 > logs **zero** "cannot find the FreeType font library" messages, so it cannot distinguish a
 > working font backend from a broken one. Validate any replacement probe by breaking it on purpose
 > first. (Cost this session: one A/B that read as a clean result and proved nothing.)
+
+> ⚠ **`ps eww` cannot read another process's environment on this macOS — it returns nothing even
+> for a process you own with the variable definitely set** (validated 2026-08-30 against a
+> `DYLD_LIBRARY_PATH=... sleep` sentinel; both `ps eww -p` and `ps eww -o command=` came back
+> empty). A harness that reads env this way will report "the variable did not survive" for every
+> process on the machine. `wine cmd /c set` is no substitute: it shows the *Windows* environment
+> block, which does not carry `DYLD_*` either.
 
 > ⚠ **`cell-fingerprint.sh`'s library check has a blind spot, by construction.** It probes with the
 > env *the harness exports*, so it answers "can this library be resolved from here?" — not "will the
@@ -185,8 +206,10 @@ may belong to a different wrapper's Steam.
 | exp_015b85 | 2026-08-30 04:28 | `geom-reposition` | 33 | 23 | 6 | rendered | VOID-LIBS |
 | exp_fb79d9 | 2026-08-30 05:27 | `winestable-cpuraster` | 0 | 0 | 0 | rendered | candidate |
 | exp_7b9920 | 2026-08-30 11:55 | `cpuraster-canonical` | 61 | 52 | 14 | rendered | VOID-LIBS |
+| exp_54cc10 | 2026-08-30 13:24 | `dyldpath-first` | 61 | 0 | 0 | black | VOID-LIBS |
+| exp_a96ecc | 2026-08-30 13:27 | `dyld-env-probe` | 59 | 0 | 0 | black | VOID-LIBS |
 
-43 cells · 41 VOID-LIBS · 2 candidate
+45 cells · 43 VOID-LIBS · 2 candidate
 ---
 
 ## Running a cell (the procedure this ledger assumes)
