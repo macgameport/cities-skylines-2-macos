@@ -867,6 +867,35 @@ game launch logs in and kicks the store back to cached mode (21:48:39, same sess
 **Untested edge:** a Paradox Mods download in flight at the moment of a steal (different
 auth/CDN — expected unaffected, not measured).
 
+## Prefix-scoped `lsof` attribution has TWO blind spots, and both leave processes running (2026-08-30)
+
+The standing rule — attribute a wine process by open files against the **prefix**, never by command
+line — is right, but a teardown built only on it leaves work behind. Found by James noticing wine
+was still running after a session I had reported clean.
+
+1. **Processes that hold the wine *share* dir, not the prefix.** A stuck
+   `rundll32.exe setupapi,InstallHinfSection … wine.inf` (a prefix update that never finished) had
+   `…/SharedSupport/wine/share/wine/wine.inf` open and **no prefix path at all**. A
+   `lsof | grep "$WINEPREFIX"` sweep is structurally blind to it. Match on the **wrapper root**
+   (`…/CS2dxmt11.app`) to catch both, not the prefix subdirectory.
+2. **Other prefixes.** Probing PK 11.0 or wine-stable leaves *their* services running. Tearing down
+   the prefix under test says nothing about them — sweep every wrapper you touched this session.
+
+⚠ **`wineserver -k` does not kill orphans.** When the parent wineserver is already gone, `-k` starts
+a *fresh* server and kills nothing, reporting success. Twice in one session it left 13 and then 9
+processes alive. TERM them by PID; a couple may need KILL. **The `kill -9` prohibition is
+specifically about Steam** — a hard-killed `steam.exe` leaves a 0-byte `.crash` marker that makes
+the next launch exit 1. Wine service processes carry no such risk, so escalate freely once you have
+confirmed by name that no `steam.exe` is in the set, and check both prefixes for `.crash` after.
+
+**Sweep that actually works:**
+
+```bash
+for p in $(pgrep -f 'wine|Cities2|steam\.exe'); do
+  lsof -p "$p" 2>/dev/null | grep -qE '/(CS2dxmt11|CS2dxmt11-pk110|S734M)\.app' && echo "$p"
+done
+```
+
 ## Command lines cannot attribute a wine process to its wrapper — use lsof (2026-08-24)
 
 The old rule (scope Steam checks with `pgrep -f "<App>.app.*steam.exe"`) has TWO blind spots,
