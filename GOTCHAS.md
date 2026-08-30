@@ -950,7 +950,10 @@ perfectly and **not one glyph**: no menu labels, no game titles, no prices, no s
 placeholder. Only text baked into promo images appears.
 
 **Isolated to the flag, not our engine:** the PK 11.0 wrapper renders Steam text fine normally,
-and **loses text the same way the moment the shim is added**. So `--in-process-gpu` breaks glyph
+and **loses text the same way the moment the shim is added**. ⚠ **CORRECTED 2026-08-30 — true only
+for `--in-process-gpu`, the shim's compiled default. With the shim injecting `--disable-gpu
+--single-process` instead, PK keeps ALL its text; the shim is not the text killer, in-process GPU
+is. See § "CPU raster renders Steam WITH TEXT on an 11.0-lineage engine".** So `--in-process-gpu` breaks glyph
 rendering in Chromium 126 CEF under Wine, independent of engine and graphics backend.
 
 **Measured dead ends (all with the shim + `--in-process-gpu`, judged by per-window capture):**
@@ -2126,6 +2129,48 @@ PK 11.0 `winemac.so` was **void** — the sanity control failed, `macdrv` itself
 **PK's binaries are stripped** (already documented in § "The webhelper shim renders everything
 EXCEPT text"). It is plausible and matters for the thread, but check it against wine git, not
 against a stripped binary.
+
+## ✅ CPU raster renders Steam WITH TEXT on an 11.0-lineage engine — the glyph story resolves (2026-08-30)
+
+mikey92's configuration was run on a **clone of the PK 11.0 wrapper** (`cp -Rc`; the real store
+wrapper untouched): `steam.exe -no-cef-sandbox -cef-single-process -noverifyfiles`, shim prepending
+`--disable-gpu --single-process`.
+
+**Result: a complete, fully-textual Steam client.** 1,897,587 B capture with the `Steam / View /
+Friends / Games / Help` menu bar, `STORE / LIBRARY / COMMUNITY` nav, the full `Browse /
+Recommendations / Categories / Hardware / Ways to Play / Special Sections` row, `Search the store`,
+`Wishlist 7`, `Featured & Recommended`, game titles, `Overwhelmingly Positive (19,089 Reviews)`,
+`Top Seller`, `$19.99`, `Discounts & Events`, `Add a Game`, `Manage Downloads`, `Friends & Chat`.
+⚠ **Screenshot deliberately NOT committed** — the account name is visible and this repo is meant to
+be publishable (see CLAUDE.md § Personal info). Described here instead.
+
+**⚠ This CORRECTS a standing claim in § "The webhelper shim renders everything EXCEPT text".** That
+section says PK *"loses text the same way the moment the shim is added"*. That is true **only for
+`--in-process-gpu`**, which is the shim's compiled default. With the shim installed and
+`--disable-gpu --single-process` injected instead, **PK keeps all its text.** The shim is not the
+text killer; **in-process GPU is.**
+
+**So the whole glyph picture finally resolves into three consistent rows:**
+
+| GPU mode | art | text | notes |
+|---|---|---|---|
+| in-process GPU (`--in-process-gpu` / `--single-process` alone) | renders | **none** | both engines — the long-standing glyph bug |
+| **no GPU at all** (`--disable-gpu --single-process`, CPU raster) | renders | **YES** | PK 11.0-lineage — *this run* |
+| out-of-process GPU | black (11.16) / fine (PK) | — | the cross-process swapchain thread |
+
+**And it relocates our remaining defect precisely.** CPU raster is a *known-good, text-complete*
+configuration. Our 11.16 engine cannot enter it — the identical flag set there produces **no window
+at all**, with `gl_factory_win.cc(63)` NOTREACHED at ~6.8 M occurrences, 36 `gpu_process_host` lines
+where mikey92 gets 0, and 6 `single process` notices where they get 58. So the target is no longer
+"why are glyphs missing" but **"why can wine 11.16 not run Chromium's GPU-less single-process
+path when 11.0 can"** — a regression between the two, on the GL-probe path Chromium takes before
+deciding it needs no GPU.
+
+**Verified while checking mikey92's other claim** (against wine git, not a stripped binary):
+`macdrv_client_surface_acquire_metal_swapchain` / `WM_MACDRV_CREATE_REMOTE_LAYER` are **absent in
+`wine-11.0` and `wine-11.10`, present in `wine-11.11`** (1 and 3 occurrences). Their "11.11+ only"
+statement is **correct**, which means the cross-process CHILD patch cannot apply to the many
+black-window reports on `wine-stable` 11.0 without moving engines.
 
 ## `du` lies about disk on APFS: the two wrappers' 91 GB game installs were CLONES (2026-08-24)
 
