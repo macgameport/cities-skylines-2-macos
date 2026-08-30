@@ -1,0 +1,22 @@
+diff --git a/src/d3d11/d3d11_swapchain.cpp b/src/d3d11/d3d11_swapchain.cpp
+index 73c4203..366af8b 100644
+--- a/src/d3d11/d3d11_swapchain.cpp
++++ b/src/d3d11/d3d11_swapchain.cpp
+@@ -1099,8 +1099,15 @@ CreateSwapChain(
+   DWORD window_process_id;
+   GetWindowThreadProcessId(hWnd, &window_process_id);
+   if (GetProcessId(GetCurrentProcess()) != window_process_id) {
+-    ERR("CreateSwapChain: cross-process swapchain not supported yet");
+-    return E_FAIL;
++    // EXPERIMENT (2026-08-29, macgameport): the guard below refuses BEFORE attempting anything,
++    // so what actually breaks cross-process has never been observed. Env-gated so the game path
++    // is untouched; set DXMT_ALLOW_CROSS_PROCESS_SWAPCHAIN=1 to fall through and find out.
++    if (env::getEnvVar("DXMT_ALLOW_CROSS_PROCESS_SWAPCHAIN") != "1") {
++      ERR("CreateSwapChain: cross-process swapchain not supported yet");
++      return E_FAIL;
++    }
++    ERR("CreateSwapChain: cross-process swapchain FORCED (experimental) hwnd_pid=", window_process_id,
++        " self_pid=", GetProcessId(GetCurrentProcess()));
+   }
+ 
+   Com<IMTLDXGIDevice> layer_factory;

@@ -166,6 +166,48 @@ the GPU process crashes ×3 per launch; with the fork ANGLE gets *further* — r
 `eglCreateWindowSurface: Bad allocation` — before the same black window. A crash became a named
 refusal.
 
+**9. And since I had a working build, I forced the guard — which turns out to be the useful part.**
+The refusal is a precondition check that returns before attempting anything, so what actually
+breaks has never been observed:
+
+```c
+GetWindowThreadProcessId(hWnd, &window_process_id);
+if (GetProcessId(GetCurrentProcess()) != window_process_id) {
+  ERR("CreateSwapChain: cross-process swapchain not supported yet");
+  return E_FAIL;
+}
+```
+
+I made that env-gated and let it fall through. It fires with genuine cross-process ids
+(`hwnd_pid=300 self_pid=472`, 6× per launch), and with `DXMT_DEBUG_METAL_VIEW=1` the next step says
+this:
+
+```
+CreateMetalViewFromHWND: hwnd=0x10102 macdrv_functions=0x213810560
+    get_cocoa_window=0x2137e3d20 create_metal_view=0x2137e3df0 get_metal_layer=0x2137e3e40
+CreateMetalViewFromHWND: cocoa_window=0x0
+CreateMetalViewFromHWND: macdrv_get_cocoa_window returned NULL for hwnd=0x10102
+```
+
+Three things fall out of that, and I think all three are worth having:
+
+- **Every macdrv symbol resolved.** So the error DXMT prints on this path —
+  *"Failed to create metal view, it seems like your Wine has no exported symbols needed by DXMT"*
+  (`d3d11_swapchain.cpp:137`, then `abort()`) — is a guess, and it's the wrong diagnosis whenever
+  the symbols are actually present. It makes this look like a build problem when it isn't. Might be
+  worth softening that message regardless of anything else here.
+- **`macdrv_get_cocoa_window(hwnd, FALSE)` returns NULL for the foreign HWND**, because winemac's
+  window data is per-process — a window created by another process simply isn't in this process's
+  table.
+- So **"cross-process swapchain not supported yet" isn't swapchain bookkeeping**: a Metal view
+  can't be built for a foreign HWND at all, because there's no cross-process route from HWND to
+  NSWindow. Whatever fixes this has to solve *that*, which looks like a winemac/wineserver-level
+  problem rather than a DXMT-only one. It lines up with something I measured earlier on this
+  thread: a cross-process GDI `FillRect` into a foreign window is lost on stock winemac too.
+
+(Forcing the guard is not a workaround, to be clear — it just converts a clean `E_FAIL` into an
+`abort()` in the GPU process. Same black window. I kept the patch purely as a diagnostic.)
+
 **So, having chased all three routes to the end: this issue is the fix.** The vanilla-wined3d split
 is capped at FL 9_3 here; notpop's visibility + fork route fixes games, not the client; and the only
 thing left standing between Steam's CEF and a rendered window on DXMT is cross-process swapchain

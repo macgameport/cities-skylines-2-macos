@@ -1535,6 +1535,65 @@ The feature-level probe is exactly the discriminator, which is why the reply ask
 v0.80, `winemac.so` 0 public T, game path `d3d11 -> builtin`). `CS2vis-test.app` retains the full
 notpop stack and is the artefact to keep if this is revisited — **never run the game in it.**
 
+## The cross-process root cause, MEASURED: `macdrv_get_cocoa_window` returns NULL for a foreign HWND (2026-08-29)
+
+The refusal in DXMT is a **precondition check that returns before attempting anything**
+(`src/d3d11/d3d11_swapchain.cpp`, `CreateSwapChain`):
+
+```c
+GetWindowThreadProcessId(hWnd, &window_process_id);
+if (GetProcessId(GetCurrentProcess()) != window_process_id) {
+  ERR("CreateSwapChain: cross-process swapchain not supported yet");
+  return E_FAIL;
+}
+```
+
+So **nobody had ever observed what actually breaks.** Upstream `3Shain/dxmt` has four branches
+(`main`, `ci/arm64x`, `feat/d3d12-5`, `feat/d3d12-6`) — no work in progress on this. We had a
+working build, so we forced it: the guard was made env-gated
+(`DXMT_ALLOW_CROSS_PROCESS_SWAPCHAIN=1`, kept as `scripts/dxmt-force-crossprocess.patch`) and the
+Steam cell re-run.
+
+**It fires, with genuine cross-process IDs** — 6 times in one launch:
+
+```
+err: CreateSwapChain: cross-process swapchain FORCED (experimental) hwnd_pid=300 self_pid=472
+```
+
+**And then the real failure, with `DXMT_DEBUG_METAL_VIEW=1`:**
+
+```
+CreateMetalViewFromHWND: hwnd=0x10102 macdrv_functions=0x213810560
+    get_cocoa_window=0x2137e3d20 create_metal_view=0x2137e3df0 get_metal_layer=0x2137e3e40
+CreateMetalViewFromHWND: cocoa_window=0x0
+CreateMetalViewFromHWND: macdrv_get_cocoa_window returned NULL for hwnd=0x10102.
+```
+
+Three things follow, and each kills a wrong explanation:
+
+1. **Every macdrv symbol resolved** (all pointers non-NULL). So DXMT's own error —
+   *"Failed to create metal view, it seems like your Wine has no exported symbols needed by DXMT"*
+   (`d3d11_swapchain.cpp:137`, followed by `abort()`) — is the author's **guess**, and it is the
+   wrong diagnosis whenever the symbols are in fact present. It is what makes this failure look
+   like a build problem when it is not.
+2. **`macdrv_get_cocoa_window(hwnd, FALSE)` returns NULL for the foreign HWND.** Winemac's window
+   data is **per-process**; a window created by another process is not in this process's table.
+   That is the actual wall.
+3. **The fork's own fallback comment is also wrong here** — it reads *"the window is probably still
+   in the middle of being created; the caller will retry"*. It is not mid-creation; it belongs to
+   another process and will never appear. Meanwhile the D3D11 side `abort()`s on the NULL, which is
+   the `GPU process exited unexpectedly` in `cef_log.txt`.
+
+**So "cross-process swapchain not supported yet" is not swapchain bookkeeping.** A Metal view cannot
+be built for a foreign HWND at all, because there is no cross-process route from HWND to NSWindow.
+Any fix has to solve *that* — which is a winemac/wineserver-level problem, not a DXMT-only one, and
+it lines up exactly with the 2026-08-24 findings (a cross-process GDI `FillRect` into a foreign
+window is lost on stock winemac too; the PK vendor plumbing that does work spans
+winemac/win32u/wineserver).
+
+**Forcing the guard is therefore not a workaround** — it converts a clean `E_FAIL` refusal into an
+`abort()` in the GPU process. Window still black (108,343 B). Kept for diagnosis only.
+
 ## `du` lies about disk on APFS: the two wrappers' 91 GB game installs were CLONES (2026-08-24)
 
 Both wrappers reported a 91 GB `Cities Skylines II` install, so deleting the redundant one in
