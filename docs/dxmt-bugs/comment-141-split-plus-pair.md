@@ -141,12 +141,41 @@ are worth having on this thread:
   minutes rather than an hour. And the fork has a small portability bug:
   `src/util/com/com_guid.cpp` uses `std::setfill`/`std::setw` without `#include <iomanip>`, which
   older GCC pulled in transitively and current mingw-w64 doesn't. One line; happy to send it over.
-- **Then I hit a wall that's mine, not yours:** the Metal shader step needs `xcrun -sdk macosx
-  metal`, which ships with Xcode.app and not the Command Line Tools. With the include fixed, the
-  entire C++ side compiles and **all 7 remaining failures are that missing utility**. So I have not
-  yet been able to confirm the fork end-to-end here.
+- **Then I built the fork and ran it.** (For anyone following: `xcrun -f metal` *resolving* isn't
+  enough on macOS 26 — the shader compiler is a separate asset, `xcodebuild -downloadComponent
+  MetalToolchain`, 688 MB.) Both arches build clean. Installed into a wrapper carrying **both**
+  ingredients — forked DXMT plus the `-fvisibility=default` `winemac.so` — the engine is healthy:
+  Apple M3 Max, `CheckInterfaceSupport` `S_OK`, FL 11_1.
 
-**And the reason I'm asking rather than assuming**, having read the fork's commit message: its
+**8. And that produced the actual answer, in DXMT's own words.** With the full stack in place,
+Steam is still black — but the log now says exactly why:
+
+```
+err:   CreateSwapChain: cross-process swapchain not supported yet
+```
+
+`src/d3d11/d3d11_swapchain.cpp:1102`. **The fork still refuses cross-process swapchains** — string
+count: 1 in the forked `d3d11.dll`, 0 in the stock v0.80 I ship (v0.80 just crashed the GPU process
+instead of naming the refusal). Which fits its own evidence exactly: the rewrite fixes the
+**same-process** Metal-view path, so a *game* presenting to its own window works, while CEF creating
+a swapchain for an HWND owned by **another process** takes a path the fork doesn't touch.
+
+It does move the failure though, and that's worth having on record: on stock v0.80 out-of-process
+the GPU process crashes ×3 per launch; with the fork ANGLE gets *further* — reaching
+`SwapChain11::reset` ("Could not create additional swap chains or offscreen surfaces") and
+`eglCreateWindowSurface: Bad allocation` — before the same black window. A crash became a named
+refusal.
+
+**So, having chased all three routes to the end: this issue is the fix.** The vanilla-wined3d split
+is capped at FL 9_3 here; notpop's visibility + fork route fixes games, not the client; and the only
+thing left standing between Steam's CEF and a rendered window on DXMT is cross-process swapchain
+support — which is what #141 has said from the start. I'd rather report that than another
+workaround, because it puts the fix back where you'd already put it.
+
+**And on your setup specifically** — none of the above contradicts your result; it explains it.
+If your wined3d serves D3D11 at a usable feature level on Wine 11.0 / macOS 26.5, then your split
+takes DXMT out of the CEF path entirely and the client renders on wined3d, which is precisely what
+mine cannot do at FL 9_3. That's why the probe matters. Reading the fork's commit message, its
 verification is *"the 32-bit Unity 6000 game 幻獣大農場 (Steam AppID 3659410): Present1 returns
 hr=0x0 every frame"* — **a game, not the Steam client**. The two root causes it names are precise
 and look right to me — (1) Wine 11 renamed `macdrv_win_data`'s NSView field to `client_view` and

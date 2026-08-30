@@ -29,7 +29,15 @@ die(){ echo "ERROR: $1"; exit 1; }
 step(){ echo; echo "== $1"; }
 
 step "gates"
+# ⚠ `xcrun -f metal` RESOLVING IS NOT ENOUGH — measured 2026-08-29. With Xcode installed the
+# binary exists, but on macOS 26 the shader compiler itself is a separate downloadable component
+# and every .air target still dies with "cannot execute tool 'metal' due to missing Metal
+# Toolchain". Gate on ACTUALLY RUNNING it, not on finding it.
 xcrun -f metal >/dev/null 2>&1 || die "\`xcrun metal\` missing — install full Xcode (see header). CLT alone cannot build this."
+echo 'kernel void t() {}' > /tmp/_metalgate.metal
+xcrun -sdk macosx metal -c /tmp/_metalgate.metal -o /tmp/_metalgate.air >/tmp/_metalgate.log 2>&1 \
+  || die "metal resolves but cannot execute — run: xcodebuild -downloadComponent MetalToolchain  ($(head -1 /tmp/_metalgate.log))"
+rm -f /tmp/_metalgate.metal /tmp/_metalgate.air /tmp/_metalgate.log
 [ -f /usr/local/opt/llvm@15/lib/libLLVMCore.a ] || die "x86_64 llvm@15 missing: arch -x86_64 /usr/local/bin/brew install llvm@15 zstd"
 for t in meson ninja x86_64-w64-mingw32-gcc i686-w64-mingw32-gcc; do command -v "$t" >/dev/null || die "$t missing"; done
 [ -f "$WINE_INSTALL/bin/winebuild" ] || die "no winebuild at $WINE_INSTALL — needs a wine 11.16 INSTALL (build-engine-1116.sh --prefix)"

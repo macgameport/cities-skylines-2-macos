@@ -1481,6 +1481,60 @@ up that toolchain is ~2-3 GB of brew installs and its own mini-project.
 `--use-angle=d3d9` → black **108,343 B**, same. So ANGLE's D3D9 backend and Steam's own
 force-GPU switch join `d3d11`/`gl`/`vulkan`/`swiftshader` on the eliminated list.
 
+## ✅ notpop's fork BUILT and TESTED — it does not fix the Steam client, and that restores dxmt#141 (2026-08-29)
+
+Both halves of the third mechanism were built and run end to end. The result is decisive and it
+points back at the issue itself.
+
+**Getting there.** `xcrun -f metal` resolving is **not** a sufficient gate — with Xcode installed
+the binary exists but on macOS 26 the shader compiler is a separate asset, and every `.air` target
+still died with *"cannot execute tool 'metal' due to missing Metal Toolchain"*.
+`xcodebuild -downloadComponent MetalToolchain` (687.9 MB, "Metal Toolchain 17F109") fixed it.
+`build-dxmt-fork.sh` now gates by **compiling a one-line kernel**, not by `xcrun -f`.
+Then both arches built clean — 64-bit `[123/123]` — producing `d3d11.dll` (22,952,314 B),
+`dxgi.dll`, `d3d10core.dll`, `winemetal.dll` and `winemetal.so` (27,924,584 B), plus the 32-bit set.
+
+**Installed into a clone carrying BOTH ingredients** (forked DXMT + the `-fvisibility=default`
+`winemac.so`, 213 public text symbols), the engine is healthy: Apple M3 Max, `CheckInterfaceSupport`
+`S_OK`, **FL 11_1**.
+
+**And Steam is still black — but now it says why, in DXMT's own words:**
+
+```
+err:   CreateSwapChain: cross-process swapchain not supported yet
+```
+
+`src/d3d11/d3d11_swapchain.cpp:1102`. **The fork still refuses cross-process swapchains.** Verified
+by string count: the built forked `d3d11.dll` carries that message **1** time; our stock DXMT v0.80
+carries it **0** times (it is newer upstream code — v0.80 merely crashed the GPU process instead of
+naming the refusal).
+
+**What that settles.** notpop's fork rewrites `_CreateMetalViewFromHWND` for the **same-process**
+path — which is why their evidence is a *game* (`Present1 returns hr=0x0 every frame`) and why it
+works there. Steam's CEF creates its swapchain for an HWND owned by **another process**, and that is
+a different code path which the fork does not touch. So:
+
+- the vanilla-wined3d split is dead here (wined3d caps at FL 9_3),
+- notpop's visibility + fork route fixes games, not the client,
+- and therefore **dxmt#141 itself — cross-process swapchain support — really is the blocker for the
+  Steam client.** Every workaround is now eliminated *by measurement*, which is a better outcome
+  than another dead end: it puts the fix back where the issue already says it belongs.
+
+⚠ **The fork does change the failure mode, which is worth reporting.** Out-of-process on stock DXMT
+v0.80 the GPU process crashes ×3 per launch; with the fork ANGLE gets **further** — it reaches
+`SwapChain11::reset` (*"Could not create additional swap chains or offscreen surfaces"*) and
+`eglCreateWindowSurface: Bad allocation` — before the same black window. A crash became a named
+refusal. That is a diagnosability win even though the outcome is unchanged.
+
+**And it explains mikey92 without contradicting them.** Their client renders because *their* wined3d
+serves D3D11 at a usable feature level (Wine 11.0 / macOS 26.5), taking DXMT out of the CEF path
+entirely — the split IS load-bearing for them. Ours caps at 9_3, so the same split cannot work.
+The feature-level probe is exactly the discriminator, which is why the reply asks for it.
+
+**Cleanup:** shim reverted in the clone; daily wrapper verified pristine (`d3d11` 5,304,320 B = stock
+v0.80, `winemac.so` 0 public T, game path `d3d11 -> builtin`). `CS2vis-test.app` retains the full
+notpop stack and is the artefact to keep if this is revisited — **never run the game in it.**
+
 ## `du` lies about disk on APFS: the two wrappers' 91 GB game installs were CLONES (2026-08-24)
 
 Both wrappers reported a 91 GB `Cities Skylines II` install, so deleting the redundant one in
