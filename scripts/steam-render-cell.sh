@@ -16,6 +16,20 @@
 #   3. A steam.exe re-exec'd by its own updater carries a Windows-style argv, so no .app-path
 #      pgrep matches it — attribute by open files against the PREFIX (`_owns`), never by cmdline.
 #
+#   4. LIBRARY RESOLUTION. wine dlopens its optional deps by bare soname; when one does not
+#      resolve, win32u prints a single message and continues with NO font backend — the cell then
+#      renders art and no glyphs, indistinguishable from a GPU/compositing failure. 41 of 43 cells
+#      had been measured in that state (audit 2026-08-30). Now a precondition.
+#   5. SHIM PLACEMENT. install-webhelper-shim.sh targets ONE cef dir; Steam picks its own. If they
+#      disagree, --shim-args is accepted, logged, and never reaches CEF — so "CPU raster fails"
+#      may mean CPU raster never ran. Now a precondition.
+#   6. FOREIGN STEAM. Several wrappers legitimately run Steam at once, and neither `ps | head -1`
+#      nor the window list was prefix-filtered — another wrapper's client could supply both the
+#      "flags survived" line and a RENDERED window. That is a false PASS. Both are filtered now.
+#
+# Traps 4 and 5 are enforced by scripts/cell-fingerprint.sh, run automatically below; it writes
+# config.json beside the result and aborts the cell unless CS2_FORCE=1. See EXPERIMENTS.md.
+#
 # Calibration measured 2026-08-28 on the same two windows: black ≈ 15–41 KB, rendered ≈ 0.7–2.0 MB.
 #
 # Usage:
@@ -53,6 +67,17 @@ export WINEDEBUG="${WINEDEBUG:--all}"
 export WINEDLLOVERRIDES="gameoverlayrenderer64=d;gameoverlayrenderer=d;winemenubuilder.exe=d"
 S="$WINEPREFIX/drive_c/Program Files (x86)/Steam"
 OUT="/tmp/steam-cell-$LABEL"; mkdir -p "$OUT"
+
+# traps 4 & 5 (2026-08-30): record the config this result is measured under, and refuse to run when
+# a precondition would silently void it — an unresolved font/graphics library, or --shim-args with
+# the shim absent from a cef dir Steam might pick. 41 of 43 earlier cells were void on trap 4 alone.
+if ! bash "$(cd "$(dirname "$0")" && pwd)/cell-fingerprint.sh" --out "$OUT" \
+        --steam-args "$STEAM_ARGS" --shim-args "$SHIM_ARGS"; then
+  echo "!! preconditions FAILED — this cell would not measure what it claims."
+  echo "!! see $OUT/config.json ; set CS2_FORCE=1 to run anyway (result is NOT evidence)."
+  [ "${CS2_FORCE:-0}" = "1" ] || exit 1
+  echo "!! CS2_FORCE=1 — proceeding, cell marked VOID"
+fi
 
 _owns() { lsof -p "$1" 2>/dev/null | grep -q "$WINEPREFIX"; }          # trap 3
 steam_up() { for p in $(pgrep -f "steam.exe" 2>/dev/null); do _owns "$p" && return 0; done; return 1; }
@@ -93,8 +118,15 @@ echo "--- gpu-process children in this prefix: $n  (0 = in-process mode took eff
 echo "--- gpu-process crashes this launch ---"
 grep -c "GPU process has crashed" "$S/logs/cef_log.txt" 2>/dev/null || echo 0
 echo "--- switches on the real webhelper cmdline (proves the flag survived steam.exe) ---"
-ps auxww 2>/dev/null | grep "[s]teamwebhelper" | head -1 | tr ' ' '\n' \
-  | grep -E "^--(use-angle|single-process|in-process-gpu|disable-gpu)" | sort -u | tr '\n' ' '; echo
+# trap 6: `ps | head -1` picks whichever webhelper ps lists first — which may belong to ANOTHER
+# wrapper's Steam, turning a foreign client's flags into a false PASS here. Attribute by open files.
+WHPID=""; for p in $(pgrep -f "steamwebhelper" 2>/dev/null); do _owns "$p" && { WHPID="$p"; break; }; done
+if [ -n "$WHPID" ]; then
+  ps -o command= -p "$WHPID" 2>/dev/null | tr ' ' '\n' \
+    | grep -E "^--(use-angle|single-process|in-process-gpu|disable-gpu)" | sort -u | tr '\n' ' '; echo
+else
+  echo "  (no webhelper running in THIS prefix — the flags cannot be confirmed)"
+fi
 
 echo "--- instrument validation (trap 2) ---"
 GID=$("$WL" 2>/dev/null | grep -iE "owner=(Firefox|Safari|Claude|DuckDuckGo|Terminal) " | head -1 | sed -E 's/^id=([0-9]+).*/\1/')
@@ -105,9 +137,15 @@ if [ -n "${GID:-}" ]; then
 fi
 [ "$BLIND" = 1 ] && echo "  ⚠ known-good capture FAILED (display asleep/locked?) — any black reading below is VOID"
 
-echo "--- steam windows ---"
-"$WL" 2>/dev/null | grep -iE "owner=(wine|steam)" | tee "$OUT/windows.txt"
+echo "--- steam windows (THIS prefix only — trap 6) ---"
+: > "$OUT/windows.txt"
 "$WL" 2>/dev/null | grep -iE "owner=(wine|steam)" | while read -r line; do
+  wpid=$(echo "$line" | sed -E 's/.*pid=([0-9]+).*/\1/')
+  _owns "$wpid" && echo "$line" >> "$OUT/windows.txt"
+done
+[ -s "$OUT/windows.txt" ] || echo "  (no windows owned by this prefix)"
+cat "$OUT/windows.txt"
+while read -r line; do
   id=$(echo "$line" | sed -E 's/^id=([0-9]+).*/\1/')
   screencapture -x -o -l "$id" "$OUT/win-$id.png" 2>/dev/null
   if [ -s "$OUT/win-$id.png" ]; then
@@ -116,7 +154,7 @@ echo "--- steam windows ---"
     [ "$BLIND" = 1 ] && verdict="VOID (instrument blind)"
     echo "  win-$id.png  $sz B  -> $verdict"
   fi
-done
+done < "$OUT/windows.txt"
 echo "    (calibration 2026-08-28: black 15–41 KB · rendered 0.7–2.0 MB. A big capture is NOT a"
 echo "     pass — open it and look for GLYPHS; in-process-GPU modes render art with no text.)"
 
