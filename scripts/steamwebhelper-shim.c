@@ -8,8 +8,9 @@
  * injected where Steam can't strip it: replace steamwebhelper.exe itself.
  *
  * Install (per cef dir the client actually uses — cef.win64 for the Aug-2026 client):
- *   move steamwebhelper.exe steamwebhelper_real.exe
- *   copy this shim in as steamwebhelper.exe
+ *   scripts/install-webhelper-shim.sh   (targets cef.win64 — the dir the Aug-2026 client runs)
+ * Installed, it is a NO-OP unless SHIM_ARGS is set: it relaunches the real webhelper with the
+ * command line untouched. That is deliberate — see APPEND below.
  * A Steam client update restores the original — re-apply (candidate for repatch.sh).
  *
  * Mechanics that matter:
@@ -24,7 +25,10 @@
  */
 #include <windows.h>
 
-#define APPEND L" --in-process-gpu"       /* default; override with SHIM_ARGS for testing */
+/* Default is PASS-THROUGH (inject nothing): `--in-process-gpu` was measured 2026-08-28/30 to
+ * be what kills glyphs, so an installed shim must not arm it behind the daily driver's back.
+ * A test cell asks for switches explicitly via SHIM_ARGS. */
+#define APPEND L""
 #define CMDMAX 32768
 
 int WINAPI wWinMain(HINSTANCE hi, HINSTANCE hp, PWSTR args, int ns)

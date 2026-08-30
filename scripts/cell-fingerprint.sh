@@ -94,23 +94,38 @@ fi
 # ---------------------------------------------------------------- P5: shim placement
 CEF_JSON=""; SHIM_SUMMARY="none"
 if [ -d "$S/bin/cef" ]; then
-  shimmed=0; total=0
+  shimmed=0; total=0; SHIM_DIRS=""
   while IFS= read -r -d '' d; do
     total=$((total+1))
     wh="$d/steamwebhelper.exe"; rl="$d/steamwebhelper_real.exe"
     sz=$(stat -f%z "$wh" 2>/dev/null || echo 0)
-    if [ -f "$rl" ] && [ "$sz" -lt 1000000 ]; then st="SHIM"; shimmed=$((shimmed+1)); else st="stock"; fi
+    # marker is steamwebhelper_real.exe, NOT a size test: install-webhelper-shim.sh PADS the
+    # shim to the original's byte size, so a size heuristic reports a real shim as "stock".
+    if [ -f "$rl" ]; then st="SHIM"; shimmed=$((shimmed+1)); SHIM_DIRS="$SHIM_DIRS $(basename "$d")"; else st="stock"; fi
     ok "cef $(basename "$d"): $st (webhelper ${sz} B)"
     CEF_JSON="$CEF_JSON    \"$(json_esc "$(basename "$d")")\": \"$st\",
 "
   done < <(find "$S/bin/cef" -mindepth 1 -maxdepth 1 -type d -print0 2>/dev/null)
   SHIM_SUMMARY="$shimmed/$total shimmed"
+  # Which dir does Steam actually RUN? Ask a live webhelper if there is one; otherwise fall back to
+  # cef.win64 (the Aug-2026 client's dir, measured). Shimming every dir is NOT the bar — cef.win7*
+  # are legacy dirs this client never launches, and demanding them would fail a correct install.
+  RUNDIR=""
+  for _p in $(pgrep -f steamwebhelper 2>/dev/null); do
+    lsof -p "$_p" 2>/dev/null | grep -q "$PFX" || continue
+    RUNDIR=$(lsof -p "$_p" 2>/dev/null | grep -oE 'cef\.[A-Za-z0-9]+' | head -1); [ -n "$RUNDIR" ] && break
+  done
+  [ -n "$RUNDIR" ] || RUNDIR="cef.win64"
+  ok "cef dir Steam runs: $RUNDIR$([ -z "$(pgrep -f steamwebhelper 2>/dev/null)" ] && echo ' (assumed — no live webhelper)')"
   if [ -n "$SHIM_ARGS" ]; then
     if [ "$shimmed" = "0" ]; then
       fatal "--shim-args given but NO cef dir is shimmed — the flags will never reach CEF"
-    elif [ "$shimmed" != "$total" ]; then
-      fatal "--shim-args given but only $shimmed of $total cef dirs are shimmed — Steam may pick an unshimmed one"
-    else ok "--shim-args will apply (all $total cef dir(s) shimmed)"; fi
+    elif ! printf '%s' "$SHIM_DIRS" | grep -qw "$RUNDIR"; then
+      fatal "--shim-args given but the dir Steam runs ($RUNDIR) is NOT shimmed — shimmed:$SHIM_DIRS"
+    else ok "--shim-args will apply ($RUNDIR is shimmed)"; fi
+  elif [ "$shimmed" != "0" ]; then
+    # A shim with no --shim-args is a NO-OP by design (APPEND is empty since 2026-08-30), but say so.
+    ok "shim installed in$SHIM_DIRS, no --shim-args: pass-through, command line untouched"
   fi
 fi
 
