@@ -2055,7 +2055,9 @@ needs a Vulkan **1.1** instance it cannot get — the same processes log
 `err:vulkan:vulkan_init_once Failed to load libMoltenVK.dylib` **6×** per run.
 
 **So Chromium is running with no GL whatsoever, on its software path** — which evidently blits
-artwork fine and produces no text. That is the most economical explanation of every text
+artwork fine and produces no text. ⚠ **SUPERSEDED 2026-08-30:** mikey92 has no GL either (CPU
+raster, zero GPU process) and *does* get text, so "no GL" does not by itself explain the glyphs.
+See § "mikey92's CPU-raster config does NOT reproduce here". That is the most economical explanation of every text
 observation in this thread, and it predicts the fix: **get ANGLE initialised and the glyphs should
 follow.**
 
@@ -2076,6 +2078,54 @@ something different about it. Fix that, and ANGLE should come up.
 ⚠ **Do not read the cef_log counters as per-run** — that file accumulates across launches on a
 prefix. The 12s above are consistent across runs but were not isolated per launch; the MoltenVK
 count (6) is from the run's own stdout and is per-run.
+
+## mikey92's CPU-raster config does NOT reproduce here — and the flag attribution is disproved (2026-08-30)
+
+mikey92 measured their own stack ([#141](https://github.com/3Shain/dxmt/issues/141)) and the result
+is important: **their Steam client is carried by CPU raster, not D3D11.** Their `dxgiprobe` matches
+ours exactly — vanilla PE gives `"NVIDIA GeForce 6800"`, `0x887A0004`, **FL 9_3**; the DXMT fork
+gives `"Apple M4 Pro"`, `S_OK`, **FL 11_1** — and a `+loaddll` session shows **`d3d11.dll` loaded
+zero times** across steam.exe and both webhelpers. With `--disable-gpu` Chromium skips the GPU
+process and rasterises through Skia on the CPU; the split's only job there is to keep DXMT's guard
+away from the steam processes, which otherwise restart-loop.
+
+**They attributed our "no window, 174 % spin" row to a missing `-cef-single-process` on steam.exe**
+(without it the browser forks a utility child for the network service → `net_error -100/-107`
+cascade). **Tested. That is not what happens here.**
+
+Ran their exact line — `steam.exe -no-cef-sandbox -cef-single-process -noverifyfiles`, shim
+prepending `--disable-gpu --single-process` — on **stock DXMT v0.80** (verified guard-free:
+0 occurrences of the `cross-process swapchain` string, so no restart loop) with a **stock**
+`winemac.so` (0 public text symbols) and none of our patches active:
+
+| | ours | mikey92 |
+|---|---|---|
+| flags on the real webhelper | `--disable-gpu --single-process` ✅ | same |
+| `net_error` cascade | **0** | (their predicted cause) |
+| `single process` notices | 6 | 58 |
+| **`gpu_process_host` lines** | **36** | **0** |
+| `gl_factory_win.cc` errors | **6,834,935** | — |
+| window | **none**, after 10+ min | renders, with text |
+
+**So the missing flag was not our cause.** With it supplied and verified, there is no net_error
+cascade — and Chromium here *still* spins up gpu-process-host activity (36 lines vs their 0), never
+reaches single-process cleanly (6 notices vs 58), and falls into the `gl_factory_win.cc(63)`
+NOTREACHED loop at ~6.8 M occurrences with `wineserver` burning 53 % CPU.
+
+**What that leaves as the real difference:** wine **11.0 vs 11.16**, macOS **26.5 vs 26.6.2**,
+M4 Pro vs M3 Max. Not flag plumbing, and not the D3D path — both of us agree D3D11 is never used.
+
+⚠ **And it kills the theory from the previous section.** "No GL → software path → no text" is
+**wrong**: mikey92 has no GL either (CPU raster, zero GPU process) and gets **text**. So an absent
+ANGLE does not by itself explain missing glyphs. The glyph question is reopened, and CPU raster is
+now a *working* reference configuration that this machine cannot yet enter.
+
+⚠ **Unverified claim, flagged rather than repeated:** that the CALayerHost route is 11.11+ only
+(commit `1a63b0d7`, 2026-05-20, after the 11.10 tag). Our attempt to confirm it by `strings` on the
+PK 11.0 `winemac.so` was **void** — the sanity control failed, `macdrv` itself counts 0 because
+**PK's binaries are stripped** (already documented in § "The webhelper shim renders everything
+EXCEPT text"). It is plausible and matters for the thread, but check it against wine git, not
+against a stripped binary.
 
 ## `du` lies about disk on APFS: the two wrappers' 91 GB game installs were CLONES (2026-08-24)
 
