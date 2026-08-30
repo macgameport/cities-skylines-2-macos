@@ -112,6 +112,9 @@ CAF=$!
 # silently continues with no font backend, DirectWrite rasterises nothing, and Steam renders art
 # with no glyphs. That is the entire "glyph mystery": the harness caused it.
 # Launch wine DIRECTLY. Verify with: DYLD_FALLBACK_LIBRARY_PATH=... nohup ./dlprobe libfreetype.dylib
+# marker so the crash count below can be scoped to THIS launch, not the whole accumulated log
+CEFMARK="=== cell $LABEL $(date -u +%Y%m%dT%H%M%SZ) ==="
+[ -f "$S/logs/cef_log.txt" ] && printf '%s\n' "$CEFMARK" >> "$S/logs/cef_log.txt"
 SHIM_ARGS="$SHIM_ARGS" SHIM_LOG=1 "$WINE" "$S/steam.exe" -no-cef-sandbox $STEAM_ARGS \
   >"$OUT/stdout.txt" 2>&1 &
 sleep "$WAIT"
@@ -123,7 +126,15 @@ done
 n=0; for p in $(pgrep -f "[-]-type=gpu-process" 2>/dev/null); do _owns "$p" && n=$((n+1)); done
 echo "--- gpu-process children in this prefix: $n  (0 = in-process mode took effect) ---"
 echo "--- gpu-process crashes this launch ---"
-grep -c "GPU process has crashed" "$S/logs/cef_log.txt" 2>/dev/null || echo 0
+# ⚠ was `grep -c` over the WHOLE cef_log.txt, which accumulates across every launch — it reported
+# 119 for a cell whose crashes had stopped minutes earlier. Count only lines at or after the marker
+# this cell wrote before starting Steam (see CEFMARK above).
+if [ -n "${CEFMARK:-}" ]; then
+  awk -v m="$CEFMARK" 'index($0,m){seen=1} seen && /GPU process has crashed/{n++} END{print n+0}' \
+    "$S/logs/cef_log.txt" 2>/dev/null || echo 0
+else
+  grep -c "GPU process has crashed" "$S/logs/cef_log.txt" 2>/dev/null || echo 0
+fi
 # ⚠ DO NOT add a `ps eww` env dump here. It was tried 2026-08-30 and it is BLIND: macOS refuses to
 # show another process's environment, returning empty even for a process you own with the variable
 # definitely set (validated against a sentinel). It reports "the var did not survive" for every

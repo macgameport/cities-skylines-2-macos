@@ -51,6 +51,36 @@ Made durable in `scripts/build-engine-1116.sh` (step 8) so a rebuild does not si
 ⚠ That step was appended using `$ENGINE`, which **does not exist** in that script — it would have
 skipped every module in silence. Corrected to `$E` and dry-run against the real tree.
 
+### 🎯 The GPU-process crash is BACKEND-INDEPENDENT — it is not a graphics fault (2026-08-30)
+
+Ran the out-of-process client on the default backend and on **pure software rendering**
+(`--use-angle=swiftshader`, which touches no Metal, no DXMT and no GPU driver at all), fonts healthy
+in both:
+
+| cell | backend | GPU crashes (this launch) | window |
+|---|---|---|---|
+| `default-oop-control` | default | **6** | black, **40,903 B** |
+| `swiftshader-oop` | software only | **6** | black, **40,903 B — byte-identical** |
+
+**Same crash count, byte-identical capture, with the entire graphics stack swapped out.** So the
+`0xC0000409` fastfail is not a Metal, DXMT, ANGLE-backend or presentation fault — it is something
+generic about running Chromium's GPU process under wine on this stack.
+
+**This is the strongest elimination in the whole Steam-UI thread**, because it does not depend on
+reading anyone's source: swapping the renderer for a software one changes nothing at all. Everything
+downstream — cross-process swapchains, the CHILD-window FIXME, the four-refusal chain — is not
+merely unreachable (previous section) but **the wrong tree entirely**. `0xC0000409` is Chromium's
+`__fastfail`, i.e. a deliberate `CHECK`/`NOTREACHED` abort, so the GPU process is *choosing* to die
+on a failed invariant. Finding which one is the next question, and it is a Chromium/wine question,
+not a graphics one.
+
+⚠ **Instrument defect found and fixed in the same session — earlier crash counts are VOID.** The
+harness reported "gpu-process crashes this launch" using `grep -c` over the whole of
+`cef_log.txt`, **which accumulates across every launch ever**. That is where the 107 / 113 / 119
+figures in earlier entries and commit messages came from; they are cumulative totals, not
+per-launch, and must not be compared against anything. The harness now writes a marker into the log
+before starting Steam and counts only lines after it. Every number above is post-fix.
+
 ### ⛔ The cross-process chain is UNREACHABLE — the GPU process fastfails before it can ask (2026-08-30)
 
 Built DXMT **v0.80** from upstream source with `dxmt-force-crossprocess.patch`, installed it
@@ -406,8 +436,11 @@ may belong to a different wrapper's Steam.
 | exp_e75c1e | 2026-08-30 15:31 | `childpatch-forced` | 0 | 0 | 0 | black | candidate |
 | exp_ae1338 | 2026-08-30 17:32 | `xproc-v080` | 0 | 0 | 0 | black | candidate |
 | exp_003f82 | 2026-08-30 17:34 | `xproc-angle-d3d11` | 0 | 0 | 0 | black | candidate |
+| exp_fd9012 | 2026-08-30 17:47 | `gpu-fastfail-verbose` | 0 | 0 | 0 | black | candidate |
+| exp_55fc05 | 2026-08-30 17:49 | `swiftshader-oop` | 0 | 0 | 0 | black | candidate |
+| exp_b292d6 | 2026-08-30 17:51 | `default-oop-control` | 0 | 0 | 0 | black | candidate |
 
-53 cells · 45 VOID-LIBS · 8 candidate
+56 cells · 45 VOID-LIBS · 11 candidate
 ---
 
 ## Running a cell (the procedure this ledger assumes)
