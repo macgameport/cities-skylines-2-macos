@@ -122,10 +122,41 @@ just not *exported*, which is the gap that flag closes.
 
 So — genuine question rather than a correction, since I can't see your install: **are you running
 notpop's patched `winemac.so` and the DXMT fork, or stock Homebrew `wine-stable` 11.0 with only the
-split?** If it's the former, then the split may be incidental and the real fix for this issue is
-upstreaming that `_CreateMetalViewFromHWND` rewrite plus whatever visibility change it needs — which
-is a much more actionable outcome for #141 than anything I've posted. I haven't tried that route
-yet: the wine half is ~20 minutes, but I've never built DXMT from source, so it's its own project.
+split?**
+
+**7. I went and built as much of that route as this machine allows.** Both halves, and the results
+are worth having on this thread:
+
+- **The visibility rebuild works and is inert on its own.** Rebuilding only
+  `dlls/winemac.drv/winemac.so` with `-fvisibility=default` takes my engine from **0 public text
+  symbols to 213** (183 of them `macdrv_*`), including exactly the ones the fork needs —
+  `macdrv_view_create_metal_view`, `_get_metal_layer`, `_release_metal_view`,
+  `macdrv_client_surface_acquire_metal_swapchain`, and the `get_win_data`/`release_win_data`
+  accessors. Installed on its own it is ABI-clean and changes nothing: DXMT still at FL 11_1, Steam
+  still black. Which is the expected result — the flag is an enabler for the fork, not a fix.
+- **Two notes for anyone else reproducing.** You do **not** need to build LLVM from source: the
+  fork's meson default `native_llvm_path` is already `/usr/local/opt/llvm@15`, i.e. the *Intel*
+  Homebrew prefix, because airconv links LLVM as a macOS **x86_64** static library — so
+  `arch -x86_64 /usr/local/bin/brew install llvm@15 zstd` gives you exactly what it wants in
+  minutes rather than an hour. And the fork has a small portability bug:
+  `src/util/com/com_guid.cpp` uses `std::setfill`/`std::setw` without `#include <iomanip>`, which
+  older GCC pulled in transitively and current mingw-w64 doesn't. One line; happy to send it over.
+- **Then I hit a wall that's mine, not yours:** the Metal shader step needs `xcrun -sdk macosx
+  metal`, which ships with Xcode.app and not the Command Line Tools. With the include fixed, the
+  entire C++ side compiles and **all 7 remaining failures are that missing utility**. So I have not
+  yet been able to confirm the fork end-to-end here.
+
+**And the reason I'm asking rather than assuming**, having read the fork's commit message: its
+verification is *"the 32-bit Unity 6000 game 幻獣大農場 (Steam AppID 3659410): Present1 returns
+hr=0x0 every frame"* — **a game, not the Steam client**. The two root causes it names are precise
+and look right to me — (1) Wine 11 renamed `macdrv_win_data`'s NSView field to `client_view` and
+only populates it in the GDI present path (`dlls/winemac.drv/window.c:1131-1135`), so at
+`IDXGISwapChain` creation it is always NULL; (2) the macdrv Metal helpers already dispatch through
+`OnMainThread` (`cocoa_window.m:3941/3954/3966`), so the unixlib's extra `OnMainThread` is nested
+dispatch and the outer wait deadlocks (`cocoa_event.m:489`) — and if that's right it's a much more
+actionable fix for this issue than anything I've posted. But it's evidenced for *game* presentation,
+so whether it also carries the **CEF client** is the open question, and your setup is the one data
+point that would answer it.
 
 **The ask.** Alongside that, would you run the probe on your stack? ~50 lines, no dependencies:
 [`scripts/dxgiprobe.c`](https://github.com/macgameport/cities-skylines-2-macos/blob/main/scripts/dxgiprobe.c),
