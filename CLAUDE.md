@@ -90,8 +90,10 @@ them*. They are different jobs — do not merge them.
   `UNREVIEWED`, or `RETRACTED`, so a session does not re-run a finished experiment or build on a
   withdrawn one.
 - **`button up`** — run `python3 scripts/check-experiments.py`. It exits non-zero on drift and is
-  the freshness gate: unrecorded cells, evaporated evidence, stale counts, and any
-  `SUPPORTED`/`PARTIAL` claim resting on a run the evidence marks VOID.
+  the freshness gate: unrecorded cells, evaporated evidence, stale counts, any `SUPPORTED`/`PARTIAL`
+  claim resting on a run the evidence marks VOID, dangling `exp_` references, and any GOTCHAS status
+  banner that disagrees with the register. **Conventions are enforced there, not by memory** — see
+  `EXPERIMENTS.md` § Conventions before inventing a format.
 - **Spawning a subagent?** Point it at **`docs/agent-brief.md`** first — one screen carrying the
   evidence rules, the process-attribution and `kill -9` traps, the exit-code trap, the privacy
   rules and the `GH_CONFIG_DIR` requirement. A subagent inherits none of this file, so without the

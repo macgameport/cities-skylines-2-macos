@@ -55,20 +55,42 @@ Each row: what we believe, what it rests on, and what would overturn it. **Audit
 | # | Claim | Status | Rests on | Notes / what would overturn it |
 |---|---|---|---|---|
 | C1 | Wine 11.16 retires the alt-tab / exclusive-fullscreen freeze (dxmt#206) | `SUPPORTED` | in-game confirmation; upstream closed as dup of #183 | Font/graphics-lib independent. Unaffected by the 08-30 audit. |
-| C2 | The cross-process **child-window** patch makes Steam's client composite on stock winemac + DXMT | `PARTIAL` | `child-real`, `clean-patch-verify`, `geom-*` — **void-ok:** whether a layer composites is font-independent, so the byte-size jump stands | **Rendering supported** — window went 108,343 B → 2,588,759 B, and whether a layer composites does not depend on FreeType. **The "still no text" half is VOID** — every one of those cells ran with no font backend. |
+| C2 | The cross-process **child-window** patch makes Steam's client composite on stock winemac + DXMT | `PARTIAL` | `exp_6bd192` `exp_06760c` `exp_3d7586` `exp_015b85` — **void-ok:** whether a layer composites is font-independent, so the byte-size jump stands | **Rendering supported** — window went 108,343 B → 2,588,759 B, and whether a layer composites does not depend on FreeType. **The "still no text" half is VOID** — every one of those cells ran with no font backend. |
 | C3 | `macdrv_get_cocoa_window` returns NULL for a foreign HWND — the cross-process root cause | `SUPPORTED` | source read + direct measurement | Derived from reading wine's source and a targeted probe, not from a render cell. |
 | C4 | The glyph loss is in-process GPU itself, not the `--in-process-gpu` flag | `VOID` | cells with 14–73 FreeType failures | The premise ("this engine renders art but not text") is explained by the missing font backend. Re-test with a fingerprinted cell before believing any part of it. |
 | C5 | Text **rasterisation** eliminated — `dwritetest` byte-identical across engines | `RETRACTED` | `scripts/dwritetest.c` | The measurement stands (ALIASED 545/1633 sum 138975; CLEARTYPE 315/4899 sum 80325, identical on both). The **elimination** does not: `dwritetest` runs as a standalone PE, and standalone PEs were measured 2026-08-30 to resolve FreeType fine on *both* engines. It never exercised the failing condition. |
 | C6 | Glyph-atlas texture path eliminated — `scripts/r8test.c` | `RETRACTED` | same class as C5 | Same defect: a standalone PE probe cannot eliminate a fault that only appears under Steam. Measurement kept, elimination withdrawn. |
-| C7 | CPU raster renders Steam **with text** on an 11.0-lineage engine | `PARTIAL` | `pk-cpuraster`, `winestable-cpuraster` | `winestable-cpuraster` is genuine — shim installed, libs resolve, text visible. **`pk-cpuraster` is mislabeled**: that prefix has no shim, so `--shim-args` never applied and it was an ordinary launch, not CPU raster. |
-| C8 | macOS is not the variable; wine-stable 11.0 renders where our 11.16 does not | `RETRACTED` | `winestable-cpuraster` vs `cpuraster` | Not a controlled comparison: one side had the shim and a working font backend, the other had neither. Retracted 2026-08-30, same day it was committed. |
-| C9 | DXMT beats vanilla wined3d at every cell (wined3d gets FL 9_3 only) | `UNREVIEWED` | `scripts/dxgiprobe.c`, `vanilla-*` cells | The feature-level measurement comes from a standalone probe and is font-independent, so it plausibly survives — but it has **not** been re-audited against the config rules. Do not cite as settled. |
-| C10 | Our self-built 11.16 loses FreeType/gnutls/MoltenVK **under Steam** while PK 11.0 does not | `SUPPORTED` | `cpuraster-canonical` (61 FT) vs `pk-cpuraster` (0), same script — **void-ok:** the library failure *is* the measurement here, not a defect in it | Both plain no-shim launches, so the shim asymmetry does not explain it. Standalone PEs resolve fine on both engines (32- and 64-bit, fresh prefix and real prefix, identical metrics). **This is the open lead.** |
+| C7 | CPU raster renders Steam **with text** on an 11.0-lineage engine | `PARTIAL` | `exp_8d065a`, `exp_fb79d9` | `winestable-cpuraster` is genuine — shim installed, libs resolve, text visible. **`pk-cpuraster` is mislabeled**: that prefix has no shim, so `--shim-args` never applied and it was an ordinary launch, not CPU raster. |
+| C8 | macOS is not the variable; wine-stable 11.0 renders where our 11.16 does not | `RETRACTED` | `exp_fb79d9` vs `exp_53a8e6` | Not a controlled comparison: one side had the shim and a working font backend, the other had neither. Retracted 2026-08-30, same day it was committed. |
+| C9 | DXMT beats vanilla wined3d at every cell (wined3d gets FL 9_3 only) | `UNREVIEWED` | `scripts/dxgiprobe.c`, the `vanilla-*` cells | The feature-level measurement comes from a standalone probe and is font-independent, so it plausibly survives — but it has **not** been re-audited against the config rules. Do not cite as settled. |
+| C10 | Our self-built 11.16 loses FreeType/gnutls/MoltenVK **under Steam** while PK 11.0 does not | `SUPPORTED` | `exp_7b9920` (61 FT) vs `exp_8d065a` (0), same script — **void-ok:** the library failure *is* the measurement here, not a defect in it | Both plain no-shim launches, so the shim asymmetry does not explain it. Standalone PEs resolve fine on both engines (32- and 64-bit, fresh prefix and real prefix, identical metrics). **This is the open lead.** |
 
-**Open question descending from C10:** why does the failure appear only under Steam? Not the wrapper
-(canonical resolves all three under `wineboot`), not the prefix, not bitness, not architecture, and
-not `$HOME/lib` (not a dyld fallback on this macOS — only `/usr/lib`). Our engine asks for the
-unversioned `libfreetype.dylib`; PK's asks for `libfreetype.6.dylib`.
+### Open lead (C10) — why does our engine lose FreeType *only* under Steam?
+
+Our engine's `config.h` has `SONAME_LIBFREETYPE "libfreetype.dylib"` (unversioned, from Homebrew);
+PK's `win32u.so` asks for `libfreetype.6.dylib`. Both names exist in every wrapper's `Frameworks/`
+(the unversioned one as a symlink, present on the canonical wrapper since 2026-08-23).
+
+**Already eliminated — do not re-test these.** Each was measured on 2026-08-30; re-running them is
+the circle this ledger exists to break.
+
+| hypothesis | how it was eliminated |
+|---|---|
+| the wrapper is missing the libs | canonical has all three in `Frameworks/` **and** `wine/lib/`; `wineboot -u` there resolves all three (292-line log, prefix built, MoltenVK initialised) |
+| the unversioned symlink is broken | `dlopen("libfreetype.dylib")` succeeds from a plain x86_64 process under the cell's exact env |
+| architecture mismatch | `lipo -archs`: engine `wine64`, and every `Frameworks/` dylib, are all `x86_64` on both wrappers |
+| the real Steam prefix is different | the GDI font probe resolves fine **in the real Steam prefix**, script-style env, both bitnesses |
+| 32-bit processes can't reach the libs | 32- and 64-bit GDI probes return **identical** metrics on both engines (Arial, height 16, extent 29×16) |
+| old-style vs new-WoW64 | all three engines are new-WoW64 — `lib/wine/` has no `i386-unix` in any of them |
+| `$HOME/lib` shadowing / fallback | `$HOME/lib` is **not** a dyld fallback on this macOS; the only default is `/usr/lib`, and none of the three libs is in any default fallback dir |
+| the shim sanitises the environment | the failure reproduces on plain no-shim launches (`exp_7b9920`) |
+
+**What remains untested:** whether `DYLD_FALLBACK_LIBRARY_PATH` actually reaches Steam's child
+processes (`ps eww` will not show another process's environment on macOS, so the direct read is
+unavailable), and whether `DYLD_LIBRARY_PATH` — searched *first*, a different dyld code path —
+survives where the fallback does not. That A/B was started 2026-08-30 and **abandoned mid-run**:
+its own inter-run shutdown failed, leaving two `steam.exe` racing in one prefix, so phase A's
+number (60 FreeType) is not clean and phase B never ran. Re-run it with the fingerprint attached.
 
 ---
 
@@ -81,54 +103,53 @@ Artifacts: `~/cs2-patch/evidence/<cell>/` (outside the repo — see § Privacy).
 pre-2026-08-30 cells**: the harness did not prefix-filter its window list, so a "rendered" reading
 may belong to a different wrapper's Steam.
 
-| ran | cell | FT | gnutls | MVK | capture | status |
-|---|---|---:|---:|---:|---|---|
-| 2026-08-29 16:56 | `split-pair` | 14 | 0 | 0 | — | VOID-LIBS |
-| 2026-08-29 16:59 | `split-pair-v2` | 14 | 7 | 4 | — | VOID-LIBS |
-| 2026-08-29 17:01 | `split-ipgpu-swiftshader` | 24 | 0 | 0 | — | VOID-LIBS |
-| 2026-08-29 17:04 | `split-single` | 14 | 0 | 0 | — | VOID-LIBS |
-| 2026-08-29 17:15 | `dxmt-single-control` | 17 | 0 | 0 | rendered | VOID-LIBS |
-| 2026-08-29 18:17 | `vanilla-real-control` | 59 | 0 | 0 | black | VOID-LIBS |
-| 2026-08-29 18:19 | `vanilla-real-pair` | 14 | 0 | 0 | — | VOID-LIBS |
-| 2026-08-29 18:21 | `vanilla-real-single` | 14 | 0 | 0 | — | VOID-LIBS |
-| 2026-08-29 18:24 | `vanilla-real-ipgpu` | 24 | 0 | 0 | — | VOID-LIBS |
-| 2026-08-29 18:26 | `vanilla-vk-control` | 24 | 0 | 0 | — | VOID-LIBS |
-| 2026-08-29 18:27 | `vanilla-vk-control2` | 56 | 0 | 0 | black | VOID-LIBS |
-| 2026-08-29 19:27 | `cef-force-gpu` | 59 | 0 | 0 | black | VOID-LIBS |
-| 2026-08-29 19:29 | `angle-d3d9` | 59 | 0 | 0 | black | VOID-LIBS |
-| 2026-08-29 19:46 | `vis-control` | 60 | 0 | 0 | — | VOID-LIBS |
-| 2026-08-29 19:54 | `vis-control2` | 54 | 0 | 0 | black | VOID-LIBS |
-| 2026-08-29 21:05 | `fork-control` | 22 | 0 | 0 | — | VOID-LIBS |
-| 2026-08-29 21:09 | `fork-pair` | 14 | 0 | 0 | — | VOID-LIBS |
-| 2026-08-29 21:12 | `fork-pair2` | 14 | 0 | 0 | — | VOID-LIBS |
-| 2026-08-29 21:30 | `forced-xproc` | 59 | 0 | 0 | black | VOID-LIBS |
-| 2026-08-29 21:33 | `forced-xproc-dbg` | 59 | 0 | 0 | black | VOID-LIBS |
-| 2026-08-29 21:53 | `foreign-hwnd` | 14 | 0 | 0 | — | VOID-LIBS |
-| 2026-08-29 21:57 | `foreign-hwnd2` | 32 | 22 | 5 | black | VOID-LIBS |
-| 2026-08-29 22:14 | `vk-remote-layer` | 59 | 49 | 13 | black | VOID-LIBS |
-| 2026-08-29 22:20 | `remote-layer` | 58 | 48 | 13 | — | VOID-LIBS |
-| 2026-08-29 22:27 | `remote-layer2` | 54 | 48 | 12 | black | VOID-LIBS |
-| 2026-08-29 22:31 | `remote-layer3` | 59 | 49 | 13 | black | VOID-LIBS |
-| 2026-08-29 22:39 | `child-warm` | 31 | 0 | 0 | — | VOID-LIBS |
-| 2026-08-29 22:42 | `child-real` | 28 | 24 | 8 | — | VOID-LIBS |
-| 2026-08-29 23:12 | `glyph-nodcomp` | 28 | 22 | 5 | rendered | VOID-LIBS |
-| 2026-08-29 23:17 | `glyph-nodcomp2` | 33 | 23 | 6 | rendered | VOID-LIBS |
-| 2026-08-29 23:23 | `glyph-onelayer` | 73 | 57 | 13 | black | VOID-LIBS |
-| 2026-08-29 23:29 | `z-bottom` | 33 | 23 | 6 | black | VOID-LIBS |
-| 2026-08-30 00:23 | `geom-mapped` | 33 | 23 | 6 | rendered | VOID-LIBS |
-| 2026-08-30 01:39 | `mvk-in-winelib` | 33 | 23 | 6 | rendered | VOID-LIBS |
-| 2026-08-30 01:44 | `angle-d3d11-live` | 33 | 23 | 6 | rendered | VOID-LIBS |
-| 2026-08-30 01:56 | `mikey92-exact` | 14 | 7 | 4 | — | VOID-LIBS |
-| 2026-08-30 02:02 | `cpuraster` | 14 | 7 | 4 | — | VOID-LIBS |
-| 2026-08-30 02:29 | `pk-cpuraster` | 0 | 0 | 0 | rendered | candidate |
-| 2026-08-30 02:49 | `sw-vulkan` | 14 | 7 | 4 | — | VOID-LIBS |
-| 2026-08-30 03:41 | `clean-patch-verify` | 33 | 23 | 6 | rendered | VOID-LIBS |
-| 2026-08-30 04:28 | `geom-reposition` | 33 | 23 | 6 | rendered | VOID-LIBS |
-| 2026-08-30 05:27 | `winestable-cpuraster` | 0 | 0 | 0 | rendered | candidate |
-| 2026-08-30 11:55 | `cpuraster-canonical` | 61 | 52 | 14 | rendered | VOID-LIBS |
+| id | ran | cell | FT | gnutls | MVK | capture | status |
+|---|---|---|---:|---:|---:|---|---|
+| exp_a886cb | 2026-08-29 16:56 | `split-pair` | 14 | 0 | 0 | — | VOID-LIBS |
+| exp_7ae4c7 | 2026-08-29 16:59 | `split-pair-v2` | 14 | 7 | 4 | — | VOID-LIBS |
+| exp_cc3bb9 | 2026-08-29 17:01 | `split-ipgpu-swiftshader` | 24 | 0 | 0 | — | VOID-LIBS |
+| exp_0dbb6c | 2026-08-29 17:04 | `split-single` | 14 | 0 | 0 | — | VOID-LIBS |
+| exp_154886 | 2026-08-29 17:15 | `dxmt-single-control` | 17 | 0 | 0 | rendered | VOID-LIBS |
+| exp_43d01c | 2026-08-29 18:17 | `vanilla-real-control` | 59 | 0 | 0 | black | VOID-LIBS |
+| exp_17e351 | 2026-08-29 18:19 | `vanilla-real-pair` | 14 | 0 | 0 | — | VOID-LIBS |
+| exp_e8594e | 2026-08-29 18:21 | `vanilla-real-single` | 14 | 0 | 0 | — | VOID-LIBS |
+| exp_bb8f7e | 2026-08-29 18:24 | `vanilla-real-ipgpu` | 24 | 0 | 0 | — | VOID-LIBS |
+| exp_20ad29 | 2026-08-29 18:26 | `vanilla-vk-control` | 24 | 0 | 0 | — | VOID-LIBS |
+| exp_fc38ad | 2026-08-29 18:27 | `vanilla-vk-control2` | 56 | 0 | 0 | black | VOID-LIBS |
+| exp_d2c54c | 2026-08-29 19:27 | `cef-force-gpu` | 59 | 0 | 0 | black | VOID-LIBS |
+| exp_cad7d4 | 2026-08-29 19:29 | `angle-d3d9` | 59 | 0 | 0 | black | VOID-LIBS |
+| exp_34c48b | 2026-08-29 19:46 | `vis-control` | 60 | 0 | 0 | — | VOID-LIBS |
+| exp_509ae4 | 2026-08-29 19:54 | `vis-control2` | 54 | 0 | 0 | black | VOID-LIBS |
+| exp_454e00 | 2026-08-29 21:05 | `fork-control` | 22 | 0 | 0 | — | VOID-LIBS |
+| exp_56dbae | 2026-08-29 21:09 | `fork-pair` | 14 | 0 | 0 | — | VOID-LIBS |
+| exp_3206bc | 2026-08-29 21:12 | `fork-pair2` | 14 | 0 | 0 | — | VOID-LIBS |
+| exp_8cf39c | 2026-08-29 21:30 | `forced-xproc` | 59 | 0 | 0 | black | VOID-LIBS |
+| exp_272e5a | 2026-08-29 21:33 | `forced-xproc-dbg` | 59 | 0 | 0 | black | VOID-LIBS |
+| exp_d7a882 | 2026-08-29 21:53 | `foreign-hwnd` | 14 | 0 | 0 | — | VOID-LIBS |
+| exp_26b733 | 2026-08-29 21:57 | `foreign-hwnd2` | 32 | 22 | 5 | black | VOID-LIBS |
+| exp_457ad8 | 2026-08-29 22:14 | `vk-remote-layer` | 59 | 49 | 13 | black | VOID-LIBS |
+| exp_c52a07 | 2026-08-29 22:20 | `remote-layer` | 58 | 48 | 13 | — | VOID-LIBS |
+| exp_98ce17 | 2026-08-29 22:27 | `remote-layer2` | 54 | 48 | 12 | black | VOID-LIBS |
+| exp_71db7a | 2026-08-29 22:31 | `remote-layer3` | 59 | 49 | 13 | black | VOID-LIBS |
+| exp_7c608c | 2026-08-29 22:39 | `child-warm` | 31 | 0 | 0 | — | VOID-LIBS |
+| exp_6bd192 | 2026-08-29 22:42 | `child-real` | 28 | 24 | 8 | — | VOID-LIBS |
+| exp_3c7dd2 | 2026-08-29 23:12 | `glyph-nodcomp` | 28 | 22 | 5 | rendered | VOID-LIBS |
+| exp_098eee | 2026-08-29 23:17 | `glyph-nodcomp2` | 33 | 23 | 6 | rendered | VOID-LIBS |
+| exp_200289 | 2026-08-29 23:23 | `glyph-onelayer` | 73 | 57 | 13 | black | VOID-LIBS |
+| exp_fe859a | 2026-08-29 23:29 | `z-bottom` | 33 | 23 | 6 | black | VOID-LIBS |
+| exp_3d7586 | 2026-08-30 00:23 | `geom-mapped` | 33 | 23 | 6 | rendered | VOID-LIBS |
+| exp_490c1b | 2026-08-30 01:39 | `mvk-in-winelib` | 33 | 23 | 6 | rendered | VOID-LIBS |
+| exp_fb1293 | 2026-08-30 01:44 | `angle-d3d11-live` | 33 | 23 | 6 | rendered | VOID-LIBS |
+| exp_4a9a98 | 2026-08-30 01:56 | `mikey92-exact` | 14 | 7 | 4 | — | VOID-LIBS |
+| exp_53a8e6 | 2026-08-30 02:02 | `cpuraster` | 14 | 7 | 4 | — | VOID-LIBS |
+| exp_8d065a | 2026-08-30 02:29 | `pk-cpuraster` | 0 | 0 | 0 | rendered | candidate |
+| exp_311758 | 2026-08-30 02:49 | `sw-vulkan` | 14 | 7 | 4 | — | VOID-LIBS |
+| exp_06760c | 2026-08-30 03:41 | `clean-patch-verify` | 33 | 23 | 6 | rendered | VOID-LIBS |
+| exp_015b85 | 2026-08-30 04:28 | `geom-reposition` | 33 | 23 | 6 | rendered | VOID-LIBS |
+| exp_fb79d9 | 2026-08-30 05:27 | `winestable-cpuraster` | 0 | 0 | 0 | rendered | candidate |
+| exp_7b9920 | 2026-08-30 11:55 | `cpuraster-canonical` | 61 | 52 | 14 | rendered | VOID-LIBS |
 
 43 cells · 41 VOID-LIBS · 2 candidate
-
 ---
 
 ## Running a cell (the procedure this ledger assumes)
@@ -176,8 +197,27 @@ post-processing to get wrong. A mask you got wrong is worse than no mask, becaus
   It is the index of what we already know and how much to trust it.
 - **`button up`** — run `python3 scripts/check-experiments.py`. It fails on drift: a claim citing a
   VOID run, a ledger row whose evidence is missing, a cell in the store with no row, or a
-  `GOTCHAS.md` conclusion with no `Evidence:` line.
-- **On every new conclusion** — add a `C<n>` row here *and* an `Evidence:` line in the GOTCHAS
+  dangling `exp_` reference, or a `GOTCHAS.md` status banner that disagrees with the register.
+- **On every new conclusion** — add a `C<n>` row here *and* a status banner in the GOTCHAS
   section, so invalidating a run is a grep rather than an audit.
+
+### Conventions (enforced by the checker, not by memory)
+
+| convention | form | enforced? |
+|---|---|---|
+| experiment id | `exp_` + 6 hex, **minted, never derived from the cell name** | format + uniqueness |
+| GOTCHAS status banner | `> **Ledger: ` + `` `STATUS` `` + ` (C<n>).** <why>` on the line directly under the `##` heading | vocabulary; must match the register's status for that claim; cited ids must exist |
+| citing a VOID run | add `void-ok: <what the void run still measures>` in the claim row | a `SUPPORTED`/`PARTIAL` claim citing a VOID run fails without it |
+| status words | `SUPPORTED` · `PARTIAL` · `UNREVIEWED` · `VOID` · `RETRACTED` — nothing else | rejected if not in vocabulary |
+
+**Why ids are minted, not sequential.** `E043` silently asserts "the 43rd, and later than E042" —
+so backfilling an older run makes the ordering lie, and holding the numbering stable across a regen
+needs bookkeeping a minted key does not. Per the project's standing key/label rule: an identity key
+that other rows point at carries no readable meaning. The cell *name* is the label; it may be
+reused or renamed, which is exactly why nothing durable derives from it.
+
+**Where each piece goes.** The register row is the claim. The GOTCHAS banner is the warning at the
+point of use. The index row is the run. A conclusion missing any of the three is not recorded — it
+is remembered, and this file exists because remembering failed.
 - **When a premise falls** — flip the *inference* to `RETRACTED`/`VOID` and say what survives.
   Never delete a measurement.

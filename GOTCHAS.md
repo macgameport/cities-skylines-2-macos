@@ -1041,6 +1041,8 @@ backups — so re-testing after an upstream winemac change is minutes, not anoth
 
 ## The glyph loss is IN-PROCESS GPU itself, not `--in-process-gpu` — `--single-process` fails identically (2026-08-28)
 
+> **Ledger: `VOID` (C4).** Evidence **not retained** — these cells predate the evidence store (earliest kept run 2026-08-29 16:56). The premise "this engine renders art but not text" is explained by an unresolved font backend, not by GPU mode. Re-test before believing any part.
+
 Prompted by [mikey92's dxmt#141 comment](https://github.com/3Shain/dxmt/issues/141#issuecomment-5448572368),
 which reports a stable Steam client on an M4 Pro / macOS 26.5 / Homebrew `wine-stable` 11 by
 running the *client* processes on vanilla wined3d and giving only games the DXMT builtins, with
@@ -1282,6 +1284,8 @@ a hang. Always create scratch prefixes with `WINEDLLOVERRIDES="mscoree=d;mshtml=
 for steam.exe. Kill by PID after checking `lsof` against the prefix.
 
 ## The valid Steam-side test at last: DXMT beats vanilla wined3d at EVERY cell (2026-08-29)
+
+> **Ledger: `UNREVIEWED` (C9).** The feature-level numbers come from a standalone probe (`dxgiprobe`) and are font-independent, so they plausibly survive — but this has **not** been re-audited against the config rules. Do not cite as settled.
 
 The section above closed with "a valid Steam-side test of the split has never been run here." It has
 now. `scripts/make-vanilla-wrapper.sh` builds the thing that makes it possible: an APFS clone of the
@@ -1539,6 +1543,8 @@ v0.80, `winemac.so` 0 public T, game path `d3d11 -> builtin`). `CS2vis-test.app`
 notpop stack and is the artefact to keep if this is revisited — **never run the game in it.**
 
 ## The cross-process root cause, MEASURED: `macdrv_get_cocoa_window` returns NULL for a foreign HWND (2026-08-29)
+
+> **Ledger: `SUPPORTED` (C3).** Derived from reading wine's source plus a targeted probe, not from a render cell — unaffected by the 2026-08-30 library audit.
 
 The refusal in DXMT is a **precondition check that returns before attempting anything**
 (`src/d3d11/d3d11_swapchain.cpp`, `CreateSwapChain`):
@@ -1849,6 +1855,8 @@ ABI route and is not needed for this result.
 
 ## Glyph chase on the new rendering baseline — three hypotheses tested, cause narrowed (2026-08-29)
 
+> **Ledger: `VOID`.** Evidence: `exp_3c7dd2`, `exp_6bd192` — every cell here ran with no font library (28-33 FreeType failures each). The hypotheses were tested against a broken baseline.
+
 With the client finally rendering, the glyph defect was re-attacked on a baseline that actually
 shows pixels. **Not fixed** — but the cause is now narrowed to something structural rather than
 mysterious, and two plausible explanations are dead.
@@ -1918,6 +1926,8 @@ is the same family as the auto-armed background task that blocked a macOS update
 
 ## Geometry mapping lands — and it ELIMINATES occlusion as the glyph cause (2026-08-29)
 
+> **Ledger: `PARTIAL`.** Evidence: `exp_3d7586`, `exp_015b85`. The **geometry mapping works** (font-independent). The **occlusion elimination does not** — both cells ran with no font backend, so "not occlusion" was concluded from a run that could not have shown text anyway.
+
 The missing piece of the child patch is implemented: each cross-process child's hosted layer is now
 positioned and clipped to its own rect in the root's coordinate space instead of being stretched
 over the whole content view.
@@ -1956,6 +1966,8 @@ resizes after its layer is hosted keeps a stale frame.
 
 ## Glyph-atlas texture path ELIMINATED — `scripts/r8test.c` (2026-08-29)
 
+> **Ledger: `RETRACTED` (C6).** The r8test measurements stand; the *elimination* does not. r8test runs as a standalone PE, and standalone PEs were measured 2026-08-30 to resolve FreeType fine on **both** engines — so it never exercised the failing condition.
+
 Skia uploads glyph masks as single-channel textures and samples them; if that silently yielded
 zero, text would vanish while artwork drew. **It does not.** `scripts/r8test.c` is a headless
 D3D11 probe — no window, no Steam, no compositor — that uploads a known-white texture, samples it
@@ -1991,6 +2003,8 @@ works and the fault is further up in Skia; all-zero means the text never exists 
 first place, which would explain every observation in this whole thread at once.
 
 ## Text RASTERISATION eliminated — byte-identical to the build that renders text (2026-08-29)
+
+> **Ledger: `RETRACTED` (C5).** Same defect as C6: `dwritetest` is a standalone PE and the byte-identical result is real but irrelevant — it never ran under the condition that fails. Measurement kept, elimination withdrawn.
 
 `scripts/dwritetest.c` asks DirectWrite for the alpha texture of a real glyph run ("ABC", Arial,
 32 px) and sums the bytes. Run on **both** engines on the same machine:
@@ -2031,6 +2045,8 @@ Chromium/ANGLE-level question rather than a DXMT one, and the next probe should 
 does differently between the two engines rather than at anything font-shaped.
 
 ## The glyph defect localised: Chromium has NO working GL at all on this engine (2026-08-29)
+
+> **Ledger: superseded by C10.** The same cells that could not load `libfreetype.dylib` also failed `libMoltenVK.dylib` and `winevulkan`. "No working GL" is likely one instance of *this process cannot dlopen any graphics library*, not a GL-specific fault.
 
 Comparing `cef_log.txt` between our engine and the PK build that renders text gives the cleanest
 signal in the whole text investigation.
@@ -2084,6 +2100,8 @@ count (6) is from the run's own stdout and is per-run.
 
 ## mikey92's CPU-raster config does NOT reproduce here — and the flag attribution is disproved (2026-08-30)
 
+> **Ledger: `VOID`.** Evidence: `exp_4a9a98` — 14 FreeType, 7 gnutls, 4 MoltenVK failures. A client with no fonts, no TLS and no Vulkan cannot test someone else's render config.
+
 mikey92 measured their own stack ([#141](https://github.com/3Shain/dxmt/issues/141)) and the result
 is important: **their Steam client is carried by CPU raster, not D3D11.** Their `dxgiprobe` matches
 ours exactly — vanilla PE gives `"NVIDIA GeForce 6800"`, `0x887A0004`, **FL 9_3**; the DXMT fork
@@ -2132,6 +2150,8 @@ against a stripped binary.
 
 ## ✅ CPU raster renders Steam WITH TEXT on an 11.0-lineage engine — the glyph story resolves (2026-08-30)
 
+> **Ledger: `PARTIAL` (C7).** Evidence: `exp_fb79d9` (wine-stable 11.0) is **genuine** — shim installed, libraries resolve, text visible. `exp_8d065a` (PK 11.0) is **mislabeled**: that prefix has no shim, so `--shim-args` never applied and it was an ordinary launch, not CPU raster.
+
 mikey92's configuration was run on a **clone of the PK 11.0 wrapper** (`cp -Rc`; the real store
 wrapper untouched): `steam.exe -no-cef-sandbox -cef-single-process -noverifyfiles`, shim prepending
 `--disable-gpu --single-process`.
@@ -2173,6 +2193,8 @@ statement is **correct**, which means the cross-process CHILD patch cannot apply
 black-window reports on `wine-stable` 11.0 without moving engines.
 
 ## No wine-version bisect is warranted — and mikey92's setup relocates the variable to macOS (2026-08-30)
+
+> **Ledger: `RETRACTED`.** Superseded twice — first by the wine-stable result, then by the 2026-08-30 audit which showed the comparison itself was confounded. Draw nothing from this.
 
 Asked "was it 11.4 or 11.11?", the honest answer is **neither: there is no version boundary between
 11.0 and 11.16 on this machine.** A controlled sweep on 2026-08-24 already measured it —
@@ -2216,6 +2238,8 @@ wine is fully exonerated; if it works, our own 11.16 build configuration is impl
 the version.
 
 ## ⚠ CORRECTION: macOS is NOT the variable — wine-stable 11.0 renders Steam WITH TEXT here (2026-08-30)
+
+> **Ledger: `RETRACTED` (C8).** Evidence: `exp_fb79d9` vs `exp_53a8e6`/`exp_7b9920`. Not a controlled comparison — one side had the shim and a working font backend, the other had neither. Retracted the same day it was written.
 
 The previous section concluded *"the remaining variable is not wine at all: it is macOS 26.5 vs
 26.6.2"*. **That is wrong, and this supersedes it.** Homebrew `wine-stable` (**wine-11.0**, the exact

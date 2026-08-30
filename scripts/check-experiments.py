@@ -16,7 +16,7 @@ Checks
 
   --regen  rewrite the index table from the evidence store, then re-check.
 """
-import os, re, sys, glob, argparse
+import os, re, sys, glob, argparse, secrets
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LEDGER = os.path.join(REPO, "EXPERIMENTS.md")
@@ -59,7 +59,7 @@ def scan_store():
     return cells
 
 
-ROW = re.compile(r"^\|\s*(\S[^|]*?)\s*\|\s*`([^`]+)`\s*\|\s*(\d+)\s*\|")
+ROW = re.compile(r"^\|\s*(exp_[0-9a-f]{6})\s*\|\s*(\S[^|]*?)\s*\|\s*`([^`]+)`\s*\|\s*(\d+)\s*\|")
 CLAIM = re.compile(r"^\|\s*(C\d+)\s*\|(.*)$")
 
 
@@ -68,7 +68,8 @@ def parse_ledger(text):
     for line in text.splitlines():
         m = ROW.match(line)
         if m:
-            index[m.group(2)] = {"ran": m.group(1), "ft": int(m.group(3)), "line": line}
+            index[m.group(3)] = {"eid": m.group(1), "ran": m.group(2),
+                                 "ft": int(m.group(4)), "line": line}
             continue
         c = CLAIM.match(line)
         if c:
@@ -80,30 +81,49 @@ def parse_ledger(text):
                     status = s
                     break
             claims.append({"id": c.group(1), "status": status, "raw": c.group(2),
-                           "cites": re.findall(r"`([a-z0-9][a-z0-9._*-]+)`", c.group(2))})
+                           "cites": re.findall(r"`([a-z0-9][a-z0-9._*-]+)`", c.group(2))
+                                    + re.findall(r"\b(exp_[0-9a-f]{6})\b", c.group(2))})
     return index, claims
 
 
-def render_index(cells):
-    out = ["| ran | cell | FT | gnutls | MVK | capture | status |",
-           "|---|---|---:|---:|---:|---|---|"]
+def render_index(cells, existing):
+    """Experiment ids are MINTED OPAQUE SURROGATES (`exp_` + 6 hex), per the project's standing
+    key/label rule: an identity key that other rows point at must carry no readable meaning.
+
+    Sequential ids failed that twice over — `E043` silently asserts "the 43rd, and later than
+    E042", so a backfilled older run would make the ordering lie, and keeping the numbering stable
+    across a regen needed bookkeeping (read prior ids, max+1) that a minted key does not.
+    Minted, not derived from the cell name: a label must never be the source of a durable key."""
+    used = {n: existing[n]["eid"] for n in existing}
+    taken = set(used.values())
+    for name in sorted(cells, key=lambda n: (cells[n]["ran"], n)):
+        if name not in used:
+            while True:
+                cand = "exp_" + secrets.token_hex(3)
+                if cand not in taken:
+                    break
+            used[name] = cand
+            taken.add(cand)
+    out = ["| id | ran | cell | FT | gnutls | MVK | capture | status |",
+           "|---|---|---|---:|---:|---:|---|---|"]
     for name in sorted(cells, key=lambda n: (cells[n]["ran"], n)):
         c = cells[name]
-        out.append("| %s | `%s` | %d | %d | %d | %s | %s |"
-                   % (c["ran"], name, c["ft"], c["gnutls"], c["mvk"], c["render"], c["status"]))
+        out.append("| %s | %s | `%s` | %d | %d | %d | %s | %s |"
+                   % (used[name], c["ran"], name, c["ft"], c["gnutls"], c["mvk"],
+                      c["render"], c["status"]))
     v = sum(1 for c in cells.values() if c["status"] == "VOID-LIBS")
     k = sum(1 for c in cells.values() if c["status"] == "candidate")
     out += ["", "%d cells · %d VOID-LIBS · %d candidate" % (len(cells), v, k)]
     return "\n".join(out)
 
 
-def regen(text, cells):
-    start = text.find("| ran | cell | FT |")
+def regen(text, cells, existing):
+    start = text.find("| id | ran | cell | FT |")
     if start < 0:
         print("  ! no index table found to regenerate"); return text
     end = text.find("\n---", start)
     tail = text[end:] if end > 0 else "\n"
-    return text[:start] + render_index(cells) + "\n" + tail.lstrip("\n")
+    return text[:start] + render_index(cells, existing) + "\n" + tail.lstrip("\n")
 
 
 def main():
@@ -117,7 +137,8 @@ def main():
     cells = scan_store()
 
     if args.regen:
-        new = regen(text, cells)
+        prior, _ = parse_ledger(text)
+        new = regen(text, cells, prior)
         if new != text:
             open(LEDGER, "w", encoding="utf-8").write(new)
             print("  regenerated index (%d cells)" % len(cells))
@@ -160,8 +181,35 @@ def main():
                      % len(unfp))
     if os.path.exists(GOTCHAS):
         g = open(GOTCHAS, encoding="utf-8").read()
-        notes.append("GOTCHAS.md: %d section(s), %d carry an `Evidence:` line"
-                     % (g.count("\n## "), len(re.findall(r"^\s*(?:\*\*)?Evidence:", g, re.M))))
+        banners = len(re.findall(r"^> \*\*Ledger:", g, re.M))
+        notes.append("GOTCHAS.md: %d section(s), %d carry a `> **Ledger:` status banner"
+                     % (g.count("\n## "), banners))
+        # dangling-reference check: a GOTCHAS banner citing an id no longer in the index is the
+        # exact failure this whole system exists to prevent — a conclusion pointing at evidence
+        # that is gone, which reads as "backed by a run" to anyone who does not go looking.
+        by_id = {v["eid"]: n for n, v in index.items() if "eid" in v}
+        for cited in sorted(set(re.findall(r"\b(exp_[0-9a-f]{6})\b", g))):
+            if cited not in by_id:
+                problems.append("GOTCHAS.md cites %s, which is not in the ledger index" % cited)
+
+        # Convention enforcement. The banner format and the register are two statements of the same
+        # fact in two files; nothing but a check keeps them equal, and a banner that says SUPPORTED
+        # over a claim the register RETRACTED is worse than no banner at all.
+        VOCAB = {"SUPPORTED", "PARTIAL", "UNREVIEWED", "VOID", "RETRACTED"}
+        by_claim = {c["id"]: c["status"] for c in claims}
+        for line in re.findall(r"^> \*\*Ledger:[^\n]*", g, re.M):
+            st = re.search(r"Ledger:\s*`([A-Z-]+)`", line)
+            cid = re.search(r"\((C\d+)\)", line)
+            if st and st.group(1) not in VOCAB:
+                problems.append("GOTCHAS banner uses status `%s`, not in the vocabulary (%s)"
+                                % (st.group(1), ", ".join(sorted(VOCAB))))
+            if st and cid:
+                want = by_claim.get(cid.group(1))
+                if want and want != st.group(1):
+                    problems.append("GOTCHAS banner says %s is `%s`, register says `%s`"
+                                    % (cid.group(1), st.group(1), want))
+            if cid and cid.group(1) not in by_claim:
+                problems.append("GOTCHAS banner cites %s, which is not in the register" % cid.group(1))
 
     print("\n=== experiment ledger check ===")
     print("  evidence store : %s (%d cells)" % (STORE, len(cells)))
