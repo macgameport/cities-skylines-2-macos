@@ -208,6 +208,47 @@ Three things fall out of that, and I think all three are worth having:
 (Forcing the guard is not a workaround, to be clear — it just converts a clean `E_FAIL` into an
 `abort()` in the GPU process. Same black window. I kept the patch purely as a diagnostic.)
 
+**10. So I kept going, and I think this is the useful part for you.** `macdrv_get_cocoa_window` is
+`get_win_data(hwnd)`, and `get_win_data` is a lookup in `win_datas` — a **process-local
+`CFDictionary`**. So that route can't ever work cross-process. But wine's macdrv has a *second*
+path, and it already handles the foreign case. In `macdrv_client_surface_acquire_metal_swapchain`:
+
+```c
+if ((data = get_win_data(hwnd))) { ... macdrv_create_view_swapchain(surface->cocoa_view); }
+else {
+    if (NtUserGetAncestor(hwnd, GA_ROOT) != hwnd) {
+        FIXME("Cross-process child window Metal swapchains are not implemented\n");
+        return FALSE;
+    }
+    surface->metal_swapchain = macdrv_create_offscreen_swapchain(hwnd, ...);
+}
+```
+
+For a foreign **root** window wine builds an **offscreen** swapchain; only foreign **child** windows
+are unimplemented. On my engine the thing that stops us reaching it is a refusal one level up — the
+DXMT-support patch's `my_get_win_data` returns NULL whenever `get_win_data` does. I gated that on an
+env var and rebuilt `winemac.so`, then ran it against **stock DXMT v0.80** (which, unlike the newer
+tree, has no cross-process guard at all). Result:
+
+- the foreign path fires **46×** in one launch,
+- **no** `Cross-process child window` FIXME — these are root windows, so the offscreen branch ran,
+- **zero** `Failed to create metal view` — DXMT genuinely gets a Metal view for a foreign HWND,
+- and the window is **still black**.
+
+**Which I think locates the problem precisely: it isn't view creation and it isn't swapchain
+bookkeeping — both can be made to succeed.** It's that the cross-process route yields an
+*offscreen* swapchain whose contents are never composited into the on-screen window owned by the
+other process. Closing this would need cross-process *compositing* — an `IOSurface`/`CAContext`-style
+shared layer — which is a winemac/wineserver-level change rather than anything DXMT can do alone.
+That would also explain why the CrossOver-lineage build is the only thing I've seen render this
+client: its plumbing spans exactly those layers.
+
+Caveats, so you can weigh it: that cell ran with `WINEDEBUG=err+all` (the harness normally uses
+`-all`, which suppresses wine's own `ERR()` — my first attempt looked like "nothing fired" purely
+because of that), the patch leaks the client surface since there's no `win_data` to own it, and the
+same run logs some MoltenVK/gnutls load failures I have **not** controlled for and am not
+attributing to the patch.
+
 **So, having chased all three routes to the end: this issue is the fix.** The vanilla-wined3d split
 is capped at FL 9_3 here; notpop's visibility + fork route fixes games, not the client; and the only
 thing left standing between Steam's CEF and a rendered window on DXMT is cross-process swapchain

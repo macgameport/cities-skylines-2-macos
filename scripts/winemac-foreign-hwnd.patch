@@ -1,0 +1,30 @@
+# winemac-foreign-hwnd.patch — apply to dlls/winemac.drv/macdrv_main.c in the DXMT-patched
+# wine 11.16 tree (after scripts/wineandaqua-dxmt.patch). Gated on DXMT_ALLOW_FOREIGN_HWND=1.
+# Lets my_get_win_data() proceed for an HWND owned by another process, so wine's existing
+# offscreen cross-process branch in macdrv_client_surface_acquire_metal_swapchain() can run.
+# DIAGNOSTIC ONLY — leaks the client surface (no win_data to own it), and the window still
+# ends up black because the offscreen swapchain is never composited into the foreign window.
+# Rebuild just the module:  gmake dlls/winemac.drv/winemac.so   (see build-winemac-visibility.sh)
+
+--- a/dlls/winemac.drv/macdrv_main.c
++++ b/dlls/winemac.drv/macdrv_main.c
+@@ my_get_win_data @@
++    /* get_win_data() needs to happen after client_surface creation to avoid deadlocks */
++    data = get_win_data(hwnd);
++    if (!data)
++    {
++        /* EXPERIMENT (2026-08-29, macgameport): a NULL here means the HWND belongs to ANOTHER
++         * PROCESS -- win_datas is a process-local CFDictionary. Refusing here is what makes
++         * DXMT report "cross-process swapchain not supported yet", even though
++         * macdrv_client_surface_acquire_metal_swapchain() below ALREADY handles the foreign
++         * case for root windows via macdrv_create_offscreen_swapchain(). Gated on
++         * DXMT_ALLOW_FOREIGN_HWND=1 so nothing changes for the game path.
++         * Known leak: without win_data there is no dxmt_client_surfaces array to own the
++         * surface. Diagnostic build only. */
++        if (!getenv("DXMT_ALLOW_FOREIGN_HWND"))
++        {
++            client_surface_release((struct client_surface *)client_surface);
++            return NULL;
++        }
++        ERR("dxmt: FOREIGN HWND %p -- proceeding with client surface only (experimental)\n", hwnd);
++    

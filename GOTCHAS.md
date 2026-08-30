@@ -1594,6 +1594,68 @@ winemac/win32u/wineserver).
 **Forcing the guard is therefore not a workaround** — it converts a clean `E_FAIL` refusal into an
 `abort()` in the GPU process. Window still black (108,343 B). Kept for diagnosis only.
 
+## Cross-process, all the way down: wine's own branch is OFFSCREEN, and that is the real wall (2026-08-29)
+
+Pulling the thread past the DXMT guard produced the complete chain. Four refusals stack, and
+removing them one at a time gets a *Metal view* for a foreign HWND — but never a *pixel* in the
+foreign window.
+
+**1. `macdrv_get_cocoa_window` can't work cross-process, by construction.** It is
+`get_win_data(hwnd)` (`window.c:223`), and `get_win_data` is a lookup in `win_datas`, a
+**process-local `CFDictionary`** guarded by `win_data_mutex` (`window.c`). Another process's window
+is simply not in this process's table. `release_win_data(NULL)` is a safe no-op, so the NULL path
+is clean — it just never yields a window.
+
+**2. But our engine has a second, better path that notpop's fork deliberately abandoned.** The
+aquadran DXMT patch adds `my_get_win_data` (`macdrv_main.c:684`), which calls
+**`macdrv_CreateClientSurface(hwnd, 0)` *first*** and hands DXMT a `client_cocoa_view`. notpop's
+rewrite avoids `macdrv_win_data` because on **stock** Wine 11 `client_view` is only populated from
+the GDI present path — true there, but our patched winemac creates the surface on demand. Two
+different engines, two different correct answers.
+
+**3. Wine already has a cross-process branch — and it names its own limit.** In
+`macdrv_client_surface_acquire_metal_swapchain` (`window.c:1165`):
+
+```c
+if ((data = get_win_data(hwnd)))  { ... macdrv_create_view_swapchain(surface->cocoa_view); }
+else {
+    if (NtUserGetAncestor(hwnd, GA_ROOT) != hwnd) {
+        FIXME("Cross-process child window Metal swapchains are not implemented\n");
+        return FALSE;
+    }
+    surface->metal_swapchain = macdrv_create_offscreen_swapchain(hwnd, cgrect_from_rect(rect));
+}
+```
+
+So for a foreign **root** window wine builds an **offscreen** swapchain
+(`cocoa_window.m:4175`); only foreign **child** windows are unimplemented.
+
+**4. The refusal that actually bites is in our own wrapper, and it is removable.**
+`my_get_win_data` returns NULL whenever `get_win_data` does — before wine's offscreen branch can
+ever run. Gated that on `DXMT_ALLOW_FOREIGN_HWND=1` (kept as
+`scripts/winemac-foreign-hwnd.patch`) and rebuilt `winemac.so`. Measured with **stock DXMT v0.80**
+(which has *no* cross-process guard at all — 0 occurrences of the string, unlike the newer fork):
+
+- the foreign path fires **46 times** in one launch (`FOREIGN HWND 0x30164 …`),
+- **no `Cross-process child window` FIXME** — so these are root windows and the offscreen branch ran,
+- **zero `Failed to create metal view`** — DXMT genuinely obtains a Metal view for a foreign HWND,
+- and the window is **still black, 108,343 B**.
+
+**That is the answer.** The wall is not view creation and not swapchain bookkeeping — both can be
+made to succeed. It is that wine's cross-process route produces an **offscreen** swapchain, whose
+contents are never composited into the on-screen window owned by the other process. Fixing
+dxmt#141 therefore needs cross-process *compositing* (an `IOSurface`/`CAContext`-style shared
+layer), which is exactly the shape of the vendor plumbing noted on 2026-08-24 as spanning
+winemac / win32u / wineserver — and it is why no DXMT-only change can close it.
+
+⚠ **Caveats on this cell, stated rather than buried.** It ran with `WINEDEBUG=err+all` (the cell
+harness normally sets `-all`, which **suppresses wine's own `ERR()`** — the first attempt looked
+like "nothing fired" purely because of that). The same run also logs
+`err:vulkan:vulkan_init_once Failed to load libMoltenVK.dylib` ×5 and gnutls/kerberos load
+failures; those are visible only because err logging was on and are **not** known to be caused by
+the patch — do not attribute them without a matched control. The patch also **leaks** the client
+surface when there is no `win_data` to own it. Diagnostic build only.
+
 ## `du` lies about disk on APFS: the two wrappers' 91 GB game installs were CLONES (2026-08-24)
 
 Both wrappers reported a 91 GB `Cities Skylines II` install, so deleting the redundant one in
