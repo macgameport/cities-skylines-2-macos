@@ -33,6 +33,7 @@
 #     the Metal layer must be rebuilt in lockstep.
 #
 # MEASURED (M3 Max, macOS 26.6.2, self-built stock wine 11.16 + DXMT):
+#   with repositioning: 2,359,284 B, child path 46x/launch, zero acquire failures
 #   before: Steam window 108,343 B, uniformly black
 #   after:  2,588,759 B, store renders — no shim, no injected flags, out-of-process GPU
 #   child path fires 46x per launch, zero acquire_metal_swapchain failures
@@ -53,8 +54,12 @@
 # GPU-time TAIL statistics, which are noisier than the FPS figure that floor was measured on.
 #
 # ⚠ KNOWN INCOMPLETE — do not treat as finished:
-#   * The hosted layer is positioned only at creation. A widget that moves or resizes
-#     afterwards keeps a stale frame; it should be repositioned on WM_MACDRV_WINDOWPOSCHANGED.
+#   * (FIXED in this revision) The hosted layer is now repositioned when the ROOT window's
+#     geometry changes: WM_MACDRV_CREATE_REMOTE_LAYER records CAContextID -> child HWND on the
+#     root's win_data, and macdrv_WindowPosChanged re-derives each child's rect and updates the
+#     host frame inside a CATransaction with actions disabled. This has to be driven from the
+#     ROOT: child windows fail is_window_managed() ((style & (WS_POPUP|WS_CHILD)) == WS_CHILD),
+#     so they never get managed win_data and their own WindowPosChanged never arrives.
 #   * Many child rects are 0x0 at swapchain-creation time (widget not yet laid out) and
 #     fall back to full bounds, so the mapping is not exercised for them.
 #   * Glyphs are still missing in this configuration. That is a SEPARATE defect —
@@ -63,7 +68,7 @@
 #
 diff -urN a/dlls/winemac.drv/cocoa_window.m b/dlls/winemac.drv/cocoa_window.m
 --- a/dlls/winemac.drv/cocoa_window.m	2026-08-30 03:35:46
-+++ b/dlls/winemac.drv/cocoa_window.m	2026-08-30 03:36:18
++++ b/dlls/winemac.drv/cocoa_window.m	2026-08-30 04:23:41
 @@ -725,7 +725,7 @@
          return _metalView;
      }
@@ -96,7 +101,29 @@ diff -urN a/dlls/winemac.drv/cocoa_window.m b/dlls/winemac.drv/cocoa_window.m
  
          [self.layer addSublayer:host];
          [_caLayerHosts setObject:host forKey:@(contextId)];
-@@ -4083,24 +4095,26 @@
+@@ -745,6 +757,21 @@
+         [(WineWindow*)self.window windowDidDrawContent];
+     }
+ 
++    - (void) updateCALayerHostFrame:(CAContextID)contextId frame:(CGRect)frame
++    {
++        CALayerHost* host = [_caLayerHosts objectForKey:@(contextId)];
++        if (host && !CGRectIsEmpty(frame) && !CGRectEqualToRect(host.frame, frame))
++        {
++            /* the hosted layer is positioned in the OWNER's coordinate space; the child it
++             * mirrors lives in another process and can move or resize after the layer was
++             * hosted, so refresh it rather than leaving a stale frame. */
++            [CATransaction begin];
++            [CATransaction setDisableActions:YES];
++            host.frame = frame;
++            [CATransaction commit];
++        }
++    }
++
+     - (void) removeCALayerHostView:(CAContextID)contextId
+     {
+         NSNumber* key = @(contextId);
+@@ -4083,24 +4110,26 @@
  @interface CAContextSwapChain : NSObject <WineMetalSwapChain>
  {
      void* hwnd;
@@ -125,7 +152,7 @@ diff -urN a/dlls/winemac.drv/cocoa_window.m b/dlls/winemac.drv/cocoa_window.m
      if (!(device = macdrv_create_metal_device()))
      {
          [self release];
-@@ -4139,7 +4153,7 @@
+@@ -4139,7 +4168,7 @@
          return nil;
      }
  
@@ -134,7 +161,7 @@ diff -urN a/dlls/winemac.drv/cocoa_window.m b/dlls/winemac.drv/cocoa_window.m
      return self;
  }
  
-@@ -4172,9 +4186,9 @@
+@@ -4172,9 +4201,9 @@
      return (macdrv_metal_swapchain)[[MetalViewSwapChain alloc] initWithView:v];
  }
  
@@ -146,7 +173,7 @@ diff -urN a/dlls/winemac.drv/cocoa_window.m b/dlls/winemac.drv/cocoa_window.m
  }
  
  macdrv_metal_layer macdrv_swapchain_get_layer(macdrv_metal_swapchain swapchain)
-@@ -4188,7 +4202,7 @@
+@@ -4188,7 +4217,7 @@
      [(id<WineMetalSwapChain>)swapchain release];
  }
  
@@ -155,19 +182,46 @@ diff -urN a/dlls/winemac.drv/cocoa_window.m b/dlls/winemac.drv/cocoa_window.m
  {
  @autoreleasepool
  {
-@@ -4198,7 +4212,7 @@
+@@ -4198,7 +4227,22 @@
          NSView* content_view = [window contentView];
  
          if ([content_view isKindOfClass:[WineContentView class]])
 -            [(WineContentView*)content_view addCALayerHostViewWithContextId:context_id];
 +            [(WineContentView*)content_view addCALayerHostViewWithContextId:context_id frame:frame];
++    });
++}
++}
++
++void macdrv_window_update_ca_layer_host_frame(macdrv_window w, unsigned int context_id, CGRect frame)
++{
++@autoreleasepool
++{
++    WineWindow* window = (WineWindow*)w;
++
++    OnMainThread(^{
++        NSView* content_view = [window contentView];
++
++        if ([content_view isKindOfClass:[WineContentView class]])
++            [(WineContentView*)content_view updateCALayerHostFrame:context_id frame:frame];
      });
  }
  }
+diff -urN a/dlls/winemac.drv/macdrv.h b/dlls/winemac.drv/macdrv.h
+--- a/dlls/winemac.drv/macdrv.h	2026-08-30 03:35:46
++++ b/dlls/winemac.drv/macdrv.h	2026-08-30 04:23:41
+@@ -194,6 +194,8 @@
+     unsigned int        fullscreen : 1;         /* is the window visible rect fullscreen? (unrelated to native AppKit/Cocoa fullscreen) */
+ 
+     CFMutableArrayRef   dxmt_client_surfaces;
++    CFMutableDictionaryRef remote_layer_children; /* CAContextID -> child HWND, for repositioning
++                                                   * hosted cross-process layers on resize */
+ };
+ 
+ struct macdrv_client_surface
 diff -urN a/dlls/winemac.drv/macdrv_cocoa.h b/dlls/winemac.drv/macdrv_cocoa.h
 --- a/dlls/winemac.drv/macdrv_cocoa.h	2026-08-30 03:35:46
-+++ b/dlls/winemac.drv/macdrv_cocoa.h	2026-08-30 00:18:15
-@@ -533,12 +533,12 @@
++++ b/dlls/winemac.drv/macdrv_cocoa.h	2026-08-30 04:23:41
+@@ -533,12 +533,13 @@
  extern macdrv_metal_layer macdrv_view_get_metal_layer(macdrv_metal_view v);
  extern void macdrv_view_release_metal_view(macdrv_metal_view v);
  extern macdrv_metal_swapchain macdrv_create_view_swapchain(macdrv_view v);
@@ -179,6 +233,7 @@ diff -urN a/dlls/winemac.drv/macdrv_cocoa.h b/dlls/winemac.drv/macdrv_cocoa.h
 +extern void macdrv_window_create_ca_layer_host_view(macdrv_window w, unsigned int context_id, CGRect frame);
  extern void macdrv_window_release_ca_layer_host_view(macdrv_window w, unsigned int context_id);
 -extern void macdrv_create_remote_layer(void* hwnd, unsigned int context_id);
++extern void macdrv_window_update_ca_layer_host_frame(macdrv_window w, unsigned int context_id, CGRect frame);
 +extern void macdrv_create_remote_layer(void* hwnd, void* child, unsigned int context_id);
  extern void macdrv_release_remote_layer(void* hwnd, unsigned int context_id);
  extern bool macdrv_get_view_backing_size(macdrv_view v, int backing_size[2]);
@@ -267,7 +322,7 @@ diff -urN a/dlls/winemac.drv/macdrv_main.c b/dlls/winemac.drv/macdrv_main.c
  void macdrv_client_surface_presented(const macdrv_event *event)
 diff -urN a/dlls/winemac.drv/window.c b/dlls/winemac.drv/window.c
 --- a/dlls/winemac.drv/window.c	2026-08-30 03:35:46
-+++ b/dlls/winemac.drv/window.c	2026-08-30 03:36:18
++++ b/dlls/winemac.drv/window.c	2026-08-30 04:24:06
 @@ -1178,14 +1178,24 @@
      {
          RECT rect;
@@ -299,7 +354,7 @@ diff -urN a/dlls/winemac.drv/window.c b/dlls/winemac.drv/window.c
      }
  
      return surface->metal_swapchain != NULL;
-@@ -1560,8 +1570,25 @@
+@@ -1560,8 +1570,38 @@
      case WM_MACDRV_CREATE_REMOTE_LAYER:
          if ((data = get_win_data(hwnd)))
          {
@@ -323,11 +378,34 @@ diff -urN a/dlls/winemac.drv/window.c b/dlls/winemac.drv/window.c
 +                }
 +            }
 +            if (data->cocoa_window)
++            {
 +                macdrv_window_create_ca_layer_host_view(data->cocoa_window, (unsigned int)lp, frame);
++                if (child)
++                {
++                    /* remember which child this layer mirrors so it can be repositioned when the
++                     * window resizes -- the child lives in another process and its own
++                     * WindowPosChanged never reaches us (children are not managed windows). */
++                    if (!data->remote_layer_children)
++                        data->remote_layer_children = CFDictionaryCreateMutable(NULL, 0, NULL, NULL);
++                    if (data->remote_layer_children)
++                        CFDictionarySetValue(data->remote_layer_children,
++                                             (const void *)(UINT_PTR)(unsigned int)lp, child);
++                }
++            }
              release_win_data(data);
          }
          return 0;
-@@ -1580,9 +1607,11 @@
+@@ -1570,6 +1610,9 @@
+         {
+             TRACE("WM_MACDRV_RELEASE_REMOTE_LAYER context_id %u\n", (unsigned int)lp);
+             if (data->cocoa_window) macdrv_window_release_ca_layer_host_view(data->cocoa_window, (unsigned int)lp);
++            if (data->remote_layer_children)
++                CFDictionaryRemoveValue(data->remote_layer_children,
++                                        (const void *)(UINT_PTR)(unsigned int)lp);
+             release_win_data(data);
+         }
+         return 0;
+@@ -1580,9 +1623,11 @@
  }
  
  
@@ -341,3 +419,55 @@ diff -urN a/dlls/winemac.drv/window.c b/dlls/winemac.drv/window.c
  }
  
  
+@@ -1638,6 +1683,43 @@
+ /***********************************************************************
+  *              WindowPosChanged   (MACDRV.@)
+  */
++
++/* Re-place the cross-process layers hosted on this window. Each mirrors a child HWND owned by
++ * another process; those children are not managed windows, so their own WindowPosChanged never
++ * arrives here and a hosted layer would otherwise keep the frame it was given at creation. */
++static void update_remote_layer_frames(struct macdrv_win_data *data)
++{
++    CFIndex count, i;
++    const void **keys, **vals;
++    RECT root_rect;
++    UINT dpi;
++
++    if (!data->remote_layer_children || !data->cocoa_window) return;
++    if (!(count = CFDictionaryGetCount(data->remote_layer_children))) return;
++
++    dpi = NtUserGetWinMonitorDpi(data->hwnd, MDT_RAW_DPI);
++    if (!NtUserGetWindowRect(data->hwnd, &root_rect, dpi)) return;
++
++    keys = calloc(count, sizeof(*keys));
++    vals = calloc(count, sizeof(*vals));
++    if (!keys || !vals) { free(keys); free(vals); return; }
++    CFDictionaryGetKeysAndValues(data->remote_layer_children, keys, vals);
++
++    for (i = 0; i < count; i++)
++    {
++        HWND child = (HWND)vals[i];
++        unsigned int context_id = (unsigned int)(UINT_PTR)keys[i];
++        RECT cr;
++
++        if (!NtUserGetWindowRect(child, &cr, dpi)) continue;
++        OffsetRect(&cr, -root_rect.left, -root_rect.top);
++        macdrv_window_update_ca_layer_host_frame(data->cocoa_window, context_id,
++            CGRectMake(cr.left, cr.top, cr.right - cr.left, cr.bottom - cr.top));
++    }
++    free(keys);
++    free(vals);
++}
++
+ void macdrv_WindowPosChanged(HWND hwnd, HWND insert_after, HWND owner_hint, UINT swp_flags,
+                              const struct window_rects *new_rects, struct window_surface *surface)
+ {
+@@ -1653,6 +1735,7 @@
+ 
+     old_rects = data->rects;
+     data->rects = *new_rects;
++    update_remote_layer_frames(data);
+ 
+     TRACE("win %p/%p new_rects %s style %08x flags %08x surface %p\n", hwnd, data->cocoa_window,
+           debugstr_window_rects(new_rects), new_style, swp_flags, surface);
