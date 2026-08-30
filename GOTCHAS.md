@@ -796,8 +796,24 @@ Two defects observed live, neither of them font-related:
    3840×2160 is the **unrotated native resolution of the OTHER display**, the U2720Q, which runs
    2160×3840 portrait. So the game is choosing the wrong display and ignoring its rotation.
    `Settings.coc` had `displayIndex 0`, `width 1920`, `height 1200` — a height matching neither
-   panel. ⚠ **Fix it in-game, never by editing `Settings.coc`** (partial flips yield an "on but
-   zeroed" profile the game reports as `Custom`). Unknown whether this predates today.
+   panel. Unknown whether this predates today.
+
+   **Recovery, when the window is bigger than the display and the menus are off-screen** — you
+   cannot click your way out, because the controls are rendered outside the visible area. CS2 is
+   **Unity**, so its standard screen arguments work, and the launcher already forwards `CS2_ARGS`
+   to `Cities2.exe` (`launch-cs2-dxmt11.sh:194`):
+
+   ```bash
+   CS2_ARGS="-screen-width 1920 -screen-height 1080 -screen-fullscreen 0" bash ~/cs2-patch/launch-cs2-dxmt11.sh
+   ```
+
+   Measured 2026-08-30: window came back as **1920x1080 at 0,0**, `MainMenu reached`, dialogs
+   centred and clickable. Then set the resolution **in-game** so it persists and the override is no
+   longer needed. ⚠ **Do not fix this by editing `Settings.coc`** — partial flips there yield an
+   "on but zeroed" profile the game reports as `Custom` and will not restore across a display
+   change. The command-line override needs no file edit at all, which is why it is the right tool.
+   Quit the game before any such attempt anyway: it rewrites `Settings.coc` on exit and will
+   overwrite the edit you just made.
 
 ⚠ **A direct `wine Cities2.exe` that bypasses the launcher HANGS** — black window, ~110% CPU, RSS
 climbing, no game logs, stalled stderr. Reaching `MainMenu` needs the launcher's preamble, which
