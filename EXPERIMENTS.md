@@ -51,6 +51,49 @@ Made durable in `scripts/build-engine-1116.sh` (step 8) so a rebuild does not si
 ⚠ That step was appended using `$ENGINE`, which **does not exist** in that script — it would have
 skipped every module in silence. Corrected to `$E` and dry-run against the real tree.
 
+### 🔬 The fastfail, traced: a NULL read at +0x18 inside a wine syscall (2026-08-30)
+
+`WINEDEBUG=+seh` on the out-of-process client gives the whole sequence on one thread, and it is
+**deterministic** — same address every crash, every launch:
+
+```
+handle_syscall_fault code=c0000005 flags=0 addr=0x2179833df
+  info[0]=0  info[1]=0x18                 <- READ (info[0]=0) from address 0x18
+handle_syscall_fault returning to user mode ip=0x6fffe4f62a37 ret=c0000005
+err:seh:NtRaiseException Unhandled exception code c0000409 addr 0x6ffffecd98fe
+```
+
+**Read it in order:** a **null-pointer read at offset 0x18** faults *inside a wine syscall*
+(`handle_syscall_fault`, not an ordinary user-mode fault). Wine converts it to `c0000005` and
+returns it to Windows-side code, which does not handle it and calls **`abort()`**.
+
+The `c0000409` end of it is fully identified — disassembled from the module actually loaded:
+
+| fact | value |
+|---|---|
+| faulting instruction | `int 0x29` — `__fastfail` |
+| code in `ecx` | **7** = `FAST_FAIL_FATAL_APP_EXIT` |
+| lead-in | `mov ecx,0x16` (`raise(SIGABRT)`), abort-behaviour check, then the fastfail — the UCRT's **`abort()`** |
+| module | `C:\windows\system32\ucrtbase.dll`, loaded **`native`** (a real Microsoft CRT is installed in this prefix, overriding wine's builtin) |
+
+**So it is not memory corruption, not a stack-cookie/GS violation, not an invalid CRT parameter.**
+It is an unhandled access violation that becomes a deliberate abort. Combined with the
+backend-independence result above, the GPU process dies from a **null dereference in wine's syscall
+path that has nothing to do with graphics**.
+
+⚠ **Tested and negative:** forcing wine's builtin CRT (`WINEDLLOVERRIDES=…;ucrtbase=b`) leaves the
+crash count unchanged at 6. The native CRT is where the abort *surfaces*, not its cause. (The
+override was not independently confirmed to have applied — worth verifying before relying on it.)
+
+⚠ **Two dead ends, recorded so they are not retried.** `--enable-logging=stderr --v=1` injected via
+the shim reaches the real webhelper's command line but yields **no** GPU-process log output — the
+fault precedes Chromium's logging. And mapping the fault address to a module across the whole log is
+**unsound**: bases differ per process, and doing so named the wrong DLL and produced a garbage
+disassembly. Scope the module list to the **crashing thread id**, which the wine log prefixes.
+
+**Next:** `ip=0x2179833df` is a *unix-side* address, so the null deref is in a wine `.so` or a
+native dylib, not in Chromium's PE code. Identifying that mapping is where a next round starts.
+
 ### 🎯 The GPU-process crash is BACKEND-INDEPENDENT — it is not a graphics fault (2026-08-30)
 
 Ran the out-of-process client on the default backend and on **pure software rendering**
@@ -439,8 +482,11 @@ may belong to a different wrapper's Steam.
 | exp_fd9012 | 2026-08-30 17:47 | `gpu-fastfail-verbose` | 0 | 0 | 0 | black | candidate |
 | exp_55fc05 | 2026-08-30 17:49 | `swiftshader-oop` | 0 | 0 | 0 | black | candidate |
 | exp_b292d6 | 2026-08-30 17:51 | `default-oop-control` | 0 | 0 | 0 | black | candidate |
+| exp_9f3199 | 2026-08-30 18:02 | `seh-fastfail` | 0 | 0 | 0 | black | candidate |
+| exp_86ebce | 2026-08-30 18:04 | `seh-module` | 0 | 0 | 0 | black | candidate |
+| exp_e99644 | 2026-08-30 18:08 | `ucrtbase-builtin` | 0 | 0 | 0 | black | candidate |
 
-56 cells · 45 VOID-LIBS · 11 candidate
+59 cells · 45 VOID-LIBS · 14 candidate
 ---
 
 ## Running a cell (the procedure this ledger assumes)
