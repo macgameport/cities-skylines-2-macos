@@ -1641,9 +1641,11 @@ ever run. Gated that on `DXMT_ALLOW_FOREIGN_HWND=1` (kept as
 - **zero `Failed to create metal view`** — DXMT genuinely obtains a Metal view for a foreign HWND,
 - and the window is **still black, 108,343 B**.
 
-**That is the answer.** The wall is not view creation and not swapchain bookkeeping — both can be
-made to succeed. It is that wine's cross-process route produces an **offscreen** swapchain, whose
-contents are never composited into the on-screen window owned by the other process. Fixing
+**That is the answer — but see the NEXT section, which corrects the last step.** The wall is not
+view creation and not swapchain bookkeeping; both can be made to succeed. It is that DXMT never
+reaches wine's CAContext/CALayerHost route at all, so its offscreen content is never composited
+into the window owned by the other process. ⚠ The compositing itself **does** exist and is used by
+wine's Vulkan path — the gap is an ABI entry, not a missing implementation. Fixing
 dxmt#141 therefore needs cross-process *compositing* (an `IOSurface`/`CAContext`-style shared
 layer), which is exactly the shape of the vendor plumbing noted on 2026-08-24 as spanning
 winemac / win32u / wineserver — and it is why no DXMT-only change can close it.
@@ -1655,6 +1657,59 @@ like "nothing fired" purely because of that). The same run also logs
 failures; those are visible only because err logging was on and are **not** known to be caused by
 the patch — do not attribute them without a matched control. The patch also **leaks** the client
 surface when there is no `win_data` to own it. Diagnostic build only.
+
+## The cross-process compositing already EXISTS — DXMT just can't reach it (2026-08-29)
+
+The previous section concluded the wall was "no cross-process compositing." **That was wrong, and
+the correction is the most actionable thing in this whole thread.** The machinery is written,
+shipping, and in use — DXMT is simply not given access to it.
+
+**What exists in our patched winemac, fully wired:**
+
+| piece | location | what it does |
+|---|---|---|
+| `CAContextSwapChain` | `cocoa_window.m` | offscreen `CAMetalLayer`, exported via `CAContext contextWithCGSConnection:` → `contextId` |
+| `macdrv_create_offscreen_swapchain` | `cocoa_window.m:4175` | returns that CAContext swapchain |
+| `macdrv_create_remote_layer(hwnd, id)` | `window.c:1583` | `NtUserPostMessage(hwnd, WM_MACDRV_CREATE_REMOTE_LAYER, 0, id)` — **crosses the process boundary** |
+| `WM_MACDRV_CREATE_REMOTE_LAYER` handler | `window.c:1564` | owner calls `macdrv_window_create_ca_layer_host_view(cocoa_window, id)` |
+| `CALayerHost` + `_caLayerHosts` | `cocoa_window.m:62, 397` | owner hosts the remote layer in its own `WineContentView` |
+
+The source comment states the design outright: *"Export the CAMetalLayer from the rendering
+process, then have the target HWND's owner host it using CALayerHost."* That is textbook macOS
+cross-process compositing, and `macdrv_create_remote_layer` is called at the end of
+`CAContextSwapChain initWithHwnd:bounds:` — the loop is closed.
+
+**So why is Steam still black? Because the only caller is Vulkan.**
+
+```
+vulkan.c:50:  if (!macdrv_client_surface_acquire_metal_swapchain(surface)) return VK_ERROR_INCOMPATIBLE_DRIVER;
+```
+
+That is the **sole** call site. And the DXMT-facing ABI cannot reach it —
+`struct macdrv_functions_t` (`macdrv_main.c:644`, `C_ASSERT(sizeof == 80)`, ten pointers) exports
+`get_win_data` · `release_win_data` · `macdrv_get_cocoa_window` · `create_metal_device` ·
+`release_metal_device` · `view_create_metal_view` · `view_get_metal_layer` ·
+`view_release_metal_view` · `on_main_thread` — and **not**
+`macdrv_client_surface_acquire_metal_swapchain`, nor `macdrv_swapchain_get_layer`.
+
+So DXMT's only route is `macdrv_view_create_metal_view` on the client surface's **local, hidden**
+view (`macdrv_CreateClientSurface` does `macdrv_set_view_hidden(..., TRUE)`). It renders correctly
+into a layer that is never hosted anywhere. **That is exactly what we measured**: a Metal view
+obtained for a foreign HWND, no errors, and a black window.
+
+**The missing last mile is therefore an ABI entry, not an implementation.** A fix candidate:
+
+1. add `macdrv_client_surface_acquire_metal_swapchain` and `macdrv_swapchain_get_layer` to
+   `macdrv_functions_t` (⚠ this breaks the `C_ASSERT(sizeof == 80)` contract — every DXMT binary
+   compiled against the old layout must be rebuilt; we now have both source trees and working
+   builds for exactly that),
+2. in DXMT's `CreateSwapChain`, when `GetWindowThreadProcessId(hWnd) != GetCurrentProcessId()`, take
+   that path instead of `view_create_metal_view`,
+3. present into the returned `CAMetalLayer`.
+
+Wine's Vulkan path is the existence proof that the route works. ⚠ **Untested prediction, stated as
+such:** a Vulkan app should already be able to present into a foreign HWND on this engine. Worth
+measuring before relying on any of the above.
 
 ## `du` lies about disk on APFS: the two wrappers' 91 GB game installs were CLONES (2026-08-24)
 
