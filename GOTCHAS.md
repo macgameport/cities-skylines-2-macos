@@ -776,6 +776,34 @@ is the same family as the auto-armed background task that blocked a macOS update
 `CLAUDE.md` note, not because this instance did harm.
 
 
+## End-to-end on 11.16 with the shim armed: it works, with two live defects (2026-08-30)
+
+First full walk of the daily stack after the `nohup` fix, with the shim armed
+(`SHIM_ARGS=" --in-process-gpu"`): **Steam UI renders with text · library renders correctly ·
+the game boots to `MainMenu reached` with mods loaded** (EasyZoning, FindIt, InfoLoomTwo), Steam
+visible and logged in throughout. So the two-wrapper split is no longer *forced* by missing fonts.
+
+Two defects observed live, neither of them font-related:
+
+1. **Store tab flickers heavily while video tiles autoplay.** Library is clean; it is specific to
+   the store's video content. "Seems like a cache issue, caught up eventually" — it settles rather
+   than staying broken. This is the running cost of `--in-process-gpu`, and it is the first real
+   cost that has ever been correctly attributed to that flag (the old "it kills all text" charge
+   was the harness, see C4 `DISPROVEN`).
+2. **Resolution mismatch on a two-external setup.** The game opened a **3840×2160** window while
+   the main display is the 1920×1080 U2424H. That is *not* retina doubling — `RetinaMode` was
+   verified unset and the profile correctly selected `home — DELL U2424H (DRS off, native 1:1)`.
+   3840×2160 is the **unrotated native resolution of the OTHER display**, the U2720Q, which runs
+   2160×3840 portrait. So the game is choosing the wrong display and ignoring its rotation.
+   `Settings.coc` had `displayIndex 0`, `width 1920`, `height 1200` — a height matching neither
+   panel. ⚠ **Fix it in-game, never by editing `Settings.coc`** (partial flips yield an "on but
+   zeroed" profile the game reports as `Custom`). Unknown whether this predates today.
+
+⚠ **A direct `wine Cities2.exe` that bypasses the launcher HANGS** — black window, ~110% CPU, RSS
+climbing, no game logs, stalled stderr. Reaching `MainMenu` needs the launcher's preamble, which
+sets `SteamAppId`/`SteamGameId`/`SteamOverlayGameId` and runs the display profile. Don't test the
+game by calling the exe directly; run the launcher.
+
 ## `du` lies about disk on APFS: the two wrappers' 91 GB game installs were CLONES (2026-08-24)
 
 Both wrappers reported a 91 GB `Cities Skylines II` install, so deleting the redundant one in
