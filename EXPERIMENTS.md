@@ -33,6 +33,31 @@ apparatus. The daily launcher was never affected — it execs wine directly — 
 `-Wl,-rpath,@loader_path/../../` so `win32u` resolves its own libraries the way PK's does and no
 launch path can strip it again. Belongs in `docs/plans/build-wine1116-dxmt-engine.md`.
 
+### ⛔ BLOCKED: winemac's CHILD patch alone does nothing — the chain starts in DXMT (2026-08-30)
+
+Tested whether the cross-process CHILD patch renders Steam **without** the shim now that fonts work
+(`exp_9edcc6` plain, `exp_e75c1e` with `DXMT_ALLOW_CROSS_PROCESS_SWAPCHAIN=1`). Both **black**,
+both with fonts confirmed healthy in-tree (`GLYPHS RASTERISE`). The patched `winemac.so` was
+installed and verified loaded — and its `cross-process CHILD hwnd` counter fired **zero** times.
+
+**Why: the four-refusal chain starts in DXMT, not winemac.** Refusal #1 is
+`d3d11_swapchain.cpp` returning `E_FAIL` before attempting anything, and it is removed by
+`scripts/dxmt-force-crossprocess.patch` — which is **not** in the installed DXMT. The 2026-08-28
+ledger entry says so plainly (*"ALL REVERTED: 4 DXMT dlls restored to system32/syswow64"*).
+So winemac never gets asked, and a winemac-only install can never test this. **Do not retry it.**
+
+⚠ **An inference error worth recording, because it nearly became a finding.** The installed
+`d3d11.dll` was checked for the refusal string, found to have **zero** hits, and read as "already
+patched". It is not — it contains *none* of the three markers (`cross-process swapchain not
+supported`, `swapchain FORCED`, `DXMT_ALLOW_CROSS_PROCESS_SWAPCHAIN`), because it is stock DXMT
+whose strings differ entirely. **Absence of a string is not evidence of a patch**; check for the
+marker the patch ADDS, not only the one it removes. One `strings` call settled it.
+
+**To actually run this test** you need DXMT rebuilt with `dxmt-force-crossprocess.patch` and the
+`macdrv_functions_t` ABI (80 → 88) matching the patched winemac, both trees in lockstep. That is a
+build, not a swap. Stock `winemac.so` was restored and the game boot-verified to `MainMenu`
+afterwards.
+
 ## Why this exists
 
 On **2026-08-30** an audit of the Steam-UI thread found that **41 of 43 render cells had been
@@ -302,8 +327,10 @@ may belong to a different wrapper's Steam.
 | exp_4b9824 | 2026-08-30 14:28 | `raster-intree` | 63 | 0 | 0 | black | VOID-LIBS |
 | exp_0a43b3 | 2026-08-30 14:32 | `nohup-removed` | 0 | 0 | 0 | black | candidate |
 | exp_d7dd0d | 2026-08-30 14:35 | `ipgpu-fonts-fixed` | 0 | 0 | 0 | rendered | candidate |
+| exp_9edcc6 | 2026-08-30 15:28 | `childpatch-noshim` | 0 | 0 | 0 | black | candidate |
+| exp_e75c1e | 2026-08-30 15:31 | `childpatch-forced` | 0 | 0 | 0 | black | candidate |
 
-49 cells · 45 VOID-LIBS · 4 candidate
+51 cells · 45 VOID-LIBS · 6 candidate
 ---
 
 ## Running a cell (the procedure this ledger assumes)
