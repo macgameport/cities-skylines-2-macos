@@ -2194,6 +2194,9 @@ crash, because the vendor modules interlock.
 `wine-stable` 11.0** — not a vendor build — and Steam renders *with text* under CPU raster. Ours is
 a stock build too, and fails. Same engine lineage, opposite outcome. **So the remaining variable is
 not wine at all: it is macOS 26.5 (theirs) vs 26.6.2 (ours)**, or M4 Pro vs M3 Max.
+⚠ **WRONG — SUPERSEDED 2026-08-30.** wine-stable 11.0 was installed and runs their config on THIS
+machine, macOS 26.6.2, rendering Steam with full text. The OS is exonerated; the variable is the
+engine. See § "CORRECTION: macOS is NOT the variable".
 
 That also fits the one error we cannot shake: `ANGLE Requires a minimum Vulkan instance version of
 1.1` → `Internal Vulkan error (-9)`. Per the 08-24 A/B that warning is **present on stock 11.16 and
@@ -2211,6 +2214,54 @@ engine — on this machine and run the CPU-raster config. Stock-vs-stock, same c
 only the OS and hardware differing. If it fails here, macOS 26.6.2 is confirmed as the variable and
 wine is fully exonerated; if it works, our own 11.16 build configuration is implicated rather than
 the version.
+
+## ⚠ CORRECTION: macOS is NOT the variable — wine-stable 11.0 renders Steam WITH TEXT here (2026-08-30)
+
+The previous section concluded *"the remaining variable is not wine at all: it is macOS 26.5 vs
+26.6.2"*. **That is wrong, and this supersedes it.** Homebrew `wine-stable` (**wine-11.0**, the exact
+engine mikey92 runs) was installed and given their exact configuration on **this** machine —
+macOS 26.6.2, M3 Max:
+
+```
+steam.exe -no-cef-sandbox -cef-single-process -noverifyfiles
+shim injecting --disable-gpu --single-process
+```
+
+**Result: a complete, fully-textual Steam client. 665,949 B.** Menu bar (`Steam / View / Friends /
+Games / Help`), `STORE / LIBRARY / COMMUNITY`, the `Browse / Recommendations / Categories / More`
+row, `Search the store`, `Wishlist 7`, `Featured & Recommended`, game title, `Overwhelmingly
+Positive (200,124 Reviews)`, `Recommended because you played games tagged with`, the tag chips,
+`$19.99`, `Add a Game`, `Manage Downloads`, `Friends & Chat`.
+⚠ **Screenshot NOT committed** — the account name is visible (CLAUDE.md § Personal info).
+
+**Same machine, same OS, same Steam install, same flags — the ONLY difference is the engine:**
+
+| engine | result |
+|---|---|
+| our self-built stock **11.16** + DXMT | **no window at all**; `gl_factory_win.cc` NOTREACHED ~6.8 M, 36 `gpu_process_host` lines, 6 single-process notices |
+| Homebrew **wine-stable 11.0** | **renders, with full text** |
+
+**So the OS is exonerated and a bisect IS warranted after all** — for *this specific configuration*.
+That does not contradict the 2026-08-24 three-version sweep, which is why the earlier reasoning went
+wrong: that sweep found stock 11.0 / 11.15 / 11.16 all blank **under DEFAULT flags** (out-of-process
+CEF). It says nothing about the CPU-raster path, which nobody had run on 11.0 here until now.
+**Two different configurations, two different answers — do not generalise one sweep across both.**
+
+**Two candidates, both testable:** (a) a wine regression between 11.0 and 11.16 on the GL-probe path
+Chromium takes before deciding it needs no GPU; or (b) our own build configuration differing from
+WineHQ's stable build (we configure with a specific `--without-*` set). (b) is the cheaper to check
+first — build 11.0 from source with our flags and see which side it lands on.
+
+**Practical consequence, and it is a real one:** there is now a WORKING Steam client path on this
+machine that needs no two-wrapper split — `wine-stable` 11.0 + the padded webhelper shim +
+`--disable-gpu --single-process`. It is CPU raster, so it will be slower than a GPU-composited
+client, but it renders text, which the daily 11.16 engine has never done.
+
+**Method note worth keeping:** wine-stable ships only `wine` (no separate `wine64`), and the
+Gatekeeper approval is **per path** — copying the wine tree to a new location re-quarantines it and
+`syspolicyd` blocks with no visible prompt (this cost ~7 min of apparent hang). Run the approved
+binary IN PLACE and build a wrapper-shaped shell of symlinks around it, with a `wine64 -> wine`
+alias for harnesses that expect the old name.
 
 ## `du` lies about disk on APFS: the two wrappers' 91 GB game installs were CLONES (2026-08-24)
 
