@@ -5,6 +5,34 @@
 > re-deriving it from 2,500 lines of `GOTCHAS.md` prose. Checked by `scripts/check-experiments.py`,
 > which `button up` runs.
 
+## ✅ RESOLVED 2026-08-30 — the whole "renders art, no text" thread was one word: `nohup`
+
+**Steam's visible UI works on the self-built wine 11.16 + DXMT engine.** Proof:
+[`docs/images/steam-renders-with-text.png`](docs/images/steam-renders-with-text.png) (`exp_d7dd0d`)
+— storefront, menus, nav, store copy and review counts, all legible.
+
+The chain, every link measured (C10, C11, C4):
+
+1. `scripts/steam-render-cell.sh` launched Steam via **`nohup`**.
+2. macOS **purges `DYLD_*` when exec'ing a SIP-protected system binary**, and `/usr/bin/nohup` is
+   one. (So are `env` and `/bin/bash`.)
+3. This engine's `win32u.so` carries only an `@loader_path/` rpath, so without
+   `DYLD_FALLBACK_LIBRARY_PATH` it **cannot find its own `wine/lib/libfreetype.dylib`**.
+   PK 11.0's carries `@loader_path/../../` as well, which is why PK always looked immune.
+4. No FreeType → DirectWrite enumerates **204 families** but rasterises **zero** coverage → Chromium
+   draws art and not one glyph.
+5. Remove the word `nohup`: FreeType failures **63 → 0**, glyphs rasterise in-tree, and the client
+   renders **with text** under the exact `--in-process-gpu` config previously blamed for killing it.
+
+**Nothing about Steam, CEF, DXMT, MoltenVK, ANGLE, rasterisation, glyph atlases, occlusion,
+compositing or macOS was ever wrong.** A week of eliminations chased an artifact of the measuring
+apparatus. The daily launcher was never affected — it execs wine directly — which is exactly why the
+*game* had fonts the whole time and only *cells* did not.
+
+**Durable fix (not yet built):** rebuild the engine's unix `.so` set with
+`-Wl,-rpath,@loader_path/../../` so `win32u` resolves its own libraries the way PK's does and no
+launch path can strip it again. Belongs in `docs/plans/build-wine1116-dxmt-engine.md`.
+
 ## Why this exists
 
 On **2026-08-30** an audit of the Steam-UI thread found that **41 of 43 render cells had been
@@ -70,7 +98,7 @@ Each row: what we believe, what it rests on, and what would overturn it. **Audit
 | C1 | Wine 11.16 retires the alt-tab / exclusive-fullscreen freeze (dxmt#206) | `SUPPORTED` | in-game confirmation; upstream closed as dup of #183 | Font/graphics-lib independent. Unaffected by the 08-30 audit. |
 | C2 | The cross-process **child-window** patch makes Steam's client composite on stock winemac + DXMT | `PARTIAL` | `exp_6bd192` `exp_06760c` `exp_3d7586` `exp_015b85` — **void-ok:** whether a layer composites is font-independent, so the byte-size jump stands | **Rendering supported** — window went 108,343 B → 2,588,759 B, and whether a layer composites does not depend on FreeType. **The "still no text" half is VOID** — every one of those cells ran with no font backend. |
 | C3 | `macdrv_get_cocoa_window` returns NULL for a foreign HWND — the cross-process root cause | `SUPPORTED` | source read + direct measurement | Derived from reading wine's source and a targeted probe, not from a render cell. |
-| C4 | The glyph loss is in-process GPU itself, not the `--in-process-gpu` flag | `VOID` | cells with 14–73 FreeType failures | The premise ("this engine renders art but not text") is explained by the missing font backend. Re-test with a fingerprinted cell before believing any part of it. |
+| C4 | The glyph loss is in-process GPU itself, not the `--in-process-gpu` flag | `DISPROVEN` | `exp_d7dd0d` — in-process GPU **with fonts working** renders Steam's storefront complete with text | The premise was never true. With `nohup` removed (C10) the *same* config — shim injecting `--in-process-gpu`, confirmed on the real webhelper's command line — renders the full client: menus, nav, store copy, review counts, all legible. **In-process GPU never had anything to do with glyphs.** Proof: `docs/images/steam-renders-with-text.png`. |
 | C5 | Text **rasterisation** eliminated — `dwritetest` byte-identical across engines | `RETRACTED` | `scripts/dwritetest.c` | The measurement stands (ALIASED 545/1633 sum 138975; CLEARTYPE 315/4899 sum 80325, identical on both). The **elimination** does not: `dwritetest` runs as a standalone PE, and standalone PEs were measured 2026-08-30 to resolve FreeType fine on *both* engines. It never exercised the failing condition. |
 | C6 | Glyph-atlas texture path eliminated — `scripts/r8test.c` | `RETRACTED` | same class as C5 | Same defect: a standalone PE probe cannot eliminate a fault that only appears under Steam. Measurement kept, elimination withdrawn. |
 | C7 | CPU raster renders Steam **with text** on an 11.0-lineage engine | `PARTIAL` | `exp_8d065a`, `exp_fb79d9` | `winestable-cpuraster` is genuine — shim installed, libs resolve, text visible. **`pk-cpuraster` is mislabeled**: that prefix has no shim, so `--shim-args` never applied and it was an ordinary launch, not CPU raster. |
@@ -273,8 +301,9 @@ may belong to a different wrapper's Steam.
 | exp_95fb82 | 2026-08-30 14:23 | `fontprobe-intree` | 63 | 0 | 0 | black | VOID-LIBS |
 | exp_4b9824 | 2026-08-30 14:28 | `raster-intree` | 63 | 0 | 0 | black | VOID-LIBS |
 | exp_0a43b3 | 2026-08-30 14:32 | `nohup-removed` | 0 | 0 | 0 | black | candidate |
+| exp_d7dd0d | 2026-08-30 14:35 | `ipgpu-fonts-fixed` | 0 | 0 | 0 | rendered | candidate |
 
-48 cells · 45 VOID-LIBS · 3 candidate
+49 cells · 45 VOID-LIBS · 4 candidate
 ---
 
 ## Running a cell (the procedure this ledger assumes)

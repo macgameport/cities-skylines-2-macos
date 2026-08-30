@@ -293,15 +293,7 @@ for long-session stability before calling it the project default.
 
 ## The webhelper shim renders everything EXCEPT text — `--in-process-gpu` is what kills glyphs (2026-08-24 late)
 
-> **Ledger: `VOID` (C4).** Both halves fail, for different reasons. The self-built-engine half is
-> explained without invoking any GPU mode: that engine resolved no font library under Steam, so
-> "not one glyph" was guaranteed. The **PK** half looks like a clean control — PK resolves FreeType
-> — but the 2026-08-24 PK-with-shim run **predates the evidence store and is not retained**, and the
-> only indexed PK cell (`exp_8d065a`) had *no shim in that prefix*, so `--shim-args` never applied
-> (C7). There is therefore no surviving measurement of PK **with** in-process GPU.
-> ⚠ So "in-process GPU breaks glyphs" is currently supported by **nothing** measured under a
-> recorded config — including the inline 2026-08-30 correction below, which rests on the same
-> mislabeled cell. Re-run it before repeating it anywhere.
+> **Ledger: `DISPROVEN` (C4).** ✅ **Settled 2026-08-30 — the shim was never the text killer, and neither was in-process GPU.** Both halves of this section were measuring one bug: the cell harness launched Steam via `nohup`, which strips `DYLD_*` on macOS, leaving this engine unable to resolve its own `libfreetype.dylib`. DirectWrite then enumerates 204 font families but rasterises **zero** coverage, so Chromium draws art and not one glyph — with or without any GPU flag. Remove `nohup` and the identical shim config renders Steam complete with menus, nav and store copy (`exp_d7dd0d`). The PK-with-shim observation this section leaned on is unnecessary: nothing needs explaining.
 
 Correction to the section above, which called the shim a fix on the strength of a login window
 that had rendered *images and layout*. It had **no text either** — the blank blue button should
@@ -405,7 +397,7 @@ backups — so re-testing after an upstream winemac change is minutes, not anoth
 
 ## The glyph loss is IN-PROCESS GPU itself, not `--in-process-gpu` — `--single-process` fails identically (2026-08-28)
 
-> **Ledger: `VOID` (C4).** Evidence **not retained** — these cells predate the evidence store (earliest kept run 2026-08-29 16:56). The premise "this engine renders art but not text" is explained by an unresolved font backend, not by GPU mode. Re-test before believing any part.
+> **Ledger: `DISPROVEN` (C4).** ✅ **Settled 2026-08-30: in-process GPU has nothing to do with glyphs.** The premise "this engine renders art but not text" was an artifact of the *harness* — `scripts/steam-render-cell.sh` launched Steam through `nohup`, macOS purges `DYLD_*` across a SIP-protected exec, and this engine's `win32u.so` cannot find its own `libfreetype.dylib` without that variable. With `nohup` removed, the **same** `--in-process-gpu` config renders the full Steam client **with text** (`exp_d7dd0d`, `docs/images/steam-renders-with-text.png`). Everything below is measuring a broken font backend.
 
 Prompted by [mikey92's dxmt#141 comment](https://github.com/3Shain/dxmt/issues/141#issuecomment-5448572368),
 which reports a stable Steam client on an M4 Pro / macOS 26.5 / Homebrew `wine-stable` 11 by

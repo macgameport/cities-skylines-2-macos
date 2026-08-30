@@ -27,6 +27,13 @@ GOTCHAS = os.path.join(REPO, "GOTCHAS.md")
 BANNER_DOCS = [GOTCHAS, os.path.join(REPO, "docs", "steam-ui-investigation.md")]
 IMG_DIR = os.path.join(REPO, "docs", "images")
 IMG_AUDIT = os.path.join(IMG_DIR, "AUDIT.md")
+
+# ONE definition, used by both the register parser and the banner cross-check. It was duplicated
+# in two places until 2026-08-30, and the copies drifted: a register status the parser did not
+# recognise became "" — which is falsy — so the banner/register cross-check SKIPPED that claim
+# silently. C4 sat at DISPROVEN in the register with two banners still reading VOID, and the
+# checker reported OK. An unparsed status is now drift, not a pass.
+STATUSES = ("SUPPORTED", "PARTIAL", "UNREVIEWED", "VOID", "RETRACTED", "DISPROVEN")
 STORE = os.path.expanduser("~/cs2-patch/evidence")
 
 FT_MARK = "cannot find the FreeType"
@@ -83,7 +90,7 @@ def parse_ledger(text):
             status = ""
             for col in cols:
                 s = col.strip("` ")
-                if s in ("SUPPORTED", "PARTIAL", "UNREVIEWED", "VOID", "RETRACTED"):
+                if s in STATUSES:
                     status = s
                     break
             claims.append({"id": c.group(1), "status": status, "raw": c.group(2),
@@ -204,6 +211,37 @@ def main():
             if linked != sections:
                 problems.append("steam-ui-investigation.md has %d section(s) but GOTCHAS.md's index "
                                 "links %d — every moved section needs an index row" % (sections, linked))
+
+            # The index status column is a THIRD copy of each status (register -> banner -> index),
+            # and it is the copy `wake up` actually reads. Nothing but this check keeps it equal:
+            # C4 went DISPROVEN in the register and both banners while the index still said VOID.
+            import unicodedata as _ud
+            def _anchor(t):
+                t = t.replace("`", "")
+                t = "".join(ch for ch in t if not _ud.category(ch).startswith("So"))
+                t = t.lower().strip()
+                t = re.sub(r"[^\w\s-]", "", t, flags=re.UNICODE)
+                return re.sub(r"\s+", "-", t).strip("-")
+            dl = det.split("\n")
+            hs = [(i, l) for i, l in enumerate(dl) if l.startswith("## ")]
+            banner_of = {}
+            for k, (i, l) in enumerate(hs):
+                nxt = hs[k + 1][0] if k + 1 < len(hs) else len(dl)
+                st = None
+                for j in range(i, nxt):
+                    if dl[j].startswith("> **Ledger:"):
+                        mm = re.search(r"Ledger:\s*`([A-Z]+)`", dl[j])
+                        st = mm.group(1) if mm else None
+                        break
+                banner_of[_anchor(l[3:])] = st
+            for cur, anchor in re.findall(
+                    r"^\| (`[A-Z]+`|—) \| \[.*\]\(docs/steam-ui-investigation\.md#([^)]+)\) \|$",
+                    gt, re.M):
+                want = banner_of.get(anchor)
+                want_s = "`%s`" % want if want else "—"
+                if cur != want_s:
+                    problems.append("GOTCHAS index says %s for `%s`, the section's banner says %s"
+                                    % (cur, anchor[:48], want_s))
         # dangling-reference check: a GOTCHAS banner citing an id no longer in the index is the
         # exact failure this whole system exists to prevent — a conclusion pointing at evidence
         # that is gone, which reads as "backed by a run" to anyone who does not go looking.
@@ -215,7 +253,12 @@ def main():
         # Convention enforcement. The banner format and the register are two statements of the same
         # fact in two files; nothing but a check keeps them equal, and a banner that says SUPPORTED
         # over a claim the register RETRACTED is worse than no banner at all.
-        VOCAB = {"SUPPORTED", "PARTIAL", "UNREVIEWED", "VOID", "RETRACTED"}
+        VOCAB = set(STATUSES)
+        for c in claims:
+            if not c["status"]:
+                problems.append("register row %s has no recognised status — one of %s. An unparsed "
+                                "status silently disables the banner cross-check for that claim"
+                                % (c["id"], ", ".join(STATUSES)))
         by_claim = {c["id"]: c["status"] for c in claims}
         for line in re.findall(r"^> \*\*Ledger:[^\n]*", g, re.M):
             st = re.search(r"Ledger:\s*`([A-Z-]+)`", line)
