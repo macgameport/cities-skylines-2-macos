@@ -1889,6 +1889,28 @@ That needs the child's rect carried to the owning process (the current
 `wParam` and let the receiver compute the rect). Until that exists, "no glyphs" and "layers occlude
 each other" cannot be told apart.
 
+## An unbounded `until` waiter outlived its target by 6.5 hours (2026-08-29)
+
+`until grep -q <pattern> <file>; do sleep 10; done` was used to wait on a backgrounded probe. The
+probe was killed ~15 minutes later; the loop kept polling a file that would never change again and
+was still running **6 h 37 m** later, found only because the user noticed it in the task list.
+
+Two lessons, and the second is the one that actually bit:
+
+1. **Bound the wait on the TARGET, not just the condition.** A waiter whose condition can become
+   permanently unreachable needs a second exit: check the producer is still alive and break if it
+   is not — `until <cond>; do pgrep -f <producer> >/dev/null || break; sleep 10; done` — or cap the
+   iterations. Later probes in the same session did this; the first did not.
+2. **"Is anything still running?" must include your OWN waiters.** The check run here grepped for
+   `steam.exe|wine64|gmake|meson|caffeinate` — the things deliberately *started* — and reported
+   "nothing running" while a monitoring loop from the same session was still going. **A waiter is
+   exactly as running as the thing it waits for.** Sweep for `until|sleep` loops and background
+   task IDs too, and prefer `TaskStop` on the task id over hunting the process.
+
+Cost was negligible (a sleeping shell, no interference with any measurement) — recorded because it
+is the same family as the auto-armed background task that blocked a macOS update, per the global
+`CLAUDE.md` note, not because this instance did harm.
+
 ## `du` lies about disk on APFS: the two wrappers' 91 GB game installs were CLONES (2026-08-24)
 
 Both wrappers reported a 91 GB `Cities Skylines II` install, so deleting the redundant one in
