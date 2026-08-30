@@ -1874,7 +1874,9 @@ is stretched over the entire content view**, and newest wins. Probe (`DXMT_HOST_
 `insertSublayer:atIndex:0`): **black, 108,343 B**, versus ~2.4 MB rendered with the default. So
 whichever layer is on top is the only one you see, and everything under it is hidden.
 
-**Where that leaves the glyphs.** The leading explanation is now **occlusion, not rasterisation**:
+**Where that leaves the glyphs — ⚠ SUPERSEDED by the next section, which implements the geometry
+mapping and finds text still absent.** The leading explanation *at this point* was **occlusion, not
+rasterisation**:
 several full-bounds layers stacked on one window, only the top one visible, and any content drawn
 into the others — plausibly including text-bearing widgets — buried. It fits the earlier
 observation that PK renders Steam text *until* the shim is added, and it fits art-without-text.
@@ -1910,6 +1912,44 @@ Two lessons, and the second is the one that actually bit:
 Cost was negligible (a sleeping shell, no interference with any measurement) — recorded because it
 is the same family as the auto-armed background task that blocked a macOS update, per the global
 `CLAUDE.md` note, not because this instance did harm.
+
+## Geometry mapping lands — and it ELIMINATES occlusion as the glyph cause (2026-08-29)
+
+The missing piece of the child patch is implemented: each cross-process child's hosted layer is now
+positioned and clipped to its own rect in the root's coordinate space instead of being stretched
+over the whole content view.
+
+**Wiring:** `WM_MACDRV_CREATE_REMOTE_LAYER` now carries the **child HWND in `wParam`** (0 for a root)
+alongside the `contextId` in `lParam`; the owning process computes
+`NtUserGetWindowRect(child) − NtUserGetWindowRect(root)` and passes a `CGRect` down to
+`addCALayerHostViewWithContextId:frame:`, which sets `host.frame` + `masksToBounds` instead of
+`bounds` + autoresizing. `WineContentView` is `isFlipped = YES`, so Windows' top-left origin maps
+straight through with no Y flip. Env-gated on `DXMT_MAP_CHILD_GEOMETRY=1`.
+
+**Result: visibly better composition.** Steam's window chrome now appears — broadcast /
+notifications / avatar, minimize / maximize / close, back / forward, refresh and lock icons — all
+of which are **separate child widgets that were previously buried** under the full-bounds main
+layer. The black band along the bottom is gone. Capture 2,447,073 B.
+Screenshot: `docs/images/steam-crossprocess-geometry-mapped.png`.
+
+**So the occlusion hypothesis was REAL — and it is NOT the glyph cause.** Several widgets that were
+invisible now render correctly, which is exactly what the hypothesis predicted. And **every one of
+them shows icons and artwork with no text at all.** Compositing many more layers correctly did not
+bring back a single glyph.
+
+**That flips the conclusion of the previous section.** The leading explanation is no longer
+occlusion; it is that **glyphs are genuinely never rasterised into the content**, which is what the
+2026-08-24 in-process investigation concluded before any of this. The text defect is therefore
+**independent of the presentation path** — it survives in-process GPU, out-of-process GPU, the
+CAContext remote-layer route, and now correct per-child geometry. Three presentation architectures,
+same missing text.
+
+**Frames observed** (`child → root = x,y w×h`): the main window maps `0,0 1512x949`; smaller widgets
+`0,0 36x235`, `0,0 2x1`. ⚠ **Every offset measured was `0,0`**, and many rects are `0x0` at
+swapchain-creation time (the widget is not laid out yet) — those fall back to full bounds, so the
+mapping is not yet exercised for them. A proper implementation should re-position the host on
+`WM_MACDRV_WINDOWPOSCHANGED` rather than only at creation; without that, a widget that moves or
+resizes after its layer is hosted keeps a stale frame.
 
 ## `du` lies about disk on APFS: the two wrappers' 91 GB game installs were CLONES (2026-08-24)
 
