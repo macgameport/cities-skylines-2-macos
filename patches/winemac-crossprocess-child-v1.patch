@@ -37,6 +37,21 @@
 #   after:  2,588,759 B, store renders — no shim, no injected flags, out-of-process GPU
 #   child path fires 46x per launch, zero acquire_metal_swapchain failures
 #
+# GAME REGRESSION TEST (2026-08-30) — the patch touches the same Metal presentation path the
+# GAME uses, not just Steam's client, so it was benchmarked before release. Matched A/B on one
+# machine, isolation md5-verified (ONLY winemac.so differed; DXMT/dxgi/winemetal byte-identical):
+#
+#   metric            control (stock)   patched winemac    delta
+#   averageFps                  30.25            30.68     +1.4%
+#   gpuMs avg                   34.21            31.55     -7.8%
+#   gpuMs p95                   49.81            40.92    -17.9%
+#   cpuGameMs avg               17.70            17.41     -1.6%
+#   loadingTimeSecs             43.77            42.06     -3.9%
+#
+# Conclusion: NO REGRESSION. Every delta is neutral-or-better. ⚠ Explicitly NOT claiming an
+# improvement: n=1 per arm, and the metrics that clear the project's 4.6% noise floor are
+# GPU-time TAIL statistics, which are noisier than the FPS figure that floor was measured on.
+#
 # ⚠ KNOWN INCOMPLETE — do not treat as finished:
 #   * The hosted layer is positioned only at creation. A widget that moves or resizes
 #     afterwards keeps a stale frame; it should be repositioned on WM_MACDRV_WINDOWPOSCHANGED.
