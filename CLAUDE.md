@@ -11,7 +11,7 @@ issues-per-item ritual. Durable record = this repo + `~/cs2-patch/change-ledger.
 | Canonical launcher (**default**) | `~/cs2-patch/launch-cs2-dxmt11.sh` — Wine 11 + DXMT. Repo copies are thin wrappers (macOS TCC blocks app bundles from executing scripts in `~/Documents`) |
 | Canonical launcher (fallback) | `~/cs2-patch/launch-cs2.sh` — Wine 10 + D3DMetal |
 | Display-profile helper | `~/cs2-patch/cs2-display-profile.sh` — the dxmt11 launcher runs it pre-boot: retina + DRS per *main* display (mobile = retina on + DRS 0.5 CAS · home/external = retina off, native 1:1). `CS2_PROFILE=off\|home\|mobile`, `DRY=1` preview. Repo original: `scripts/`; design: `docs/plans/launcher-display-profiles.md` |
-| Apply all patches | `bash ~/cs2-patch/repatch.sh dxmt11` (10 patches) · `… free` (17, Wine 10) · no arg = the dead CrossOver bottle |
+| Apply all patches | `bash ~/cs2-patch/repatch.sh dxmt11` (**10** patches) · `… free` (**16**, Wine 10 — and that target only *warns* about the unpublished cohtml licence bypass, it cannot apply it, so it reaches no main menu) · no arg = the dead CrossOver bottle. Counted 2026-08-30: 16 `.py` invocations total, 6 of them behind `ERRNO_PATCHES` which `dxmt11` sets to 0. The old "17" counted the cohtml warning as a patch. |
 | Badge patch (**`Game.dll`, outside repatch.sh**) | `~/cs2-patch/patch-modconflict-badge.py` — kills the per-boot mod keybind ⚠ badges; the dxmt11 launcher re-ensures it pre-boot (step 0b, fail-open), so a game update self-heals. Run via `~/cs2-patch/revenv/bin/python3`; no args = verify, `apply` = patch (refuses unless the game is down). Repo original: `scripts/`; mechanism + the IL rules it earned: `GOTCHAS.md` |
 | Shortcut | `~/Applications/Cities Skylines II.app` → runs the **dxmt11** launcher with `CS2_QUIET=1`. Revert = one `SCRIPT=` line in `Contents/MacOS/launch` |
 | Store shortcut | `~/Applications/CS2 Steam Store.app` → opens Steam **visibly** in the storefront wrapper (`CS2dxmt11-pk110.app`, wine 11.0 — the 11.16 engine black-screens Steam's UI). Built by `scripts/make-steam-shortcut.sh` (also creates the wrapper by APFS clone if absent) |
@@ -129,6 +129,12 @@ absolute `/Users/<name>` paths **out of committed files** — use `$HOME`, `$WIN
   only datum is "the capture worked". `scripts/salvage-cells.sh` drops it automatically.
 - Evidence lives in **`~/cs2-patch/evidence/`**, outside the repo, same reasoning as
   `change-ledger.txt`. `/tmp` is volatile — salvage before a reboot eats the week's evidence.
+- ⚠ **The three committed `docs/images/*.png` are clean only BECAUSE the glyph bug was active.**
+  Audited 2026-08-30: no persona name is visible in any of them — because Steam rendered no text
+  at all. The monkey avatar is visible in `steam-crossprocess-geometry-mapped.png` and is fine by
+  James. **The moment text renders, a capture of that same window carries the persona name twice.**
+  So do not treat "our committed Steam captures have always been safe" as a precedent — it is an
+  artifact of the bug being chased, and it expires exactly when the project succeeds.
 - **Cheapest durable fix:** the Steam persona name is a *label*, freely editable. Set it to
   something generic while doing capture work and new captures are clean at source. A mask you got
   wrong is worse than no mask, because it looks safe.
