@@ -448,6 +448,22 @@ in the handler, or wrap in `finally`.
     **DXMT-from-source toolchain we have never stood up** (meson + native LLVM path + two
     cross-files, 64- and 32-bit — every DXMT binary here was *reused*, never compiled). Own
     mini-project; do not treat as an errand.
+  - 🚧 **HELD 2026-08-29 — nothing is posted to dxmt#141 until the fork is confirmed end-to-end.**
+    James's call: hold rather than post the (finished) 4th comment. **The comment is complete and
+    committed at `docs/dxmt-bugs/comment-141-split-plus-pair.md`; DO NOT POST IT** until the item
+    below clears, then add the end-to-end result and post once.
+    **Blocked on exactly one thing: `xcrun -sdk macosx metal` (full Xcode; this machine is CLT-only).**
+    Everything else is pre-verified — both arches configure against our own engine, and each has
+    **one** failure class left, which is `metal`: 64-bit `[16/132]`, 7 FAILED, 7 metal, 0 other ·
+    32-bit `[16/99]`, 1 FAILED, 1 metal, 0 other. x86_64 `llvm@15` + `zstd` are installed at
+    `/usr/local/opt` (the path the fork defaults to); the `<iomanip>` fix is applied and saved.
+    **Resume in one command once `xcrun -f metal` resolves:** `bash scripts/build-dxmt-fork.sh`,
+    then install the DLLs + `winemetal.so` into a clone wrapper that ALSO carries the
+    `-fvisibility=default` `winemac.so` (`scripts/build-winemac-visibility.sh` output at
+    `~/cs2-patch/build-1116/winemac-visibility/winemac.so`; the clone `CS2vis-test.app` already has
+    it), and run `steam-render-cell.sh` against that wrapper.
+    User step (not runnable unattended): install Xcode from the App Store, then
+    `sudo xcode-select -s /Applications/Xcode.app/Contents/Developer`.
   - ▶ **Remaining untried (lower priority now):** an older-CEF client pin (trigger 5).
   - ✅ **Eliminated 2026-08-29, both never previously run:** `-cef-force-gpu` → black 108,343 B
     (GPU process survives) · `--use-angle=d3d9` → black 108,343 B. ANGLE's D3D9 backend and Steam's
