@@ -51,6 +51,47 @@ Made durable in `scripts/build-engine-1116.sh` (step 8) so a rebuild does not si
 ⚠ That step was appended using `$ENGINE`, which **does not exist** in that script — it would have
 skipped every module in silence. Corrected to `$E` and dry-run against the real tree.
 
+### ⛔ The cross-process chain is UNREACHABLE — the GPU process fastfails before it can ask (2026-08-30)
+
+Built DXMT **v0.80** from upstream source with `dxmt-force-crossprocess.patch`, installed it
+alongside the CHILD-patched `winemac.so`, and ran with `DXMT_ALLOW_CROSS_PROCESS_SWAPCHAIN=1`
+(`exp_ae1338` default backend, `exp_003f82` with `--use-angle=d3d11`). Fonts healthy in both
+(`GLYPHS RASTERISE`). Result in both:
+
+| signal | count |
+|---|---|
+| `swapchain FORCED` (refusal 1 falling through) | **0** |
+| `cross-process CHILD hwnd → root` (refusal 4) | **0** |
+| GPU-process crashes per launch | **107 / 113** |
+| distinct crash code | **`exit_code=-1073740791`** = `0xC0000409` `STATUS_STACK_BUFFER_OVERRUN` |
+
+**The GPU process fastfails at init and never reaches `CreateSwapChain`**, so the guard the patch
+removes is never evaluated and none of the four refusals fire. Verified the patch *is* compiled in
+(the built `d3d11.dll` carries both the `swapchain FORCED` string and the env-var name) — this is
+not a build problem.
+
+**What this reframes.** The four-refusal chain was mapped by reading source, and every refusal in it
+is real — but it sits **downstream of a blocker nobody has addressed**. Out-of-process, Chromium's
+GPU process dies ~110 times a launch before any of that machinery is consulted. So:
+
+- Patching winemac and DXMT for cross-process presentation cannot help until the GPU process
+  survives init. **That, not the CHILD FIXME, is the top of the stack.**
+- `--in-process-gpu` "works" precisely because it deletes the problem rather than solving it: the
+  GPU moves into the browser process, so there is no separate process to crash and no cross-process
+  swapchain to acquire.
+- `0xC0000409` is a **security-check / `__fastfail`**, not an ordinary access violation. That is a
+  different class of bug from anything this thread has chased, and it is where a next investigation
+  should start.
+
+⚠ **Version caveat:** built from tag `v0.80`; the shipped DLL is `v0.80-17-g79f6279`, and commit
+`79f6279` is **not in the public repo** — the installed build carries 17 commits from elsewhere. The
+crash count is the same order either way, so the delta does not explain the result, but it is not a
+byte-for-byte comparison.
+
+Everything was restored afterwards (shipped `d3d11`/`dxgi`/`winemetal`/`winemac`) and the game
+boot-verified to `MainMenu`. The `@loader_path/../../` rpath fix lives on
+`win32u`/`dwrite`/`crypt32`/`secur32`, which this swap never touched, so it survived intact.
+
 ### ⛔ BLOCKED: winemac's CHILD patch alone does nothing — the chain starts in DXMT (2026-08-30)
 
 Tested whether the cross-process CHILD patch renders Steam **without** the shim now that fonts work
@@ -347,8 +388,10 @@ may belong to a different wrapper's Steam.
 | exp_d7dd0d | 2026-08-30 14:35 | `ipgpu-fonts-fixed` | 0 | 0 | 0 | rendered | candidate |
 | exp_9edcc6 | 2026-08-30 15:28 | `childpatch-noshim` | 0 | 0 | 0 | black | candidate |
 | exp_e75c1e | 2026-08-30 15:31 | `childpatch-forced` | 0 | 0 | 0 | black | candidate |
+| exp_ae1338 | 2026-08-30 17:32 | `xproc-v080` | 0 | 0 | 0 | black | candidate |
+| exp_003f82 | 2026-08-30 17:34 | `xproc-angle-d3d11` | 0 | 0 | 0 | black | candidate |
 
-51 cells · 45 VOID-LIBS · 6 candidate
+53 cells · 45 VOID-LIBS · 8 candidate
 ---
 
 ## Running a cell (the procedure this ledger assumes)
