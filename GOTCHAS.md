@@ -1796,6 +1796,54 @@ forked DXMT + `dxmt_acquire_remote_layer` + child path). Log into Steam in it on
 `WINEDEBUG=err+all,+macdrv DXMT_ALLOW_CROSS_PROCESS_SWAPCHAIN=1 … --wait 260` and check for
 `cross-process CHILD hwnd … -> hosting remote layer on root`.
 
+## ✅ IT RENDERS — the cross-process CHILD patch fixes Steam's black client (2026-08-29)
+
+**The wine patch works.** Steam's storefront composites into the window for the first time in this
+investigation, in the *stock* configuration that has been uniformly black throughout.
+
+| | before | with the patch |
+|---|---|---|
+| window capture | **108,343 B** (uniform black) | **2,346,395 B — renders** |
+| `cross-process CHILD hwnd → root` | n/a | **44** firings |
+| `REMOTE path` layer / view | `layer=0x0 view=0x0` | **`layer=0x7f8008f09f10 view=0x7f8009609aa0`** |
+| `acquire_metal_swapchain FAILED` | 6 | **0** |
+| `Cross-process child window Metal…` FIXME | 6 | **0** |
+| `Failed to create metal view` | 6 | **0** |
+
+⚠ **Configuration, verified rather than assumed — this is the load-bearing detail.** No webhelper
+shim (`steamwebhelper_real.exe` absent), **no injected switches at all** (empty cmdline grep), and
+**out-of-process GPU** (1 `--type=gpu-process` child in this prefix). That is precisely the stock
+setup which measured 108,343 B black on every previous run. So the fix is not a flag, not the shim,
+and not the vanilla-wined3d split — it is the winemac child-window patch.
+
+Screenshot: `docs/images/steam-crossprocess-child-renders.png`.
+
+**What is fixed:** artwork, capsules, thumbnails, gradients, nav chrome, the search field — the
+store lays out and composites correctly.
+
+**What is NOT fixed: glyphs.** The nav bar is still six bare dropdown carets, capsules have no
+titles or prices, and the only readable text is baked into promo art — the same signature documented
+since 2026-08-24. ⚠ **And that is a genuinely new wrinkle worth flagging rather than glossing:** the
+glyph loss was previously attributed to *in-process GPU*, but this run is **out-of-process**. So
+either the glyph defect is broader than the in-process path, or the two have a common cause. Do not
+restate the old "in-process GPU kills glyphs" framing as if it still fully explains this.
+
+**Also not yet done: geometry.** The hosted `CALayerHost` fills the root's content view rather than
+being positioned and clipped to the child's rect, exactly as the patch header says. Visible as a
+black band at the bottom of the capture and a slight offset. That is the next piece of work, and it
+is cosmetic relative to what just changed.
+
+⚠ **Not claimed:** the `cef_log.txt` crash counter reads 12, but that file accumulates across the
+several launches this clone has had — it is **not** a per-launch figure and no claim is made that
+the patch eliminates GPU-process crashes.
+
+**The three patches that together produce this** (all diagnostic-grade, all kept):
+`scripts/dxmt-force-crossprocess.patch` (DXMT's up-front refusal) ·
+`scripts/winemac-crossprocess-child.patch` (the actual fix — build the CAContext swapchain against
+the ROOT for a foreign child) · plus the `dxmt_acquire_remote_layer` ABI entry in
+`macdrv_functions_t` (sizeof 80 → 88). `scripts/winemac-foreign-hwnd.patch` is superseded by the
+ABI route and is not needed for this result.
+
 ## `du` lies about disk on APFS: the two wrappers' 91 GB game installs were CLONES (2026-08-24)
 
 Both wrappers reported a 91 GB `Cities Skylines II` install, so deleting the redundant one in

@@ -281,7 +281,48 @@ patch. I'm happy to attempt it and report back if that's useful.
 `err+all` — FIXME is its own class. Two of my earlier cells read "0 occurrences" purely for that
 reason. You need `+macdrv`.)
 
-**So, having chased every route to the end: this issue is the fix — but the fix lives in wine.** The vanilla-wined3d split
+**12. I implemented that, and Steam's client renders.**
+
+The change is small. In `macdrv_client_surface_acquire_metal_swapchain`, instead of the FIXME:
+resolve `root = NtUserGetAncestor(hwnd, GA_ROOT)` and build the offscreen `CAContextSwapChain`
+**against the root** rather than the child. That indirection is the whole thing —
+`macdrv_create_offscreen_swapchain(hwnd, …)` posts `WM_MACDRV_CREATE_REMOTE_LAYER` to whatever HWND
+it's given, and the handler needs `data->cocoa_window`, which a child HWND doesn't have. The root
+both owns an `NSWindow` and lives in the owning process.
+
+| | before | after |
+|---|---|---|
+| window capture | **108,343 B** (uniform black) | **2,346,395 B — renders** |
+| `REMOTE path` layer / view | `0x0 / 0x0` | **non-NULL** |
+| `acquire_metal_swapchain FAILED` | 6 | **0** |
+| `Cross-process child window…` FIXME | 6 | **0** |
+
+**Configuration, verified rather than assumed:** no webhelper shim, **no injected switches at all**,
+**out-of-process GPU** (1 `--type=gpu-process` child). That is exactly the stock setup that measured
+108,343 B black on every previous run in this thread. So it isn't a flag, isn't the shim, and isn't
+the wined3d split — it's the winemac patch.
+
+**What's fixed:** artwork, capsules, thumbnails, gradients, nav chrome, the search field — the store
+lays out and composites correctly.
+
+**What isn't:** glyphs. Still six bare dropdown carets for the nav bar, no titles or prices, only
+text baked into promo art. And I'd flag that as genuinely odd rather than assume it's the known bug:
+the glyph loss was previously tied to *in-process GPU*, but this run is **out-of-process**. So the
+text defect is either broader than that path or shares a cause with it — I don't yet know which.
+
+Geometry is also unfinished: the hosted `CALayerHost` fills the root's content view rather than
+being positioned and clipped to the child's rect, which shows as a black band at the bottom. That's
+the obvious next piece, and cosmetic next to the black window going away.
+
+So the honest summary: **cross-process presentation for Steam's CEF is fixable, and the fix is a
+handful of lines in winemac, not in DXMT.** I'm happy to clean this up into a proper wine patch
+(geometry mapped, no leaked client surface, the ABI addition done sensibly) and send it to
+wine-devel — and to hand you the DXMT-side counterpart if you'd rather carry that half. Whichever
+is more useful.
+
+*(One caveat on my setup: DXMT's own `CreateSwapChain` cross-process guard has to be lifted for any
+of this to be reached, which I did behind an env var. On a stock DXMT v0.80 there is no such guard,
+so the winemac patch alone is what matters there.)* The vanilla-wined3d split
 is capped at FL 9_3 here; notpop's visibility + fork route fixes games, not the client; and the only
 thing left standing between Steam's CEF and a rendered window on DXMT is cross-process swapchain
 support — which is what #141 has said from the start. I'd rather report that than another
