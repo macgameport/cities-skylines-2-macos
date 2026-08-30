@@ -57,7 +57,7 @@ fi
 command -v x86_64-w64-mingw32-gcc >/dev/null || { echo "ERROR: mingw-w64 needed (brew install mingw-w64)"; exit 1; }
 TARGET=$(stat -f%z "$CEF/steamwebhelper.exe") || exit 1
 TMP=$(mktemp -d)
-x86_64-w64-mingw32-gcc -O2 -mwindows -municode "$SHIM_SRC" -o "$TMP/shim.exe" || { echo "ERROR: build failed"; exit 1; }
+x86_64-w64-mingw32-gcc -O2 -mwindows -municode "$SHIM_SRC" -o "$TMP/shim.exe" -ldwrite -lole32 -lgdi32 || { echo "ERROR: build failed"; exit 1; }
 CUR=$(stat -f%z "$TMP/shim.exe")
 [ "$CUR" -le "$TARGET" ] || { echo "ERROR: shim ($CUR) larger than original ($TARGET) — cannot size-match"; exit 1; }
 dd if=/dev/zero bs=1 count=$((TARGET - CUR)) >> "$TMP/shim.exe" 2>/dev/null

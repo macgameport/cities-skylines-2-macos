@@ -77,6 +77,7 @@ Each row: what we believe, what it rests on, and what would overturn it. **Audit
 | C8 | macOS is not the variable; wine-stable 11.0 renders where our 11.16 does not | `RETRACTED` | `exp_fb79d9` vs `exp_53a8e6` | Not a controlled comparison: one side had the shim and a working font backend, the other had neither. Retracted 2026-08-30, same day it was committed. |
 | C9 | DXMT beats vanilla wined3d at every cell (wined3d gets FL 9_3 only) | `UNREVIEWED` | `scripts/dxgiprobe.c`, the `vanilla-*` cells | The feature-level measurement comes from a standalone probe and is font-independent, so it plausibly survives — but it has **not** been re-audited against the config rules. Do not cite as settled. |
 | C10 | Our self-built 11.16 loses FreeType/gnutls/MoltenVK **under Steam** while PK 11.0 does not | `SUPPORTED` | `exp_7b9920` (61 FT) vs `exp_8d065a` (0), same script; `exp_54cc10`/`exp_a96ecc` (61/59 FT) — **void-ok:** the library failure *is* the measurement here, not a defect in it | Both plain no-shim launches, so the shim asymmetry does not explain it. Standalone PEs resolve fine on both engines (32- and 64-bit, fresh prefix and real prefix, identical metrics). **This is the open lead.** |
+| C11 | The FreeType failure removes **GDI** fonts but **not DirectWrite** — so it does not, on its own, explain Chromium's missing glyphs | `PARTIAL` | `exp_95fb82` — first probe ever run *inside* Steam's process tree (the shim, `SHIM_FONTPROBE`) — **void-ok:** the library failure is the condition being measured, not a defect in the measurement | Measured in-tree: **GDI 0 families, DirectWrite 204, `hr=S_OK`**, in a cell logging 63 FreeType failures and showing a black window. Shell control on the same engine: GDI **924** with `DYLD_FALLBACK` set, **0** without; DirectWrite **204** either way. ⚠ A family *count* is not proof of rasterisation — nothing yet draws a glyph and checks pixels. That probe is the next step, and it is what would settle C4. |
 
 ### Open lead (C10) — why does our engine lose FreeType *only* under Steam?
 
@@ -103,16 +104,45 @@ Both cells are the first ever recorded with a full `config.json`, and both confi
 works: `steamwebhelper.exe` spawns `steamwebhelper_real.exe` children in `cef.win64`. So a
 CPU-raster cell is finally possible — that is the next real experiment, not another env tweak.
 
-**Still open.** What remains is to catch the failure in the act, and the honest state is that we
-have no working instrument for it yet (see the three blind ones below). The remaining hypothesis
+### ⚠ The audit's own mechanism is now in question (2026-08-30, second pass)
+
+This file opens by saying 41 of 43 cells "render art and no glyphs" because they had no font
+backend. **The correlation is real; the mechanism is not established, and one half of it is now
+measured false.** Chromium renders text through **DirectWrite**, and DirectWrite reports **204
+families with `S_OK` inside the failing process tree** (`exp_95fb82`). Only **GDI** collapses to 0.
+
+So "those cells could not have shown text anyway" — the sentence the blanket `VOID` rests on — does
+not follow from the FreeType failure. What still stands, unchanged, is the *other* reason those
+cells are untrustworthy: **their configuration was never recorded**, and two of them were confounded
+by shim placement and unfiltered capture. That was always the stronger argument. Keep the retractions
+on those grounds; stop citing "no fonts" as the reason.
+
+**What would settle it:** rasterise in-tree, do not enumerate. Draw a known string through
+DirectWrite inside the shim and count non-background pixels. 204 families with a dead rasteriser and
+204 families that actually draw are indistinguishable from a count, and this thread has already paid
+once for treating a load as an implementation (§ "a load is not an implementation").
+
+**Still open.** What remains is to catch the failure in the act. The remaining hypothesis
 worth testing is that macOS strips `DYLD_*` across the exec into wine's preloader for Steam's
 children specifically — which would have to be measured *inside* the process, e.g. by extending
 the webhelper shim (our own code, already running there) to log the environment it actually sees.
 
-> ⚠ **`wine notepad` is a BLIND font probe — do not use it.** With DYLD completely unset it still
-> logs **zero** "cannot find the FreeType font library" messages, so it cannot distinguish a
-> working font backend from a broken one. Validate any replacement probe by breaking it on purpose
-> first. (Cost this session: one A/B that read as a clean result and proved nothing.)
+> ⚠ **RETRACTED 2026-08-30 (same day): "`wine notepad` is a blind font probe" was WRONG, and the
+> way it was wrong is the more useful finding.** That A/B was run as
+> `timeout 25 wine notepad 2>&1 | grep -c ...`. **macOS ships no `timeout`.** Every run exited 127
+> without launching anything, and `grep -c` on the resulting error text returns **0** — identical to
+> "ran, found nothing". Re-run properly, `wine notepad` is a **good** probe: **0** FreeType failures
+> with `DYLD_FALLBACK_LIBRARY_PATH` set, **7** without, on the canonical engine. It discriminates.
+>
+> **Two traps worth more than the probe:**
+> - **`timeout` does not exist on this machine** (no coreutils). `timeout <cmd> 2>&1 | grep -c` is a
+>   silent zero-generator. Assert the command produced *expected* output — not just that grep
+>   returned a number. A `ran=yes/NO` line on every probe is the cheap fix.
+> - **`bash -c` strips `DYLD_*`.** macOS purges `DYLD_*` when exec'ing a SIP-protected binary, and
+>   `/bin/bash` is one. Wrapping a probe in `bash -c "wine ..."` silently removes the very variable
+>   under test — measured here: 7 failures *both* with and without DYLD via `bash -c`, but 0 vs 7 on
+>   direct invocation. **Invoke wine directly.** This is also the leading candidate mechanism for the
+>   whole of C10.
 
 > ⚠ **`ps eww` cannot read another process's environment on this macOS — it returns nothing even
 > for a process you own with the variable definitely set** (validated 2026-08-30 against a
@@ -208,8 +238,9 @@ may belong to a different wrapper's Steam.
 | exp_7b9920 | 2026-08-30 11:55 | `cpuraster-canonical` | 61 | 52 | 14 | rendered | VOID-LIBS |
 | exp_54cc10 | 2026-08-30 13:24 | `dyldpath-first` | 61 | 0 | 0 | black | VOID-LIBS |
 | exp_a96ecc | 2026-08-30 13:27 | `dyld-env-probe` | 59 | 0 | 0 | black | VOID-LIBS |
+| exp_95fb82 | 2026-08-30 14:23 | `fontprobe-intree` | 63 | 0 | 0 | black | VOID-LIBS |
 
-45 cells · 43 VOID-LIBS · 2 candidate
+46 cells · 44 VOID-LIBS · 2 candidate
 ---
 
 ## Running a cell (the procedure this ledger assumes)
