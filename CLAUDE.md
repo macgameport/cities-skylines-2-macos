@@ -129,12 +129,15 @@ absolute `/Users/<name>` paths **out of committed files** — use `$HOME`, `$WIN
   only datum is "the capture worked". `scripts/salvage-cells.sh` drops it automatically.
 - Evidence lives in **`~/cs2-patch/evidence/`**, outside the repo, same reasoning as
   `change-ledger.txt`. `/tmp` is volatile — salvage before a reboot eats the week's evidence.
-- ⚠ **The three committed `docs/images/*.png` are clean only BECAUSE the glyph bug was active.**
-  Audited 2026-08-30: no persona name is visible in any of them — because Steam rendered no text
-  at all. The monkey avatar is visible in `steam-crossprocess-geometry-mapped.png` and is fine by
-  James. **The moment text renders, a capture of that same window carries the persona name twice.**
-  So do not treat "our committed Steam captures have always been safe" as a precedent — it is an
-  artifact of the bug being chased, and it expires exactly when the project succeeds.
+- ⚠ **Committed images are gated by [`docs/images/AUDIT.md`](docs/images/AUDIT.md)** — a row per
+  image saying what is visible, plus its sha256 prefix, enforced by `check-experiments.py`. A new
+  image with no row, or one replaced since its audit, fails `button up`. All **four** were audited
+  2026-08-30 and are clean.
+  **But the two Steam captures are clean only BECAUSE the glyph bug was active** — Steam rendered no
+  text, so there was no persona name to leak. That expires the moment glyphs work, which is the goal.
+  So the real fix is at source: **the persona name is a label — rename it to something generic before
+  further capture work**, and captures stay in `~/cs2-patch/evidence/` unless deliberately promoted.
+  Never mask: a mask you got wrong is worse than no mask.
 - **Cheapest durable fix:** the Steam persona name is a *label*, freely editable. Set it to
   something generic while doing capture work and new captures are clean at source. A mask you got
   wrong is worse than no mask, because it looks safe.

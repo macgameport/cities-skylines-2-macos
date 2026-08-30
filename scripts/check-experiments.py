@@ -25,6 +25,8 @@ GOTCHAS = os.path.join(REPO, "GOTCHAS.md")
 # status banners went with it, so a checker reading only GOTCHAS.md would validate an empty set
 # and report OK forever. Both files are scanned as one corpus.
 BANNER_DOCS = [GOTCHAS, os.path.join(REPO, "docs", "steam-ui-investigation.md")]
+IMG_DIR = os.path.join(REPO, "docs", "images")
+IMG_AUDIT = os.path.join(IMG_DIR, "AUDIT.md")
 STORE = os.path.expanduser("~/cs2-patch/evidence")
 
 FT_MARK = "cannot find the FreeType"
@@ -228,6 +230,29 @@ def main():
                                     % (cid.group(1), st.group(1), want))
             if cid and cid.group(1) not in by_claim:
                 problems.append("GOTCHAS banner cites %s, which is not in the register" % cid.group(1))
+
+    # ---- committed-image privacy gate. The repo is public and Steam client windows carry the
+    # persona name twice plus the avatar. The three images committed today are clean ONLY because
+    # the glyph bug prevents text rendering — that protection expires when the bug is fixed. So the
+    # rule is mechanical: an image with no audit row, or one replaced since its row was written,
+    # fails. Hash rather than mtime: mtime does not survive a clone, and a swapped-in file keeps it.
+    if os.path.isdir(IMG_DIR):
+        import hashlib
+        audit = open(IMG_AUDIT, encoding="utf-8").read() if os.path.exists(IMG_AUDIT) else ""
+        imgs = sorted(f for f in os.listdir(IMG_DIR)
+                      if f.lower().endswith((".png", ".jpg", ".jpeg")))
+        for f in imgs:
+            h = hashlib.sha256(open(os.path.join(IMG_DIR, f), "rb").read()).hexdigest()[:12]
+            if ("`%s`" % f) not in audit:
+                problems.append("docs/images/%s has no row in AUDIT.md — open it, look at it, and "
+                                "record what is visible before committing it" % f)
+            elif ("`%s`" % h) not in audit:
+                problems.append("docs/images/%s changed since it was audited (now %s) — re-open it "
+                                "and update AUDIT.md" % (f, h))
+        if imgs:
+            notes.append("docs/images: %d committed image(s), all audited" % len(imgs)
+                         if not any("docs/images/" in p for p in problems)
+                         else "docs/images: %d committed image(s)" % len(imgs))
 
     print("\n=== experiment ledger check ===")
     print("  evidence store : %s (%d cells)" % (STORE, len(cells)))
