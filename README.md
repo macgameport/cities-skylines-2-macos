@@ -100,9 +100,12 @@ and `docs/dxmt-bugs/`.
    *Measured, so you don't retry them:* Steam filters `--in-process-gpu` and `--disable-gpu`
    from its own command line (`--use-angle` does forward). Injecting `--in-process-gpu` at
    steamwebhelper via a shim (`scripts/install-webhelper-shim.sh`) **does** make the window
-   render — but Chromium then draws no text at all, on every engine tested, so it is not a
-   usable workaround today. **`--single-process` behaves identically** (2026-08-28), so the
-   glyph loss is in-process GPU by *any* route, not one switch. Out-of-process the GPU process
+   render — but Chromium then draws no text at all, so it is not a usable workaround today.
+   ⚠ **The "no text" half is under retraction (2026-08-30).** Those runs had no font library at
+   all — wine could not resolve `libfreetype.dylib`, printed one line and carried on with no font
+   backend, which renders art and no glyphs on its own. The shim was also installed in a `cef` dir
+   Steam never launches, so the switches never reached CEF. Read [`EXPERIMENTS.md`](EXPERIMENTS.md)
+   before building on any of it; the *rendering* half stands. Out-of-process the GPU process
    crash-loops on **every** ANGLE backend (default / `gl` / `vulkan`). And running the Steam
    client on **vanilla wined3d** while the game keeps DXMT — the split verified landing via
    `+loaddll` — leaves the window black at the *same byte size* on both wined3d renderers, so

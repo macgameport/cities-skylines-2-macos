@@ -349,9 +349,15 @@ in the handler, or wrap in `finally`.
   - ⚠ **Correction:** an earlier claim this session that our build omitted DirectWrite FreeType was
     **wrong** — our `dwrite.so` has all 56 `pFT_*` pointers; PK's binaries are merely stripped.
     Compare with `nm`, never `strings` or file size.
-  - **Reverted from the daily wrapper**; `scripts/install-webhelper-shim.sh` kept for future work
-    (`SHIM_ARGS` swaps injected switches without rebuild+repad). Two-wrapper split still the
-    practical answer: play on `CS2dxmt11`, Steam UI on `CS2dxmt11-pk110` (**do not delete**).
+  - **⚠ Superseded 2026-08-30 — the shim is now INSTALLED in the daily wrapper, and that is safe.**
+    It sat in `cef.win7x64`, a dir Steam never launches, so every `--shim-args` cell this week was
+    an ordinary launch wearing a CPU-raster label. Now installed in **`cef.win64`** (the dir the
+    Aug-2026 client actually runs, confirmed live: `steamwebhelper.exe` spawns
+    `steamwebhelper_real.exe` children) — and its compiled default is now **empty**, so with no
+    `SHIM_ARGS` it relaunches the real webhelper with the command line untouched. Installed ≠ armed.
+    Two-wrapper split still the practical answer: play on `CS2dxmt11`, Steam UI on
+    `CS2dxmt11-pk110` (**do not delete**). A Steam client update restores the original binary and
+    silently un-shims it — re-run `scripts/install-webhelper-shim.sh` if a cell needs it.
   - **✅ Productized (2026-08-24 late):** the split is now one double-click — `CS2 Steam
     Store.app` (`scripts/make-steam-shortcut.sh`; `build-engine-1116.sh` step 7 auto-preserves
     the 11.0 wrapper as an APFS clone + builds the app). Session behavior measured: same-account
@@ -443,9 +449,11 @@ in the handler, or wrap in `finally`.
     **GPU process is HEALTHY (1 child, 0 crashes** — DXMT crashes ×3**)** and the window is still
     black. A healthy cross-process GPU that cannot present *is* a presentation-layer wall
     independent of D3D. Keep the conclusion, cite these rows, discard the old argument.
-    ⚠ **Harness trap:** with the shim installed, an **empty `--shim-args` is not "no flags"** — the
-    shim falls back to its compiled `--in-process-gpu`. Revert the shim for a true control; one cell
-    was thrown away to this. The throwaway wrapper was **removed** after the run (footgun: a
+    ⚠ **Harness trap — FIXED 2026-08-30, kept because the failure is instructive.** With the old
+    shim, an empty `--shim-args` was **not** "no flags": it fell back to a compiled
+    `--in-process-gpu`, so the control cell silently ran the very mode under test, and one cell was
+    thrown away to it. The default is now empty, so an unshimmed control and a shimmed-but-unarmed
+    control are the same measurement. Reverting the shim is no longer needed for a control. The throwaway wrapper was **removed** after the run (footgun: a
     Steam-bearing, DXMT-less bundle beside the real ones); `--build` recreates it in ~1 min. ⚠ Scratch-prefix traps that cost ~15 min of apparent hang: wine refuses a
     `WINEPREFIX` under `/tmp`, and a fresh-prefix `wineboot` blocks silently on the **Wine Mono
     installer dialog** (always use `WINEDLLOVERRIDES="mscoree=d;mshtml=d"`); orphaned `wineboot.exe`
