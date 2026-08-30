@@ -5,7 +5,14 @@ Draft reply to mikey92's "one cell is still missing" comment. Prior comments on 
 5458926046 (vanilla-wined3d split — **its argument is retracted below; its conclusion survives on
 different evidence**).
 
-Status: **POSTED 2026-08-29** as [#5466938536](https://github.com/3Shain/dxmt/issues/141#issuecomment-5466938536).
+Status: **POSTED** as [#5466938536](https://github.com/3Shain/dxmt/issues/141#issuecomment-5466938536)
+— actually 2026-08-30 05:33 UTC, verified against the API (the 08-29 date here was the drafting date).
+
+⚠ **Partly retracted hours after posting.** The 2026-08-30 library audit invalidated every "zero
+glyphs" claim in this comment's tables (those cells had no font backend) and showed the shim sat in
+a `cef` dir Steam never launches, so the switch-labelled rows may never have had their switch
+applied. The feature-level table, the black-window rows and the `AppDefaults` trap survive.
+Correction drafted in [`comment-141-fifth-retraction.md`](comment-141-fifth-retraction.md).
 
 ---
 
