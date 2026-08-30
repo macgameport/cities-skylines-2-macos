@@ -2172,6 +2172,46 @@ deciding it needs no GPU.
 statement is **correct**, which means the cross-process CHILD patch cannot apply to the many
 black-window reports on `wine-stable` 11.0 without moving engines.
 
+## No wine-version bisect is warranted — and mikey92's setup relocates the variable to macOS (2026-08-30)
+
+Asked "was it 11.4 or 11.11?", the honest answer is **neither: there is no version boundary between
+11.0 and 11.16 on this machine.** A controlled sweep on 2026-08-24 already measured it —
+§ "Embedded Chromium NEVER rendered on stock Wine here":
+
+| cell | result |
+|---|---|
+| **stock 11.0 / 11.15 / 11.16**, identical configure, fresh-prefix gate | **all BLANK, byte-identical captures** |
+| PK 11.0 (vendor), same gate | RENDERED, repeatedly |
+
+**Stock 11.0 fails here exactly as stock 11.16 does.** So bisecting 11.0 → 11.16 would land on no
+commit; the axis was never the version, it is **stock vs the PK vendor patchset** (a Gcenx build
+from a private tree carrying CrossOver-lineage `CX_LIBVULKAN` code in win32u, the msync patchset,
+and Proton-lineage writecopy). ⚠ Individual module transplants were already tried and failed —
+stock 11.0 + PK's `win32u`/`winemac`/`user32`/`gdi32` was still blank, and PK core transplants
+crash, because the vendor modules interlock.
+
+**What mikey92's report changes, and it is the useful part.** They run **stock Homebrew
+`wine-stable` 11.0** — not a vendor build — and Steam renders *with text* under CPU raster. Ours is
+a stock build too, and fails. Same engine lineage, opposite outcome. **So the remaining variable is
+not wine at all: it is macOS 26.5 (theirs) vs 26.6.2 (ours)**, or M4 Pro vs M3 Max.
+
+That also fits the one error we cannot shake: `ANGLE Requires a minimum Vulkan instance version of
+1.1` → `Internal Vulkan error (-9)`. Per the 08-24 A/B that warning is **present on stock 11.16 and
+absent on PK 11.0** — it tracks the Vulkan stack, and PK's differentiator is precisely
+CrossOver-lineage Vulkan code.
+
+⚠ **Also eliminated today:** forcing Chromium's own bundled software Vulkan with
+`WINEDLLOVERRIDES="vulkan-1=n,b"` (its `vk_swiftshader.dll` 5,307,032 B + `vk_swiftshader_icd.json`
+are both present in the CEF directory) under the CPU-raster flags — **no change**: 10 EGL
+all-failed, 10 "minimum Vulkan instance" warnings, 6,222,856 `gl_factory_win` errors, no window.
+The override does not divert ANGLE off wine's Vulkan.
+
+**The one cheap experiment that would settle it:** install Homebrew `wine-stable` — mikey92's exact
+engine — on this machine and run the CPU-raster config. Stock-vs-stock, same client, same flags,
+only the OS and hardware differing. If it fails here, macOS 26.6.2 is confirmed as the variable and
+wine is fully exonerated; if it works, our own 11.16 build configuration is implicated rather than
+the version.
+
 ## `du` lies about disk on APFS: the two wrappers' 91 GB game installs were CLONES (2026-08-24)
 
 Both wrappers reported a 91 GB `Cities Skylines II` install, so deleting the redundant one in
