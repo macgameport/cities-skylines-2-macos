@@ -1987,6 +1987,46 @@ checked that a glyph run produces non-empty coverage. `IDWriteFactory` →
 works and the fault is further up in Skia; all-zero means the text never exists as pixels in the
 first place, which would explain every observation in this whole thread at once.
 
+## Text RASTERISATION eliminated — byte-identical to the build that renders text (2026-08-29)
+
+`scripts/dwritetest.c` asks DirectWrite for the alpha texture of a real glyph run ("ABC", Arial,
+32 px) and sums the bytes. Run on **both** engines on the same machine:
+
+| | families | ALIASED_1x1 | CLEARTYPE_3x1 (natural) | CLEARTYPE_3x1 (gdi) |
+|---|---|---|---|---|
+| our stock 11.16 + DXMT (**no** Steam text) | 204 | 71×23, nonzero 545/1633, max 255, **sum 138975** | 315/4899, **sum 80325** | 315/4899, **sum 80325** |
+| PK 11.0 vendor build (**renders** Steam text) | 204 | 71×23, nonzero 545/1633, max 255, **sum 138975** | 315/4899, **sum 80325** | 315/4899, **sum 80325** |
+
+**Byte-identical.** Same bounds, same coverage, same sums, same font family count.
+
+Two things fall out:
+
+1. **Glyph rasterisation is not the defect.** DirectWrite produces real coverage on our engine —
+   545 nonzero bytes at max 255 for three glyphs. The text exists as pixels before anything
+   graphical happens to it.
+2. ⚠ **The ClearType sparsity is normal, not a symptom.** 315/4899 nonzero looked suspiciously
+   thin next to the aliased 545/1633 and was briefly a lead — until the *working* engine produced
+   exactly the same number. **A ratio that looks wrong is not evidence without a reference.** The
+   PK build is the reference this project has for "text works", and it should be run against any
+   future text hypothesis before that hypothesis is believed.
+
+**This is the strongest control available on this machine:** same hardware, same fonts, same
+DirectWrite output down to the byte — and one engine shows Steam's text while the other does not.
+So the difference lives entirely in what Chromium does with those glyphs afterwards, not in
+producing them.
+
+**Cumulative eliminations for the missing text — the list is now long and the survivors are few:**
+font enumeration · **glyph rasterisation (this section)** · single-channel texture format, upload
+(immutable, `UpdateSubresource`, `Map`/DISCARD) and sampling · presentation architecture
+(in-process GPU, out-of-process, CAContext remote layer) · occlusion (per-child geometry) ·
+DirectComposition · the 2026-08-24 flag matrix (`--use-angle=swiftshader`, `--disable-lcd-text`,
+`--disable-direct-write`, `--disable-gpu-rasterization`, `--disable-gpu-compositing`, …).
+
+**What survives:** something in how Chromium/Skia *uploads or composites* the glyph coverage it
+already has — a path the PK vendor plumbing satisfies and ours does not. That is now a
+Chromium/ANGLE-level question rather than a DXMT one, and the next probe should look at what ANGLE
+does differently between the two engines rather than at anything font-shaped.
+
 ## `du` lies about disk on APFS: the two wrappers' 91 GB game installs were CLONES (2026-08-24)
 
 Both wrappers reported a 91 GB `Cities Skylines II` install, so deleting the redundant one in
