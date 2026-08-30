@@ -17,21 +17,35 @@
 
 ## ⚠ The two Steam captures are clean *because of the bug being chased*
 
-Steam renders no text on this engine, so there is no persona name to leak. **That protection
-disappears the moment the glyph problem is fixed** — which is the whole point of the investigation.
-A capture of the identical window, taken after text works, carries the persona name **twice** (top
-right, and as a nav item).
+Steam renders no text on this engine, so there was no persona name to leak. **That protection would
+have disappeared the moment the glyph problem is fixed** — which is the whole point of the
+investigation. A capture of the identical window, taken after text works, carries the persona name
+**twice** (top right, and as a nav item).
 
-So: do not read "our committed Steam captures have always been fine" as precedent. It is an artifact
-with an expiry date, and the expiry is *success*.
+So: do not read "our committed Steam captures have always been fine" as precedent. It was an artifact
+with an expiry date, and the expiry was *success*.
+
+✅ **Superseded 2026-08-30 for future captures** — the persona was renamed to a generic placeholder
+(fix 1 below), so the hazard is now handled at source rather than by accident. The three rows above
+still describe images taken *before* that rename; they remain clean, just for the weaker reason.
 
 ## The durable fix, in order of preference
 
-1. **Rename the Steam persona to something generic before any further capture work.** The persona
-   name is a **label** — freely editable, nothing resolves by it — which is this project's own
-   [keys-are-opaque](../../CLAUDE.md) doctrine applied to itself. This is the only option that makes
-   a capture safe *whether or not text renders*, needs no per-image discipline, and is reversible in
-   one click. Renaming back afterwards costs nothing.
+1. ✅ **DONE 2026-08-30 — the Steam persona is renamed to a generic placeholder.** The persona name
+   is a **label** — freely editable, nothing resolves by it — which is this project's own
+   [keys-are-opaque](../../CLAUDE.md) doctrine applied to itself. This was the only option that makes
+   a capture safe *whether or not text renders*, and it needs no per-image discipline.
+   **Consequence: the expiry described above is defused for anything captured from now on.** The
+   persona is an **account-level** label, so it lands in every client on the account — the native
+   macOS Steam app and all three wine wrappers alike — and the protection no longer depends on the
+   glyph bug staying broken. Do not rename back while capture work continues.
+   ⚠ **Verified in the native macOS Steam app, which is the right place to check it** — no wine
+   involved, so the check cannot be confounded by our own rendering problems. Do **not** read a
+   rendered-text screenshot from the native app as evidence about wine's glyph handling; they are
+   unrelated clients and only the account label is shared.
+   ⚠ This is **not** retroactive: captures already in `~/cs2-patch/evidence/` predate the rename, and
+   the ones where text rendered carry the real name. They live outside the repo, which is exactly why
+   the evidence store is outside the repo — leave them there.
 2. **Keep captures in the evidence store by default.** `~/cs2-patch/evidence/` is outside the repo
    for exactly this reason. Committing a window capture should be a deliberate act with a row here,
    not the default.

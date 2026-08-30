@@ -133,10 +133,16 @@ absolute `/Users/<name>` paths **out of committed files** — use `$HOME`, `$WIN
   image saying what is visible, plus its sha256 prefix, enforced by `check-experiments.py`. A new
   image with no row, or one replaced since its audit, fails `button up`. All **four** were audited
   2026-08-30 and are clean.
-  **But the two Steam captures are clean only BECAUSE the glyph bug was active** — Steam rendered no
-  text, so there was no persona name to leak. That expires the moment glyphs work, which is the goal.
-  So the real fix is at source: **the persona name is a label — rename it to something generic before
-  further capture work**, and captures stay in `~/cs2-patch/evidence/` unless deliberately promoted.
+  The two Steam captures among them are clean only because the glyph bug was active — Steam rendered
+  no text, so there was no persona name to leak — and that would have expired the moment glyphs work.
+- ✅ **Handled at source 2026-08-30: the Steam persona is now a generic placeholder.** The name is a
+  *label*, freely editable, so this cost nothing; and it is **account-level**, so it lands in the
+  native macOS Steam app and all three wine wrappers alike, protecting captures **whether or not text
+  renders**. Verify it in the **native macOS app** — no wine, so the check can't be confounded by our
+  own rendering bugs (and a rendered-text shot from there says nothing about wine's glyph handling).
+  Don't rename back while capture work continues, and don't re-propose this — it is done.
+  Not retroactive: pre-rename captures in `~/cs2-patch/evidence/` still carry the real name, which is
+  precisely why that store sits outside the repo. Captures stay there unless deliberately promoted.
   Never mask: a mask you got wrong is worse than no mask.
 - **Cheapest durable fix:** the Steam persona name is a *label*, freely editable. Set it to
   something generic while doing capture work and new captures are clean at source. A mask you got
