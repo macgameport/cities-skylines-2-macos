@@ -448,7 +448,13 @@ in the handler, or wrap in `finally`.
     **DXMT-from-source toolchain we have never stood up** (meson + native LLVM path + two
     cross-files, 64- and 32-bit — every DXMT binary here was *reused*, never compiled). Own
     mini-project; do not treat as an errand.
-  - 🚧 **HELD 2026-08-29 — nothing is posted to dxmt#141 until the fork is confirmed end-to-end.**
+  - ✅ **POSTED 2026-08-29** — [#5466938536](https://github.com/3Shain/dxmt/issues/141#issuecomment-5466938536),
+    ~3,370 words: the retraction, the valid split matrix, notpop's two ingredients, the root-cause
+    chain to the cross-process CHILD-window FIXME, and the working winemac patch with screenshots.
+    Watch for a reply from mikey92 (the dxgiprobe feature-level question) or 3Shain (the offer to
+    prepare a wine-devel patch). **Glyphs remain OPEN and are a separate bug** — see GOTCHAS
+    "Text RASTERISATION eliminated"; next probe is ANGLE-level, not font-shaped.
+  - 🗒️ **Superseded hold note (kept for the record):**
     James's call: hold rather than post the (finished) 4th comment. **The comment is complete and
     committed at `docs/dxmt-bugs/comment-141-split-plus-pair.md`; DO NOT POST IT** until the item
     below clears, then add the end-to-end result and post once.

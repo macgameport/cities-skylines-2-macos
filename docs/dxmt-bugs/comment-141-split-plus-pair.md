@@ -5,7 +5,7 @@ Draft reply to mikey92's "one cell is still missing" comment. Prior comments on 
 5458926046 (vanilla-wined3d split — **its argument is retracted below; its conclusion survives on
 different evidence**).
 
-Status: **not yet posted.**
+Status: **POSTED 2026-08-29** as [#5466938536](https://github.com/3Shain/dxmt/issues/141#issuecomment-5466938536).
 
 ---
 
