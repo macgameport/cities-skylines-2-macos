@@ -325,6 +325,23 @@ in the handler, or wrap in `finally`.
   one — except it draws no text at all.** Artwork, thumbnails, icons and chrome are perfect; no
   menu labels, titles, prices or search placeholder. Isolated to the flag: the PK wrapper renders
   Steam text normally and loses it identically once the shim is added.
+  - 🛑 **AUDIT 2026-08-30 — most of this thread is now VOID. Read `EXPERIMENTS.md` before acting
+    on anything below.** 41 of 43 render cells were measured with **no font library**: wine could
+    not resolve `libfreetype.dylib`, printed one line, and continued with no font backend — which
+    renders art and no glyphs, i.e. the exact symptom this whole thread was chasing. Two further
+    confounds: the shim sat in a `cef` dir Steam does not use (so `--shim-args` silently never
+    applied), and neither the `ps` check nor the window capture was prefix-filtered, so another
+    wrapper's Steam could supply a false PASS. **Every "ruled out" and "eliminated" below is
+    therefore suspect** — the eliminations were drawn from runs that could not have shown text
+    regardless. Withdrawn so far: the rasterisation and glyph-atlas eliminations (both probes are
+    standalone PEs, which resolve FreeType fine and so never exercised the failure), the
+    occlusion elimination, "no wine bisect is warranted", and "macOS is not the variable".
+    Surviving: the cross-process child patch **renders** (font-independent), and the
+    `macdrv_get_cocoa_window` root cause (read from source, not from a cell).
+  - **Open lead:** our self-built 11.16 loses FreeType/gnutls/MoltenVK **only under Steam**;
+    PK 11.0 does not, same script. Wrapper, prefix, bitness, architecture, WoW64 flavour,
+    `$HOME/lib` and shim env-sanitisation are all eliminated — see `EXPERIMENTS.md` C10 for the
+    table, so none of them get re-run.
   - **Ruled out as the cause:** DXMT glyph-atlas support (`--use-angle=swiftshader` + `vulkan-1=n,b`
     is pure software and still textless) · GPU/OOP rasterization · LCD/subpixel text · GPU
     compositing · DirectWrite (`--disable-direct-write`) · **fonts** (`scripts/fonttest.c`: daily

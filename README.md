@@ -116,8 +116,10 @@ and `docs/dxmt-bugs/`.
 |---|---|
 | `INSTALL.md` | **Start here to play.** Step-by-step from nothing to a working game |
 | `docs/patch-inventory.md` | All 17 binary patches, the bug each works around, and which upstream owns it |
-| `GOTCHAS.md` | Every trap hit, with root cause |
-| `CONFIG-TRIALS.md` | Config permutations tried, with outcomes |
+| `GOTCHAS.md` | Every trap hit, with root cause. Sections carrying a `> **Ledger:` banner have been audited — read it, some conclusions are withdrawn |
+| `EXPERIMENTS.md` | **What we tested, under what config, and how much to trust it.** Conclusions register + run index. Read this before designing a test or citing a result |
+| `docs/agent-brief.md` | One-screen brief for subagents, which inherit none of the project context |
+| `CONFIG-TRIALS.md` | Config permutations tried, with outcomes (historical — the old DXVK stack) |
 | `MODS-TESTING.md` | The Paradox Mods download investigation |
 | `REFERENCES.md` | Upstream projects, recipes, sources |
 | `PLAN.md` | Roadmap / open threads |
