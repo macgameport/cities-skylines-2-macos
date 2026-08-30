@@ -76,10 +76,38 @@ Each row: what we believe, what it rests on, and what would overturn it. **Audit
 | C7 | CPU raster renders Steam **with text** on an 11.0-lineage engine | `PARTIAL` | `exp_8d065a`, `exp_fb79d9` | `winestable-cpuraster` is genuine — shim installed, libs resolve, text visible. **`pk-cpuraster` is mislabeled**: that prefix has no shim, so `--shim-args` never applied and it was an ordinary launch, not CPU raster. |
 | C8 | macOS is not the variable; wine-stable 11.0 renders where our 11.16 does not | `RETRACTED` | `exp_fb79d9` vs `exp_53a8e6` | Not a controlled comparison: one side had the shim and a working font backend, the other had neither. Retracted 2026-08-30, same day it was committed. |
 | C9 | DXMT beats vanilla wined3d at every cell (wined3d gets FL 9_3 only) | `UNREVIEWED` | `scripts/dxgiprobe.c`, the `vanilla-*` cells | The feature-level measurement comes from a standalone probe and is font-independent, so it plausibly survives — but it has **not** been re-audited against the config rules. Do not cite as settled. |
-| C10 | Our self-built 11.16 loses FreeType/gnutls/MoltenVK **under Steam** while PK 11.0 does not | `SUPPORTED` | `exp_7b9920` (61 FT) vs `exp_8d065a` (0), same script; `exp_54cc10`/`exp_a96ecc` (61/59 FT) — **void-ok:** the library failure *is* the measurement here, not a defect in it | Both plain no-shim launches, so the shim asymmetry does not explain it. Standalone PEs resolve fine on both engines (32- and 64-bit, fresh prefix and real prefix, identical metrics). **This is the open lead.** |
+| C10 | **SOLVED — our own harness caused it.** `nohup` strips `DYLD_*`, and this engine's `win32u.so` cannot find its own libfreetype without it | `SUPPORTED` | `exp_0a43b3` (0 FreeType failures, glyphs rasterise in-tree) vs `exp_4b9824` (63, no coverage) — same script, one line changed | macOS **purges `DYLD_*` when exec'ing a SIP-protected system binary**. Measured: a bare `dlopen("libfreetype.dylib")` succeeds directly and **FAILS** via `nohup`, via `env`, and via `/bin/bash -c`. The harness launched Steam with `nohup`. Removing that one word took FreeType failures **63 → 0** and made DirectWrite rasterise **inside Steam's tree** for the first time. |
 | C11 | Without FreeType, DirectWrite **enumerates 204 families but rasterises nothing** — so the font failure IS sufficient to explain zero glyphs, and the family count is a decoy | `SUPPORTED` | `exp_4b9824`, `exp_95fb82` (in Steam's tree, via the shim) + shell A/B on the same engine — **void-ok:** the library failure is the condition under measurement, not a defect in it | **In-tree: DWrite 204 families, `hr=S_OK`, glyph run `ABC@32` → bounds `0x0`, nonzero `0`, sum `0`.** Shell control, same engine, same probe: with `DYLD_FALLBACK` set → `71x23`, nonzero `545`, sum `138975`; without → `0x0`, `0`, `0`. Only rasterisation moves; the family count is **204 either way**. The 545/138975 figures reproduce `dwritetest.c`'s recorded ALIASED numbers exactly, which independently validates the port. Overturned by: a cell where in-tree rasterisation is non-zero and text is still missing. |
 
-### Open lead (C10) — why does our engine lose FreeType *only* under Steam?
+### ✅ C10 CLOSED (2026-08-30) — it was `nohup`, in our own harness
+
+**The engine was never the variable, and neither was Steam.** The chain, each link measured:
+
+1. Our `win32u.so` carries **only** an `@loader_path/` rpath, so it cannot reach its own
+   `wine/lib/libfreetype.dylib`. It depends entirely on `DYLD_FALLBACK_LIBRARY_PATH`.
+   PK 11.0's `win32u.so` also carries **`@loader_path/../../`** — which *is* `wine/lib` — so PK
+   needs no environment variable at all. **That asymmetry is the whole "PK is different" story.**
+2. macOS **purges `DYLD_*` when exec'ing a SIP-protected system binary.** Measured with the x86_64
+   `dlprobe`: a bare `dlopen("libfreetype.dylib")` resolves on direct invocation and **FAILS**
+   through `nohup`, through `env`, and through `/bin/bash -c`.
+3. `scripts/steam-render-cell.sh` launched Steam as `... nohup "$WINE" steam.exe ...`.
+4. So every cell ran with the variable stripped → no font backend → DirectWrite enumerates 204
+   families but rasterises **nothing** → **Steam draws art and no glyphs.**
+
+Deleting the word `nohup` took FreeType failures **63 → 0** (`exp_4b9824` → `exp_0a43b3`) and
+produced the first in-tree `GLYPHS RASTERISE` this project has ever recorded.
+
+> **The instrument caused the defect it was measuring, for a week.** The daily launcher was never
+> affected — `launch-cs2-dxmt11.sh` execs wine directly — which is exactly why the game had fonts
+> the whole time and only *cells* did not. Nothing about Steam, DXMT, CEF or macOS was ever wrong
+> here.
+
+**The durable fix is the engine, not the harness.** Build with
+`-Wl,-rpath,@loader_path/../../` on the unix `.so` set so `win32u` resolves its own libraries the
+way PK's does, and no launch path can ever strip it again. Until that lands, **any** wrapper script
+that reaches wine through `nohup`/`env`/`bash -c`/`setsid` silently disables fonts. `docs/plans/build-wine1116-dxmt-engine.md` is where that change belongs.
+
+### Superseded: the original open lead — why does our engine lose FreeType *only* under Steam?
 
 Our engine's `config.h` has `SONAME_LIBFREETYPE "libfreetype.dylib"` (unversioned, from Homebrew);
 PK's `win32u.so` asks for `libfreetype.6.dylib`. Both names exist in every wrapper's `Frameworks/`
@@ -244,8 +272,9 @@ may belong to a different wrapper's Steam.
 | exp_a96ecc | 2026-08-30 13:27 | `dyld-env-probe` | 59 | 0 | 0 | black | VOID-LIBS |
 | exp_95fb82 | 2026-08-30 14:23 | `fontprobe-intree` | 63 | 0 | 0 | black | VOID-LIBS |
 | exp_4b9824 | 2026-08-30 14:28 | `raster-intree` | 63 | 0 | 0 | black | VOID-LIBS |
+| exp_0a43b3 | 2026-08-30 14:32 | `nohup-removed` | 0 | 0 | 0 | black | candidate |
 
-47 cells · 45 VOID-LIBS · 2 candidate
+48 cells · 45 VOID-LIBS · 3 candidate
 ---
 
 ## Running a cell (the procedure this ledger assumes)

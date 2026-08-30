@@ -105,7 +105,14 @@ find "$S" \( -name "SingletonLock" -o -name "SingletonCookie" -o -name "Singleto
 
 caffeinate -d -i -u -t $((WAIT + 120)) &                          # trap 2
 CAF=$!
-SHIM_ARGS="$SHIM_ARGS" SHIM_LOG=1 nohup "$WINE" "$S/steam.exe" -no-cef-sandbox $STEAM_ARGS \
+# ⚠ NEVER `nohup` (or `env`, or `bash -c`) HERE — measured 2026-08-30, and this one line is why 41
+# of 43 cells ran with no fonts. macOS PURGES DYLD_* when exec'ing a SIP-protected system binary,
+# and /usr/bin/nohup is one. This engine's win32u.so carries only an `@loader_path/` rpath, so it
+# CANNOT find its own libfreetype.dylib without DYLD_FALLBACK_LIBRARY_PATH — strip that and wine
+# silently continues with no font backend, DirectWrite rasterises nothing, and Steam renders art
+# with no glyphs. That is the entire "glyph mystery": the harness caused it.
+# Launch wine DIRECTLY. Verify with: DYLD_FALLBACK_LIBRARY_PATH=... nohup ./dlprobe libfreetype.dylib
+SHIM_ARGS="$SHIM_ARGS" SHIM_LOG=1 "$WINE" "$S/steam.exe" -no-cef-sandbox $STEAM_ARGS \
   >"$OUT/stdout.txt" 2>&1 &
 sleep "$WAIT"
 
