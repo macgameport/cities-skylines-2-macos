@@ -21,6 +21,10 @@ import os, re, sys, glob, argparse, secrets
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LEDGER = os.path.join(REPO, "EXPERIMENTS.md")
 GOTCHAS = os.path.join(REPO, "GOTCHAS.md")
+# The Steam-UI thread was split out 2026-08-30 (65% of GOTCHAS, one open investigation). ALL 24
+# status banners went with it, so a checker reading only GOTCHAS.md would validate an empty set
+# and report OK forever. Both files are scanned as one corpus.
+BANNER_DOCS = [GOTCHAS, os.path.join(REPO, "docs", "steam-ui-investigation.md")]
 STORE = os.path.expanduser("~/cs2-patch/evidence")
 
 FT_MARK = "cannot find the FreeType"
@@ -179,11 +183,25 @@ def main():
     if unfp:
         notes.append("%d cell(s) predate cell-fingerprint.sh — config unrecorded, treat as UNREVIEWED"
                      % len(unfp))
-    if os.path.exists(GOTCHAS):
-        g = open(GOTCHAS, encoding="utf-8").read()
+    present = [d for d in BANNER_DOCS if os.path.exists(d)]
+    if present:
+        parts = {os.path.basename(d): open(d, encoding="utf-8").read() for d in present}
+        g = "\n".join(parts.values())
         banners = len(re.findall(r"^> \*\*Ledger:", g, re.M))
-        notes.append("GOTCHAS.md: %d section(s), %d carry a `> **Ledger:` status banner"
-                     % (g.count("\n## "), banners))
+        notes.append("%s: %d section(s), %d carry a `> **Ledger:` status banner"
+                     % (" + ".join(parts), sum(t.count("\n## ") for t in parts.values()), banners))
+        # The split is only safe while the index still lists every section it moved out. A section
+        # added to the detail doc without an index row is invisible to `wake up`, which reads the
+        # index — that is exactly the "trap nobody knows exists" this file guards against.
+        det = parts.get("steam-ui-investigation.md")
+        if det is not None:
+            gt = parts.get("GOTCHAS.md", "")
+            linked = len(re.findall(r"\]\(docs/steam-ui-investigation\.md#", gt))
+            # the L779/L780 pair is one logical section written as two `## ` lines
+            sections = det.count("\n## ") - det.count("\n## disproven by")
+            if linked != sections:
+                problems.append("steam-ui-investigation.md has %d section(s) but GOTCHAS.md's index "
+                                "links %d — every moved section needs an index row" % (sections, linked))
         # dangling-reference check: a GOTCHAS banner citing an id no longer in the index is the
         # exact failure this whole system exists to prevent — a conclusion pointing at evidence
         # that is gone, which reads as "backed by a run" to anyone who does not go looking.

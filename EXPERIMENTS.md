@@ -29,7 +29,7 @@ resolves"*, *"no wine-version bisect is warranted"*, *"macOS is not the variable
 honest when written and they are wrong now, and nothing in a commit message can be edited to say so.
 
 **Rule: for anything in the Steam-UI thread, the register below outranks any commit subject, README
-line, or `GOTCHAS.md` heading text.** Several headings still read "ELIMINATED" or "SOLVED" with a
+line, or a heading in `GOTCHAS.md` / `docs/steam-ui-investigation.md`.** Several headings still read "ELIMINATED" or "SOLVED" with a
 `Ledger:` banner directly beneath them retracting exactly that word — the banner wins. Headings were
 deliberately left alone so the history stays greppable and the retraction stays visible next to the
 claim it retracts.

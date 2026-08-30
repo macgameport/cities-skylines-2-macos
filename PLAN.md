@@ -56,7 +56,7 @@ Rosetta/Wine categorisation thing; nothing else depends on it.
 **Second thing worth posting upstream:** [#141](https://github.com/3Shain/dxmt/issues/141) (Steam
 CEF black window, ANGLE `EGL_BAD_ALLOC`, open) is **intermittent** here, not absent — library
 rendered fine 2026-08-23 (purchases + DLC worked); fully black on 2026-08-24 in both GPU and
-software compositing (GOTCHAS § visible Steam UI). The daily flow is immune (Steam runs
+software compositing (`docs/steam-ui-investigation.md` § visible Steam UI — split out of GOTCHAS 2026-08-30). The daily flow is immune (Steam runs
 `-silent`). Any upstream comment should say "intermittent under stock wine 11.16", which is
 still useful signal on the open issue.
 
