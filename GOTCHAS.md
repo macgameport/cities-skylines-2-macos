@@ -2027,6 +2027,56 @@ already has — a path the PK vendor plumbing satisfies and ours does not. That 
 Chromium/ANGLE-level question rather than a DXMT one, and the next probe should look at what ANGLE
 does differently between the two engines rather than at anything font-shaped.
 
+## The glyph defect localised: Chromium has NO working GL at all on this engine (2026-08-29)
+
+Comparing `cef_log.txt` between our engine and the PK build that renders text gives the cleanest
+signal in the whole text investigation.
+
+| | our stock 11.16 + DXMT (**no text**) | PK 11.0 vendor build (**text works**) |
+|---|---|---|
+| `Initialization of all EGL display types failed` | **12** | **0** |
+| `GLDisplayEGL::Initialize failed` | **12** | **0** |
+| `eglInitialize SwANGLE failed` | **12** | **0** |
+| GL/ANGLE errors of any kind | many | **none** (only network / ffmpeg / bad_message) |
+
+**On our engine ANGLE never initialises at all.** The sequence is unambiguous:
+
+```
+WARNING: ANGLE Requires a minimum Vulkan instance version of 1.1
+ERROR:   Internal Vulkan error (-9): The requested version of Vulkan is not supported by the driver
+ERROR:   eglInitialize SwANGLE failed with error EGL_NOT_INITIALIZED
+ERROR:   Initialization of all EGL display types failed.
+ERROR:   GLDisplayEGL::Initialize failed.
+```
+
+⚠ **And it only ever tries Vulkan.** Display-type mentions in the log: `Vulkan` 84, `SwANGLE` 12,
+**`D3D11` zero**. On this CEF build ANGLE's path is SwANGLE (software ANGLE over Vulkan), and it
+needs a Vulkan **1.1** instance it cannot get — the same processes log
+`err:vulkan:vulkan_init_once Failed to load libMoltenVK.dylib` **6×** per run.
+
+**So Chromium is running with no GL whatsoever, on its software path** — which evidently blits
+artwork fine and produces no text. That is the most economical explanation of every text
+observation in this thread, and it predicts the fix: **get ANGLE initialised and the glyphs should
+follow.**
+
+**Two things tried against it, both no change:**
+- **MoltenVK placement.** PK carries `libMoltenVK.dylib` in `wine/lib/` where ours only had it in
+  `Contents/Frameworks/`, and `winevulkan` dlopens it by name. Copied it into `wine/lib/`
+  (identical binary — both 8,096,560 B, `lipo -archs` = `x86_64`, so not an arch mismatch):
+  **still 6 load failures**, still 12 EGL failures. Placement is not the problem.
+- **`--use-angle=d3d11`** on the rendering baseline: renders (2,310,029 B), **still zero glyphs**.
+  Forcing the backend does not help when the display never initialises.
+
+**Next thread, and it is now specific rather than font-shaped:** why does
+`libMoltenVK.dylib` fail to load *inside Steam's spawned child processes* when it loads fine for a
+directly-launched wine program (the `dxgiprobe` runs print full MoltenVK banners)? That smells like
+`DYLD_FALLBACK_LIBRARY_PATH` not surviving the steam.exe → webhelper spawn, and PK's wrapper doing
+something different about it. Fix that, and ANGLE should come up.
+
+⚠ **Do not read the cef_log counters as per-run** — that file accumulates across launches on a
+prefix. The 12s above are consistent across runs but were not isolated per launch; the MoltenVK
+count (6) is from the run's own stdout and is per-run.
+
 ## `du` lies about disk on APFS: the two wrappers' 91 GB game installs were CLONES (2026-08-24)
 
 Both wrappers reported a 91 GB `Cities Skylines II` install, so deleting the redundant one in
