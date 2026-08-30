@@ -1,0 +1,34 @@
+# winemac-crossprocess-child.patch — implements the case wine's own FIXME names:
+#   "Cross-process child window Metal swapchains are not implemented" (window.c, in
+#   macdrv_client_surface_acquire_metal_swapchain).
+# Applies to dlls/winemac.drv/window.c in the DXMT-patched wine 11.16 tree.
+#
+# A child HWND has no cocoa_window, and macdrv_create_offscreen_swapchain() posts
+# WM_MACDRV_CREATE_REMOTE_LAYER to the hwnd it is given -- whose handler needs data->cocoa_window.
+# So build the CAContext swapchain against the ROOT: the window that both owns an NSWindow and
+# lives in the owning process. Geometry is NOT mapped yet (the hosted CALayerHost fills the root's
+# content view), which is approximately right when the child covers the client area.
+#
+# STATUS: builds clean; NOT YET VALIDATED — the test clone came up at a Steam login screen, so no
+# cross-process child HWNDs were exercised. See GOTCHAS "Cross-process CHILD windows".
+
+--- a/dlls/winemac.drv/window.c
++++ b/dlls/winemac.drv/window.c
+@@ macdrv_client_surface_acquire_metal_swapchain @@
++        HWND root = NtUserGetAncestor(hwnd, GA_ROOT);
++
++        if (!NtUserGetClientRect(hwnd, &rect, NtUserGetWinMonitorDpi(hwnd, MDT_RAW_DPI))) return FALSE;
++
++        if (root && root != hwnd)
++        {
++            /* EXPERIMENT (2026-08-29, macgameport): cross-process CHILD window. The root-window
++             * path below already exports a CAContext and posts WM_MACDRV_CREATE_REMOTE_LAYER to
++             * the HWND's owner, which hosts it via CALayerHost. A child HWND has no cocoa_window
++             * of its own, so the message must go to its ROOT instead -- that is the window which
++             * both owns an NSWindow and lives in the other process. Geometry is not mapped yet:
++             * the hosted layer fills the root's content view, which is approximately right when
++             * the child covers the client area (CEF's main widget does). */
++            ERR("dxmt: cross-process CHILD hwnd %p -> hosting remote layer on root %p\n", hwnd, root);
++            surface->metal_swapchain = macdrv_create_offscreen_swapchain(root, cgrect_from_rect(rect));
++        }
++        else

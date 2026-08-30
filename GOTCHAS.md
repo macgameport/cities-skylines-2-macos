@@ -1759,6 +1759,43 @@ not enabled.
 `CALayerHost`. A child window additionally needs its rect mapped into the owner's coordinate space
 and the hosted layer positioned/clipped there. **That is a wine patch, not a DXMT patch.**
 
+## Cross-process CHILD windows: implemented, builds, TEST BLOCKED ON A STEAM LOGIN (2026-08-29)
+
+The child-window case named by the FIXME is now **implemented and building**, but it has **not yet
+been validated** — say so plainly rather than implying otherwise.
+
+**The implementation** (`macdrv_client_surface_acquire_metal_swapchain`, `window.c`): replace the
+`FIXME`/`return FALSE` with — resolve `root = NtUserGetAncestor(hwnd, GA_ROOT)`, take the child's
+client rect, and build the offscreen `CAContextSwapChain` **against the root** rather than the
+child. That matters because `macdrv_create_offscreen_swapchain(hwnd, …)` internally posts
+`WM_MACDRV_CREATE_REMOTE_LAYER` to `hwnd`, and the handler needs `data->cocoa_window` — which a
+**child HWND does not have**. The root is the window that both owns an `NSWindow` and lives in the
+other process. Geometry is deliberately not mapped yet: the hosted `CALayerHost` fills the root's
+content view, which is approximately right when the child covers the client area (CEF's main widget
+does). Builds clean alongside the `dxmt_acquire_remote_layer` ABI entry.
+
+**Why it is unvalidated: the test clone came up at `Sign in to Steam` (700×440).** With no logged-in
+client there is no store/library, so no cross-process child HWNDs are created — `cross-process
+swapchain FORCED` counted **0**, versus 6 in the earlier valid run. The cell measured a login window
+and nothing else. **Entering Steam credentials is the user's action, not something to automate.**
+
+⚠ **Self-inflicted, and worth knowing before repeating this:** several test clones were launched in
+sequence against the same Steam account, and per § "Same-account Steam sessions SWAP" that shuffles
+the single online session. The daily wrapper was re-verified afterwards and is **fine** —
+`winemac.so` 0 public text symbols, `d3d11.dll` 5,304,320 B (stock v0.80), `loginusers.vdf` intact —
+but a *clone* can land on a login prompt. **Warm a clone to a logged-in client before treating any
+Steam-UI cell on it as valid**, and prefer reusing one clone over creating several.
+
+⚠ **Timing, again:** a fresh clone's Steam can take **>200 s** to produce any stdout. Two cells here
+reported "0 markers" purely because the capture window closed first; a later read of the same file
+showed 1,342 lines. `--wait 260` was sufficient in the run that worked. **Never read a marker count
+from a cell whose `stdout.txt` is empty.**
+
+**Resume:** `CS2child-test.app` is kept, with the full stack installed (patched `winemac.so` +
+forked DXMT + `dxmt_acquire_remote_layer` + child path). Log into Steam in it once, then re-run
+`WINEDEBUG=err+all,+macdrv DXMT_ALLOW_CROSS_PROCESS_SWAPCHAIN=1 … --wait 260` and check for
+`cross-process CHILD hwnd … -> hosting remote layer on root`.
+
 ## `du` lies about disk on APFS: the two wrappers' 91 GB game installs were CLONES (2026-08-24)
 
 Both wrappers reported a 91 GB `Cities Skylines II` install, so deleting the redundant one in
