@@ -1844,6 +1844,51 @@ the ROOT for a foreign child) · plus the `dxmt_acquire_remote_layer` ABI entry 
 `macdrv_functions_t` (sizeof 80 → 88). `scripts/winemac-foreign-hwnd.patch` is superseded by the
 ABI route and is not needed for this result.
 
+## Glyph chase on the new rendering baseline — three hypotheses tested, cause narrowed (2026-08-29)
+
+With the client finally rendering, the glyph defect was re-attacked on a baseline that actually
+shows pixels. **Not fixed** — but the cause is now narrowed to something structural rather than
+mysterious, and two plausible explanations are dead.
+
+**1. DirectComposition — ELIMINATED.** Chromium calls `DCompositionCreateDevice3`, which wine stubs
+(`fixme:dcomp:`), so "text goes into a DComp visual that never composites" was a good hypothesis.
+`--disable-direct-composition` injected via the shim (confirmed on the real webhelper cmdline):
+window still **renders, still zero glyphs**. Capture went 2,429,957 → 2,569,047 B — ⚠ and that
+increase was **just a busier promo image**, not text. **Capture size is not a glyph proxy; open the
+image.** Note this flag had only ever been used here bundled with three others in
+`scripts/whwrapper.c`, never isolated.
+
+**2. Stale stacked layers — DISPROVED, and the leak turns out to be load-bearing.** The main Steam
+window acquires **7** remote layers in a session (16 distinct child HWNDs → 15 roots overall, so
+~1 per window, but the main one retries). Retiring the previous surface per HWND on each acquire —
+one hosted `CALayerHost` per window, which also fixes the deliberate leak — sent the window
+**straight back to black (108,343 B)**, with 7 retirements logged. **DXMT keeps rendering into the
+layer handed to it by an earlier acquire**, so releasing on the next acquire destroys the live one.
+Lifetime has to be driven by DXMT releasing its swapchain, not by the next acquire. Reverted, with
+the reason recorded in the source.
+
+**3. Z-order — the informative one. Only the TOPMOST hosted layer is ever visible.**
+`addCALayerHostViewWithContextId:` does `host.frame = self.layer.bounds` with
+`kCALayerWidthSizable|kCALayerHeightSizable` and `[self.layer addSublayer:host]` — so **every host
+is stretched over the entire content view**, and newest wins. Probe (`DXMT_HOST_LAYER_BOTTOM=1`,
+`insertSublayer:atIndex:0`): **black, 108,343 B**, versus ~2.4 MB rendered with the default. So
+whichever layer is on top is the only one you see, and everything under it is hidden.
+
+**Where that leaves the glyphs.** The leading explanation is now **occlusion, not rasterisation**:
+several full-bounds layers stacked on one window, only the top one visible, and any content drawn
+into the others — plausibly including text-bearing widgets — buried. It fits the earlier
+observation that PK renders Steam text *until* the shim is added, and it fits art-without-text.
+⚠ **It is not proven.** The alternative — that glyphs are genuinely never rasterised, which is what
+the 2026-08-24 in-process work concluded — is not excluded by anything measured here.
+
+**Next step, and it is the piece the child patch already flagged as missing: map the geometry.**
+Each child's hosted layer must be positioned and clipped to that child's rect in the root's
+coordinate space instead of filling the content view, so the layers stop occluding one another.
+That needs the child's rect carried to the owning process (the current
+`WM_MACDRV_CREATE_REMOTE_LAYER` only carries a `contextId` in `lParam`; the child HWND could go in
+`wParam` and let the receiver compute the rect). Until that exists, "no glyphs" and "layers occlude
+each other" cannot be told apart.
+
 ## `du` lies about disk on APFS: the two wrappers' 91 GB game installs were CLONES (2026-08-24)
 
 Both wrappers reported a 91 GB `Cities Skylines II` install, so deleting the redundant one in
