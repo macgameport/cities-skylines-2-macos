@@ -99,6 +99,51 @@ and internal, not environmental. The A/B settles it either way and costs one cel
 added. Every earlier cell in this investigation is silent on it, which is precisely the gap this
 ledger exists to close, reopened one level up.
 
+### 🔗 CLOSED LOOP: the GPU crash IS the cross-process problem, as a null deref (2026-08-31)
+
+The four function pointers the crash depends on are resolved **by name**, and the strings are in the
+binary:
+
+| loaded into | symbol |
+|---|---|
+| — | `macdrv_functions` (struct lookup, tried first) |
+| `%r15` | **`get_win_data`** |
+| `%r14` | `release_win_data` |
+| `%r13` | `macdrv_view_create_metal_view` |
+| `%r12` | `macdrv_view_get_metal_layer` |
+
+```
+a3b3..a3d4   testq %r15/%r14/%r13/%r12  -> all four POINTERS null-checked, ANDed
+a3d6         movq (%rbx), %rdi          ; the HWND
+a3d9         callq *%r15                ; get_win_data(hwnd)
+a3dc         movq %rax, %r15            ; keep the win_data
+a3df         movq 0x18(%rax), %rdi      ; <== deref win_data->+0x18, UNCHECKED
+```
+
+**`get_win_data(hwnd)` returns NULL for a foreign HWND — that is exactly C3**, which we derived from
+wine's source: `win_datas` is a process-local `CFDictionary`, so another process's window is invisible
+by construction. DXMT carefully null-checks all four *function pointers* and then does not check the
+*return value* of the first call.
+
+**So the chain is closed end to end:**
+
+1. Steam's CEF **GPU process** asks DXMT for a Metal view for the **browser process's** HWND.
+2. DXMT calls `get_win_data(hwnd)`.
+3. It returns NULL — foreign HWND, process-local table (C3).
+4. DXMT dereferences at `+0x18` with no check → AV → `abort()` → `__fastfail(7)`.
+5. Chromium restarts the GPU process, it dies the same way, 6× → gives up → **black window**.
+
+**This unifies the whole investigation.** The GPU crash is not a separate mystery upstream of the
+cross-process work — **it IS the cross-process problem**, surfacing as a null dereference instead of
+the graceful `E_FAIL` we kept looking for. The `cross-process swapchain not supported` guard in
+`d3d11_swapchain.cpp` is a *later* checkpoint that is never reached, because this earlier path
+crashes first. That is also why forcing that guard open changed nothing.
+
+**The next test is now cheap:** add a null check on `get_win_data`'s return in DXMT and rebuild.
+If the GPU process survives instead of aborting, we find out what the *next* wall is — and we get a
+one-line upstream patch either way. Everything needed is already in place: the source tree, a working
+build against the shipped engine, and a harness that measures it.
+
 ### ❌ notpop's fork does NOT fix the Steam client — re-tested properly (2026-08-31)
 
 Rebuilt the fork **against the shipped engine** (`-Dwine_install_path=…/CS2dxmt11.app/…/wine`,
