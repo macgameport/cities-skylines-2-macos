@@ -1527,3 +1527,34 @@ to suspect the window rect still contains one.
 **A real fix has to make both answers come from the same place**, which means `GetWindowStyleMasks`
 needs the same client-rect evidence — and it is called *while* win32u is computing those rects, so
 the ordering has to be worked out first. That is upstream wine work, unrelated to DXMT.
+
+## The Paradox launcher's PLAY: `ENOENT` is not a missing file (2026-08-31, OPEN)
+
+> **Ledger:** `SUPPORTED` — C25. Evidence: the launcher log across two attempts, one with an
+> absolute `exePath`.
+
+`spawn Cities2.exe ENOENT` reads like a path bug. It is not, and chasing the path is a dead end —
+tested, so nobody has to repeat it.
+
+Setting `exePath` in `Launcher/launcher-settings.json` from `../Cities2.exe` to a full absolute path
+**did take effect** — the launcher logged the resolved path — and the spawn failed identically:
+
+```
+info  [LaunchExecutable]: Starting game: C:\...\Cities Skylines II\Cities2.exe
+error [LaunchGameHandler]: Launching game failed: spawn Cities2.exe ENOENT
+```
+
+Node formats the ENOENT message with the **basename**, which is what makes it look like a bare-name
+lookup. It isn't.
+
+**What is established:** the file exists; the launcher resolves the correct absolute path; and plain
+wine launches that exact executable fine — that is what `launch-cs2-dxmt11.sh` does, boot-verified
+to `MainMenu` repeatedly the same night. So the failure is in the launcher's own (Electron/libuv)
+spawn under wine, not in the path, the file, or the game.
+
+**The edit was reverted** — it changed no outcome, and an unnecessary modification to a
+Steam-managed file only confuses the next reader (Steam would revert it on validation anyway).
+
+**Not worth chasing further unless someone wants Steam-launching specifically.** The shortcut is
+unaffected, and the Steam overlay — the main thing Steam-launching would buy — is deliberately
+disabled anyway because it crashes the game under wine (§12 above).
