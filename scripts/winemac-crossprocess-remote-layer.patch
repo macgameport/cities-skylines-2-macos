@@ -344,3 +344,43 @@
 # VERIFIED on the rebuilt module: seam 0 bright edges on all four parities; blackout sequence
 # 2400x1500 -> 2399x1499 -> 2400x1500 measures 54 -> 43 -> 80 interior luminance; navigation and
 # the Friends List render; 40-alternation churn ends clean; no truncation logged; 0 GPU crashes.
+
+# =====================================================================================
+# ADDENDUM 5 — 2026-08-31: the shimmer, measured and closed.
+#
+# T1 (docs/plans/hosting-layer-hardening.md) finally isolated it. Capture DURING a scripted churn,
+# against an identically-sampled static control:
+#
+#   build                       samples  near-black frames  rate    interior lum min
+#   pre-fix                          40                  2  5.00%                   0
+#   + retire-on-create              160                  2  1.25%                   0
+#   + per-child deferred release    320                  0  0.00%                  28
+#
+# The dark frames are DIAGNOSTIC, not merely dark: Steam's chrome (menu bar, nav, URL bar, bottom
+# bar) renders perfectly with the ENTIRE content area black. That is the content browser's layer
+# with nothing to show. At churn rate during a drag, that is the shimmer.
+#
+# TWO CHANGES, and the second only became findable after the first:
+#
+# (1) RETIRE ON CREATE, NOT ON DESTROY (window.c, retire_superseded_layers()). Removal used to be
+#     driven by the old swapchain dying; the replacement arrived later on its own message, and
+#     nothing was hosted in between. Now the replacement is added first and its predecessors for
+#     the same child are dropped after, so the child is never unhosted. 5.00% -> 1.25%.
+#
+# (2) THE DEFERRED RELEASE IS NOW PER CHILD HWND (macdrv_main.c), not one global slot. This is the
+#     only lever that can keep CONTENT alive across a recreate: CAContextSwapChain's dealloc
+#     releases the remote CAContext, so a CALayerHost whose context is gone has nothing to show and
+#     keeping the host hosted cannot help. Deferring the client_surface release defers the dealloc,
+#     which defers the context destruction. With one global slot, browser A's release drained
+#     browser B's held context early. Keyed per child, a context now survives until the NEXT
+#     release for that same child, which by construction is after its successor was acquired.
+#     1.25% -> 0.00% across 320 samples (p ~ 0.018 against the prior rate).
+#
+# ⚠ A DESIGN THAT WAS KILLED BY READING BEFORE BUILDING: "keep the orphaned host alive until a
+#   successor lands" cannot work. dealloc does `[context setLayer:nil]; [context release]`, so the
+#   host has no content source to preserve. Checking that saved building the wrong fix.
+#
+# BOOT-VERIFIED on the final module (winemac is on the game's boot path): SceneFlow 07:56:32 ->
+# "MainMenu reached" 07:57:35, 0 InvalidProgramException, 6 mods. Judged by a timestamp that
+# postdates the install — the first attempt matched a STALE 06:14 log and was nearly reported as
+# a pass.
