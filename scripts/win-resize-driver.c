@@ -123,6 +123,24 @@ int main(int argc, char **argv)
         return 0;
     }
 
+    if (!strcmp(argv[1], "rects"))
+    {
+        /* WINDOW rect vs CLIENT rect for a top-level window. The hosted-layer frame is computed
+         * relative to the root's WINDOW rect, but the layer is placed inside the CONTENT VIEW,
+         * whose origin is the CLIENT area. On a window with a title bar those differ, and the
+         * layer lands that far off -- visible as the cursor hit-testing above where it looks. */
+        RECT wr, cr; POINT tl = {0, 0};
+        GetWindowRect(h, &wr);
+        GetClientRect(h, &cr);
+        ClientToScreen(h, &tl);
+        printf("window rect : %ld,%ld  %ldx%ld\n", wr.left, wr.top, wr.right - wr.left, wr.bottom - wr.top);
+        printf("client rect : %ldx%ld  (client origin on screen: %ld,%ld)\n",
+               cr.right - cr.left, cr.bottom - cr.top, tl.x, tl.y);
+        printf("CLIENT OFFSET INSIDE WINDOW: dx=%ld  dy=%ld   <== a hosted layer is wrong by this\n",
+               tl.x - wr.left, tl.y - wr.top);
+        return 0;
+    }
+
     if (!strcmp(argv[1], "tree"))
     {
         /* Read-only: the hosted-layer z-order question is an ANCESTRY question, and guessing at it

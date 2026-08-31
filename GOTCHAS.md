@@ -1294,3 +1294,40 @@ still reveal is the seam. Verified: 0 bright edges on all four parities, popups 
 
 **The general shape:** a property that exists to fix a *steady-state* artifact should not be applied
 during the *transient*. Ask when a value needs to be true, not just whether it needs to be true.
+
+## Paradox launcher: mouse hit-testing sits BELOW the visible cursor (2026-08-31, OPEN)
+
+> **Ledger:** `UNREVIEWED` — C19. Reported by James; direction measured, mechanism is a hypothesis,
+> ownership untested.
+
+The Paradox launcher renders correctly on the patched stack (EULA, store panels, PLAY — the game
+boots from it and reaches `MainMenu`), but **hit-testing is offset vertically**: to activate a
+button you must hold the cursor *above* it, so the hand appears several points above the control
+that highlights.
+
+**What is measured.** The launcher's top-level window is a `Chrome_WidgetWin_1`, and Win32 models
+almost no non-client area on it:
+
+```
+window rect : 325,530  2568x1345
+client rect : 2558x1340   (client origin on screen 330,530)
+CLIENT OFFSET INSIDE WINDOW: dx=5  dy=0
+```
+
+`dy=0` — so the obvious "off by the title-bar height in Win32" story is **already ruled out**;
+Win32 believes the client starts at the very top of the window. Yet macOS draws a title bar on that
+window. If the Cocoa content view therefore begins lower on screen than Win32's client origin, a
+cursor at screen *y* is reported to CEF as a client *y* that is too large, CEF highlights a control
+below the visible cursor, and you aim high to click. **That direction matches the report**, and it
+is as far as the evidence currently goes — the content view's actual screen origin has not been
+measured, so the mechanism is a hypothesis, not a finding.
+
+**Probably not ours, and that is testable rather than assumed.** Our changes are confined to hosted
+layer frames, z-order, visibility and background; `grep -c macgameport` over the mouse/cursor/event
+mapping path returns **0**. The clean A/B is the stock `winemac.so.bak-*` beside the installed one:
+if the offset reproduces there, it is pre-existing wine behaviour for this window style. **That A/B
+has not been run.**
+
+⚠ Do not "fix" this by nudging a hosted layer frame. The layer is drawn where the window says it
+should be; it is the input mapping that disagrees, and moving the visuals to match would put the
+rendering wrong in order to make the aim right.
