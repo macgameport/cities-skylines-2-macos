@@ -1,10 +1,12 @@
 # dxmt#141 — fifth comment: retraction + the actual root cause
 
 Prior comments: 5400445243 · 5403561498 · 5458926046 · **5466938536** (partly retracted below).
+This one: **5477055980** — and the first posted as `iosoceans`; the other four are `jvspearman`.
 
-**Status: DRAFTED, NOT POSTED. Accuracy-audited 2026-08-31 before posting** — five corrections
-folded, listed at the foot of this file. Two of them were unsupported claims that would have been a
-third public retraction.
+**Status: ✅ POSTED 2026-08-31 10:30 UTC as `iosoceans` — [#5477055980](https://github.com/3Shain/dxmt/issues/141#issuecomment-5477055980).**
+10,462 chars, verified intact after the round trip. Accuracy-audited before posting — five
+corrections folded, listed at the foot of this file; two of them were unsupported claims that would
+have been a third public retraction.
 
 ## Before posting
 
