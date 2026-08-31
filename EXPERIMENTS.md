@@ -99,6 +99,50 @@ and internal, not environmental. The A/B settles it either way and costs one cel
 added. Every earlier cell in this investigation is silent on it, which is precisely the gap this
 ledger exists to close, reopened one level up.
 
+### ❓ Can the wine patch be avoided? No — and here is exactly why (2026-08-31)
+
+Measured against the **stock shipped** `winemac.so`, not reasoned about:
+
+| function | present in stock? | exported? |
+|---|---|---|
+| `macdrv_CreateClientSurface` | yes | **no** |
+| `macdrv_client_surface_acquire_metal_swapchain` | yes | **no** |
+| `macdrv_swapchain_get_layer` | yes | **no** |
+| `macdrv_create_offscreen_swapchain` | yes | **no** |
+
+**Stock winemac exports ZERO text symbols** (`nm -g … | grep -c ' T '` = **0**; the
+`-fvisibility=default` build has **215**). The only thing DXMT can reach is `macdrv_functions`, a
+`DECLSPEC_EXPORT`ed *data* symbol — ten function pointers, **none of them a cross-process route**.
+
+**Two independent blockers, and visibility only removes the first:**
+
+1. **Visibility.** Everything needed is compiled in but hidden. `dlsym` finds nothing.
+2. **The FIXME.** Even fully exported, `macdrv_client_surface_acquire_metal_swapchain` **returns
+   FALSE for a child window** — stock carries the string *"Cross-process child window Metal
+   swapchains are not implemented"* and none of our CHILD branch. CEF's HWND **is** a child, so a
+   visibility-only rebuild still fails.
+
+**Could DXMT pass the ROOT instead, to take the non-child path?** Possibly — that path is genuinely
+cross-process (it is what `vulkan.c` uses). But the hosted layer would then cover the whole root with
+no child geometry, so sibling widgets would occlude one another — the exact failure
+`addCALayerHostViewWithContextId:` documents (*"only the topmost was ever visible … measured: black"*).
+Degraded, not a substitute.
+
+**And the part that is unavoidable in principle:** the hosting happens in the **owner** process, via
+`WM_MACDRV_CREATE_REMOTE_LAYER` and `CALayerHost`. Only wine has that cross-process plumbing. DXMT
+cannot replicate it from outside its own process, whatever is exported.
+
+**So the honest framing is not "avoid the wine patch" but "upstream it".** That is more tractable
+than it sounds:
+
+- The child case is **wine's own acknowledged gap** — it ships the FIXME describing it.
+- The pixels→points bug is a **plain unit error** in wine's code, independent of DXMT.
+- The visibility change is a **build flag**, already what notpop does.
+
+**Meanwhile there is a working path today with no wine patch at all:** the webhelper shim with
+`--in-process-gpu`. Full client, with text, since the font fix. Its only known cost is store-tab
+flicker. So users are not blocked while the wine side goes upstream.
+
 ### 🏁 GEOMETRY CLOSED — Steam renders COMPLETELY out-of-process (2026-08-31)
 
 **The black band is gone.** Steam's client renders correctly and completely on stock out-of-process
