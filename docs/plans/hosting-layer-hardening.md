@@ -79,7 +79,30 @@ the whole window). At churn rate during a drag, that is the shimmer.
 never unhosted. This is a reordering, not a delay, and it subsumes the `pending_release` hack —
 though that is left in place until the reordering is verified.
 
-⚠ **VERIFICATION PENDING — the re-run of T1 against the fix is VOID on the instrument.** The screen
+**VERIFIED 2026-08-31, and the honest answer is "reduced ~4x, not eliminated".** Instrument
+validated live first (known-good non-wine window captured at 1.1 MB) per trap 2.
+
+| build | samples | near-black frames | rate | interior lum min |
+|---|---|---|---|---|
+| pre-fix | 40 | 2 | **5.0%** | **0** |
+| gap fix | 160 (4 x 40) | 2 | **1.25%** | 0 (2 of 4 trials), 43-72 (other 2) |
+
+⚠ **The first post-fix trial showed 0/40 and I would have called it fixed.** Trials 2 and 3 each
+showed 1. Repeating is what turned "fixed" into "4x better"; a single clean run of 40 at a 5% base
+rate has a ~13% chance of showing zero by luck.
+
+**The residual has the same signature** — chrome perfect, content black — so it is the same class of
+gap, not a new one. Leading hypothesis, untested: `retire_superseded_layers()` matches on the **same
+child HWND**. If CEF destroys a content child and creates a *different* HWND for the replacement,
+nothing matches, and the old layer still goes out on `WM_MACDRV_RELEASE_REMOTE_LAYER` with no
+successor — exactly the original gap, in the sub-case the fix does not cover.
+
+⚠ One confound was **checked and falsified**: the residual frame had a dropdown menu open, which
+suggested a resize-under-a-stationary-pointer might be triggering hovers and creating popup layers.
+Measured — the pointer was outside the window entirely. The menu was left open from earlier
+interaction. Not a confound.
+
+**Superseded note (verification was pending at the time of writing):** The screen
 locked mid-session (`CGSSessionScreenIsLocked: True`); `screencapture -l` then fails for *every*
 window including a known-good non-wine one, while full-screen capture returns a 43 KB lock frame.
 That is trap #2 in `steam-render-cell.sh`, and it is why the harness validates against a known-good
