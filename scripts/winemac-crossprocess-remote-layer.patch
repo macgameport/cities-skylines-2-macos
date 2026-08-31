@@ -384,3 +384,27 @@
 # "MainMenu reached" 07:57:35, 0 InvalidProgramException, 6 mods. Judged by a timestamp that
 # postdates the install — the first attempt matched a STALE 06:14 log and was nearly reported as
 # a pass.
+
+# =====================================================================================
+# ADDENDUM 6 — 2026-08-31: style pass, measured against winemac's own conventions.
+#
+# Checked rather than assumed. Our code vs the file it lives in:
+#   Allman braces (opening brace on its own line)   MATCHES
+#   no tabs introduced                              MATCHES (the file's only 2 tabs are pre-existing,
+#                                                    in a comment at window.c:923)
+#   no `//` comments introduced                     MATCHES — 0 across all three files
+#   ERR/TRACE rather than fprintf in shipped code   MATCHES (5 uses; the only `fprintf` outside the
+#                                                    -DDXMT_RSZ_DEBUG block is the word inside a comment)
+#   lines <= 100 columns                            3 VIOLATIONS, now fixed:
+#     - the two ca_layer_host entry-point signatures ran to 129/130 cols; wrapped, and their
+#       declarations in macdrv_cocoa.h with them
+#     - one PRE-EXISTING wine line hit 119 cols only because our new guard indented it a level
+#       further; wrapped rather than left as collateral
+#
+# The rebuilt module hashes to 49746334d0875733 — BYTE-IDENTICAL to the pre-reformat build. The
+# style pass provably changed no behaviour, so nothing needed re-verifying.
+#
+# Still knowingly divergent from wine's house style, and stated so it is a choice rather than an
+# oversight: the comments are far longer than wine's. That is deliberate here — this project
+# requires measurements to live next to the code they justify — and it is the first thing that
+# would have to be cut in half for upstream.
