@@ -1,42 +1,15 @@
-diff --git a/src/d3d11/d3d11_swapchain.cpp b/src/d3d11/d3d11_swapchain.cpp
-index 5e9404d..a896bc0 100644
---- a/src/d3d11/d3d11_swapchain.cpp
-+++ b/src/d3d11/d3d11_swapchain.cpp
-@@ -1099,8 +1099,15 @@ CreateSwapChain(
-   DWORD window_process_id;
-   GetWindowThreadProcessId(hWnd, &window_process_id);
-   if (GetProcessId(GetCurrentProcess()) != window_process_id) {
--    ERR("CreateSwapChain: cross-process swapchain not supported yet");
--    return E_FAIL;
-+    // EXPERIMENT (2026-08-29, macgameport): the guard below refuses BEFORE attempting anything,
-+    // so what actually breaks cross-process has never been observed. Env-gated so the game path
-+    // is untouched; set DXMT_ALLOW_CROSS_PROCESS_SWAPCHAIN=1 to fall through and find out.
-+    if (env::getEnvVar("DXMT_ALLOW_CROSS_PROCESS_SWAPCHAIN") != "1") {
-+      ERR("CreateSwapChain: cross-process swapchain not supported yet");
-+      return E_FAIL;
-+    }
-+    ERR("CreateSwapChain: cross-process swapchain FORCED (experimental) hwnd_pid=", window_process_id,
-+        " self_pid=", GetProcessId(GetCurrentProcess()));
-   }
- 
-   Com<IMTLDXGIDevice> layer_factory;
-diff --git a/src/util/com/com_guid.cpp b/src/util/com/com_guid.cpp
-index 11bf4a7..05bda6c 100644
---- a/src/util/com/com_guid.cpp
-+++ b/src/util/com/com_guid.cpp
-@@ -8,6 +8,7 @@
-  * See <https://github.com/doitsujin/dxvk/blob/master/LICENSE>
-  */
- 
-+#include <iomanip>
- #include <mutex>
- #include <unordered_set>
- 
 diff --git a/src/winemetal/unix/winemetal_unix.c b/src/winemetal/unix/winemetal_unix.c
-index 4744692..38cd0cf 100644
+index 4744692..c25be54 100644
 --- a/src/winemetal/unix/winemetal_unix.c
 +++ b/src/winemetal/unix/winemetal_unix.c
-@@ -1597,13 +1597,21 @@ _CreateMetalViewFromHWND(void *obj) {
+@@ -1,5 +1,6 @@
+ #include <stdatomic.h>
+ #include <dlfcn.h>
++#include <stdio.h>
+ #import <Cocoa/Cocoa.h>
+ #import <ColorSync/ColorSync.h>
+ #import <CoreFoundation/CFRunLoop.h>
+@@ -1597,13 +1598,40 @@ _CreateMetalViewFromHWND(void *obj) {
    if (pfn_get_win_data && pfn_release_win_data && pfn_macdrv_view_create_metal_view &&
        pfn_macdrv_view_get_metal_layer) {
      struct macdrv_win_data *win_data = pfn_get_win_data((HWND)params->hwnd);
@@ -45,6 +18,25 @@ index 4744692..38cd0cf 100644
 -    params->ret_view = (obj_handle_t)view;
 -    if (view) {
 -      params->ret_layer = (obj_handle_t)pfn_macdrv_view_get_metal_layer(view);
++    /* DIAGNOSTIC (2026-08-31): the d3d11 CreateSwapChain cross-process guard did NOT fire for this
++     * call, so GetWindowThreadProcessId() says the window is OURS -- yet get_win_data() still
++     * returns NULL. Find out what kind of window it actually is. The load-bearing question is the
++     * last one: if the ROOT resolves and the passed HWND does not, this is the child-window case
++     * and the fix is to map child -> root, not to bail out. */
++    if (!win_data) {
++      HWND h = (HWND)params->hwnd;
++      /* NtUserGetAncestor is not declared unix-side; resolve it the same way as everything else
++         here. GA_PARENT=1, GA_ROOT=2 (winuser.h). */
++      HWND (*pfn_ancestor)(HWND, unsigned int) = dlsym(RTLD_DEFAULT, "NtUserGetAncestor");
++      HWND parent = pfn_ancestor ? pfn_ancestor(h, 1) : NULL;
++      HWND root   = pfn_ancestor ? pfn_ancestor(h, 2) : NULL;
++      struct macdrv_win_data *root_data = (root && root != h) ? pfn_get_win_data(root) : NULL;
++      fprintf(stderr,
++              "dxmt-diag: get_win_data(%p) NULL  parent=%p root=%p  root_win_data=%s\n",
++              h, parent, root, root_data ? "PRESENT" : "null");
++      if (root_data)
++        pfn_release_win_data(root_data);
++    }
 +    /* get_win_data() returns NULL for an HWND owned by ANOTHER PROCESS: winemac keeps win_datas in
 +     * a process-local CFDictionary, so a foreign window is invisible by construction. Steam's CEF
 +     * GPU process asks for a Metal view for the BROWSER process's HWND, so this is not a rare

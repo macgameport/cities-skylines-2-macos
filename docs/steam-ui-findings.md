@@ -139,10 +139,39 @@ fork artifact and not a build mismatch: it is simply **wall 2**, reached by anyo
 1. It also makes the fork result precise — "does not fix the Steam client" is true because it fixes
 wall 1 and stops where we now stop.
 
+## Diagnosed (2026-08-31) — and it rules out three fixes
+
+Instrumenting the NULL branch answered it. Six firings, two windows, identical shape:
+
+```
+get_win_data(0x10104) NULL  parent=0x200f0  root=0x500e6  root_win_data=null
+```
+
+- **It is a child window** (has a parent, and a root distinct from itself).
+- **The Win32 guard did not fire** — `GetWindowThreadProcessId()` says the *child* is ours.
+- **The root has no `win_data` either.**
+
+The child is owned by the GPU process; its root lives in the browser process; winemac cannot realize
+a child whose parent chain leaves the process, so neither gets a `win_data`. That is exactly the case
+winemac's own `FIXME` names — *"Cross-process child window Metal swapchains are not implemented"*.
+The Win32 process check and the winemac realization check disagree, and DXMT trusts the first.
+
+**This explains every failed fix at once:**
+
+| attempt | why it could not work |
+|---|---|
+| null-check `get_win_data` | the caller `abort()`s on a null view **by design** |
+| notpop's fork | rewrites the same function; still needs a `win_data` that does not exist |
+| map child → root (our CHILD patch) | **the root has no `win_data` either** |
+| force the cross-process guard open | the guard never fires for this window |
+
 ## Open
 
-1. **What unix call is dispatched with a null handle** at `__wine_unix_call_dispatcher +0xc9`?
-   Now reproducible from two independent directions, which makes it a far better target.
+1. **Wire DXMT to wine's remote-layer path.** Stop asking for a `macdrv_view` on a window this
+   process does not own; use `macdrv_client_surface_acquire_metal_swapchain` /
+   `WM_MACDRV_CREATE_REMOTE_LAYER` + `CAContext`, which exist for exactly this and which our patched
+   winemac already exposes. DXMT simply never calls them. The winemac half is built; the DXMT half
+   is not.
 3. **Backend-independence is not fully closed** — software rendering gave a byte-identical result,
    which requires `winemetal.so` to be reached under swiftshader too. Not confirmed by `vmmap`.
 4. **43 of 64 cells can never be interpreted.** No config was recorded; permanently `VOID-LIBS`.

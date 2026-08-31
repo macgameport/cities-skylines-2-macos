@@ -99,6 +99,46 @@ and internal, not environmental. The A/B settles it either way and costs one cel
 added. Every earlier cell in this investigation is silent on it, which is precisely the gap this
 ledger exists to close, reopened one level up.
 
+### 🧩 DIAGNOSED: it is a CHILD window whose ROOT is also unknown to winemac (2026-08-31)
+
+Instrumented the NULL branch to ask what the window actually is. Six firings, two distinct windows,
+identical shape:
+
+```
+dxmt-diag: get_win_data(0x10104) NULL  parent=0x200f0  root=0x500e6  root_win_data=null
+dxmt-diag: get_win_data(0x500f0) NULL  parent=0x400e8  root=0x70110  root_win_data=null
+```
+
+Three facts, and the third kills a plan:
+
+1. **It is a child window** — it has a parent, and a root distinct from itself.
+2. **The d3d11 cross-process guard did not fire**, so `GetWindowThreadProcessId()` says the *child*
+   belongs to this process. It is not foreign by the Win32 test.
+3. **The ROOT has no `win_data` either.** So **mapping child → root cannot work** — which is exactly
+   what our `winemac-crossprocess-child.patch` does. That approach is dead on this evidence.
+
+**The coherent reading:** the child is owned by the GPU process, its *root* lives in the browser
+process, and winemac cannot realize a child whose parent chain leaves the process — so neither the
+child nor the root ever gets a `win_data`. That is precisely the case winemac names in its own
+`FIXME`: *"Cross-process child window Metal swapchains are not implemented"*. The Win32 process
+check and the winemac realization check disagree, and DXMT trusts the first.
+
+**Why every fix so far stopped here:**
+
+| attempt | why it could not work |
+|---|---|
+| null-check `get_win_data` | the caller `abort()`s on a null view **by design** (`d3d11_swapchain.cpp`, *"your Wine has no exported symbols needed by DXMT"* — a misleading message; the symbols are fine) |
+| notpop's fork | rewrites the same function; still needs a `win_data` that does not exist |
+| map child → root (our CHILD patch) | **the root has no `win_data` either** |
+| force the cross-process guard open | the guard was never the thing stopping it — it does not fire for this window |
+
+**The next test follows from this and nothing else:** stop trying to obtain a `macdrv_view` for a
+window this process does not own, and use wine's **existing remote-layer path** instead —
+`macdrv_client_surface_acquire_metal_swapchain` / the `WM_MACDRV_CREATE_REMOTE_LAYER` +
+`CAContext` machinery already present in our patched winemac (`my_dxmt_acquire_remote_layer`).
+That mechanism exists precisely for compositing another process's surface, and DXMT simply never
+calls it. Wiring it is a DXMT-side change, and the winemac half is already built.
+
 ### ✅ WALL 1 DOWN: null-checking `get_win_data` moves the crash (2026-08-31)
 
 Patched `_CreateMetalViewFromHWND` in DXMT **v0.80** (the shipped lineage) to check what
@@ -728,8 +768,9 @@ may belong to a different wrapper's Steam.
 | exp_2ded9b | 2026-08-31 00:25 | `fork-abi-matched` | 0 | 0 | 0 | black | candidate |
 | exp_71d767 | 2026-08-31 00:53 | `nullcheck-getwindata` | 0 | 0 | 0 | black | candidate |
 | exp_5481ff | 2026-08-31 00:55 | `nullcheck-seh` | 0 | 0 | 0 | black | candidate |
+| exp_b8d3a1 | 2026-08-31 01:13 | `winddata-diag` | 0 | 0 | 0 | black | candidate |
 
-66 cells · 45 VOID-LIBS · 21 candidate
+67 cells · 45 VOID-LIBS · 22 candidate
 ---
 
 ## Running a cell (the procedure this ledger assumes)
