@@ -80,7 +80,29 @@ no reason to suspect the window rect still contains one.
 
 ## Before filing — the actual TODO
 
-1. **Build a minimal reproducer against STOCK wine.** Everything above was observed on a
+1. ~~**Build a minimal reproducer.**~~ ✅ **DONE 2026-08-31** — `scripts/frameless-window-repro.c`,
+   60 lines, no Steam/CS2/DXMT required. It reproduces the decoration bug directly, and the
+   iteration to get there pinned the trigger more precisely than the launcher alone had:
+
+   | `WM_NCCALCSIZE` reserves | resulting `dx,dy` | macOS title bar? |
+   |---|---|---|
+   | nothing (whole rect reclaimed) | `0,0` | **no** — `EqualRect(window, visible)` fires, undecorated |
+   | 5px left/right/bottom, 0 top | `5,0` | **YES — bug reproduced** |
+
+   So the trigger is **a resize border with no caption**, which is what Electron's
+   frameless-but-resizable windows do and what the Paradox launcher does (measured `dx=5 dy=0`).
+   ⚠ The naive version — reclaim the entire rect — produces `dx=0 dy=0`, escapes via wine's own
+   guard, and would have "proved" there is no bug. That is Steam's own window, and why Steam is fine.
+   ⚠ Also required: `SetWindowPos(..., SWP_FRAMECHANGED)` after creation. Without it `WM_NCCALCSIZE`
+   never retroactively changes the frame, the window keeps a normal caption (`dy=30`), and the run
+   is meaningless. The reproducer now self-checks and says so rather than reporting a false result.
+
+   **Still to do on this item:** run it against a *stock* wine build. The code path is
+   byte-identical in stock 11.16 (diffed), but that remains an inference — and
+   `~/cs2-patch/build-1116/engine-1116` has the stock `winemac.so` but **no `bin/wine64`**, so
+   there is no runnable stock build on this machine.
+
+1b. ~~**Build a minimal reproducer against STOCK wine.**~~ (superseded by the above) Everything above was observed on a
    DXMT-patched wine 11.16. The relevant code is byte-identical in stock (`get_cocoa_window_features`
    diffed; `macdrv_GetWindowStyleMasks` confirmed style-only) — but *identical code* is an inference,
    not a reproduction, and this project has been bitten by exactly that gap. ~40 lines: a window with
