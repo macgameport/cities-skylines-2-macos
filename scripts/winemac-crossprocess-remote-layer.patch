@@ -1,0 +1,70 @@
+# winemac-crossprocess-remote-layer.patch — the wine half of the cross-process Steam fix.
+# Apply to the DXMT-patched wine 11.16 tree (after wineandaqua-dxmt.patch and
+# winemac-crossprocess-child.patch). Pairs with scripts/dxmt-remote-layer-fallback.patch on the
+# DXMT side; NEITHER half works alone (measured 2026-08-31: stock DXMT + patched winemac still
+# gives 6 GPU crashes and a black window).
+#
+# RESULT: Steam's client renders completely and correctly on stock OUT-OF-PROCESS CEF — no shim,
+# no injected switches, 0 GPU crashes (was 6 every launch). Evidence:
+# docs/images/steam-crossprocess-complete.png
+#
+# Rebuild just the module:  gmake dlls/winemac.drv/winemac.so
+
+--- a/dlls/winemac.drv/macdrv_main.c
++++ b/dlls/winemac.drv/macdrv_main.c
+@@ before "DECLSPEC_EXPORT struct macdrv_functions_t macdrv_functions =" @@
++/* Exported standalone so DXMT can dlsym() it WITHOUT depending on struct layout.
++ * macdrv_functions_t is C_ASSERT-ed at a fixed size, so adding a member to it is a breaking ABI
++ * change: a DXMT built against the 11-member struct would read past the end of a 10-member one
++ * from a stock winemac and call whatever followed it in memory. A separate symbol degrades safely
++ * instead -- dlsym returns NULL on any winemac without this patch, and DXMT falls back.
++ * (macgameport, 2026-08-31) */
++DECLSPEC_EXPORT macdrv_metal_layer dxmt_acquire_remote_layer(HWND hwnd, macdrv_view *ret_view)
++{
++    return my_dxmt_acquire_remote_layer(hwnd, ret_view);
++}
+
+--- a/dlls/winemac.drv/window.c
++++ b/dlls/winemac.drv/window.c
+@@ macdrv_client_surface_acquire_metal_swapchain, the cross-process CHILD branch @@
+     /* was: surface->metal_swapchain = macdrv_create_offscreen_swapchain(root, hwnd,
+                                            cgrect_from_rect(rect));   <- rect is the CHILD's own
+        client rect, i.e. (0,0,w,h), so every hosted layer landed at the root's origin. */
++    /* GEOMETRY: pass the child's rect IN THE ROOT'S SPACE. Computed the same way the update path
++     * further down already does (NtUserGetWindowRect + OffsetRect by the root), so the frame set
++     * at creation and the frame set on every later move agree. WineContentView isFlipped == YES,
++     * so top-left origin matches Win32 and no Y-flip is needed. */
++    RECT child_rect = rect, root_rect;
++    UINT geom_dpi = NtUserGetWinMonitorDpi(hwnd, MDT_RAW_DPI);
++
++    if (NtUserGetWindowRect(hwnd, &child_rect, geom_dpi) &&
++        NtUserGetWindowRect(root, &root_rect, geom_dpi))
++        OffsetRect(&child_rect, -root_rect.left, -root_rect.top);
++    else
++        child_rect = rect;   /* fall back to the old behaviour rather than guess */
++
++    surface->metal_swapchain = macdrv_create_offscreen_swapchain(root, hwnd,
++                                   cgrect_from_rect(child_rect));
+
+--- a/dlls/winemac.drv/cocoa_window.m
++++ b/dlls/winemac.drv/cocoa_window.m
+@@ macdrv_window_create_ca_layer_host_view / macdrv_window_update_ca_layer_host_frame @@
+     /* ⚠ THIS IS THE ONE THAT REMOVED THE BLACK BAND.
+      * frame arrives in WIN32 coordinates (raw pixels); CALayer.frame is in POINTS. On a retina
+      * display those differ by 2x, so an unconverted frame is twice the size it should be and its
+      * content is pushed down and right -- seen as a black band between Steam's chrome and its page
+      * content. Measured: window 1010x600 points, frames arriving as 2020x1200.
+      * Convert at the Cocoa entry points, matching the driver's convention that window.c works in
+      * Win32 space and the .m side converts. */
+-            [(WineContentView*)content_view addCALayerHostViewWithContextId:context_id frame:frame];
++            [(WineContentView*)content_view addCALayerHostViewWithContextId:context_id
++                                                                      frame:cgrect_mac_from_win(frame)];
+...
+-            [(WineContentView*)content_view updateCALayerHostFrame:context_id frame:frame];
++            [(WineContentView*)content_view updateCALayerHostFrame:context_id
++                                                             frame:cgrect_mac_from_win(frame)];
+
+# STILL OPEN, carried from the earlier work and not addressed here:
+#   * my_dxmt_acquire_remote_layer deliberately leaks the previous client surface. Releasing it on
+#     the next acquire destroys the layer DXMT is still rendering into and the window goes black.
+#     Lifetime should be driven by DXMT releasing its swapchain instead.

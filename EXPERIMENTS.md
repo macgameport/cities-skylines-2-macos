@@ -99,6 +99,44 @@ and internal, not environmental. The A/B settles it either way and costs one cel
 added. Every earlier cell in this investigation is silent on it, which is precisely the gap this
 ledger exists to close, reopened one level up.
 
+### 🏁 GEOMETRY CLOSED — Steam renders COMPLETELY out-of-process (2026-08-31)
+
+**The black band is gone.** Steam's client renders correctly and completely on stock out-of-process
+CEF: chrome, nav, URL bar, search, Featured & Recommended, review counts, price, bottom bar. No
+shim, no injected switches, **0 GPU crashes**. Proof:
+[`docs/images/steam-crossprocess-complete.png`](docs/images/steam-crossprocess-complete.png).
+
+**Two fixes, and the second was the one that mattered:**
+
+1. **Root-relative creation geometry** (`window.c`). The CHILD branch passed
+   `NtUserGetClientRect(hwnd)` = `(0,0,w,h)`, so every hosted layer landed at the root's origin.
+   Now computed as `NtUserGetWindowRect(child)` offset by the root — matching what the *update*
+   path already did, so creation and later moves agree. **This alone did not fix the band**, because
+   the children genuinely sit at the root origin: the logged frames were `(0,0)-(w,h)` either way.
+2. **Win32 pixels → Cocoa points** (`cocoa_window.m`). `CALayer.frame` is in **points**; the frames
+   arriving were **raw Win32 pixels**. Measured: window **1010×600 points**, frame **2020×1200** —
+   exactly 2× on this retina display. Every hosted layer was double size with its content pushed
+   down and right, which *is* the black band. Wrapped both Cocoa entry points in the driver's own
+   `cgrect_mac_from_win()`.
+
+**How it was found, and it is the method rather than the insight:** log what the mechanism actually
+sets, not what it ought to set. The line
+
+```
+dxmt-geom: ctx N child 0x10140 frame (1,184) 2018x915  root 2020x1200
+```
+
+against a window the harness independently reported as `size=1010x600` made the 2× immediate. No
+amount of reading `addCALayerHostViewWithContextId:` would have shown it, because the code is
+correct — it is the units of its input that were wrong.
+
+**Patches:** `scripts/winemac-crossprocess-remote-layer.patch` (wine, three files) +
+`scripts/dxmt-remote-layer-fallback.patch` (DXMT). Neither half works alone.
+
+⚠ **Still open:** `my_dxmt_acquire_remote_layer` deliberately leaks the previous client surface —
+releasing it on the next acquire destroys the layer DXMT is still rendering into. Lifetime should be
+driven by DXMT releasing its swapchain. That is the remaining blocker to offering this upstream.
+
 ### 🏆 IT RENDERS OUT-OF-PROCESS, NO SHIM — the cross-process path works (2026-08-31)
 
 **Steam's client renders on stock out-of-process CEF, with text, with no shim and no injected
@@ -912,8 +950,11 @@ may belong to a different wrapper's Steam.
 | exp_b2fdea | 2026-08-31 02:08 | `remote-layer-wired` | 0 | 0 | 0 | rendered | candidate |
 | exp_d5ea1a | 2026-08-31 02:11 | `isolate-stockdxmt` | 0 | 0 | 0 | black | candidate |
 | exp_e43611 | 2026-08-31 02:13 | `remote-confirmed` | 0 | 0 | 0 | rendered | candidate |
+| exp_1ee1a5 | 2026-08-31 02:28 | `geometry-mapped` | 0 | 0 | 0 | rendered | candidate |
+| exp_b72adf | 2026-08-31 02:31 | `geom-diag` | 0 | 0 | 0 | rendered | candidate |
+| exp_6d89af | 2026-08-31 02:34 | `geom-points` | 0 | 0 | 0 | rendered | candidate |
 
-70 cells · 45 VOID-LIBS · 25 candidate
+73 cells · 45 VOID-LIBS · 28 candidate
 ---
 
 ## Running a cell (the procedure this ledger assumes)
