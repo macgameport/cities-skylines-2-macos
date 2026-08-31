@@ -547,6 +547,7 @@ The repo is intended to be publishable. Audited **2026-08-30**:
 
 | artifact | contains | disposition |
 |---|---|---|
+| `shim.log` | the webhelper shim's relaunch command line + the `SHIM_FONTPROBE` counters. **Carries a SteamID64** (`-steamid=7656119…`) and a `C:\users\<name>` cachedir, because it logs Steam's own switches verbatim | **evidence store only — never commit, never paste into an issue.** Quote the `[fontprobe]` counter line alone; that part is clean |
 | `stdout.txt`, `windows.txt` | only `C:\` / `Z:\` wine-internal paths — **no** `/Users/<name>`, no Steam ID, no persona name (verified by grep) | safe to quote in the repo |
 | `config.json` | wrapper + prefix paths under `/Users/<name>` | evidence store only; redact `$HOME` if quoting |
 | `win-*.png` | Steam client window — **persona name twice** (top-right, and as a nav item) plus the avatar | evidence store only, **never committed unmasked**; mask the two regions before publishing |

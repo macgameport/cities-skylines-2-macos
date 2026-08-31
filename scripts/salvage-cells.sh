@@ -34,7 +34,16 @@ for d in /tmp/steam-cell-*/; do
   out="$DEST/$cell"
   n=$((n+1))
   [ "$DRY" = 1 ] || mkdir -p "$out"
-  for f in stdout.txt windows.txt config.json; do
+  # shim.log carries the SHIM_FONTPROBE in-tree measurement (GDI/DWrite family counts and whether
+  # DirectWrite actually rasterises). That is the only record of the single most decisive probe in
+  # this project, and it was NOT retained until 2026-08-30 — it lived only in volatile /tmp and in
+  # C:\shim.log, which every run overwrites.
+  # ⚠ NOT clean: the relaunch command line it records carries Steam's own switches,
+  # including a SteamID64 (-steamid=7656119...) and a C:\users\<name> cachedir.
+  # Evidence-store ONLY, exactly like win-*.png -- never commit one, never paste one
+  # into an issue. Checked 2026-08-30 after a first pass wrongly called it clean; the
+  # sweep that missed it omitted the SteamID64 pattern.
+  for f in stdout.txt windows.txt config.json shim.log; do
     [ -f "$d$f" ] && { [ "$DRY" = 1 ] || cp -p "$d$f" "$out/"; }
   done
   for p in "$d"win-*.png; do
