@@ -20,7 +20,7 @@
 **Bottom line:** everything works *except* Steam's client rendering out-of-process, and there is a
 usable workaround for that (arm the shim), whose only known cost is store-tab flicker.
 
-## 2. Render-cell matrix — the 20 cells with a recorded config
+## 2. Render-cell matrix — the 21 cells with a recorded config
 
 Only these are interpretable; the other 43 predate `cell-fingerprint.sh` and are `VOID-LIBS`.
 **FT** = "Wine cannot find the FreeType font library" count. FT>0 ⇒ no font backend ⇒ art without
@@ -42,8 +42,9 @@ glyphs, whatever else was under test.
 | `dyldpath-first` | 61 | black | `DYLD_LIBRARY_PATH` instead of fallback | **falsified** |
 | `dyld-env-probe` | 59 | black | live-process env capture | probe was blind |
 | `childpatch-noshim` / `-forced` | 0 | black | CHILD-patched winemac alone | patch never fired |
-| `xproc-v080` | 0 | black | DXMT v0.80 + force-crossprocess | ⚠ **suspect, see §4** |
-| `notpop-fork-fonts-fixed` / `fork-seh` | 0 | black | notpop's fork, fonts working | ⚠ **VOID, see §4** |
+| `xproc-v080` | 0 | black | DXMT v0.80 + force-crossprocess | forced path logged 0× |
+| `notpop-fork-fonts-fixed` / `fork-seh` | 0 | black | notpop's fork, fonts working | superseded by `fork-abi-matched` |
+| `fork-abi-matched` | 0 | black | fork **rebuilt against the shipped engine** | ❌ **fork does not fix it** |
 | `gpu-fastfail-verbose` | 0 | black | Chromium verbose logging | produced nothing |
 
 **The shape of it:** one cell renders. Every out-of-process cell is black with exactly **6** GPU
@@ -69,12 +70,12 @@ crashes, regardless of backend, CRT, tunnel, or graphics stack.
 
 ## 4. What we are NOT entitled to claim
 
-- **`xproc-v080` and both fork cells are suspect or void.** Both stacks were built against
-  `~/cs2-patch/build-1116/engine-1116` (2026-08-28) and hand-installed into the **shipped** engine
-  (2026-08-23). Their `ntdll.so` differ, so the PE↔unix ABI does not match. The fork run proved it:
-  the fault moved into `__wine_unix_call_dispatcher +0xc9` dereferencing address 0 — a `.so` that
-  failed to register. **"The cross-process path is unreachable" may therefore have been a
-  registration failure, not an unreachable branch.** Re-run against a matching engine before citing.
+- ~~`xproc-v080` and both fork cells are suspect~~ — **withdrawn 2026-08-31.** The ABI-mismatch
+  reasoning was wrong. Rebuilding the fork against the shipped engine produced a **byte-identical**
+  `winemetal.so` (`wine_install_path` selects `winecrt0`, which is linked into the *DLLs*, not the
+  unix `.so`) and the outcome did not move: still 6 crashes, still black. So `xproc-v080` stands on
+  its own terms again. The `__wine_unix_call_dispatcher` null remains **unexplained** — it is not a
+  build mismatch, and `winemetal.so` loads fine standalone.
 - **"Backend-independent" needs one more check.** Software rendering gave a byte-identical result,
   which requires `winemetal.so` to be reached under swiftshader too. Not yet confirmed by `vmmap`.
 - **The 43 pre-fingerprint cells can never be rehabilitated.** No config was recorded; they are

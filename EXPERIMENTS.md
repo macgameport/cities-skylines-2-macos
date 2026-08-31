@@ -99,7 +99,36 @@ and internal, not environmental. The A/B settles it either way and costs one cel
 added. Every earlier cell in this investigation is silent on it, which is precisely the gap this
 ledger exists to close, reopened one level up.
 
-### ⚠ INVALID: the notpop-fork re-test was an ABI mismatch, not a result (2026-08-30)
+### ❌ notpop's fork does NOT fix the Steam client — re-tested properly (2026-08-31)
+
+Rebuilt the fork **against the shipped engine** (`-Dwine_install_path=…/CS2dxmt11.app/…/wine`,
+153/153, exit 0), installed it with the `-fvisibility=default` `winemac.so`, fonts working.
+**Unchanged: 6 GPU crashes, black window.**
+
+| | stock | fork (ABI-matched) |
+|---|---|---|
+| GPU crashes / launch | 6 | **6** |
+| window | black | **black** |
+| `movq 0x18(%rax)` in the rewritten function | present — the crash | **absent** |
+
+So the fork removes the specific unchecked deref at `_CreateMetalViewFromHWND +0xbf` and the client
+still does not render. **The original `PARTIAL` conclusion ("the fork does not fix the Steam client")
+is now upheld on sound evidence** — fonts working, ABI matched, crash count unchanged.
+
+⚠ **My ABI-mismatch explanation for the previous run was WRONG, and the rebuild is what proved it.**
+The reasoning was that the fork's artifacts were built against `engine-1116` and the null in
+`__wine_unix_call_dispatcher` was a registration failure. Rebuilding against the shipped engine
+changed the **PE side only** — `winemetal.so` came out **byte-identical** (`cmp`), because
+`wine_install_path` selects `winecrt0`, which is linked into the DLLs and not into the unix `.so`.
+The outcome did not move. So the dispatcher AV is **not** a build mismatch and remains unexplained;
+`winemetal.so` loads fine standalone and `winemetal.dll` is present in the process.
+
+**What this restores:** the earlier "cross-process path is unreachable" result (`xproc-v080`) was
+flagged as suspect on the same wrong ABI reasoning. That flag is withdrawn — the mechanism it
+invoked does not exist. The result stands on its own terms again, though it has not been
+independently re-run.
+
+### ⚠ Superseded: the ABI-mismatch reading of the first fork re-test (2026-08-30)
 
 Re-ran notpop's fork with fonts working, to retest the `PARTIAL` "the fork does not fix the Steam
 client" conclusion. **The run is void and must not be cited either way.**
@@ -613,8 +642,9 @@ may belong to a different wrapper's Steam.
 | exp_eb78a3 | 2026-08-30 23:11 | `proton-off` | 0 | 0 | 0 | black | candidate |
 | exp_8d675d | 2026-08-30 23:50 | `notpop-fork-fonts-fixed` | 0 | 0 | 0 | black | candidate |
 | exp_090ec5 | 2026-08-30 23:52 | `fork-seh` | 0 | 0 | 0 | black | candidate |
+| exp_2ded9b | 2026-08-31 00:25 | `fork-abi-matched` | 0 | 0 | 0 | black | candidate |
 
-63 cells · 45 VOID-LIBS · 18 candidate
+64 cells · 45 VOID-LIBS · 19 candidate
 ---
 
 ## Running a cell (the procedure this ledger assumes)
