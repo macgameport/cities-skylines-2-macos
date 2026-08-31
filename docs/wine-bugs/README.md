@@ -143,4 +143,4 @@ Untested, and now the prime suspects:
 - macOS 26, Apple M3 Max (arm64, running x86_64 under Rosetta 2)
 - Affected app: Cities: Skylines II 1.6.0f1 (Unity 2022, Mono runtime)
 
-- **[R4 — winemac decorates a frameless window](R4-frameless-window-decorated.md)** — two functions disagree about whether a window has a caption; every mouse coordinate lands ~28 pt low on Electron/CEF windows. **NOT FILED — carries the TODO** (needs a stock-wine reproducer first).
+- **[R4 — winemac decorates a frameless window](R4-frameless-window-decorated.md)** — two functions disagree about whether a window has a caption; every mouse coordinate lands ~28 pt low on Electron/CEF windows. **FILED as [wine 60262](https://bugs.winehq.org/show_bug.cgi?id=60262)** — reproduced on stock wine in 60 lines. The cross-process Metal swapchain went separately as [wine 60263](https://bugs.winehq.org/show_bug.cgi?id=60263).

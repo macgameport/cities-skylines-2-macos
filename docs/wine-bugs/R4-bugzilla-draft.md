@@ -1,6 +1,6 @@
 # R4 — Bugzilla submission draft
 
-**Status: DRAFTED, NOT FILED.** Filing is a public post; James's call, same as the dxmt comments.
+**Status: ✅ FILED 2026-08-31 — [bug 60262](https://bugs.winehq.org/show_bug.cgi?id=60262).** Verified after posting: `Wine/winemac.drv`, version 11.16, MacOS, reproducer link present.
 
 - **Product:** Wine · **Component:** winemac.drv · **Version:** 11.16 · **Platform:** macOS
 - **Attach:** `scripts/frameless-window-repro.c` and `~/cs2-patch/evidence/repro-stock.png`

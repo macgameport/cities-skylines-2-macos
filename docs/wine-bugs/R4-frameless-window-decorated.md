@@ -1,7 +1,7 @@
 # R4 — winemac decorates a frameless window, offsetting every mouse coordinate by the caption height
 
 **Component:** winemac.drv (window) · **Severity:** normal · **Platform:** macOS
-**Status: NOT FILED, but REPRODUCED ON STOCK WINE 11.16 (2026-08-31). Ready to file.**
+**Status: ✅ FILED 2026-08-31 — [wine bug 60262](https://bugs.winehq.org/show_bug.cgi?id=60262).** Reproduced on stock wine 11.16.
 
 ## Summary
 
@@ -132,13 +132,15 @@ no reason to suspect the window rect still contains one.
 4. **Report the diagnosis, not a patch.** The fix needs an ordering decision that belongs to someone
    who knows win32u's rect pipeline.
 
-## Deliberately NOT filed: the cross-process Metal swapchain
+## The cross-process Metal swapchain — ✅ FILED SEPARATELY
 
-Wine already knows — `Cross-process child window Metal swapchains are not implemented` is an
-explicit FIXME in `winemac.drv`. Our implementation of it is a **feature**, not a bug fix, it is
-AI-authored, and wine's patch process wants a human author. It is public in `scripts/` and described
-in full on [dxmt#141](https://github.com/3Shain/dxmt/issues/141#issuecomment-5477055980) for anyone
-who wants it. Revisit only if a wine developer asks.
+[wine bug 60263](https://bugs.winehq.org/show_bug.cgi?id=60263). Earlier in the session this was
+recorded as deliberately *not* filed, on the grounds that it is a feature request against an
+acknowledged FIXME rather than a bug. That was revisited: a Bugzilla search found **no existing
+entry** for the FIXME (it lives only in the source), and the two nearest bugs are both wrong homes —
+45277 is `winevulkan` on Linux with 113 comments, 44985 is CEF/ANGLE on Linux. Commenting a macOS
+Metal finding into either would be noise in someone else's thread, so it got its own report, linking
+the implementation rather than proposing it.
 
 ## WineHQ's posture on AI (researched 2026-08-31)
 
