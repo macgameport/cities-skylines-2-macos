@@ -99,6 +99,48 @@ and internal, not environmental. The A/B settles it either way and costs one cel
 added. Every earlier cell in this investigation is silent on it, which is precisely the gap this
 ledger exists to close, reopened one level up.
 
+### 🎯 NAMED: the GPU process dies on an unchecked NULL in `_CreateMetalViewFromHWND` (2026-08-30)
+
+Caught a live `--type=gpu-process` child mid-flight and took its `vmmap`, which resolves the
+unix-side fault address the `+seh` trace reported:
+
+```
+0x2179833df  ->  winemetal.so  __TEXT 0x217979000-0x2194dc000  +0xa3df
+```
+
+`nm` puts that inside **`_CreateMetalViewFromHWND`** (starts `0xa320`), at **+0xbf**. The
+disassembly is unambiguous:
+
+```
+a3d6   movq (%rbx), %rdi         ; set up the argument
+a3d9   callq *%r15               ; call
+a3dc   movq %rax, %r15           ; keep the return value
+a3df   movq 0x18(%rax), %rdi     ; <== FAULT: dereference [rax+0x18]
+```
+
+**The call returns NULL and the very next instruction dereferences it at offset `0x18`** — which is
+exactly the `info[1]=0x18` the SEH trace reported. A missing null check, nothing subtler.
+
+**Base verified stable across two independent runs** (`217979000-2194dc000` both times, no ASLR on
+these modules) — checked deliberately, because the same class of cross-process base-mismatch error
+was made twice earlier in the day and produced a garbage disassembly both times.
+
+**The convergence that matters.** `_CreateMetalViewFromHWND` is *precisely* the function
+[notpop/dxmt@debug/present-path-tracing](https://github.com/notpop/dxmt) rewrites, and its commit
+message names the reason as **"`macdrv_win_data` not exposing a usable NSView at swap-chain
+creation"** — i.e. a NULL where an NSView was expected. They found this independently, from the
+other end.
+
+⚠ **So the standing "notpop's fork does not fix the Steam client" result needs re-testing.** That
+was measured on cells with **no font library** and is `PARTIAL` for exactly that reason. The fork
+targets the function we have now proven is the crash site. **This is the next experiment.**
+
+⚠ **One thing this does not yet reconcile:** the crash is backend-independent — `--use-angle=swiftshader`
+produced an identical count and a byte-identical window — which requires `winemetal.so` to be
+loaded and reach this path even under software rendering. Grepping the swiftshader cell's stdout for
+`winemetal` returns **0**, but that is log text, not a load record, so it settles nothing. Confirm by
+`vmmap`-ing a gpu-process under swiftshader before treating the two results as consistent.
+
 ### 🔬 The fastfail, traced: a NULL read at +0x18 inside a wine syscall (2026-08-30)
 
 `WINEDEBUG=+seh` on the out-of-process client gives the whole sequence on one thread, and it is
