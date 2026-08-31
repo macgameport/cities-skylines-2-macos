@@ -97,8 +97,12 @@ and `docs/dxmt-bugs/`.
    an empty rect was being read as "no rect supplied" and stretched over the whole view. Fixed;
    six-navigation sweep clean. Note what this says about the testing: the scripted suite drove
    *geometry* and never drove *content*, so it could not have found it.
-   ⚠ Still untested: **flicker during a live mouse drag** — a post-settle capture cannot see a
-   sub-frame flash either way. And content-driven states beyond one `steam://` sweep (overlays,
+   ✅ **And the resize shimmer is closed** — measured by capturing *during* a scripted churn against
+   a static control, which is what a post-settle capture could never see. Gap rate **5.00% → 1.25% →
+   0.00%** across 520 sampled frames, via retiring a hosted layer on *create* rather than on destroy
+   and holding the deferred release **per child** instead of in one global slot.
+   ⚠ Still untested: **flicker during a live mouse drag** — the harness drives `SetWindowPos`, which
+   is a different event path from a human dragging a window edge. And content-driven states beyond one `steam://` sweep (overlays,
    popups, the in-game overlay) have not been tried. And the patches are **not** upstreamable as-is: dxmt's
    `CONTRIBUTING.md` forbids AI-authored PRs, so this goes upstream as a findings report, not a
    patch.

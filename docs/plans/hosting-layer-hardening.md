@@ -1,7 +1,27 @@
 # Hosting-layer hardening — fix what the diagnosis build got away with
 
-> **Status: DRAFT — not yet checked. Run `check it` before the first commit of any Phase 2 work.**
-> Phase 1 is mechanical and does not need the gate; Phase 2 does and must not start without it.
+> **🔧 As-built (2026-08-31): BUILT and VERIFIED.** All six defects closed.
+> Commits: `8b7146e` (D1–D5 + the quadratic restructure) · `ec3b1de` (retire-on-create) ·
+> `9f2ca77` (D6, per-child deferred release) · `795b39d` + `2d0c1ea` (measurements).
+> Installed module `49746334d0875733`; game boot-verified on it (SceneFlow 07:56:32 →
+> `MainMenu reached` 07:57:35, 0 `InvalidProgramException`, 6 mods).
+>
+> **Three deviations from this plan, all forced by measurement:**
+> 1. **`check it` was not run.** James chose "skip the theater, check the code where appropriate".
+>    The gate's value here would have been low — the plan's claims were already grounded in
+>    measurements — and its blind spot was fatal: it verifies a plan against the *codebase*, and the
+>    load-bearing uncertainty was a hypothesis about the *compositor*. T1 settled that; a lens fleet
+>    could not have.
+> 2. **§2b's candidate design was wrong and was killed by reading, not by building.** "Hold the
+>    retired host until its replacement is confirmed hosted" cannot work: `dealloc` does
+>    `[context setLayer:nil]; [context release]`, so a `CALayerHost` whose context is gone has no
+>    content to preserve. The actual lever was the *deferred client-surface release*, keyed per child.
+> 3. **The fix took two rounds, and the first looked complete.** Retire-on-create alone measured
+>    0/40 on its first trial and would have been reported as fixed; trials 2 and 3 each showed 1.
+>
+> **Verify against:** `window.c` (`paint_order_walk`, `retire_superseded_layers`) ·
+> `cocoa_window.m` (`dxmt_fill_view_edges`, the deferred background) ·
+> `macdrv_main.c` (`pending_by_child`) · `scripts/winemac-crossprocess-remote-layer.patch` addenda 4–5.
 
 **Scope:** the cross-process `CALayerHost` code in `winemac.drv` that this project added on
 2026-08-31 (`scripts/winemac-crossprocess-remote-layer.patch`). It works — Steam's client renders

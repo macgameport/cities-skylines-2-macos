@@ -313,11 +313,38 @@ window shows whatever is behind during each gap — which would explain a shimme
 **hypothesis and it is untested**; a fix would mean holding a retired host layer until its
 replacement is confirmed hosted, which is a design change rather than a tweak.
 
+## The shimmer — closed 2026-08-31
+
+Measured, not argued. Capture **during** a scripted churn against an identically-sampled static
+control (a post-settle capture cannot see this, which is why it stayed open so long):
+
+| build | samples | near-black frames | rate | interior lum min |
+|---|---|---|---|---|
+| pre-fix | 40 | 2 | 5.00% | **0** |
+| + retire-on-create | 160 | 2 | 1.25% | **0** |
+| + per-child deferred release | **320** | **0** | **0.00%** | **28** |
+
+The dark frames were diagnostic rather than merely dark: Steam's chrome rendered perfectly — menu
+bar, nav, URL bar, bottom bar — with the **entire content area black**. That is the content
+browser's layer with nothing to show, and at churn rate during a drag it reads as a shimmer.
+
+**Two changes, and the second only became findable after the first.** Retirement now happens on
+**create** (the replacement is hosted before its predecessor goes, so a child is never unhosted),
+and the deferred `client_surface` release is keyed **per child HWND** instead of one global slot —
+which is the only lever that keeps the remote `CAContext` alive across a recreate, because
+`CAContextSwapChain`'s `dealloc` releases it and a `CALayerHost` whose context is gone has nothing
+to show.
+
+⚠ **A third design was killed by reading before building** — "keep the orphaned host until a
+successor lands" cannot work, for exactly that reason. And retire-on-create's *first* trial measured
+0/40 and would have been reported as fixed; trials 2 and 3 each showed 1. Repeating is the only
+reason this is a result rather than a claim.
+
 ## Open
 
-1. **The shimmer's positive cause is unproven** — stretching is ruled out, host churn is the
-   candidate, nothing has tested it.
-2. **Flicker during a live drag is untested, not fixed.** Every capture after a settle is correct
+1. **Flicker during a live *mouse* drag is still untested.** The churn harness drives
+   `SetWindowPos`; a human drag is a different event path and slower. Nothing suggests it differs,
+   but nothing has measured it either. Every capture after a settle is correct
    and a 60×60 ms churn ends correct, but a sub-frame flash while the mouse is down would not
    appear in a post-settle capture. Only a video capture or a frame counter would answer it.
 3. **Content-driven states are barely explored.** Defects 3 and 4 were both reached by *using* the
