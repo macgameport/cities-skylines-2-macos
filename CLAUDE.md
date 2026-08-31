@@ -120,9 +120,15 @@ measured under.
 You are still free to use AI to do your own research and share your findings with others (including
 the developers, but **please don't create a PR**)."*
 
-**So: never open a PR against dxmt from this project.** Everything here is AI-authored. Sharing
-**findings** is explicitly permitted and is the right channel — the diagnosis is the valuable part,
-and a maintainer can write the code from it. Applies to the cross-process fix, the geometry fix, the
+**So: never open a PR against dxmt from this project** — but a **comment is explicitly permitted**,
+and is the right channel. Read the policy precisely: the only prohibition is the PR; *"share your
+findings with others (including the developers)"* is in the same sentence, allowed. The diagnosis is
+the valuable part and a maintainer can write the code from it.
+
+**Disclosure is what makes this legitimate.** Say plainly, up front, that the research was
+AI-assisted, so the maintainer can apply their own policy with full information instead of guessing.
+Concealing it would be the actual violation. And describe the change with exact locations rather than
+pasting a diff and asking them to apply it — that is a PR wearing a comment's clothes. Applies to the cross-process fix, the geometry fix, the
 leak fix and the #25 style work alike. Detail: `docs/dxmt-bugs/issue-25-housekeeping-outline.md`.
 
 Related, [#152](https://github.com/3Shain/dxmt/issues/152): new changes are LGPL-2.1-or-later, a CLA
