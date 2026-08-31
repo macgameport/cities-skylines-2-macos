@@ -101,11 +101,11 @@ than a new `macdrv_functions_t` member**, because that struct is `C_ASSERT`-ed a
 DXMT built against a larger struct would read past the end of an older winemac's and call whatever
 followed. A separate symbol just resolves to NULL on an unpatched wine and the code falls through.
 
-### 4. Resize — two more bugs, both in the hosting layer, both now measured
+### 4. Three more bugs, all in the hosting layer, all now measured
 
 An earlier draft of this called resize "rough" and blamed the destroy/recreate cycle. That was wrong
-twice over. There are **two** defects, they are **independent**, and **neither is a race** — both are
-steady state and both reproduce on demand.
+several times over. There are **three** defects, they are **independent**, and **none of them is a
+race** — all are steady state and all reproduce on demand.
 
 **(a) A one-device-pixel white seam at the right/bottom edge.** Win32 gives raw pixels, `CALayer`
 takes points, and `retina_on` makes that a factor of two — so an **odd** pixel dimension becomes a
@@ -132,9 +132,21 @@ already reaches it, (b) by deriving `zPosition` from Win32 paint order. After: *
 captures**, the blackout sequence measures **63 → 63 → 113**, and 60 alternations at 60 ms end
 rendering with 0 GPU crashes.
 
+**(c) And a third one, which I only found because a human used the thing.** Minutes after the
+scripted suite above passed clean, navigating to the Library turned the client black — 0 GPU
+crashes, and a resize would not clear it. CEF keeps the inactive browser **in the z-order** and
+collapses it to **0×0**; the code read an empty rect as *"no child rect supplied"* (the root-window
+case) and stretched that layer across the whole view, where (b)'s ordering correctly placed it on
+top of the live content. `CGRectIsEmpty` cannot tell "unknown" from "genuinely zero" — the caller
+already passes `CGRectNull` for the former, so test that first. Fixed; six navigations clean.
+
+Worth passing on as a testing note, not just a bug: my suite drove **geometry** and never drove
+**content**, so it had no chance of finding this. If you take any of this up, `steam://open/games`
+and `steam://store` drive the navigation from a script.
+
 **Still open:** flicker during a live mouse drag. Every capture after a settle is correct, but a
 sub-frame flash while the mouse is down would not show up in a post-settle capture — so that is
-untested, not fine.
+untested, not fine. Content-driven states beyond that one sweep are barely explored.
 
 Happy to send the wine and DXMT patches, the `+seh` traces, the resize measurements, or the harness
 if any of it is useful — just say which. The two instruments the resize work needed are small and

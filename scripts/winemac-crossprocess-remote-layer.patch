@@ -184,3 +184,57 @@
 # "flicker" report is not separately measurable now — every capture after a settle is correct, and
 # a 60x60ms churn ends correct — but a sub-frame flash during a live drag would not show up in a
 # post-settle capture, so it is UNTESTED rather than fixed. Say that, do not claim more.
+
+# =====================================================================================
+# ADDENDUM 2 — 2026-08-31, DEFECT 3: a 0x0 window stretched over the whole view.
+#
+# Found by JAMES in ~2 minutes of ordinary use ("when i navigated to library"), immediately after
+# the scripted resize suite above passed clean. Worth stating plainly: the suite drove GEOMETRY and
+# never drove CONTENT, so it could not have found this. Navigation is a different axis entirely.
+#
+# SYMPTOM: Steam's client goes fully black on navigating to the Library. 0 GPU crashes. A resize
+# does NOT clear it. Navigating back to the store DOES.
+#
+# MECHANISM: CEF keeps both browsers in the z-order and collapses the inactive one to 0x0.
+#   while black:   0x1013E / 0x10140  =  0x0        (top sibling, hosted)
+#   after back:    0x1013E / 0x10140  =  2598x1275
+# The create path tested `CGRectIsEmpty(frame)` and treated empty as "no child rect was supplied",
+# which is the ROOT-window case -- so it stretched the layer to the whole content view with an
+# autoresizing mask. z-order then correctly put that top sibling above the live content, and the
+# layer had nothing drawn in it. Black. The update path SKIPPED empty frames, so a layer that
+# became 0x0 while hosted kept its last full-size frame -- the same blackout by a second route,
+# and the reason a resize could not clear it.
+#
+# Trace of the exact moment (-DDXMT_RSZ_DEBUG), on the Library navigation:
+#   HOST update ctx=1003097821 frame=0.0,0.0 0.0x0.0  (was 0.0,92.0 1300.0x637.5)   <- collapsed
+#   HOST create ctx=2870122112 frame=0.0,0.0 0.0x0.0  (view 1300.0x780.0)           <- empty at birth
+#   HOST zpos   ctx=2870122112 -> z5  stack: 2870122112(z5) 1003097821(z5) 280041656(z2)
+# Under the old code that z5 layer became 1300x780 and covered everything.
+#
+# FIX: `CGRectIsEmpty` cannot distinguish "unknown" from "genuinely zero" -- so stop asking it to.
+# window.c already passes CGRectNull when no child rect exists, so test THAT first. Three cases:
+
+--- a/dlls/winemac.drv/cocoa_window.m
++++ b/dlls/winemac.drv/cocoa_window.m
+@@ addCALayerHostViewWithContextId:frame: @@
+-    if (!CGRectIsEmpty(frame)) { host.frame = frame; host.masksToBounds = YES; }
+-    else { host.frame = self.layer.bounds; host.autoresizingMask = WidthSizable|HeightSizable; }
++    if (CGRectIsNull(frame))          /* no child rect supplied -- root window, unchanged */
++    { host.frame = self.layer.bounds; host.autoresizingMask = WidthSizable|HeightSizable; }
++    else if (CGRectIsEmpty(frame))    /* the window really is 0x0 -- HIDE it, never stretch it */
++    { host.frame = CGRectZero; host.masksToBounds = YES; host.hidden = YES; }
++    else
++    { host.frame = frame; host.masksToBounds = YES; }
+
+@@ updateCALayerHostFrame:frame: -- an empty frame was silently skipped @@
++    if (host && CGRectIsEmpty(frame) && !CGRectIsNull(frame))
++        host.hidden = YES;            /* became 0x0 while hosted */
++    else if (host && !CGRectIsEmpty(frame) && !CGRectEqualToRect(host.frame, frame))
++    { host.frame = frame; host.hidden = NO; }   /* and un-hide when it gets area again */
+
+@@ both entry points: do NOT run CGRectNull through the retina divide @@
+-    frame:cgrect_mac_from_win(frame)
++    frame:CGRectIsNull(frame) ? CGRectNull : cgrect_mac_from_win(frame)
+
+# VERIFIED: store -> library -> friends -> downloads -> library -> store, all six render
+# (2.8-4.6 MB captures, interior luminance 38-115, none black), 0 GPU crashes.

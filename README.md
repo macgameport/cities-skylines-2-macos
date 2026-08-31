@@ -92,8 +92,14 @@ and `docs/dxmt-bugs/`.
    instead of Win32 paint order, which put a full-window layer over the content on any resize that
    recreated the lower of Steam's two sibling CEF browsers. Now: 0 seams across 20 captures, and the
    sequence that used to black the client out permanently renders throughout.
+   ✅ **A third blackout, found in real use minutes later** — navigating to the Library turned the
+   client black. CEF collapses the inactive browser to **0×0** while keeping it in the z-order, and
+   an empty rect was being read as "no rect supplied" and stretched over the whole view. Fixed;
+   six-navigation sweep clean. Note what this says about the testing: the scripted suite drove
+   *geometry* and never drove *content*, so it could not have found it.
    ⚠ Still untested: **flicker during a live mouse drag** — a post-settle capture cannot see a
-   sub-frame flash either way. And the patches are **not** upstreamable as-is: dxmt's
+   sub-frame flash either way. And content-driven states beyond one `steam://` sweep (overlays,
+   popups, the in-game overlay) have not been tried. And the patches are **not** upstreamable as-is: dxmt's
    `CONTRIBUTING.md` forbids AI-authored PRs, so this goes upstream as a findings report, not a
    patch.
    The original upstream limitation ([dxmt#141](https://github.com/3Shain/dxmt/issues/141)) is that

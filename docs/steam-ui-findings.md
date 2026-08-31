@@ -244,7 +244,43 @@ layer happened to be added. Observed live: `0x2011E → z2`, `0x10140 → z5`. T
 measures **63 → 63 → 113**, and 60 alternations at 60 ms end rendering with the hosted population
 stable at 3 and **0 GPU crashes**.
 
-Both fixes are in [`winemac-crossprocess-remote-layer.patch`](../scripts/winemac-crossprocess-remote-layer.patch);
+### Defect 3 — a 0×0 window stretched over the whole view (found in real use, not by the suite)
+
+The scripted suite above passed clean, and then James hit a **black client in about two minutes** by
+doing something the suite never did: **navigating to the Library**.
+
+That is worth stating plainly rather than burying. The suite drove **geometry** — sizes, parities,
+rapid churn — and never drove **content**. Navigation is a different input axis and no amount of
+resizing reaches it. A sweep along one axis is not coverage; it is one line through the space.
+
+CEF keeps an inactive browser **in the z-order** and collapses it to **0×0**:
+
+```
+while black:      0x1013E / 0x10140  =  0x0          (top sibling, still hosted, still above)
+after going back: 0x1013E / 0x10140  =  2598x1275
+```
+
+The create path tested `CGRectIsEmpty(frame)` and treated *empty* as *"no child rect was supplied"* —
+which is the **root-window** case — so it stretched the layer across the whole content view. Defect
+2's z-ordering then correctly placed that top sibling above the live content, and the layer had
+nothing drawn in it. Black, with **0 GPU crashes**. The update path *skipped* empty frames, so a
+layer that became 0×0 kept its last full-size frame — which is why **a resize could not clear it**,
+and why navigating back could.
+
+Trace of the moment (`-DDXMT_RSZ_DEBUG`):
+
+```
+HOST update ctx=1003097821 frame=0.0,0.0 0.0x0.0  (was 0.0,92.0 1300.0x637.5)   <- collapsed
+HOST create ctx=2870122112 frame=0.0,0.0 0.0x0.0  (view 1300.0x780.0)           <- empty at birth
+HOST zpos   ctx=2870122112 -> z5   stack: 2870122112(z5) 1003097821(z5) 280041656(z2)
+```
+
+Fixed by testing `CGRectIsNull` **before** `CGRectIsEmpty` — three cases, not two. A window with no
+area is **hidden**, never stretched, and un-hidden when it gets area back. Verified across
+store → library → friends → downloads → library → store: all six render, none black, 0 GPU crashes.
+Scriptable repro, no clicking: `wine steam.exe steam://open/games`.
+
+All three fixes are in [`winemac-crossprocess-remote-layer.patch`](../scripts/winemac-crossprocess-remote-layer.patch);
 the trace that found them rebuilds with `-DDXMT_RSZ_DEBUG`. The game was re-boot-verified on the
 same binary — `MainMenu reached`, 5 mods, 0 exceptions — because winemac is on the game's boot path.
 
@@ -253,6 +289,9 @@ same binary — `MainMenu reached`, 5 mods, 0 exceptions — because winemac is 
 1. **Flicker during a live drag is untested, not fixed.** Every capture after a settle is correct
    and a 60×60 ms churn ends correct, but a sub-frame flash while the mouse is down would not
    appear in a post-settle capture. Only a video capture or a frame counter would answer it.
+2. **Content-driven states are barely explored.** Defect 3 was reached by navigation, and the only
+   navigation coverage that exists now is one six-step `steam://` sweep. Overlays, the friends
+   window, in-game overlay, popups and modal dialogs each create browsers and have not been tried.
 2. **Backend-independence is not fully closed** — software rendering gave a byte-identical result,
    which requires `winemetal.so` to be reached under swiftshader too. Not confirmed by `vmmap`.
 3. **43 of 80 cells can never be interpreted.** No config was recorded; permanently `VOID-LIBS`.

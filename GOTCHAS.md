@@ -1164,3 +1164,43 @@ reproduced it every time (interior luminance 82 → 1 → 0).
 **Fix pattern:** derive `zPosition` from Win32 paint order — siblings walked bottom-to-top
 (`GW_HWNDNEXT` runs top-to-bottom), each window numbered before its own children, so a child sits
 above its parent and an upper sibling sits above a lower one's whole subtree.
+
+## `CGRectIsEmpty` cannot tell "no rect supplied" from "the window is really 0×0" (2026-08-31)
+
+> **Ledger:** `SUPPORTED` — C14. Evidence: the Library-navigation trace + the six-navigation sweep.
+
+CEF keeps an inactive browser **in the z-order** and collapses it to **0×0**. Steam does this on
+every switch between the store and the library. So a hosted `CALayerHost` legitimately receives an
+**empty** frame — and the code treated empty as *"no child rect was supplied"*, which is the
+**root-window** case, and stretched the layer to the whole content view:
+
+```
+while black:      0x1013E / 0x10140  =  0x0          (top sibling, still hosted, still above)
+after going back: 0x1013E / 0x10140  =  2598x1275
+```
+
+Z-order then did its job and put that top sibling above the live content — a full-window layer with
+nothing drawn in it. **Black, with 0 GPU crashes.**
+
+**Why it took a human two minutes and a scripted suite zero chance:** the suite drove **geometry**
+(sizes, parities, churn) and never drove **content**. Navigation is a different axis, and no amount
+of resizing reaches it. When a UI bug has more than one input axis, a sweep along one of them is not
+coverage — it is one line through the space.
+
+**Three tells that separate this from the z-order blackout** ([[../GOTCHAS.md]] § `CALayerHost`
+z-order):
+
+- **A resize does NOT clear it.** That is diagnostic, not incidental: the update path *skipped*
+  empty frames, so a layer that became 0×0 kept its last full-size frame and no geometry event
+  could dislodge it.
+- **Navigating back DOES clear it** — the rect becomes real again and the frame is applied.
+- **0 GPU crashes.** Nothing died; the wrong layer is simply on top.
+
+**Fix pattern:** stop asking `CGRectIsEmpty` a question it cannot answer. The caller already passes
+`CGRectNull` for "no rect", so test `CGRectIsNull` **first**, then `CGRectIsEmpty`, then the real
+case — three branches, not two. A window with no area gets **hidden**, never stretched; and it must
+be **un-hidden** when it gets area back. ⚠ Do not run `CGRectNull` through a retina divide on the
+way in: `INFINITY/2` survives, but relying on that is a trap for the next reader — branch before
+converting.
+
+**Scriptable repro, no clicking:** `wine steam.exe steam://open/games`, then `steam://store`.
