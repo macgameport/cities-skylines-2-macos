@@ -59,7 +59,34 @@ without forcing the create path to build a map it does not need.
 `CFDictionary` allocates on a path that fires per-frame during a drag. Leaning stack-with-a-logged-
 bound, but a reviewer should push on it.
 
-### 2b. D6 + the shimmer — one lifetime design, not two fixes
+### 2b. D6 + the shimmer — ✅ HYPOTHESIS CONFIRMED, fix BUILT, verification PENDING
+
+**T1 ran and answered it (2026-08-31).** Churn does produce visible gaps:
+
+| | distinct frames / 40 | interior lum min | near-black frames |
+|---|---|---|---|
+| static control | **1** | 105 | **0** |
+| 240-step churn | **35** | **0** | **2** |
+
+And the frames are diagnostic, not just dark: Steam's **chrome renders perfectly** — menu bar, nav,
+URL bar, bottom bar — with the **entire content area black**. That is the content browser's layer
+un-hosted with no replacement up. Not a stretch (ruled out), not the z-order blackout (that blacks
+the whole window). At churn rate during a drag, that is the shimmer.
+
+**Fix built:** retirement is now driven from the **create** side. `retire_superseded_layers()` runs
+*after* the replacement is in the layer tree and drops any older layer mirroring the same child;
+`WM_MACDRV_RELEASE_REMOTE_LAYER` skips a context already retired that way. The child is therefore
+never unhosted. This is a reordering, not a delay, and it subsumes the `pending_release` hack —
+though that is left in place until the reordering is verified.
+
+⚠ **VERIFICATION PENDING — the re-run of T1 against the fix is VOID on the instrument.** The screen
+locked mid-session (`CGSSessionScreenIsLocked: True`); `screencapture -l` then fails for *every*
+window including a known-good non-wine one, while full-screen capture returns a 43 KB lock frame.
+That is trap #2 in `steam-render-cell.sh`, and it is why the harness validates against a known-good
+window before believing any black reading. **Re-run T1 with the screen awake before claiming the
+shimmer is fixed.**
+
+### 2b-original. D6 + the shimmer — one lifetime design, not two fixes
 
 `pending_release` and the shimmer are the same problem seen twice: **a hosted layer is un-hosted
 before its replacement is live.** The candidate design is "hold the retired host until its

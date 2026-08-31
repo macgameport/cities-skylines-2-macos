@@ -122,6 +122,17 @@ if (argc < 3) { fprintf(stderr, "need an hwnd for %s\n", argv[1]); return 2; }
     HWND h = (HWND)(UINT_PTR)strtoull(argv[2], NULL, 16);
     if (!IsWindow(h)) { fprintf(stderr, "not a window: %s\n", argv[2]); return 1; }
 
+    if (!strcmp(argv[1], "front"))
+    {
+        /* screencapture -l refuses a window with no imageable backing store ("could not create
+         * image from window"), which happens when it is occluded or not being composited. Raising
+         * it is the difference between a measurement and a void run. */
+        STAMP("FRONT    raising %p\n", h);
+        SetWindowPos(h, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+        SetForegroundWindow(h);
+        return 0;
+    }
+
     if (!strcmp(argv[1], "close"))
     {
         /* A graceful WM_CLOSE, not a signal. The project rule is "never signal steam.exe" (a TERM
