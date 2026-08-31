@@ -1264,3 +1264,33 @@ came from the two changes beside it.
 **The trap:** the fix went in alongside two others that *did* work, the symptom improved, and the
 improvement was attributed to all three. A behavioural claim needs the path to be **observed
 running** — `git blame` on a symptom is not attribution. Instrument first, credit after.
+
+## `backgroundColor` on a hosted layer paints it before the content arrives (2026-08-31)
+
+> **Ledger:** `SUPPORTED` — C18. Evidence: the parity re-measurement with and without it.
+
+A `CALayerHost` is **visible from the moment it is added**, and the remote `CAContext` has not
+presented anything yet. So `backgroundColor` — set to cover a *one device pixel* seam — paints a
+**full black rectangle** over the whole layer until the first frame lands. Every newly hosted layer
+flashes. Steam's menus are each their own popup window, so mousing across the menu bar hosts a fresh
+layer per menu: *"black box lag as i mouse back and forth over the menus."*
+
+**Do not just delete it, though — measure first.** Removing it brings the white seam straight back,
+exactly on the odd axis:
+
+| size | bright edges without the background |
+|---|---|
+| 2400×1500 | 0 |
+| 2401×1500 | 1 (right) |
+| 2400×1501 | 1 (bottom) |
+| 2401×1501 | 2 |
+
+So it is load-bearing and the frame snap alone is **not** sufficient — a claim written into a source
+comment before it was checked, and contradicted by the very next measurement.
+
+**Fix: defer it.** Transparent while the layer is empty (the window's own surface shows through,
+exactly as before any of this existed), black 120 ms later, when the only thing a background can
+still reveal is the seam. Verified: 0 bright edges on all four parities, popups unaffected.
+
+**The general shape:** a property that exists to fix a *steady-state* artifact should not be applied
+during the *transient*. Ask when a value needs to be true, not just whether it needs to be true.
