@@ -99,6 +99,44 @@ and internal, not environmental. The A/B settles it either way and costs one cel
 added. Every earlier cell in this investigation is silent on it, which is precisely the gap this
 ledger exists to close, reopened one level up.
 
+### ✅ WALL 1 DOWN: null-checking `get_win_data` moves the crash (2026-08-31)
+
+Patched `_CreateMetalViewFromHWND` in DXMT **v0.80** (the shipped lineage) to check what
+`get_win_data()` returns before dereferencing it — `scripts/dxmt-nullcheck-win-data.patch`, six
+lines. Built against the shipped engine, installed, **winemac left stock** so the only variable is
+the null check.
+
+```
+a339   callq *%r15            ; get_win_data(hwnd)
+a33c   testq %rax, %rax       ; <== THE FIX
+a344   movq 0x18(%rax), %rdi  ; only reached when non-NULL
+```
+
+| | before | after |
+|---|---|---|
+| AV address | `0x2179833df` = `winemetal.so` `_CreateMetalViewFromHWND +0xbf` | **`0x2086a91f9`** = `ntdll.so +0x301f9` |
+| enclosing | the unchecked deref | **`__wine_unix_call_dispatcher +0xc9`** |
+| GPU crashes | 6 | 6 |
+| window | black | black |
+
+**The first wall is genuinely down** — that specific dereference no longer happens — and the crash
+**moved to the next one**. No user-visible change yet.
+
+**The convergence is the real result.** `__wine_unix_call_dispatcher +0xc9` is *exactly* where
+notpop's fork crashed too. Two independent fixes to the same bug — their rewrite and our six-line
+null check — land on the identical next failure. So:
+
+- **That dispatcher crash is not a fork artifact and not a build mismatch.** It is simply *the next
+  wall*, reached by anyone who stops crashing in `_CreateMetalViewFromHWND`. My ABI-mismatch theory
+  for it is now doubly dead: the ABI-matched rebuild did not move it, and an unrelated fix reproduces
+  it exactly.
+- **It also retro-explains the fork result.** "notpop's fork does not fix the Steam client" is true,
+  but the reason is now specific: the fork fixes wall 1 and stops at wall 2, the same as we do.
+
+**Next:** identify what unix call is being dispatched with a null handle at
+`__wine_unix_call_dispatcher +0xc9`. Reproducible from two directions now, which makes it a much
+better target than it was an hour ago.
+
 ### 🔗 CLOSED LOOP: the GPU crash IS the cross-process problem, as a null deref (2026-08-31)
 
 The four function pointers the crash depends on are resolved **by name**, and the strings are in the
@@ -688,8 +726,10 @@ may belong to a different wrapper's Steam.
 | exp_8d675d | 2026-08-30 23:50 | `notpop-fork-fonts-fixed` | 0 | 0 | 0 | black | candidate |
 | exp_090ec5 | 2026-08-30 23:52 | `fork-seh` | 0 | 0 | 0 | black | candidate |
 | exp_2ded9b | 2026-08-31 00:25 | `fork-abi-matched` | 0 | 0 | 0 | black | candidate |
+| exp_71d767 | 2026-08-31 00:53 | `nullcheck-getwindata` | 0 | 0 | 0 | black | candidate |
+| exp_5481ff | 2026-08-31 00:55 | `nullcheck-seh` | 0 | 0 | 0 | black | candidate |
 
-64 cells · 45 VOID-LIBS · 19 candidate
+66 cells · 45 VOID-LIBS · 21 candidate
 ---
 
 ## Running a cell (the procedure this ledger assumes)
