@@ -152,7 +152,10 @@ hypothesis is right, removes the shimmer.
 ## 3. Test plan
 
 Instruments exist and are committed: `scripts/win-resize-driver.c` (exact sizes, per-monitor DPI
-aware, `tree`, `rects`, `cursor`, `close`) and `scripts/pixel-probe.swift` (edge-vs-interior RGB).
+aware, `tree`, `rects`, `cursor`, `front`, `close`), `scripts/pixel-probe.swift` (edge-vs-interior
+RGB), and **`scripts/shimmer-probe.sh`** — the T1 harness, with its three guards baked in (select by
+class, assert the window moved, refuse on a locked screen). It lived in `/tmp` while it was being
+written, which in this project is how a week of evidence gets lost.
 Rebuild `winemac.drv` with `-DDXMT_RSZ_DEBUG` for the trace.
 
 | # | test | method | pass | mutant (must be observed RED, then restored green) |
