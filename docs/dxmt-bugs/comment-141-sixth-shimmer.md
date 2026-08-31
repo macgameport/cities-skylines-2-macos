@@ -1,6 +1,6 @@
 # dxmt#141 — sixth comment: the shimmer, measured and closed
 
-**Status: DRAFTED, NOT POSTED.** Posting is James's call, same as the last two.
+**Status: ✅ POSTED 2026-08-31 as `iosoceans` — [#5481901941](https://github.com/3Shain/dxmt/issues/141#issuecomment-5481901941).** 3,779 chars, verified intact after the round trip.
 
 Prior: 5400445243 · 5403561498 · 5458926046 · 5466938536 (`jvspearman`) ·
 **5477055980** + **5477128209** (`iosoceans`).
@@ -58,12 +58,18 @@ that same child, which by construction is after its successor was acquired. 1.25
   have reported it fixed; trials 2 and 3 each showed 1. At a 5% base rate a single clean run of 40
   has roughly a 13% chance of showing zero by luck. Repeating is the only reason this is a result.
 
-### Still open
+### The live-drag path, since scripted churn is not the same thing
 
-Flicker during a live **mouse** drag. My harness drives `SetWindowPos`; a human dragging a window
-edge goes through macOS live-resize, which it cannot reach. Someone using the build afterwards
-described it as minimal — but that is one person's eyes, not a measurement, so treat it as "probably
-improved, not established". Everything numeric above is scripted churn.
+Everything above is `SetWindowPos`. A human dragging a window edge goes through macOS live-resize
+instead, so I wrote a second probe that waits for a real drag and samples during it: **0 near-black
+frames in 80**, over 14.2 s with 25 distinct window sizes, interior luminance min 23 / median 77.
+Independently, the person using the build described the flicker as "minimal".
+
+⚠ **The limit is worth stating rather than glossing:** that probe samples one frame per **178 ms**.
+It rules out a gap rate anywhere near the pre-fix 5% (seeing zero at that rate has probability
+0.017) but it **cannot see a single-frame ~16 ms flash**, which would usually fall between samples.
+So: no gap-class events on the live path, and any residual is below what `screencapture` can
+resolve. Catching that would want a screen recording or a frame counter.
 
 Same offer as before: the patches are public and you are welcome to them under MIT, and I am not
 asking for anything to be merged given #152.
