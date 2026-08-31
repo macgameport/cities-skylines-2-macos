@@ -139,3 +139,29 @@ explicit FIXME in `winemac.drv`. Our implementation of it is a **feature**, not 
 AI-authored, and wine's patch process wants a human author. It is public in `scripts/` and described
 in full on [dxmt#141](https://github.com/3Shain/dxmt/issues/141#issuecomment-5477055980) for anyone
 who wants it. Revisit only if a wine developer asks.
+
+## WineHQ's posture on AI (researched 2026-08-31)
+
+**No published policy on AI-assisted bug reports was found**, and the search was bounded:
+
+- `winehq.org/docs/wineusr-guide/bug-reporting` — readable, **0** mentions of AI, LLM, generated
+  code, or tooling disclosure.
+- `wiki.winehq.org` (Bug_Triage, Developer_FAQ, Project_Organization) — **not readable**: the wiki
+  sits behind **Anubis**, a proof-of-work wall whose own banner cites *"the scourge of AI companies
+  aggressively scraping websites"*.
+- The only AI thread on wine-devel is *"Solving the slow review problem with AI"*, which proposes
+  letting an LLM review Wine code and reads as satire.
+
+⚠ **Do not over-read the Anubis wall.** It is an anti-**scraping** measure about server load, not a
+statement about contributions, and treating it as a ban would be inventing a policy they have not
+written. What it does establish is posture, and posture is worth respecting:
+
+- **Disclose the AI assistance** in the report, unprompted, exactly as was done on dxmt#141.
+- **File a bug, not a patch.** The fix needs an ordering decision inside win32u's rect pipeline that
+  belongs to someone who knows it.
+- **Lead with the reproducer.** 60 lines, stock wine, no game, no Steam, no DXMT — a maintainer can
+  confirm or dismiss it in two minutes without trusting a word of the analysis. That is the most
+  respectful form this can take, and it is the reason the stock reproduction was worth the effort.
+
+**Everything needed to file is now in hand. Filing is James's call** — it is a public post under the
+project identity, same as the dxmt comments.
