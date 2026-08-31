@@ -41,7 +41,7 @@ A fourth, narrower one: under **concurrent** IO, metadata-query APIs (`GetFileAt
 | # | Patch | Target | Symptom |
 |---|---|---|---|
 | 3 | `patch_longfile` | `Colossal.IO.dll` → `LongFile.GetFileHandle` | `IOException … <settings>.coc: Success.` dialog on settings read/write |
-| 12 | `patch_fshandle` | `mscorlib.dll` → `FileStream.Init` | every-boot `ArgumentException: Invalid handle` → "Failed to read settings file with GUID …"; settings fall back to defaults; mod conflict alerts. **Second site** — `patch_longfile` fixes Colossal's throw, mscorlib then validates the handle *again*. |
+| 12 | `patch_fshandle` | `mscorlib.dll` → `FileStream.Init` | every-boot `ArgumentException: Invalid handle` → "Failed to read settings file with GUID …"; settings fall back to defaults; mod conflict alerts. **Second site** — `patch_longfile` fixes Colossal's throw, mscorlib then validates the handle *again*. ⚠ **A THIRD site exists and still throws** (2026-08-31): `FileStream.Init` `[0x0006a]` raises `IOException: Invalid handle to path "[Unknown]"` — different type, different message, so a grep for the documented `ArgumentException` reports success while 8 settings files still fall back to defaults. See `docs/wine-bugs/R2-createfile-handle-zero.md`. |
 
 ## 3. Wine, other — Colossal Order binaries
 
