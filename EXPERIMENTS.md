@@ -51,7 +51,7 @@ Made durable in `scripts/build-engine-1116.sh` (step 8) so a rebuild does not si
 ⚠ That step was appended using `$ENGINE`, which **does not exist** in that script — it would have
 skipped every module in silence. Corrected to `$E` and dry-run against the real tree.
 
-### ❓ OPEN HYPOTHESIS: is the GPU crash the VPN's `utun` interface? (2026-08-30)
+### ❌ FALSIFIED: the GPU crash is not the VPN (2026-08-30)
 
 **Raised by James, and it names a bias worth stating plainly:** *"when the VPN fails you think
 whatever you are working on is failing due to timeouts."* That is exactly what happened earlier the
@@ -65,10 +65,29 @@ WPAD/DHCP failures — and the traced crash is a **null read at offset `0x18` in
 in a process whose module list includes `nsi.dll`, `IPHLPAPI.DLL` and `nsiproxy.sys`. A `utun`
 interface wine's IPHLPAPI cannot describe is a plausible source of a null return that nothing checks.
 
-| | |
-|---|---|
-| baseline, **VPN UP** (`utun4`), network up | **6 crashes**, black window, fonts healthy (`exp_` = `vpn-up-baseline`) |
-| **VPN DOWN** | **NOT YET RUN** — needs the tunnel dropped for ~3 minutes |
+**Run 2026-08-30 evening**, James switching off the flaky Proton tunnel and staying on a home VPN
+that has never misbehaved:
+
+| arm | tunnel | GPU crashes | window |
+|---|---|---|---|
+| baseline | Proton, `utun4 10.2.0.2` | **6** | black, **108,343 B** |
+| comparison | home VPN, `utun4 10.10.99.3` | **6** | black, **108,343 B — byte-identical** |
+
+**Identical.** Two different tunnels, same crash count, same capture to the byte. The flaky VPN is
+**not** what crashes the GPU process, and by extension is not what produced the black window this
+week. The evidence-against recorded when this was raised — exactly 6 crashes in every configuration
+all day — held up.
+
+⚠ **What this does NOT close, stated precisely:** *both* arms still had a `utun` interface present.
+So "Proton specifically" is eliminated; "wine's IPHLPAPI chokes on **any** tunnel interface" is
+**not**. Closing that needs an arm with every VPN disconnected, which has not been run. The
+`GetAdaptersAddresses failed: 2` and `Failed to read DnsConfig` errors are still there in both.
+
+**The bias the hypothesis came from stands regardless, and is the durable part:** a timeout is
+ambiguous evidence, and this project had been resolving it toward "the thing under test is broken."
+Network state is now recorded in every cell's `config.json` and a down network is a fatal
+precondition, so the next time it matters the answer will be in the artifact rather than in
+somebody's memory of what the tunnel was doing.
 
 ⚠ **Evidence AGAINST, stated so this is not adopted on plausibility alone:** the crash count has
 been **exactly 6** in every cell today — default backend, software rendering, forced D3D11, builtin
@@ -515,8 +534,9 @@ may belong to a different wrapper's Steam.
 | exp_86ebce | 2026-08-30 18:04 | `seh-module` | 0 | 0 | 0 | black | candidate |
 | exp_e99644 | 2026-08-30 18:08 | `ucrtbase-builtin` | 0 | 0 | 0 | black | candidate |
 | exp_226724 | 2026-08-30 21:24 | `vpn-up-baseline` | 0 | 0 | 0 | black | candidate |
+| exp_eb78a3 | 2026-08-30 23:11 | `proton-off` | 0 | 0 | 0 | black | candidate |
 
-60 cells · 45 VOID-LIBS · 15 candidate
+61 cells · 45 VOID-LIBS · 16 candidate
 ---
 
 ## Running a cell (the procedure this ledger assumes)
