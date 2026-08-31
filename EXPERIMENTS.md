@@ -99,6 +99,40 @@ and internal, not environmental. The A/B settles it either way and costs one cel
 added. Every earlier cell in this investigation is silent on it, which is precisely the gap this
 ledger exists to close, reopened one level up.
 
+### ⚠ INVALID: the notpop-fork re-test was an ABI mismatch, not a result (2026-08-30)
+
+Re-ran notpop's fork with fonts working, to retest the `PARTIAL` "the fork does not fix the Steam
+client" conclusion. **The run is void and must not be cited either way.**
+
+Installed the fork's `d3d11`/`dxgi`/`winemetal.dll`/`winemetal.so` plus the `-fvisibility=default`
+`winemac.so`. Result: still 6 crashes, still black — but the fault **moved**, from
+`winemetal.so +0xa3df` to `ntdll.so +0x301f9`, which `nm` places in
+**`__wine_unix_call_dispatcher +0xc9`**, dereferencing address **0** with `rbx=0`.
+
+**That is a NULL unix-call table, i.e. a `.so` that failed to register — not a crash in fork logic.**
+The cause is mine: `build-dxmt-fork.sh` builds against
+`~/cs2-patch/build-1116/engine-1116` (2026-08-28), and I installed the output into the *shipped*
+engine (2026-08-23). Their `ntdll.so` are different builds (`cmp` says so), so the PE↔unix ABI does
+not match and registration fails.
+
+**To run it properly:** either install the fork into a wrapper actually running `engine-1116`, or
+rebuild the fork with `-Dwine_install_path` pointing at the shipped engine. A hand-copied
+`winemetal.so` must always match the engine it lands in — *the same lesson as the DXMT v0.80 build
+earlier today*, which was also built against `engine-1116`, so **that result deserves the same
+suspicion and should be re-examined before being relied on.**
+
+**What survives, because it is static analysis and needs no run:**
+
+| | stock winemetal | notpop's fork |
+|---|---|---|
+| `_CreateMetalViewFromHWND` at | `0xa320` | `0xa280` (rewritten, plus a `_block_invoke`) |
+| `callq *%r15` → `movq 0x18(%rax)` with no null test between | **present** — the crash | **absent entirely** |
+| null-tests the *other* call's result 15 bytes later (`a3ee`) | yes | n/a |
+
+Stock checks one call's return and not the other's, 21 bytes apart. That asymmetry is what makes it
+an oversight rather than a design assumption, and the fork's rewrite does not contain the faulting
+instruction at all. **Whether that fixes Steam is still untested.**
+
 ### 🎯 NAMED: the GPU process dies on an unchecked NULL in `_CreateMetalViewFromHWND` (2026-08-30)
 
 Caught a live `--type=gpu-process` child mid-flight and took its `vmmap`, which resolves the
@@ -577,8 +611,10 @@ may belong to a different wrapper's Steam.
 | exp_e99644 | 2026-08-30 18:08 | `ucrtbase-builtin` | 0 | 0 | 0 | black | candidate |
 | exp_226724 | 2026-08-30 21:24 | `vpn-up-baseline` | 0 | 0 | 0 | black | candidate |
 | exp_eb78a3 | 2026-08-30 23:11 | `proton-off` | 0 | 0 | 0 | black | candidate |
+| exp_8d675d | 2026-08-30 23:50 | `notpop-fork-fonts-fixed` | 0 | 0 | 0 | black | candidate |
+| exp_090ec5 | 2026-08-30 23:52 | `fork-seh` | 0 | 0 | 0 | black | candidate |
 
-61 cells · 45 VOID-LIBS · 16 candidate
+63 cells · 45 VOID-LIBS · 18 candidate
 ---
 
 ## Running a cell (the procedure this ledger assumes)
