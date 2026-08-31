@@ -842,6 +842,22 @@ a 91 GB Steam re-download. (Deleting `steamapps/common/<game>` **and** its
 `appmanifest_<appid>.acf` together is what stops Steam re-downloading — removing the tree while
 leaving the manifest makes Steam see "installed, files missing" and fetch the lot again.)
 
+## `SIGTERM` to steam.exe leaves a `.crash` marker too, not just `kill -9` (2026-08-31)
+
+The standing rule says *"never `kill -9` Steam — it leaves a 0-byte `.crash` marker that makes the
+next launch exit 1"*. Measured 2026-08-31: a plain **`kill -TERM`** does the same. A whole session's
+teardowns used TERM on the strength of that rule and still produced the marker.
+
+**So the rule is really: never signal `steam.exe` at all.** Use `steam.exe -shutdown` and wait for
+it; only fall back to `wineserver -k` if that fails. If you did signal it, check and clear:
+
+```bash
+rm -f "<prefix>/drive_c/Program Files (x86)/Steam/.crash"
+```
+
+`launch-cs2-dxmt11.sh` clears a stale marker on startup, so the daily path self-heals — but a direct
+`wine steam.exe` launch does not, which is exactly what the render harness does.
+
 ## Same-account Steam sessions SWAP, they don't stack — and the running game doesn't care (2026-08-24)
 
 Context: the two-wrapper split (play on 11.16, shop on 11.0) puts two logged-in Steam clients on

@@ -43,7 +43,7 @@ signature defect upstream ([the measurement](docs/wine-bugs/FINDING-wine11-fixes
 | Graphics | **DXMT v0.80** (reused from the base engine) | **DXMT v0.80** — reports the real GPU | **D3DMetal v2.1** — reports `AMD Compatibility Mode` |
 | Patches | **10** | **10** — the 6 errno patches AND the licence bypass are unnecessary | **17** |
 | Alt-tab in exclusive fullscreen | **works** | freezes ([dxmt#206](https://github.com/3Shain/dxmt/issues/206)) — use borderless | mild misbehaviour |
-| Steam's **visible storefront** | **black** — shop via **CS2 Steam Store.app** ("Three things" #3) | **renders** | renders |
+| Steam's **visible storefront** | **renders** with patched wine+DXMT (2026-08-31); **black** on the stock stack — shop via **CS2 Steam Store.app** | **renders** | renders |
 | Measured | **44.9 FPS**, GPU 23.1 ms, presentation `Direct` | 42.7 FPS, GPU ~26 ms, `Composited` | — |
 | Proven by | a full validated session: mods delete+redownload, alt-tab cycles, city play | boots, mods load + download, Steam UI, DLC | a 1h40m session, saved city, long-run stability |
 
@@ -76,12 +76,21 @@ and `docs/dxmt-bugs/`.
    per cycle, so you can blind-navigate Options → Graphics → Display Mode → Fullscreen Window
    and it comes back live. No force-kill needed.
 
-3. **Steam's storefront window is black on the 11.16 engine — the game is unaffected.** The
-   daily flow runs Steam in tray mode (`-silent`), which is all CS2 needs: login, licences,
+3. **Steam's storefront window is black on the *stock* 11.16 engine — the game is unaffected.**
+   The daily flow runs Steam in tray mode (`-silent`), which is all CS2 needs: login, licences,
    Paradox Mods downloads all work normally. What does not render is Steam's *visible* UI —
-   the store, library and settings windows. This is an upstream limitation, not a
-   configuration mistake: Steam's CEF asks for a swapchain on a window owned by another
-   process, which DXMT cannot serve ([dxmt#141](https://github.com/3Shain/dxmt/issues/141)),
+   the store, library and settings windows.
+   ✅ **SOLVED 2026-08-31 with local patches to wine + DXMT** — the client now renders completely,
+   out-of-process, no shim, 0 GPU crashes. Root cause: `_CreateMetalViewFromHWND` dereferences a NULL
+   from `get_win_data()` for a cross-process child window, and wine's existing remote-layer route was
+   never wired up. Full write-up: [`docs/steam-ui-findings.md`](docs/steam-ui-findings.md);
+   state per cell: [`docs/test-matrix.md`](docs/test-matrix.md).
+   ⚠ **Resize is still an open defect** (a half-point rounding hairline, and blackouts under rapid
+   destroy/create churn), and the patches are **not** upstreamable as-is — dxmt's `CONTRIBUTING.md`
+   forbids AI-authored PRs, so this goes upstream as a findings report, not a patch.
+   The original upstream limitation ([dxmt#141](https://github.com/3Shain/dxmt/issues/141)) is that
+   Steam's CEF asks for a swapchain on a window owned by another process, which stock DXMT cannot
+   serve,
    and Chromium's software fallback fails the same way.
 
    **The storefront still works — from the second app.** The engine build (INSTALL §6)
