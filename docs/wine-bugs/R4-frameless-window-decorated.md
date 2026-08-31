@@ -1,7 +1,7 @@
 # R4 — winemac decorates a frameless window, offsetting every mouse coordinate by the caption height
 
 **Component:** winemac.drv (window) · **Severity:** normal · **Platform:** macOS
-**Status: NOT FILED — see "Before filing" at the foot. This is the TODO.**
+**Status: NOT FILED, but REPRODUCED ON STOCK WINE 11.16 (2026-08-31). Ready to file.**
 
 ## Summary
 
@@ -97,10 +97,20 @@ no reason to suspect the window rect still contains one.
    never retroactively changes the frame, the window keeps a normal caption (`dy=30`), and the run
    is meaningless. The reproducer now self-checks and says so rather than reporting a false result.
 
-   **Still to do on this item:** run it against a *stock* wine build. The code path is
-   byte-identical in stock 11.16 (diffed), but that remains an inference — and
-   `~/cs2-patch/build-1116/engine-1116` has the stock `winemac.so` but **no `bin/wine64`**, so
-   there is no runnable stock build on this machine.
+   ✅ **REPRODUCED ON STOCK WINE — no longer an inference.** Run against
+   `~/cs2-patch/build-1116/engine-1116` (a full stock wine 11.16; it ships a single `wine` binary,
+   not `wine64`, which is why an earlier check concluded there was no runnable build) in a
+   throwaway prefix at `~/cs2-patch/stock-prefix`, with a `winemac.so` containing **zero** of this
+   project's symbols. Result: the same macOS title bar with traffic lights on a window reporting
+   `dx=5 dy=0`. Evidence: `~/cs2-patch/evidence/repro-stock.png`.
+
+   Two things that get in the way of a clean stock run, worth knowing before repeating it:
+   - `wine` refuses to create a prefix under `/tmp` — *"is not owned by you"*. Put it somewhere you own.
+   - A fresh prefix launches the **Wine Mono installer**, which blocks the test. Use
+     `WINEDLLOVERRIDES="mscoree,mshtml=d"`.
+   - ⚠ Cleaning those installers up needs **open-file attribution**, not `pkill -f`: wine processes
+     carry Windows-style argv (`C:\windows\system32\control.exe`), so a name match misses them
+     entirely. Same trap this project documents for Steam.
 
 1b. ~~**Build a minimal reproducer against STOCK wine.**~~ (superseded by the above) Everything above was observed on a
    DXMT-patched wine 11.16. The relevant code is byte-identical in stock (`get_cocoa_window_features`
@@ -110,7 +120,7 @@ no reason to suspect the window rect still contains one.
    rect, client rect and `ScreenToClient` for a known screen point. Run it in a throwaway prefix.
    ⚠ `~/cs2-patch/build-1116/engine-1116` has the stock `winemac.so` but **no `bin/wine64`** — there
    is no runnable stock build on this machine yet.
-2. **Check WineHQ's position on AI-assisted reports.** No published policy was found (Developer FAQ,
+2. **Check WineHQ's position on AI-assisted reports.** (Still outstanding.) No published policy was found (Developer FAQ,
    Project Organization; the only wine-devel AI thread is about using AI *for review* and reads as
    tongue-in-cheek). Absence is not permission for AI-authored *patches* — but this is a bug report,
    not a patch. Disclose the AI assistance either way, as was done on dxmt#141.
