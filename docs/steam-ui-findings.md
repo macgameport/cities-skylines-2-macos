@@ -342,13 +342,19 @@ reason this is a result rather than a claim.
 
 ## Open
 
-1. **Flicker during a live *mouse* drag: reported MINIMAL, not measured.** James assessed it by
-   hand after the fix (2026-08-31). That is the only assessment available — `shimmer-probe.sh`
-   drives `SetWindowPos`, and a human dragging a window edge goes through macOS live-resize, a
-   different path the harness cannot reach. **Do not promote "minimal" to "fixed" or to a number:**
-   it is one person's eyes on one drag, which is exactly the kind of claim this project has had to
-   retract before. Measuring it would need capture sampling *during* a human drag — feasible, since
-   the pointer position is readable without permissions, but not yet done. Every capture after a settle is correct
+1. **Flicker during a live *mouse* drag — now measured, with a stated resolution limit.**
+   `shimmer-probe.sh` drives `SetWindowPos`; a human dragging an edge goes through macOS
+   live-resize, which it cannot reach. `scripts/livedrag-probe.sh` closes that: it settles, arms,
+   detects the drag starting, then samples hard.
+
+   **Result: 0 near-black frames in 80**, interior luminance min 23 / median 77, over 14.2 s of a
+   genuine drag (25 distinct window sizes). James's independent assessment by eye was "minimal".
+
+   ⚠ **What it rules out and what it does not.** Sampling ran at 5.6 frames/s — one every **178 ms**.
+   That rules out a gap rate anywhere near the pre-fix 5% (probability of seeing zero would be
+   0.017). It **cannot** see a single-frame ~16 ms flash, which would usually fall between samples.
+   So: no gap-class events, and any residual is below this instrument's resolution. Catching that
+   would need a screen recording or a frame counter, not `screencapture`. Every capture after a settle is correct
    and a 60×60 ms churn ends correct, but a sub-frame flash while the mouse is down would not
    appear in a post-settle capture. Only a video capture or a frame counter would answer it.
 3. **Content-driven states are barely explored.** Defects 3 and 4 were both reached by *using* the
