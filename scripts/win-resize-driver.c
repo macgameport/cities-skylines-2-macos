@@ -109,7 +109,16 @@ int main(int argc, char **argv)
         return 0;
     }
 
-    if (argc < 3) return 2;
+    if (!strcmp(argv[1], "cursor") && argc < 3)
+    {
+        /* Global mapping only -- no window needed, so this works with nothing running. */
+        POINT pt;
+        GetCursorPos(&pt);
+        printf("wine GetCursorPos (screen px) : %ld,%ld\n", pt.x, pt.y);
+        return 0;
+    }
+
+if (argc < 3) { fprintf(stderr, "need an hwnd for %s\n", argv[1]); return 2; }
     HWND h = (HWND)(UINT_PTR)strtoull(argv[2], NULL, 16);
     if (!IsWindow(h)) { fprintf(stderr, "not a window: %s\n", argv[2]); return 1; }
 
@@ -120,6 +129,26 @@ int main(int argc, char **argv)
          * the game, and this is repeatable from a script where clicking a window is not. */
         STAMP("CLOSE    posting WM_CLOSE to %p\n", h);
         PostMessageW(h, WM_CLOSE, 0, 0);
+        return 0;
+    }
+
+        if (!strcmp(argv[1], "cursor"))
+    {
+        /* Ask WINE where the pointer is, and where that lands in the window's CLIENT space --
+         * which is exactly what gets handed to the app for hit-testing. Compare against the macOS
+         * pointer position (CGEvent) and the Cocoa window origin, and the offset stops being a
+         * description and becomes a subtraction. Needs no accessibility permission and no user:
+         * wherever the pointer happens to be sitting is a valid sample. */
+        POINT pt; RECT wr, cr;
+        GetCursorPos(&pt);
+        GetWindowRect(h, &wr);
+        GetClientRect(h, &cr);
+        printf("wine GetCursorPos (screen px) : %ld,%ld\n", pt.x, pt.y);
+        printf("window rect (screen px)       : %ld,%ld %ldx%ld\n", wr.left, wr.top,
+               wr.right - wr.left, wr.bottom - wr.top);
+        ScreenToClient(h, &pt);
+        printf("ScreenToClient  (client px)   : %ld,%ld    <== what the app hit-tests with\n", pt.x, pt.y);
+        printf("client size     (px)          : %ldx%ld\n", cr.right - cr.left, cr.bottom - cr.top);
         return 0;
     }
 

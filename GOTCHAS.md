@@ -1461,6 +1461,10 @@ resize border, no caption.
 `rects.client.top == rects.window.top`. Left/right/bottom frame untouched. Verified — the launcher
 now renders with no macOS title bar and its own controls in place.
 
+⚠ **REVERTED 2026-08-31 — see the section below. It removes the doubled chrome but moves the
+error rather than removing it, and it makes two winemac functions disagree about the same
+question.** Kept here because the diagnosis is correct and the fix is one function short.
+
 ⚠ **This does NOT fix the cursor offset, and do not let the visual improvement suggest otherwise.**
 The mismatch that causes it is content-view vs Win32-*client*:
 
@@ -1472,3 +1476,54 @@ after :  content view 643.0 pt   vs client 670.5 pt   -> 27.5 pt apart   UNCHANG
 The Cocoa window merely **shrank** by the caption height instead of the content growing into it, so
 something further down still sizes the window frame as though a caption existed. That is the next
 thing to find. Revert: `winemac.so.bak-pretitlebar-*`, and `window.c.pre-titlebar` in the wine tree.
+
+## The cursor offset: TWO functions decide whether a window has a title bar (2026-08-31, OPEN)
+
+> **Ledger:** `SUPPORTED` (mechanism) — C24. The fix is not written; the change that got halfway
+> was reverted.
+
+Chased to the bottom. The offset is **not** a global pointer-mapping error — wine's `GetCursorPos`
+agrees with macOS `CGEvent` to within truncation:
+
+```
+macOS 891.7,641.2 pt = 1783.4,1282.4 px | wine 1783,1282 px | dx -0.4  dy -0.4 px
+```
+
+It is **window-relative**. `ScreenToClient` subtracts a window origin that is not where the window
+actually is:
+
+```
+Win32 says the window is at : 228,346 px = 114,173 pt
+Cocoa draws it at           : 232,402 px = 116,201 pt      -> 56 px = 28 pt apart
+```
+
+So the client *y* handed to the app is 56 px too large and every control hit-tests 28 points below
+the pointer.
+
+**Why the two disagree — this is the actual bug.** Two functions answer "does this window have a
+title bar", from different inputs, and nothing reconciles them:
+
+| caller | function | input |
+|---|---|---|
+| `macdrv_GetWindowStyleMasks` (win32u asks how much **non-client** space the window rect reserves) | `get_window_features_for_style()` | **style bits only** |
+| window creation / style change (the **actual Cocoa decoration**) | `get_cocoa_window_features()` | style bits **+ `data->rects`** |
+
+For a frameless-but-resizable window they can differ, and the window rect then describes a frame
+the NSWindow does not have.
+
+**Why patching only the second one is not enough — measured, not argued.** Suppressing the Cocoa
+title bar there left `GetWindowStyleMasks` still reporting caption masks, so win32u kept reserving
+caption space and the NSWindow simply moved **down** by that amount:
+
+| | Cocoa window | Win32 window | content view vs Win32 client |
+|---|---|---|---|
+| before | 116,169 pt | 114,173 pt (agree) | 642.0 vs 669.5 → **27.5 pt** |
+| after | 116,201 pt | 114,173 pt (**28 pt apart**) | 643.0 vs 670.5 → **27.5 pt** |
+
+Same error, different mechanism. **Reverted** — a half-fix that leaves two functions contradicting
+each other is worse than the original, because the next reader sees no title bar and has no reason
+to suspect the window rect still contains one.
+
+**A real fix has to make both answers come from the same place**, which means `GetWindowStyleMasks`
+needs the same client-rect evidence — and it is called *while* win32u is computing those rects, so
+the ordering has to be worked out first. That is upstream wine work, unrelated to DXMT.
