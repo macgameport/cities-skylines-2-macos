@@ -1,13 +1,13 @@
-// minrepro3.c — the STRIPPED reproducer: no fullscreen, no minimize, no focus change.
-// v2 revealed the essential defect: after a second swapchain is created on the same HWND,
-// presents to the FIRST swapchain complete normally (S_OK, full fps) but stop reaching the
-// screen — the screen sticks at the other layer's last content. This tests the minimum:
-//   PHASE1  windowed swapchain#1, present MAGENTA 3s      (expect: visible)
-//   CREATE2 second swapchain, same HWND, window plainly visible the whole time
-//   PHASE2  present CYCLING on sc2 3s                     (expect: visible — new chain works)
-//   PHASE2B present RED pulse on sc1 6s                   (bug: screen stuck on stale cycle color)
-//   PHASE2C present CYCLING on sc2 again 3s               (does the visible chain still work?)
-// Build: x86_64-w64-mingw32-gcc minrepro3.c -o minrepro3.exe -ld3d11 -ldxgi -ldxguid -luuid
+/* minrepro3.c — the STRIPPED reproducer: no fullscreen, no minimize, no focus change.
+ * v2 revealed the essential defect: after a second swapchain is created on the same HWND,
+ * presents to the FIRST swapchain complete normally (S_OK, full fps) but stop reaching the
+ * screen — the screen sticks at the other layer's last content. This tests the minimum:
+ *   PHASE1  windowed swapchain#1, present MAGENTA 3s      (expect: visible)
+ *   CREATE2 second swapchain, same HWND, window plainly visible the whole time
+ *   PHASE2  present CYCLING on sc2 3s                     (expect: visible — new chain works)
+ *   PHASE2B present RED pulse on sc1 6s                   (bug: screen stuck on stale cycle color)
+ *   PHASE2C present CYCLING on sc2 again 3s               (does the visible chain still work?)
+ * Build: x86_64-w64-mingw32-gcc minrepro3.c -o minrepro3.exe -ld3d11 -ldxgi -ldxguid -luuid */
 #include <windows.h>
 #include <d3d11.h>
 #include <dxgi.h>

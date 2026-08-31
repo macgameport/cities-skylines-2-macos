@@ -1,19 +1,19 @@
-// minrepro2.c — v2 of the alt-tab freeze reproducer: mirrors CS2's traced sequence faithfully.
-// v1 (minrepro.c) proved create-swapchain-while-minimized ALONE does not reproduce on a plain
-// windowed window. v2 adds the ingredients v1 lacked, straight from the WINEDEBUG trace of the
-// real freeze (docs/dxmt-bugs/DRAFT-focus-loss-freeze.md § Live-freeze measurements):
-//   - swapchain #1 is EXCLUSIVE FULLSCREEN (Windowed=FALSE, 1920x1080, FLIP_SEQUENTIAL) — DXMT
-//     runs EnterFullscreenMode at creation (the boot "Setting display mode" line)
-//   - the app self-minimizes while the fullscreen state is still held (no SetFullscreenState(FALSE))
-//   - swapchain #2 is created on the same HWND while minimized (client rect empty), Windowed=TRUE
-//   - on restore, fullscreen is re-asserted through DXGI (SetFullscreenState(TRUE) + ResizeTarget →
-//     exactly the double "Setting display mode" the trace shows per restore cycle)
-//   - both swapchains stay alive; presents then target #2 (cycling) and afterwards #1 (red pulse)
-//     to discriminate WHICH layer, if either, reaches the screen
-//
-// ⚠ Takes over the whole main display (~30s). Native-res mode set only (no real mode change).
-//
-// Build: x86_64-w64-mingw32-gcc minrepro2.c -o minrepro2.exe -ld3d11 -ldxgi -ldxguid -luuid
+/* minrepro2.c — v2 of the alt-tab freeze reproducer: mirrors CS2's traced sequence faithfully.
+ * v1 (minrepro.c) proved create-swapchain-while-minimized ALONE does not reproduce on a plain
+ * windowed window. v2 adds the ingredients v1 lacked, straight from the WINEDEBUG trace of the
+ * real freeze (docs/dxmt-bugs/DRAFT-focus-loss-freeze.md § Live-freeze measurements):
+ *   - swapchain #1 is EXCLUSIVE FULLSCREEN (Windowed=FALSE, 1920x1080, FLIP_SEQUENTIAL) — DXMT
+ *     runs EnterFullscreenMode at creation (the boot "Setting display mode" line)
+ *   - the app self-minimizes while the fullscreen state is still held (no SetFullscreenState(FALSE))
+ *   - swapchain #2 is created on the same HWND while minimized (client rect empty), Windowed=TRUE
+ *   - on restore, fullscreen is re-asserted through DXGI (SetFullscreenState(TRUE) + ResizeTarget →
+ *     exactly the double "Setting display mode" the trace shows per restore cycle)
+ *   - both swapchains stay alive; presents then target #2 (cycling) and afterwards #1 (red pulse)
+ *     to discriminate WHICH layer, if either, reaches the screen
+ *
+ * ⚠ Takes over the whole main display (~30s). Native-res mode set only (no real mode change).
+ *
+ * Build: x86_64-w64-mingw32-gcc minrepro2.c -o minrepro2.exe -ld3d11 -ldxgi -ldxguid -luuid */
 #include <windows.h>
 #include <d3d11.h>
 #include <dxgi.h>
@@ -47,7 +47,7 @@ static void pump(DWORD ms) {
     }
 }
 
-// color: 0 = solid magenta, 1 = green<->blue cycle, 2 = red<->black pulse
+/* color: 0 = solid magenta, 1 = green<->blue cycle, 2 = red<->black pulse */
 static void present_loop(ID3D11DeviceContext *ctx, IDXGISwapChain *sc,
                          ID3D11RenderTargetView *rtv, int seconds, int color) {
     DWORD t0 = GetTickCount(), last = t0;
@@ -138,7 +138,7 @@ int main(int argc, char **argv) {
     ID3D11Texture2D *bb2 = NULL; ID3D11RenderTargetView *rtv2 = NULL;
     sc2->lpVtbl->GetBuffer(sc2, 0, &IID_ID3D11Texture2D, (void**)&bb2);
     dev->lpVtbl->CreateRenderTargetView(dev, (ID3D11Resource*)bb2, NULL, &rtv2);
-    // swapchain#1 deliberately stays alive, still believing it is fullscreen (like CS2)
+    /* swapchain#1 deliberately stays alive, still believing it is fullscreen (like CS2) */
 
     logmsg("RESTORE SW_RESTORE, then re-assert fullscreen through DXGI on #2");
     ShowWindow(hwnd, SW_RESTORE);

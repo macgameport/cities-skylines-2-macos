@@ -17,6 +17,7 @@
 # event (APP_(DE)ACTIVATED, WINDOW_DID_MINIMIZE/UNMINIMIZE delivery).
 # 'cursor' deliberately NOT enabled — per-frame mouse spam.
 # 'timestamp' prefixes each line so the freeze moment can be correlated.
+set -u
 TS=$(date +%Y%m%d-%H%M%S)
 LOG="/tmp/cs2-diag-$TS.log"
 export WINEDEBUG="timestamp,+macdrv,+display,+event"

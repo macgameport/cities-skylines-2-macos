@@ -1,24 +1,24 @@
-// focustest.c — does presentation survive losing window focus?
-//
-// Minimal DX11 present loop built to isolate ONE variable: the swap effect. CS2 asks for
-// DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL (3) and DXMT logs "unsupported swap effect 3", falls back
-// silently, and the game then freezes permanently the moment another window takes focus
-// (input still registers, nothing ever re-presents). This reproduces that setup in ~150 lines.
-//
-// Console subsystem on purpose: stdout is the instrument. A frozen present loop shows up as
-// stdout going quiet, so the freeze is detectable without looking at the screen.
-//
-// Build (mingw-w64):
-//   x86_64-w64-mingw32-gcc focustest.c -o focustest.exe -ld3d11 -ldxgi -municode
-// Run under the wrapper's wine, then click another window / alt-tab and watch the output:
-//   --flip        use FLIP_SEQUENTIAL (3), what the game asks for   [default: DISCARD (0)]
-//   --fullscreen  request exclusive fullscreen instead of windowed
-//   --seconds N   run for N seconds then exit (default 90)
-//
-// Expected if healthy: FOCUS lines keep printing at a steady rate across a focus change,
-// and Present keeps returning 0x0 (or 0x087A0001 DXGI_STATUS_OCCLUDED while hidden, which is
-// normal and recoverable). A reproduction of the bug looks like: output stops entirely, or
-// Present starts taking hundreds of ms, or an hr that never returns to 0 after refocus.
+/* focustest.c — does presentation survive losing window focus?
+ *
+ * Minimal DX11 present loop built to isolate ONE variable: the swap effect. CS2 asks for
+ * DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL (3) and DXMT logs "unsupported swap effect 3", falls back
+ * silently, and the game then freezes permanently the moment another window takes focus
+ * (input still registers, nothing ever re-presents). This reproduces that setup in ~150 lines.
+ *
+ * Console subsystem on purpose: stdout is the instrument. A frozen present loop shows up as
+ * stdout going quiet, so the freeze is detectable without looking at the screen.
+ *
+ * Build (mingw-w64):
+ *   x86_64-w64-mingw32-gcc focustest.c -o focustest.exe -ld3d11 -ldxgi -municode
+ * Run under the wrapper's wine, then click another window / alt-tab and watch the output:
+ *   --flip        use FLIP_SEQUENTIAL (3), what the game asks for   [default: DISCARD (0)]
+ *   --fullscreen  request exclusive fullscreen instead of windowed
+ *   --seconds N   run for N seconds then exit (default 90)
+ *
+ * Expected if healthy: FOCUS lines keep printing at a steady rate across a focus change,
+ * and Present keeps returning 0x0 (or 0x087A0001 DXGI_STATUS_OCCLUDED while hidden, which is
+ * normal and recoverable). A reproduction of the bug looks like: output stops entirely, or
+ * Present starts taking hundreds of ms, or an hr that never returns to 0 after refocus. */
 #include <windows.h>
 #include <d3d11.h>
 #include <dxgi.h>
@@ -26,9 +26,9 @@
 #include <string.h>
 
 static DWORD g_t0;
-// Wine's GetForegroundWindow() tracks Wine's own window list, not macOS focus, so polling it
-// reports focus=1 even while another Mac app is frontmost. The activation MESSAGES are the
-// signal that actually crosses the boundary — log them.
+/* Wine's GetForegroundWindow() tracks Wine's own window list, not macOS focus, so polling it
+ * reports focus=1 even while another Mac app is frontmost. The activation MESSAGES are the
+ * signal that actually crosses the boundary — log them. */
 static LRESULT CALLBACK WndProc(HWND h, UINT m, WPARAM w, LPARAM l) {
     switch (m) {
         case WM_ACTIVATEAPP:
@@ -127,7 +127,7 @@ int main(int argc, char **argv) {
         frames++;
         last_hr = hr;
 
-        // a single Present that blocks is the interesting event — report it immediately
+        /* a single Present that blocks is the interesting event — report it immediately */
         if (pdt > 500)
             printf("[%6lums] SLOW Present: %lums  hr=0x%08lx %s  frame=%lu\n",
                    (unsigned long)(GetTickCount() - t0), (unsigned long)pdt,

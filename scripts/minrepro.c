@@ -1,29 +1,29 @@
-// minrepro.c — minimal reproducer for the DXMT alt-tab presentation freeze.
-//
-// The measured CS2 trigger (see docs/dxmt-bugs/DRAFT-focus-loss-freeze.md, "Live-freeze
-// measurements"): on focus loss the game minimizes itself, then creates a SECOND swapchain on the
-// same HWND while the window is miniaturized with an empty client rect. That swapchain's
-// CAMetalLayer never enters live compositing — presents complete at full speed but the screen
-// only updates once per subsequent minimize/restore cycle.
-//
-// This reproduces the sequence with NO human interaction (the old focustest.c wall — needing a
-// real macOS focus loss — does not apply: the trigger is programmatic):
-//
-//   PHASE1   window + swapchain#1 (FLIP_SEQUENTIAL, 2 buffers, like CS2), present solid MAGENTA
-//   MINIMIZE ShowWindow(SW_MINIMIZE), keep presenting (CS2 does), pump messages 2s
-//   CREATE2  create swapchain#2 on the same HWND while minimized (client rect is (0,0)-(0,0));
-//            swapchain#1 stays alive (CS2 keeps both until exit)
-//   RESTORE  ShowWindow(SW_RESTORE), pump
-//   PHASE2   present COLOR-CYCLING frames (green<->blue) on swapchain#2 for 8s
-//   PHASE3   one more programmatic minimize/restore, then 6 more seconds of cycling
-//
-// Verdict comes from screenshots taken by scripts/run-minrepro.sh:
-//   healthy:  P1 magenta, P2 cycling colors           (bug NOT reproduced)
-//   the bug:  P1 magenta, P2 STILL MAGENTA and static (swapchain#2 output never composites);
-//             P3's first capture may show ONE newer frame (the one-refresh-per-cycle behavior)
-//
-// Build (mingw-w64):
-//   x86_64-w64-mingw32-gcc minrepro.c -o minrepro.exe -ld3d11 -ldxgi -ldxguid -luuid
+/* minrepro.c — minimal reproducer for the DXMT alt-tab presentation freeze.
+ *
+ * The measured CS2 trigger (see docs/dxmt-bugs/DRAFT-focus-loss-freeze.md, "Live-freeze
+ * measurements"): on focus loss the game minimizes itself, then creates a SECOND swapchain on the
+ * same HWND while the window is miniaturized with an empty client rect. That swapchain's
+ * CAMetalLayer never enters live compositing — presents complete at full speed but the screen
+ * only updates once per subsequent minimize/restore cycle.
+ *
+ * This reproduces the sequence with NO human interaction (the old focustest.c wall — needing a
+ * real macOS focus loss — does not apply: the trigger is programmatic):
+ *
+ *   PHASE1   window + swapchain#1 (FLIP_SEQUENTIAL, 2 buffers, like CS2), present solid MAGENTA
+ *   MINIMIZE ShowWindow(SW_MINIMIZE), keep presenting (CS2 does), pump messages 2s
+ *   CREATE2  create swapchain#2 on the same HWND while minimized (client rect is (0,0)-(0,0));
+ *            swapchain#1 stays alive (CS2 keeps both until exit)
+ *   RESTORE  ShowWindow(SW_RESTORE), pump
+ *   PHASE2   present COLOR-CYCLING frames (green<->blue) on swapchain#2 for 8s
+ *   PHASE3   one more programmatic minimize/restore, then 6 more seconds of cycling
+ *
+ * Verdict comes from screenshots taken by scripts/run-minrepro.sh:
+ *   healthy:  P1 magenta, P2 cycling colors           (bug NOT reproduced)
+ *   the bug:  P1 magenta, P2 STILL MAGENTA and static (swapchain#2 output never composites);
+ *             P3's first capture may show ONE newer frame (the one-refresh-per-cycle behavior)
+ *
+ * Build (mingw-w64):
+ *   x86_64-w64-mingw32-gcc minrepro.c -o minrepro.exe -ld3d11 -ldxgi -ldxguid -luuid */
 #include <windows.h>
 #include <d3d11.h>
 #include <dxgi.h>
@@ -53,7 +53,7 @@ static void pump(DWORD ms) {
     }
 }
 
-// present `seconds` worth of frames; color: 0 = solid magenta, 1 = green<->blue cycle
+/* present `seconds` worth of frames; color: 0 = solid magenta, 1 = green<->blue cycle */
 static void present_loop(ID3D11DeviceContext *ctx, IDXGISwapChain *sc,
                          ID3D11RenderTargetView *rtv, int seconds, int cycle) {
     DWORD t0 = GetTickCount(), last = t0;
@@ -138,7 +138,7 @@ int main(int argc, char **argv) {
     ID3D11Texture2D *bb2 = NULL; ID3D11RenderTargetView *rtv2 = NULL;
     sc2->lpVtbl->GetBuffer(sc2, 0, &IID_ID3D11Texture2D, (void**)&bb2);
     dev->lpVtbl->CreateRenderTargetView(dev, (ID3D11Resource*)bb2, NULL, &rtv2);
-    // NOTE: swapchain#1 deliberately stays alive — CS2 keeps both until process exit.
+    /* NOTE: swapchain#1 deliberately stays alive — CS2 keeps both until process exit. */
 
     logmsg("RESTORE ShowWindow(SW_RESTORE)");
     ShowWindow(hwnd, SW_RESTORE);

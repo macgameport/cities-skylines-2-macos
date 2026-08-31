@@ -1,6 +1,6 @@
-// Minimal DX11: create a window + swapchain, clear to magenta, present in a loop.
-// If Wine 11 can present accelerated frames, the window shows solid MAGENTA.
-// If presentation is broken on macOS 26, it stays BLACK.
+/* Minimal DX11: create a window + swapchain, clear to magenta, present in a loop.
+ * If Wine 11 can present accelerated frames, the window shows solid MAGENTA.
+ * If presentation is broken on macOS 26, it stays BLACK. */
 #include <windows.h>
 #include <d3d11.h>
 #include <dxgi.h>
