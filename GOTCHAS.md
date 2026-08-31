@@ -1364,3 +1364,69 @@ first, and judge by timestamp.
 **directly** (its own header says so: *"patches → Steam up + logged in → licence sync → Cities2.exe
 DIRECTLY → graceful shutdown"*), so the Paradox launcher only appears on the Steam **PLAY** path.
 It also shuts Steam down when the game exits.
+
+## The Paradox launcher's PLAY is broken under wine — and it is not a crash (2026-08-31)
+
+> **Ledger:** `SUPPORTED` — C21/C22. Evidence: `launcher-2026-08-31.log`, `launcher-settings.json`.
+
+Three separate launcher problems, none of them the game and none of them ours. All three announce
+themselves misleadingly.
+
+**1. PLAY does nothing but show "the game appears to have crashed (exit code null)".**
+The launcher never started it. Its own log says:
+
+```
+error [LaunchGameHandler]: Launching game failed VError: Failed to start a game executable:
+    Launching game failed: spawn Cities2.exe ENOENT          (x4 today)
+```
+
+`launcher-settings.json` has `exePath: "../Cities2.exe"`, and Steam invokes the launcher with
+`--gameDir ...\Cities Skylines II\Launcher`. `Cities2.exe` lives in the game **root**, not in
+`Launcher\` — and what actually reaches `spawn` is the bare name, so it resolves against a cwd that
+does not contain it. **The dialog's advice (verify files, disable mods, install VC++/.NET) is all
+wrong** — nothing was ever launched.
+
+**2. "A launcher update has failed. Check your internet connection."** The internet is fine
+(`api.paradoxplaza.com` 200, Steam 200, measured). The real error:
+
+```
+error [main]: Failed to get free port for cpatch:
+    VError: Finding free port failed: connect EADDRNOTAVAIL 127.0.0.1:11000
+error [LauncherUpdateHandler]: ... VError: cpatch took too long to connect     (x11 today)
+```
+
+It is **loopback TCP to a helper process** (`cpatch.exe`), not the network. Cosmetic — the launcher
+runs fine un-updated.
+
+**3. The RESUME tooltip shows your city and population without a Paradox sign-in.** Expected, not a
+leak: `gameDataPath` is `%USERPROFILE%/AppData/LocalLow/Colossal Order/Cities Skylines II` and the
+launcher reads the local save metadata off disk. (The `12/31/1969` date beside it is Unix epoch 0 —
+a wine file-timestamp quirk.)
+
+**The practical answer: use the shortcut.** `launch-cs2-dxmt11.sh` runs `Cities2.exe` **directly**
+and never involves the launcher — measured the same night: `MainMenu reached`, 6 mods, 0 exceptions.
+
+## Win32's client rect ignores the macOS title bar — so the cursor aims high (2026-08-31, OPEN)
+
+> **Ledger:** `PARTIAL` — C19. Offset measured; ownership (ours vs stock wine) still untested.
+
+On the Paradox launcher window, hit-testing sits **below** the visible pointer: you must hold the
+cursor above a control to activate it. Measured, using the hosted-layer trace for the content view
+size and the driver for the Win32 rects:
+
+| | width | height |
+|---|---|---|
+| Cocoa **window** | 1279 pt | 674 pt |
+| Cocoa **content view** (from the trace) | 1279 pt | **642 pt** |
+| ⇒ macOS title bar | — | **32 pt** |
+| Win32 **client** rect | 2558 px = 1279 pt | 1339 px = **669.5 pt** |
+
+**Widths match exactly. Win32 believes the client is ~27.5 points taller than the view that actually
+displays it** — the title bar it is not accounting for. A cursor is therefore mapped ~28 points too
+far down the page, so the control that highlights sits below the pointer. That magnitude matches the
+report ("several points").
+
+**Probably not ours** — our edits cover hosted layer frames, z-order, visibility and background;
+`grep -c macgameport` over the mouse/cursor/event path is **0**, and this window's layer takes the
+`CGRectNull` branch (trace: `frame=inf,inf`) so it simply fills the content view, correctly. The A/B
+against the stock `winemac.so.bak-*` would settle it and **has not been run**.
