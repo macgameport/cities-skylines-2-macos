@@ -104,8 +104,10 @@ followed. A separate symbol just resolves to NULL on an unpatched wine and the c
 ### 4. Three more bugs, all in the hosting layer, all now measured
 
 An earlier draft of this called resize "rough" and blamed the destroy/recreate cycle. That was wrong
-several times over. There are **three** defects, they are **independent**, and **none of them is a
-race** — all are steady state and all reproduce on demand.
+several times over. There are **three** defects in the hosting layer, they are **independent**, and
+**none of them is a race** — all are steady state and all reproduce on demand. (Two further bugs
+were mine, introduced while fixing these; they are written up at the end as traps to avoid rather
+than as findings about DXMT.)
 
 **(a) A one-device-pixel white seam at the right/bottom edge.** Win32 gives raw pixels, `CALayer`
 takes points, and `retina_on` makes that a factor of two — so an **odd** pixel dimension becomes a
@@ -143,6 +145,20 @@ already passes `CGRectNull` for the former, so test that first. Fixed; six navig
 Worth passing on as a testing note, not just a bug: my suite drove **geometry** and never drove
 **content**, so it had no chance of finding this. If you take any of this up, `steam://open/games`
 and `steam://store` drive the navigation from a script.
+
+**Two traps if you implement (b) and (c) — I fell into both, so they cost you nothing.**
+
+1. **Do not gate the un-hide on the frame having changed.** Hiding a zero-area layer is right, but
+   a window that briefly reports 0×0 usually comes back to *the size it already had*. If the
+   un-hide sits behind a `!CGRectEqualToRect(host.frame, frame)` guard it never runs, and the layer
+   stays hidden forever — this black-holed Steam's Friends List completely. Visibility and geometry
+   are independent state; test each separately.
+2. **Do not set `backgroundColor` on the host at creation.** A `CALayerHost` is visible from the
+   moment it is added, before the remote context presents, so a background paints the whole layer
+   until the first frame — every newly hosted layer flashes, and each Steam menu is its own popup
+   window, so the menu bar strobes. But you do need it eventually: without it the 1-device-pixel
+   seam from (a) returns, exactly on the odd axis (measured: 2400×1500 → 0, 2401×1500 → 1,
+   2400×1501 → 1, 2401×1501 → 2). Deferring it by ~120 ms gets both.
 
 **Still open:** flicker during a live mouse drag. Every capture after a settle is correct, but a
 sub-frame flash while the mouse is down would not show up in a post-settle capture — so that is
