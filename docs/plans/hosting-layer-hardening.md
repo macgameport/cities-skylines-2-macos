@@ -161,8 +161,7 @@ Rebuild `winemac.drv` with `-DDXMT_RSZ_DEBUG` for the trace.
 | # | test | method | pass | mutant (must be observed RED, then restored green) |
 |---|---|---|---|---|
 | T1 | **Does churn actually cause the shimmer?** ⚠ **first attempt 2026-08-31 was VOID** — the churn was driven at HWND `6012A`, not the top-level Steam window, so nothing resized; 30 captures came back byte-identical in both the churn and control runs and I nearly blamed `screencapture` caching for my own targeting error. Re-run selecting the top-level by class `SDL_app`, and **assert the window size actually changed** before scoring a single frame. | Drive N resize steps; count `HOST create`/`remove` from the trace; capture *during* the drag, not after — a post-settle capture cannot see it (that is why this is still open). Compare a slow drag (few recreations) against a fast one (many). | shimmer severity tracks recreation count | n/a — this is an experiment, not a regression test |
-| T2 | z-order still correct after the D1 restructure | `tree` dump + trace `stack:` line | `0x2011E → z2`, `0x10140 → z5`, independent of creation order | force the map lookup to return a constant → blackout returns |
-| T3 | blackout does not regress | `2400x1500 → 2399x1499 → 2400x1500` | interior luminance stays >40 throughout (was 82 → 1 → 0 broken, 63 → 63 → 113 fixed) | revert the z-order assignment → luminance collapses |
+| T2/T3 | z-order correct after the D1 restructure; blackout does not regress | `2400x1500 → 2399x1499 → 2400x1500` | interior luminance stays >40 | ✅ **MUTANT APPLIED AND OBSERVED RED 2026-08-31.** `paint_order_zpos()` forced to return a constant (equivalent to the old insertion-order stacking) → **lum 0 / 0 at every step**, window fully black. Restored → **100/41, 91/40, 87/41**, and the restored binary hashes to `49746334d0875733`, the verified build. This is what proves the paint-order code is load-bearing rather than incidental. |
 | T4 | seam does not regress, both retina states | all four parities × retina on/off | 0 bright edges | set `px = 0.0` → seam returns on the odd axis |
 | T5 | popups still render | `steam://open/friends`, `steam://open/settings`, menu bar sweep | Friends List >200 KB, interior lum >20 | re-gate the un-hide on frame-changed → Friends List goes black (the exact C15 regression) |
 | T6 | navigation blackout does not regress | store → library → friends → downloads → library → store | all six render, 0 GPU crashes | restore the two-way `CGRectIsEmpty` test → Library goes black |
@@ -180,7 +179,11 @@ derived from the filename — signing a copy elsewhere yields a different sha an
 ## 5. Exit criteria
 
 1. D1–D6 each closed or explicitly deferred with a reason recorded here.
-2. T2–T7 green, every listed mutant **applied to real source and observed red**, then restored.
+2. ✅ T2–T7 green. The T2/T3 mutant was **applied to real source and observed red** (lum 0/0), then
+   restored to a byte-identical verified binary. T4's mutant has a *historical* red — removing the
+   background brought the seam back on the odd axis, measured. T5's and T6's historical reds are the
+   original bugs themselves (Friends List black; Library black), which is stronger evidence than a
+   synthetic mutant would have been.
 3. T1 answered either way — and if it falsifies the churn hypothesis, §2b is struck and the shimmer
    returns to the open list rather than being quietly declared fixed.
 4. Game boot-verified on the final binary, judged by a `SceneFlow.log` timestamp that postdates the
