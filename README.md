@@ -102,6 +102,12 @@ and `docs/dxmt-bugs/`.
    popups, the in-game overlay) have not been tried. And the patches are **not** upstreamable as-is: dxmt's
    `CONTRIBUTING.md` forbids AI-authored PRs, so this goes upstream as a findings report, not a
    patch.
+   **The patches are public and anyone is welcome to them** —
+   [`winemac-crossprocess-remote-layer.patch`](scripts/winemac-crossprocess-remote-layer.patch)
+   (wine half) and [`dxmt-remote-layer-fallback.patch`](scripts/dxmt-remote-layer-fallback.patch)
+   (DXMT half); neither works alone. Each carries an AI-authored header so a maintainer can make
+   an informed choice before reading, because the upstream report deliberately contains the
+   diagnosis and none of the code.
    The original upstream limitation ([dxmt#141](https://github.com/3Shain/dxmt/issues/141)) is that
    Steam's CEF asks for a swapchain on a window owned by another process, which stock DXMT cannot
    serve,

@@ -1,4 +1,17 @@
 # winemac-crossprocess-remote-layer.patch — the wine half of the cross-process Steam fix.
+# ⚠ AI-AUTHORED. Read this before you read the code.
+#
+# This patch was written with heavy AI assistance. 3Shain/dxmt's CONTRIBUTING.md cannot accept
+# AI-authored contributions, so it was never offered as a PR — the findings went upstream as a
+# report instead: https://github.com/3Shain/dxmt/issues/141#issuecomment-5477055980
+#
+# It is published here on purpose: this is our port's own record, and anyone should be able to
+# find it. But if you are a dxmt or wine maintainer who intends to write your own implementation,
+# reading this file is a choice with a consequence — afterwards you cannot cleanly say your work
+# is AI-free. The issue comment above carries the whole diagnosis (mechanism, faulting
+# instruction, measurements, falsification tests) with none of the code, which is the version
+# you probably want.
+#
 # Apply to the DXMT-patched wine 11.16 tree (after wineandaqua-dxmt.patch and
 # winemac-crossprocess-child.patch). Pairs with scripts/dxmt-remote-layer-fallback.patch on the
 # DXMT side; NEITHER half works alone (measured 2026-08-31: stock DXMT + patched winemac still
