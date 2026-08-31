@@ -1331,3 +1331,36 @@ has not been run.**
 ⚠ Do not "fix" this by nudging a hosted layer frame. The layer is drawn where the window says it
 should be; it is the input mapping that disagrees, and moving the visuals to match would put the
 rendering wrong in order to make the aim right.
+
+## `assert_cities2.exe_*.dmp` is written on EVERY launch — it is not evidence of a crash (2026-08-31)
+
+> **Ledger:** `SUPPORTED` — C20. Evidence: six dumps, one per run, including known-good boots.
+
+Steam's crash handler drops an `assert_cities2.exe_<timestamp>.dmp` into
+`<prefix>/drive_c/Program Files (x86)/Steam/dumps/` on **every** CS2 launch under wine. Measured
+2026-08-31 — six dumps, and the runs at **03:58** and **05:16** are boot-verifies that reached
+`MainMenu` cleanly:
+
+```
+assert_cities2.exe_20260831002938_1.dmp
+assert_cities2.exe_20260831003411_1.dmp
+assert_cities2.exe_20260831023845_1.dmp
+assert_cities2.exe_20260831035813_1.dmp   <- boot-verify, MainMenu reached
+assert_cities2.exe_20260831051605_1.dmp   <- boot-verify, MainMenu reached
+assert_cities2.exe_20260831053917_1.dmp   <- MainMenu reached 05:40:07
+```
+
+The assertion is Mono's, and it is harmless:
+`mono/eglib/gpath.c:115: assertion 'filename != NULL' failed`.
+
+**Related and more misleading: the Paradox launcher's "An error occurred — The game appears to have
+crashed or terminated unexpectedly (exit code null)".** It reports this after a run that reached
+`MainMenu` and shut down writing its normal Unity memory-stats tail. `exit code null` is the
+launcher failing to *read* an exit code from a process under wine, not the game failing. Do not
+debug a crash on the strength of that dialog — check `Logs/SceneFlow.log` for `MainMenu reached`
+first, and judge by timestamp.
+
+**Note the shortcut does not use the launcher at all.** `launch-cs2-dxmt11.sh` runs `Cities2.exe`
+**directly** (its own header says so: *"patches → Steam up + logged in → licence sync → Cities2.exe
+DIRECTLY → graceful shutdown"*), so the Paradox launcher only appears on the Steam **PLAY** path.
+It also shuts Steam down when the game exits.
