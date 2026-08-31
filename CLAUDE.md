@@ -114,6 +114,21 @@ harness's `ps`/window capture were not prefix-filtered, so another wrapper's Ste
 **false PASS**. None were detectable afterwards, because nothing recorded the config a result was
 measured under.
 
+## ⛔ DXMT does not accept AI-authored contributions (2026-08-31)
+
+`CONTRIBUTING.md` in 3Shain/dxmt: *"We cannot accept contributions made or co-authored by AI/LLM…
+You are still free to use AI to do your own research and share your findings with others (including
+the developers, but **please don't create a PR**)."*
+
+**So: never open a PR against dxmt from this project.** Everything here is AI-authored. Sharing
+**findings** is explicitly permitted and is the right channel — the diagnosis is the valuable part,
+and a maintainer can write the code from it. Applies to the cross-process fix, the geometry fix, the
+leak fix and the #25 style work alike. Detail: `docs/dxmt-bugs/issue-25-housekeeping-outline.md`.
+
+Related, [#152](https://github.com/3Shain/dxmt/issues/152): new changes are LGPL-2.1-or-later, a CLA
+is planned but does not exist, and a maintainer has asked that code changes pause until relicensing
+completes. Wine is a **separate** project with its own process — this rule does not speak for it.
+
 ## Personal info
 
 Repo is intended to be publishable. Keep Steam IDs, `[U:1:<n>]` account ids, real usernames and

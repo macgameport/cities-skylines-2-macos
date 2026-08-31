@@ -1,3 +1,32 @@
+# ⛔ READ FIRST: DXMT does not accept AI-authored contributions
+
+`CONTRIBUTING.md` in 3Shain/dxmt states:
+
+> ## AI Policy
+> We cannot accept contributions made or co-authored by AI/LLM (Large Language Model).
+> You are still free to use AI to do your own research and share your findings with others
+> (including the developers, but **please don't create a PR**).
+
+**This governs everything in this directory.** The cross-process fix, the geometry fix, the leak
+fix, the style analysis in this file — all of it is AI-authored and **must not be submitted as a
+PR**. Found 2026-08-31, after the code was already written.
+
+**What is still permitted, and explicitly invited:** sharing *findings*. The diagnosis is the hard
+part and it is ours to give — the mechanism, the measurements, the faulting instruction, the two
+walls and how each was identified. A maintainer who knows where to look can write the ~50 lines in
+an hour. That is the contribution: **a very good bug report, not a patch.**
+
+Also relevant, from [#152](https://github.com/3Shain/dxmt/issues/152) (relicensing):
+- New changes are **LGPL-2.1-or-later**; the old MIT stays for old code.
+- A **CLA** is planned but does not exist yet, and former contributors will be asked to sign.
+- Gcenx: *"probably a good idea to not push any more code changes until the license change is
+  complete."* — so even a human-authored PR would be poorly timed right now.
+
+Commit convention if a human ever does carry this: semantic messages
+(`fix(winemetal): …`), and **sign off with a legal name**.
+
+---
+
 # dxmt#25 "Project Housekeeping" — outline only, deliberately parked
 
 **Status: OUTLINE. Not started, not offered.** Parked 2026-08-31 behind the cross-process fix.
