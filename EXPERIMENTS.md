@@ -51,6 +51,35 @@ Made durable in `scripts/build-engine-1116.sh` (step 8) so a rebuild does not si
 ⚠ That step was appended using `$ENGINE`, which **does not exist** in that script — it would have
 skipped every module in silence. Corrected to `$E` and dry-run against the real tree.
 
+### ❓ OPEN HYPOTHESIS: is the GPU crash the VPN's `utun` interface? (2026-08-30)
+
+**Raised by James, and it names a bias worth stating plainly:** *"when the VPN fails you think
+whatever you are working on is failing due to timeouts."* That is exactly what happened earlier the
+same day — a `steam.exe -shutdown` that blocked past three minutes was attributed to wine being slow
+to spawn a helper, and only reattributed to the tunnel when he raised it. **A timeout is ambiguous
+evidence and this project has been resolving the ambiguity toward "the thing under test is broken".**
+
+**The specific version, which is testable.** The GPU process's own log is full of wine network
+failures — `GetAdaptersAddresses failed: 2` (ERROR_FILE_NOT_FOUND), `Failed to read DnsConfig`,
+WPAD/DHCP failures — and the traced crash is a **null read at offset `0x18` inside a wine syscall**,
+in a process whose module list includes `nsi.dll`, `IPHLPAPI.DLL` and `nsiproxy.sys`. A `utun`
+interface wine's IPHLPAPI cannot describe is a plausible source of a null return that nothing checks.
+
+| | |
+|---|---|
+| baseline, **VPN UP** (`utun4`), network up | **6 crashes**, black window, fonts healthy (`exp_` = `vpn-up-baseline`) |
+| **VPN DOWN** | **NOT YET RUN** — needs the tunnel dropped for ~3 minutes |
+
+⚠ **Evidence AGAINST, stated so this is not adopted on plausibility alone:** the crash count has
+been **exactly 6** in every cell today — default backend, software rendering, forced D3D11, builtin
+CRT, patched DXMT. If it were driven by a flapping tunnel we would expect variation across a day in
+which the tunnel was admittedly unreliable. That is a real argument that the cause is deterministic
+and internal, not environmental. The A/B settles it either way and costs one cell.
+
+**Only 6 of 16 fingerprinted cells record network state at all** — the ones after that field was
+added. Every earlier cell in this investigation is silent on it, which is precisely the gap this
+ledger exists to close, reopened one level up.
+
 ### 🔬 The fastfail, traced: a NULL read at +0x18 inside a wine syscall (2026-08-30)
 
 `WINEDEBUG=+seh` on the out-of-process client gives the whole sequence on one thread, and it is
@@ -485,8 +514,9 @@ may belong to a different wrapper's Steam.
 | exp_9f3199 | 2026-08-30 18:02 | `seh-fastfail` | 0 | 0 | 0 | black | candidate |
 | exp_86ebce | 2026-08-30 18:04 | `seh-module` | 0 | 0 | 0 | black | candidate |
 | exp_e99644 | 2026-08-30 18:08 | `ucrtbase-builtin` | 0 | 0 | 0 | black | candidate |
+| exp_226724 | 2026-08-30 21:24 | `vpn-up-baseline` | 0 | 0 | 0 | black | candidate |
 
-59 cells · 45 VOID-LIBS · 14 candidate
+60 cells · 45 VOID-LIBS · 15 candidate
 ---
 
 ## Running a cell (the procedure this ledger assumes)
