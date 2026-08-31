@@ -888,13 +888,28 @@ specifically about Steam** — a hard-killed `steam.exe` leaves a 0-byte `.crash
 the next launch exit 1. Wine service processes carry no such risk, so escalate freely once you have
 confirmed by name that no `steam.exe` is in the set, and check both prefixes for `.crash` after.
 
+3. **⚠ The candidate list must NOT be `pgrep -f`.** Published here first as
+   `pgrep -f 'wine|Cities2|steam\.exe'` piped into an `lsof` check — which is the **command-line
+   attribution this very section forbids**, just moved one step earlier. It reported the machine
+   clean while **29 wine processes across six wineserver sessions** were alive, the oldest
+   **27 hours**, because their command lines are `C:\windows\system32\explorer.exe /desktop`,
+   `services.exe`, `rpcss.exe` — none of which contain "wine", "Cities2" or "steam.exe". The tell
+   was a Dock tile James asked about; `System Events` listed a GUI app named `wine` that no `pgrep`
+   pattern could find. **Enumerate every PID and let `lsof` decide.** It is slower and it is the
+   only version that is correct.
+
 **Sweep that actually works:**
 
 ```bash
-for p in $(pgrep -f 'wine|Cities2|steam\.exe'); do
-  lsof -p "$p" 2>/dev/null | grep -qE '/(CS2dxmt11|CS2dxmt11-pk110|S734M)\.app' && echo "$p"
+for p in $(ps -axo pid=); do
+  lsof -p "$p" 2>/dev/null | grep -qE '/(CS2dxmt11|CS2dxmt11-pk110|S734M)\.app' \
+    && echo "$p  $(ps -o etime= -p $p) $(ps -o command= -p $p | cut -c1-60)"
 done
 ```
+
+Also seen in that sweep: a **`control.exe appwiz.cpl install_mono`** stuck for 9 hours — the Wine
+Mono installer blocking silently, which this file already documents as a fresh-prefix trap. It will
+sit there forever and no cmdline pattern finds it either.
 
 ## Command lines cannot attribute a wine process to its wrapper — use lsof (2026-08-24)
 
