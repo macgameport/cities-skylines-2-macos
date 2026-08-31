@@ -1,95 +1,109 @@
-# dxmt#141 — fifth comment: the glyph loss was mine, and the real blocker is upstream of DXMT
+# dxmt#141 — fifth comment: retraction + the actual root cause
 
-Prior comments: 5400445243 · 5403561498 · 5458926046 · **5466938536** (the one this corrects).
+Prior comments: 5400445243 · 5403561498 · 5458926046 · **5466938536** (partly retracted below).
 
-Status: **DRAFTED, NOT POSTED.** Posting is James's call — it is a public correction on someone
-else's tracker. ⚠ The four existing comments went out as `jvspearman`; posting this one as
-`iosoceans` would split the thread's authorship mid-conversation. Match the existing three unless
-James decides otherwise. Verify first: `GH_CONFIG_DIR="$HOME/.config/gh-cs2" gh auth status`.
+**Status: DRAFTED, NOT POSTED.**
 
-**Rewritten 2026-08-30 (evening).** The first draft was a straight retraction of the glyph claims.
-Later the same day the actual cause was found and fixed, and the out-of-process failure was traced —
-so this is now a diagnosis plus a fix plus a measurement, which is worth far more to the thread than
-an apology. Keep it that way: lead with what someone else can use.
+## Before posting — three decisions
+
+1. **Identity.** The four existing comments are `jvspearman`. James chose `iosoceans` for this
+   project going forward; posting this one as `iosoceans` splits the thread's authorship mid-
+   conversation. Verify either way:
+   `GH_CONFIG_DIR="$HOME/.config/gh-cs2" gh auth status`
+2. **The AI disclosure paragraph stays.** `CONTRIBUTING.md` forbids AI-authored *PRs* and explicitly
+   permits sharing findings with developers. A comment is the right channel; concealing how the work
+   was done would not be.
+3. **Resize state is unsettled.** The draft says so. Do not soften it before James has re-tested.
+
+⚠ **No diff in the comment.** Describe the change and name the locations; offer the patches if they
+want them. Pasting a diff and asking for it to be applied is a PR wearing a comment's clothes.
 
 ---
 
-@mikey92 @3Shain — correcting [#5466938536](https://github.com/3Shain/dxmt/issues/141#issuecomment-5466938536),
-and the correction turns out to be useful rather than just embarrassing.
+@3Shain @mikey92 — two things: a retraction I owe you, and what I think is the actual root cause of
+the black Steam client.
 
-**Every "zero glyphs" measurement I have posted to this thread was my own bug.** Not CEF's, not
-DXMT's, not macOS's. If you have been avoiding `--in-process-gpu` because I reported it kills text,
-**you can stop** — it does not.
+**Disclosure first, because your CONTRIBUTING.md asks about it:** this investigation was done with
+heavy AI assistance. Per your policy I am not opening a PR and there is no AI-authored patch here —
+this is a findings report, which the policy explicitly permits. Do with it whatever you think best.
 
-**What actually happened.** My render harness — and my launcher — started Steam through `nohup`.
-macOS **purges `DYLD_*` when exec'ing a SIP-protected system binary**, and `/usr/bin/nohup` is one
-(so are `env` and `/bin/bash`). My self-built wine's `win32u.so` carries only an `@loader_path/`
-rpath, so with `DYLD_FALLBACK_LIBRARY_PATH` stripped it could not find its own bundled
-`libfreetype.dylib`. Wine prints one line about it and continues **with no font backend**:
+### 1. Retraction
 
-```
-Wine cannot find the FreeType font library.
-```
+Every "renders but zero glyphs" measurement I posted to this thread was my own bug, not DXMT's.
 
-DirectWrite then still reports **204 font families with `S_OK`** — which is why this hid for a week;
-every check I ran said fonts were fine — but it **rasterises nothing**. Measured from inside Steam's
-own process tree, via a probe compiled into my webhelper shim:
+My launcher and test harness started Steam through `nohup`. macOS purges `DYLD_*` across an exec into
+a SIP-protected binary, my self-built wine's `win32u.so` carries only an `@loader_path/` rpath, and
+so it silently could not find its own bundled `libfreetype.dylib`. Wine prints one line and continues
+**with no font backend**.
 
-| | GDI families | DWrite families | DWrite rasterises `ABC@32` |
+What made it hide for a week: DirectWrite still reports **204 font families and `S_OK`**. Only
+*rasterisation* is dead. Measured from inside Steam's own process tree:
+
+| | GDI families | DWrite families | rasterises `ABC@32` |
 |---|---|---|---|
-| broken (no `DYLD_*`) | 0 | **204**, `S_OK` | **empty bounds, 0 coverage** |
+| broken | 0 | 204, `S_OK` | empty bounds, **0 coverage** |
 | fixed | 924 | 204 | `71x23`, 545 non-zero px |
 
-A CEF client in that state draws artwork, thumbnails, gradients and chrome perfectly and **not one
-glyph**. That is *identical in a screenshot* to a font/compositing bug, and I misattributed it four
-times.
+A CEF client in that state draws artwork, gradients and chrome perfectly and not one glyph — which
+is indistinguishable in a screenshot from a compositing bug. **So `--in-process-gpu` does not kill
+text.** If anyone has been avoiding it on my say-so, they can stop. Anyone can check their own
+client in one line:
 
-**The fix, if your engine has the same shape.** Porting Kit's `win32u.so` carries
-`@loader_path/../../` as well as `@loader_path/`, which is why PK builds never showed this and mine
-did. One command on a stock build, no rebuild required:
-
-```sh
-install_name_tool -add_rpath "@loader_path/../../" .../lib/wine/x86_64-unix/win32u.so
-codesign -f -s - .../lib/wine/x86_64-unix/win32u.so    # add_rpath invalidates the ad-hoc signature
 ```
-
-Same for `dwrite.so`, `crypt32.so`, `secur32.so` — the other modules that `dlopen` a bare soname.
-After that, launching through `nohup` with every `DYLD_*` unset resolves fonts cleanly: **63
-FreeType failures → 0**.
-
-**Anyone can check their own client in one line:**
-
-```sh
 grep -c "cannot find the FreeType font library" <steam stdout/log>
 ```
 
-Non-zero and your client has been rendering without a font backend, whatever else you were measuring.
+### 2. The actual root cause of the black window
 
-**So, corrected results.** With fonts working, `--in-process-gpu` (injected at the webhelper, since
-`steam.exe` filters it) renders the Steam client **completely, with text** on stock wine 11.16 +
-DXMT v0.80 — menus, nav, store copy, review counts. Screenshot attached. The only cost I can find is
-**flicker while the store tab autoplays video**; the library is clean.
+`_CreateMetalViewFromHWND` in `winemetal_unix.c` validates all four function pointers it resolves,
+then calls the first one and **does not check what it returns**:
 
-**The part that matters for this issue.** I also went after the out-of-process case properly, and I
-think it changes where the thread should be looking:
+```
+callq *%r15            ; get_win_data(hwnd)
+movq  %rax, %r15
+movq  0x18(%rax), %rdi ; <-- win_data->client_cocoa_view, and win_data is NULL
+```
 
-- Out-of-process, Chromium's **GPU process crashes ~6 times per launch and Chromium gives up**,
-  every one `exit_code=-1073740791` (`0xC0000409`).
-- That is **backend-independent**. `--use-angle=swiftshader` — pure software, no Metal, no DXMT, no
-  GPU driver — produces the **same crash count and a byte-identical black window**.
-- Traced with `WINEDEBUG=+seh`: a **null read at offset `0x18` inside a wine syscall**
-  (`handle_syscall_fault code=c0000005 … info[1]=0x18`), which surfaces as an unhandled AV and
-  becomes `abort()` → `__fastfail(7)` in the process's `ucrtbase`.
-- Consequently the cross-process swapchain path is **never reached at all**. I built DXMT v0.80 with
-  the `CreateSwapChain` cross-process guard removed and env-gated, ran it with a `winemac.so` patched
-  for foreign HWNDs and child windows, and the forced path **logged zero times** — because the GPU
-  process is already dead.
+`get_win_data()` returns NULL **by construction** here: `win_datas` is a process-local
+`CFDictionary`, and CEF's GPU process asks for a Metal view on a **child window whose root lives in
+the browser process**. The result is an access violation at `+0x18`, an unhandled exception,
+`abort()`, `__fastfail`, and `exit_code=-1073740791`. Chromium restarts the GPU process, it dies
+identically, and after ~6 attempts it gives up — black window.
 
-**So the cross-process-presentation limitation is real but it is not what blocks Steam here.**
-Something kills the GPU process before it ever asks DXMT for a swapchain, and it is not graphics.
-That looks like a wine bug rather than a DXMT one, and I would rather say so than keep filing
-DXMT-shaped reports at it.
+Two things worth flagging about how this hides:
 
-Happy to post the `+seh` traces, the shim source, or the fingerprint harness if any of that is
-useful. Apologies for the noise in the earlier comments — the measurements were real, the
+- The `CreateSwapChain` cross-process guard **never fires** for this window, because
+  `GetWindowThreadProcessId()` says the *child* is ours. The Win32 process check and winemac's
+  realization check disagree, and this path trusts the first.
+- The crash is **backend-independent**: `--use-angle=swiftshader` — no Metal, no DXMT, no GPU driver
+  — produces the same crash count and a byte-identical black capture. That is what finally pointed
+  away from graphics entirely.
+
+### 3. Wine already implements the answer, and DXMT never calls it
+
+`macdrv_client_surface_acquire_metal_swapchain()` builds a `CAContext`-backed offscreen swapchain and
+posts `WM_MACDRV_CREATE_REMOTE_LAYER` to the window's **owning** process, which hosts it via
+`CALayerHost`. That is exactly the cross-process case. Today only `vulkan.c` reaches it; DXMT has no
+client-surface path at all (`main` included).
+
+Wired up — DXMT falling back to that route when `get_win_data()` returns NULL — **Steam's client
+renders completely, out-of-process, with text, no shim, no injected switches, 0 GPU crashes.**
+
+That needed a small wine-side change too (the entry has to be reachable, and wine's own
+`Cross-process child window Metal swapchains are not implemented` FIXME has to be filled in). One
+detail worth passing on if you take this up: I reached it via a **standalone exported symbol rather
+than a new `macdrv_functions_t` member**, because that struct is `C_ASSERT`-ed at a fixed size — a
+DXMT built against a larger struct would read past the end of an older winemac's and call whatever
+followed. A separate symbol just resolves to NULL on an unpatched wine and the code falls through.
+
+### 4. What is not solved
+
+Resize is rough: CEF resizes by destroying and recreating a swapchain, so the hosted layer is
+un-hosted before its replacement exists — flicker, and sometimes a child that stays black.
+`CAContextSwapChain` also fixes its layer bounds at init with no way to resize them, so the hosted
+layer keeps its original size while the host frame moves on. I have partial mitigations for both and
+would not call either finished.
+
+Happy to send the wine and DXMT patches, the `+seh` traces, or the harness if any of it is useful —
+just say which. And sorry for the noise in the earlier comments: the measurements were real, the
 attribution was not.

@@ -99,6 +99,36 @@ and internal, not environmental. The A/B settles it either way and costs one cel
 added. Every earlier cell in this investigation is silent on it, which is precisely the gap this
 ledger exists to close, reopened one level up.
 
+### ⚠ RESIZE IS NOT FIXED — two distinct defects, one diagnosed (2026-08-31)
+
+James re-tested the bounds-tracking build. **Resize is still broken**, and his screenshots separate
+two different faults that had been read as one.
+
+**The mechanism itself works.** 2,074 geometry updates fired during the session with real changing
+sizes (`2948x1113`, `2952x929`, `3036x935` …), so the update hook tracks the child correctly now.
+302 acquires / 288 releases / 287 drains under heavy resizing.
+
+**Defect 1 — hairline light line at an edge. DIAGNOSED, arithmetic:**
+
+| window (Win32 px) | → points | |
+|---|---|---|
+| 1010×600 | 505.0 × 300.0 | exact |
+| **1441×669** | **720.5 × 334.5** | **fractional** |
+| **2019×1199** | **1009.5 × 599.5** | **fractional** |
+
+`cgrect_mac_from_win` halves for retina, so **any odd pixel dimension lands on a half-point** and the
+layer falls a half-point short of its frame — a hairline of whatever is behind it. Candidate fix:
+`CGRectIntegral`, or round the size up rather than truncating. Not yet applied or tested.
+
+**Defect 2 — content still goes fully black on some resizes. NOT diagnosed.** Defer-by-one is not
+enough at 302 acquires: CEF destroys and recreates swapchains faster than a one-deep hold covers, so
+there are still moments with nothing hosted. A deeper fix would hold the retired surface until the
+*replacement* is confirmed hosted, rather than until the next release arrives — that is a different
+and more invasive design than what is in place.
+
+**Status: resize is an open defect, not a solved one.** The steady state is correct — a window that
+is not being resized renders completely and correctly. Say exactly that anywhere this is described.
+
 ### 🔧 LEAK FIXED, then RESIZE regression found and mitigated (2026-08-31)
 
 **The leak.** `my_dxmt_acquire_remote_layer` kept every client surface forever, because retiring the
