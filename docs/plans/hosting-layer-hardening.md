@@ -87,7 +87,7 @@ Rebuild `winemac.drv` with `-DDXMT_RSZ_DEBUG` for the trace.
 
 | # | test | method | pass | mutant (must be observed RED, then restored green) |
 |---|---|---|---|---|
-| T1 | **Does churn actually cause the shimmer?** | Drive N resize steps; count `HOST create`/`remove` from the trace; capture *during* the drag, not after — a post-settle capture cannot see it (that is why this is still open). Compare a slow drag (few recreations) against a fast one (many). | shimmer severity tracks recreation count | n/a — this is an experiment, not a regression test |
+| T1 | **Does churn actually cause the shimmer?** ⚠ **first attempt 2026-08-31 was VOID** — the churn was driven at HWND `6012A`, not the top-level Steam window, so nothing resized; 30 captures came back byte-identical in both the churn and control runs and I nearly blamed `screencapture` caching for my own targeting error. Re-run selecting the top-level by class `SDL_app`, and **assert the window size actually changed** before scoring a single frame. | Drive N resize steps; count `HOST create`/`remove` from the trace; capture *during* the drag, not after — a post-settle capture cannot see it (that is why this is still open). Compare a slow drag (few recreations) against a fast one (many). | shimmer severity tracks recreation count | n/a — this is an experiment, not a regression test |
 | T2 | z-order still correct after the D1 restructure | `tree` dump + trace `stack:` line | `0x2011E → z2`, `0x10140 → z5`, independent of creation order | force the map lookup to return a constant → blackout returns |
 | T3 | blackout does not regress | `2400x1500 → 2399x1499 → 2400x1500` | interior luminance stays >40 throughout (was 82 → 1 → 0 broken, 63 → 63 → 113 fixed) | revert the z-order assignment → luminance collapses |
 | T4 | seam does not regress, both retina states | all four parities × retina on/off | 0 bright edges | set `px = 0.0` → seam returns on the odd axis |
@@ -114,6 +114,25 @@ derived from the filename — signing a copy elsewhere yields a different sha an
    install.
 5. `python3 scripts/check-experiments.py` exit 0; any claim that moves gets a register row.
 6. No silent caps anywhere in the new code — every bound logs when it trips.
+
+## 6. Design guidance taken from wine's own source
+
+Read out of `winemac.drv` while working in it. These are not style preferences — each is a pattern
+the codebase already uses, and in four cases the bug we hit was a *departure* from it.
+
+| pattern in wine | what it buys | how we broke it |
+|---|---|---|
+| **`struct window_rects` keeps `window` / `client` / `visible` as three separate rects** rather than deriving one from another | the three coordinate truths stay independently checkable, so a disagreement between them is *visible* instead of averaged away | the decoration bug (R4) exists precisely because `get_cocoa_window_features` consults two of the three and never `client` — the evidence was sitting there unused |
+| **`cgrect_mac_from_win` / `cgrect_win_from_mac` as a named pair**, converting at the boundary | the Win32-pixels ↔ Cocoa-points boundary is explicit and greppable | the 1px seam was one entry point that never called it. Name your coordinate spaces and convert at **every** edge, not most |
+| **`C_ASSERT` on `macdrv_functions_t`'s size** | an ABI invariant the compiler enforces, not a comment someone must read | this one we *followed* — it is why we exported a standalone symbol instead of adding a struct member |
+| **`FIXME` naming the exact case**: *"Cross-process child window Metal swapchains are not implemented"* | a greppable statement of a known gap. This is the only reason the route was findable at all | — a TODO saying "fix this" would have cost us days |
+| **`TRACE` / `ERR` / `FIXME` channels rather than `fprintf`** | output that can be filtered per-subsystem at runtime | we used `fprintf` for diagnostics. Justified (a `WINEDEBUG=-all` swallowed our `ERR`s and produced a wrong conclusion) but it is a departure, and the diagnostics are now compiled out by default |
+| **`OnMainThread` / `OnMainThreadAsync` wrappers** | thread affinity expressed structurally, so you cannot forget it | followed throughout |
+| **`get_cocoa_window_features` already carries an evidence-based override** (`EqualRect(window, visible)`) on top of the style heuristic | wine's authors knew style bits were insufficient and added a rect check rather than documenting the limitation | the lesson is that they only did it **halfway** — one rect comparison, not the one that mattered. A heuristic with a partial escape hatch is more dangerous than one with none, because it looks handled |
+
+**The transferable rule from the last row**, and it is the one worth keeping: *when you know a
+heuristic is incomplete, the escape hatch must be driven by the evidence that actually decides the
+case* — not by whichever adjacent value was convenient. Half an override reads as a solved problem.
 
 ## Review log
 
