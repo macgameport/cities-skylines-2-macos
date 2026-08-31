@@ -99,6 +99,52 @@ and internal, not environmental. The A/B settles it either way and costs one cel
 added. Every earlier cell in this investigation is silent on it, which is precisely the gap this
 ledger exists to close, reopened one level up.
 
+### 📐 SCOPED: wiring DXMT to the remote-layer path is new engineering, not a call (2026-08-31)
+
+Asked whether DXMT can simply call wine's cross-process route. **It cannot — the entry point is not
+in the ABI.** `struct macdrv_functions_t` is `C_ASSERT`-ed at **size 80**, ten pointers, and this is
+everything DXMT can reach:
+
+```
+macdrv_init_display_devices  get_win_data                 release_win_data
+macdrv_get_cocoa_window      macdrv_create_metal_device    macdrv_release_metal_device
+macdrv_view_create_metal_view  macdrv_view_get_metal_layer macdrv_view_release_metal_view
+on_main_thread
+```
+
+`macdrv_client_surface_acquire_metal_swapchain` is **not** in it. It is wine's internal
+client-surface API, driven by winemac itself; the `client_surface` is created inside
+`my_get_win_data` and owned by `data->dxmt_client_surfaces`. DXMT never sees one.
+
+⚠ **Correcting yesterday's reasoning.** I wrote that mapping child → root "cannot work because the
+root has no `win_data` either". That is a **Route A** fact (`get_win_data` → `macdrv_view_create_metal_view`,
+which needs a local `win_data`) applied to a **Route B** mechanism
+(`macdrv_client_surface_acquire_metal_swapchain`, which posts `WM_MACDRV_CREATE_REMOTE_LAYER` to the
+window's *owning process* and needs no local `win_data` at all). The child→root idea is **not** dead
+on that evidence. What is true is narrower: **DXMT never calls Route B**, so our CHILD patch is
+unreachable from DXMT — which is exactly why its counter fired zero times.
+
+**No newer DXMT to upgrade to:** upstream `main` (`19e24ee`) still calls `CreateMetalViewFromHWND`
+and contains **zero** client-surface code; `v0.80` is the newest tag.
+
+**What building it actually requires — three pieces, in order:**
+
+| # | where | work |
+|---|---|---|
+| 1 | wine | add an entry to `macdrv_functions_t` (the 80 → 88 change) exposing a remote-layer acquisition |
+| 2 | wine | implement it over the existing `macdrv_create_offscreen_swapchain` + `WM_MACDRV_CREATE_REMOTE_LAYER` + `CALayerHost` machinery — the CHILD patch already does part of this |
+| 3 | DXMT | call it when `get_win_data` returns NULL, and make `Presenter` accept what it returns |
+
+**Piece 3 is the risk and it is worth measuring before starting.** DXMT's `Presenter` is built around
+`layer_weak_`, a `macdrv_metal_layer`. Wine's cross-process branch produces a **swapchain object**,
+not a layer. If the remote path can be made to yield a `CAMetalLayer`, `Presenter` may need almost
+no change; if it cannot, this becomes a second presentation backend inside DXMT. **That question —
+"can the remote path yield a CAMetalLayer?" — is the cheapest next thing to answer, and it is a
+source read, not a run.**
+
+This is the largest single piece of work the project has faced, and it is upstream-shaped: it is
+what DXMT would have to do to support cross-process presentation at all.
+
 ### 🧩 DIAGNOSED: it is a CHILD window whose ROOT is also unknown to winemac (2026-08-31)
 
 Instrumented the NULL branch to ask what the window actually is. Six firings, two distinct windows,
