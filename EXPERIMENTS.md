@@ -99,6 +99,53 @@ and internal, not environmental. The A/B settles it either way and costs one cel
 added. Every earlier cell in this investigation is silent on it, which is precisely the gap this
 ledger exists to close, reopened one level up.
 
+### ✅ RE-SCOPED (source read): it is ~50 lines, NOT a subsystem (2026-08-31)
+
+Read the wine and DXMT sources instead of estimating. **The hard part does not exist — both halves
+are already implemented and simply not connected.**
+
+**1. Wine already produces a layer from the remote path.** `macdrv_cocoa.h`:
+
+```c
+macdrv_metal_swapchain macdrv_create_offscreen_swapchain(void* hwnd, void* child, CGRect bounds);
+macdrv_metal_layer     macdrv_swapchain_get_layer(macdrv_metal_swapchain swapchain);
+void                   macdrv_destroy_swapchain(macdrv_metal_swapchain swapchain);
+```
+
+`macdrv_create_offscreen_swapchain` is `[[CAContextSwapChain alloc] initWithHwnd:child:bounds:]` —
+it **already takes a `child` argument**, and `window.c:1195` already calls it as
+`(root, hwnd, rect)`. `macdrv_swapchain_get_layer` returns a **`macdrv_metal_layer`** — the exact
+type DXMT consumes.
+
+**2. DXMT only needs a layer.** `native_view_` appears in exactly three places in
+`d3d11_swapchain.cpp`: assigned (134), null-checked → `abort()` (136), released (209). **It is never
+used for rendering.** Everything real goes through `layer_weak_`:
+
+```
+145   Presenter(pDevice->GetMTLDevice(), layer_weak_, ...)
+1052  MetalLayer_getEDRValue(layer_weak_, ...)
+```
+
+So the view is a *lifetime handle*, nothing more — and the remote path can supply an equivalent one
+(the swapchain object itself).
+
+**The whole change, measured:**
+
+| where | work | size |
+|---|---|---|
+| wine `macdrv_functions_t` | 3 new entries: `create_offscreen_swapchain`, `swapchain_get_layer`, `destroy_swapchain`. Implementations **already exist** | ~10 lines |
+| DXMT `_CreateMetalViewFromHWND` | on NULL `win_data`: create offscreen swapchain against the root, take its layer, return both | ~20 lines |
+| DXMT release path | route `ReleaseMetalView` to `destroy_swapchain` for that case (tagged handle or flag) | ~10 lines |
+
+**≈40–50 lines across two repos, and no new mechanism.** The earlier "largest single piece of work
+the project has faced" estimate was wrong, and wrong in the expensive direction — it was made from
+the ABI surface alone, without reading either implementation. **Estimate from the source, not from
+the interface.**
+
+⚠ Known gap to carry into the build: **geometry is not mapped.** The hosted `CALayerHost` fills the
+root's content view, which is approximately right only while the child covers the client area (CEF's
+main widget does). `macdrv_window_update_ca_layer_host_frame` exists for the general case.
+
 ### 📐 SCOPED: wiring DXMT to the remote-layer path is new engineering, not a call (2026-08-31)
 
 Asked whether DXMT can simply call wine's cross-process route. **It cannot — the entry point is not
