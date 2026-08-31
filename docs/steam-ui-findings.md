@@ -165,6 +165,26 @@ The Win32 process check and the winemac realization check disagree, and DXMT tru
 | map child → root (our CHILD patch) | **the root has no `win_data` either** |
 | force the cross-process guard open | the guard never fires for this window |
 
+## ✅ SOLVED 2026-08-31 — Steam renders completely, out-of-process, no shim
+
+Two patches, neither of which works alone:
+
+- **wine** (`scripts/winemac-crossprocess-remote-layer.patch`) — export
+  `dxmt_acquire_remote_layer` as a standalone symbol; pass the child rect in the ROOT's space at
+  creation; and **convert Win32 pixels to Cocoa points** at the two Cocoa entry points. That last
+  one removed the black band: `CALayer.frame` is in points, the frames arriving were raw pixels,
+  and on retina that is exactly 2×.
+- **DXMT** (`scripts/dxmt-remote-layer-fallback.patch`) — when `get_win_data()` returns NULL,
+  call `dxmt_acquire_remote_layer()` via `dlsym` instead of dereferencing NULL.
+
+Result: **0 GPU crashes** (was 6 every launch), full client with text
+([screenshot](images/steam-crossprocess-complete.png)). The game still boots to `MainMenu` on the
+same configuration, which matters because winemac is on the boot path.
+
+⚠ **Blocker to upstreaming:** `my_dxmt_acquire_remote_layer` deliberately leaks the previous
+client surface — releasing it on the next acquire destroys the layer DXMT is still rendering
+into. Lifetime should be driven by DXMT releasing its swapchain.
+
 ## Open
 
 1. **Wire DXMT to wine's remote-layer path.** Stop asking for a `macdrv_view` on a window this
