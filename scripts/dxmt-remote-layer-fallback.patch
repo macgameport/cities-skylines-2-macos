@@ -10,7 +10,13 @@
 # report instead: https://github.com/3Shain/dxmt/issues/141#issuecomment-5477055980
 #
 # It is published here on purpose: this is our port's own record, and anyone should be able to
-# find it. But if you are a dxmt or wine maintainer who intends to write your own implementation,
+# find it.
+#
+# WE MAKE NO CLAIM ON ANY OF IT. The repo is MIT; consider the attribution clause waived for this
+# file specifically. Take it, adapt it, rewrite it, ignore it — no credit wanted, nothing expected
+# back, and no need to ask.
+#
+# But if you are a dxmt or wine maintainer who intends to write your own implementation,
 # reading this file is a choice with a consequence — afterwards you cannot cleanly say your work
 # is AI-free. The issue comment above carries the whole diagnosis (mechanism, faulting
 # instruction, measurements, falsification tests) with none of the code, which is the version
