@@ -15,7 +15,7 @@
 | **Steam client UI — patched stack, plain launch** | ✅ **renders, with text** — no shim, no injected switches | `resize-ship`, 3.0 MB capture, 0 GPU crashes |
 | **Steam client UI — stock stack** | ❌ **black** | every pre-patch out-of-process cell; GPU process crashes 6×/launch |
 | **Steam client UI — with shim (`--in-process-gpu`)** | ✅ renders — the earlier workaround, now unnecessary | `ipgpu-fonts-fixed`, 727 KB, [screenshot](images/steam-renders-with-text.png) |
-| **Steam client — resize** | ✅ white edge fixed · ✅ resize blackout fixed · ⚠ live-drag flicker untested | `resize-diag` → `resize-ship`; 3 bright-edge findings before, 0 across 20 captures after |
+| **Steam client — resize** | ✅ white edge · ✅ blackout · ✅ shimmer · live-drag flicker reported *minimal* (by eye) | `resize-diag` → `resize-ship`; 3 bright-edge findings before, 0 across 20 captures after |
 | **Steam client — navigation** | ✅ Library blackout fixed (a 0×0 browser was stretched over the view) | found in real use, not by the suite; six-navigation sweep all render, 0 GPU crashes |
 | **Steam popups** (Friends List, Settings) | ✅ render — after fixing a regression of ours that hid them permanently | Friends List 20,420 B lum 0 → 274,680 B lum 38 |
 | **Resize shimmer** (background art) | ✅ **closed** — gap rate 5.00% → 1.25% → **0.00%** across 520 sampled frames | retire-on-create + per-child deferred release; interior lum min 0 → 28 |

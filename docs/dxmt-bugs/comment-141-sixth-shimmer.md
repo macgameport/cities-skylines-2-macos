@@ -60,9 +60,10 @@ that same child, which by construction is after its successor was acquired. 1.25
 
 ### Still open
 
-Flicker during a live **mouse** drag. The harness drives `SetWindowPos`; a human dragging a window
-edge is a different event path and slower. Nothing suggests it behaves differently — but nothing has
-measured it either, so I am not claiming it.
+Flicker during a live **mouse** drag. My harness drives `SetWindowPos`; a human dragging a window
+edge goes through macOS live-resize, which it cannot reach. Someone using the build afterwards
+described it as minimal — but that is one person's eyes, not a measurement, so treat it as "probably
+improved, not established". Everything numeric above is scripted churn.
 
 Same offer as before: the patches are public and you are welcome to them under MIT, and I am not
 asking for anything to be merged given #152.

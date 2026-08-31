@@ -101,8 +101,9 @@ and `docs/dxmt-bugs/`.
    a static control, which is what a post-settle capture could never see. Gap rate **5.00% → 1.25% →
    0.00%** across 520 sampled frames, via retiring a hosted layer on *create* rather than on destroy
    and holding the deferred release **per child** instead of in one global slot.
-   ⚠ Still untested: **flicker during a live mouse drag** — the harness drives `SetWindowPos`, which
-   is a different event path from a human dragging a window edge. And content-driven states beyond one `steam://` sweep (overlays,
+   Flicker during a live **mouse** drag is reported **minimal** after the fix — by eye, not by
+   measurement: the harness drives `SetWindowPos`, and a human dragging an edge goes through macOS
+   live-resize, which it cannot reach. And content-driven states beyond one `steam://` sweep (overlays,
    popups, the in-game overlay) have not been tried. And the patches are **not** upstreamable as-is: dxmt's
    `CONTRIBUTING.md` forbids AI-authored PRs, so this goes upstream as a findings report, not a
    patch.

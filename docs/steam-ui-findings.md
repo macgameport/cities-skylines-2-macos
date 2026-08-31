@@ -342,9 +342,13 @@ reason this is a result rather than a claim.
 
 ## Open
 
-1. **Flicker during a live *mouse* drag is still untested.** The churn harness drives
-   `SetWindowPos`; a human drag is a different event path and slower. Nothing suggests it differs,
-   but nothing has measured it either. Every capture after a settle is correct
+1. **Flicker during a live *mouse* drag: reported MINIMAL, not measured.** James assessed it by
+   hand after the fix (2026-08-31). That is the only assessment available — `shimmer-probe.sh`
+   drives `SetWindowPos`, and a human dragging a window edge goes through macOS live-resize, a
+   different path the harness cannot reach. **Do not promote "minimal" to "fixed" or to a number:**
+   it is one person's eyes on one drag, which is exactly the kind of claim this project has had to
+   retract before. Measuring it would need capture sampling *during* a human drag — feasible, since
+   the pointer position is readable without permissions, but not yet done. Every capture after a settle is correct
    and a 60×60 ms churn ends correct, but a sub-frame flash while the mouse is down would not
    appear in a post-settle capture. Only a video capture or a frame counter would answer it.
 3. **Content-driven states are barely explored.** Defects 3 and 4 were both reached by *using* the
