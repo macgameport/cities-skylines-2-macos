@@ -99,6 +99,53 @@ and internal, not environmental. The A/B settles it either way and costs one cel
 added. Every earlier cell in this investigation is silent on it, which is precisely the gap this
 ledger exists to close, reopened one level up.
 
+### 🏆 IT RENDERS OUT-OF-PROCESS, NO SHIM — the cross-process path works (2026-08-31)
+
+**Steam's client renders on stock out-of-process CEF, with text, with no shim and no injected
+switches.** `exp` = `remote-confirmed`: **2,136,894 B**, **0 GPU crashes** (was 6, every launch, for
+the whole investigation). Proof: [`docs/images/steam-renders-crossprocess.png`](docs/images/steam-renders-crossprocess.png).
+
+**Fully attributed, with both markers firing 56 times each:**
+
+```
+err:macdrv:my_dxmt_acquire_remote_layer  remote layer acquired for hwnd 0x10104 (swapchain ...)
+err:macdrv:...                           cross-process CHILD hwnd -> hosting remote layer on root
+```
+
+**The mechanism, end to end:**
+
+1. DXMT's `get_win_data()` returns NULL for CEF's child window (process-local `win_datas`).
+2. **New:** DXMT falls back to `dxmt_acquire_remote_layer()` instead of dereferencing NULL.
+3. That calls `macdrv_client_surface_acquire_metal_swapchain()`, which takes the **CHILD** branch and
+   builds `macdrv_create_offscreen_swapchain(root, hwnd, rect)`.
+4. A `CAContext` layer is hosted in the **owning** process via `CALayerHost`.
+5. DXMT presents to that layer through its existing `Presenter` — unchanged.
+
+**Isolation, run rather than assumed:** stock DXMT + patched winemac → **6 crashes, black**. So the
+DXMT-side change is required; the wine side alone is not enough. Both halves are needed.
+
+**Design note worth keeping:** the entry is reached by **`dlsym("dxmt_acquire_remote_layer")`**, not
+by a new `macdrv_functions_t` member. That struct is `C_ASSERT`-ed at a fixed size, so extending it
+is a breaking ABI change — a DXMT built against an 11-member struct would read past the end of a
+10-member one and call whatever followed it. A standalone symbol resolves to NULL on any unpatched
+winemac and the code falls through unchanged. This is what makes the DXMT half safe to offer
+upstream on its own.
+
+⚠ **Not finished:** a **black band across the upper content area** — the unmapped-geometry gap the
+CHILD patch documents. The hosted `CALayerHost` fills the root's content view rather than tracking
+the child's rect; `macdrv_window_update_ca_layer_host_frame` exists for the general case and is not
+wired. Also unaddressed: the deliberate surface leak in `my_dxmt_acquire_remote_layer` (releasing the
+previous surface kills the live layer — see its comment).
+
+⚠ **Instrument artifact that nearly buried this.** The first run of this exact configuration
+reported **0 firings** for both markers while rendering perfectly. Cause: the harness set
+`WINEDEBUG=-all`, which suppresses the **`err`** channel — where all of wine's own diagnostics live.
+The path had fired all along. Harness default changed to `+err`. **A counter reading zero is not
+evidence when the channel it counts is switched off.**
+
+**Patches:** `scripts/dxmt-remote-layer-fallback.patch` (DXMT) and the exported wrapper in
+wine's `macdrv_main.c`.
+
 ### ✅ RE-SCOPED (source read): it is ~50 lines, NOT a subsystem (2026-08-31)
 
 Read the wine and DXMT sources instead of estimating. **The hard part does not exist — both halves
@@ -862,8 +909,11 @@ may belong to a different wrapper's Steam.
 | exp_71d767 | 2026-08-31 00:53 | `nullcheck-getwindata` | 0 | 0 | 0 | black | candidate |
 | exp_5481ff | 2026-08-31 00:55 | `nullcheck-seh` | 0 | 0 | 0 | black | candidate |
 | exp_b8d3a1 | 2026-08-31 01:13 | `winddata-diag` | 0 | 0 | 0 | black | candidate |
+| exp_b2fdea | 2026-08-31 02:08 | `remote-layer-wired` | 0 | 0 | 0 | rendered | candidate |
+| exp_d5ea1a | 2026-08-31 02:11 | `isolate-stockdxmt` | 0 | 0 | 0 | black | candidate |
+| exp_e43611 | 2026-08-31 02:13 | `remote-confirmed` | 0 | 0 | 0 | rendered | candidate |
 
-67 cells · 45 VOID-LIBS · 22 candidate
+70 cells · 45 VOID-LIBS · 25 candidate
 ---
 
 ## Running a cell (the procedure this ledger assumes)

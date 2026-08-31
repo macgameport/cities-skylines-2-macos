@@ -63,7 +63,10 @@ export WINE="$SS/wine/bin/wine64"
 export WINEPREFIX="$SS/prefix"
 export PATH="$SS/wine/bin:$PATH"
 export DYLD_FALLBACK_LIBRARY_PATH="$APP/Contents/Frameworks:$SS/wine/lib:/usr/lib:/usr/local/lib"
-export WINEDEBUG="${WINEDEBUG:--all}"
+# ⚠ NOT -all: that suppresses the **err** channel too, which is where wine'"'"'s own diagnostics live.
+# Cost 2026-08-31: a cell that DID take the cross-process path reported "0 firings" for both of its
+# markers, because the ERR lines proving it were being thrown away. +err keeps them at negligible volume.
+export WINEDEBUG="${WINEDEBUG:-+err}"
 export WINEDLLOVERRIDES="gameoverlayrenderer64=d;gameoverlayrenderer=d;winemenubuilder.exe=d"
 S="$WINEPREFIX/drive_c/Program Files (x86)/Steam"
 OUT="/tmp/steam-cell-$LABEL"; mkdir -p "$OUT"

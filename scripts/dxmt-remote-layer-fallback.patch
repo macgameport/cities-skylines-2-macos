@@ -1,0 +1,60 @@
+diff --git a/src/winemetal/unix/winemetal_unix.c b/src/winemetal/unix/winemetal_unix.c
+index 4744692..9556d0b 100644
+--- a/src/winemetal/unix/winemetal_unix.c
++++ b/src/winemetal/unix/winemetal_unix.c
+@@ -1,5 +1,6 @@
+ #include <stdatomic.h>
+ #include <dlfcn.h>
++#include <stdio.h>
+ #import <Cocoa/Cocoa.h>
+ #import <ColorSync/ColorSync.h>
+ #import <CoreFoundation/CFRunLoop.h>
+@@ -1597,13 +1598,42 @@ _CreateMetalViewFromHWND(void *obj) {
+   if (pfn_get_win_data && pfn_release_win_data && pfn_macdrv_view_create_metal_view &&
+       pfn_macdrv_view_get_metal_layer) {
+     struct macdrv_win_data *win_data = pfn_get_win_data((HWND)params->hwnd);
+-    macdrv_metal_view view =
+-        pfn_macdrv_view_create_metal_view(win_data->client_cocoa_view, (macdrv_metal_device)params->device);
+-    params->ret_view = (obj_handle_t)view;
+-    if (view) {
+-      params->ret_layer = (obj_handle_t)pfn_macdrv_view_get_metal_layer(view);
++    /* Cross-process / child window: get_win_data() returns NULL because winemac keeps win_datas
++     * in a process-local CFDictionary, and CEF's GPU process asks for a Metal view on a child
++     * window whose root lives in the browser process. Wine already implements the answer -- a
++     * CAContext-backed offscreen swapchain hosted in the owning process via CALayerHost -- but
++     * only reaches it from vulkan.c. dxmt_acquire_remote_layer() is a thin exported entry to it.
++     *
++     * dlsym rather than a macdrv_functions_t member ON PURPOSE: that struct is C_ASSERT-ed at a
++     * fixed size, so adding to it is a breaking ABI change and a DXMT built against the larger
++     * struct would read past the end of an older winemac's and call garbage. A standalone symbol
++     * simply resolves to NULL on any winemac without the patch, and we fall through unchanged.
++     * (macgameport, 2026-08-31) */
++    if (!win_data) {
++      macdrv_metal_layer (*pfn_remote)(HWND, macdrv_view *) =
++          dlsym(RTLD_DEFAULT, "dxmt_acquire_remote_layer");
++      if (pfn_remote) {
++        macdrv_view remote_view = NULL;
++        macdrv_metal_layer remote_layer = pfn_remote((HWND)params->hwnd, &remote_view);
++        if (remote_layer) {
++          /* ret_view only has to be non-NULL: d3d11_swapchain.cpp aborts without one, but never
++             renders through it -- everything real goes via the layer. */
++          params->ret_view = (obj_handle_t)remote_view;
++          params->ret_layer = (obj_handle_t)remote_layer;
++          return STATUS_SUCCESS;
++        }
++      }
++    }
++
++    if (win_data) {
++      macdrv_metal_view view =
++          pfn_macdrv_view_create_metal_view(win_data->client_cocoa_view, (macdrv_metal_device)params->device);
++      params->ret_view = (obj_handle_t)view;
++      if (view) {
++        params->ret_layer = (obj_handle_t)pfn_macdrv_view_get_metal_layer(view);
++      }
++      pfn_release_win_data(win_data);
+     }
+-    pfn_release_win_data(win_data);
+   }
+ 
+   return STATUS_SUCCESS;
