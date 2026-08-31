@@ -2,7 +2,9 @@
 
 Prior comments: 5400445243 · 5403561498 · 5458926046 · **5466938536** (partly retracted below).
 
-**Status: DRAFTED, NOT POSTED.**
+**Status: DRAFTED, NOT POSTED. Accuracy-audited 2026-08-31 before posting** — five corrections
+folded, listed at the foot of this file. Two of them were unsupported claims that would have been a
+third public retraction.
 
 ## Before posting
 
@@ -88,8 +90,9 @@ Two things worth flagging about how this hides:
 
 `macdrv_client_surface_acquire_metal_swapchain()` builds a `CAContext`-backed offscreen swapchain and
 posts `WM_MACDRV_CREATE_REMOTE_LAYER` to the window's **owning** process, which hosts it via
-`CALayerHost`. That is exactly the cross-process case. Today only `vulkan.c` reaches it; DXMT has no
-client-surface path at all (`main` included).
+`CALayerHost`. That is exactly the cross-process case. In stock wine only `vulkan.c` reaches it, and the DXMT tree
+I have here (v0.80) has no client-surface path at all — `grep` finds none. I have not checked `main`,
+so treat that as "the version I looked at", not a claim about your current tree.
 
 Wired up — DXMT falling back to that route when `get_win_data()` returns NULL — **Steam's client
 renders completely, out-of-process, with text, no shim, no injected switches, 0 GPU crashes.**
@@ -146,7 +149,7 @@ Worth passing on as a testing note, not just a bug: my suite drove **geometry** 
 **content**, so it had no chance of finding this. If you take any of this up, `steam://open/games`
 and `steam://store` drive the navigation from a script.
 
-**Two traps if you implement (b) and (c) — I fell into both, so they cost you nothing.**
+**Two traps if you implement (a) and (c) — I fell into both, so they cost you nothing.**
 
 1. **Do not gate the un-hide on the frame having changed.** Hiding a zero-area layer is right, but
    a window that briefly reports 0×0 usually comes back to *the size it already had*. If the
@@ -160,13 +163,58 @@ and `steam://store` drive the navigation from a script.
    seam from (a) returns, exactly on the odd axis (measured: 2400×1500 → 0, 2401×1500 → 1,
    2400×1501 → 1, 2401×1501 → 2). Deferring it by ~120 ms gets both.
 
+### 5. Two things about resize worth knowing before you build it
+
+**CEF resizes by destroying and recreating the swapchain, not by resizing it in place.** I wrote an
+in-place `set_bounds` path for the offscreen layer and instrumented it: across five Steam sessions it
+logged **zero** firings against 67/120/184/101 layer creations. The in-place path is never taken, so
+do not spend time on it — and do not credit it with anything, which I briefly did.
+
+**The remaining visible artifact is a shimmer on background art while dragging a resize.** Half of
+that is answered: it is **not** the compositor stretching the hosted layer — an instrumented scale
+check logged 0 stretch events. What the trace does show is churn: **24 scripted resize steps produced
+101 layer creations and 83 removals** across the two browsers, so layers are constantly un-hosted and
+re-hosted and the window shows whatever is behind during each gap. That is a hypothesis I have not
+tested. If it is right, the fix is holding a retired host layer until its replacement is confirmed
+hosted — a design change rather than a tweak, and one you would want to make rather than me.
+
 **Still open:** flicker during a live mouse drag. Every capture after a settle is correct, but a
 sub-frame flash while the mouse is down would not show up in a post-settle capture — so that is
 untested, not fine. Content-driven states beyond that one sweep are barely explored.
 
-Happy to send the wine and DXMT patches, the `+seh` traces, the resize measurements, or the harness
-if any of it is useful — just say which. The two instruments the resize work needed are small and
+I am aware of #152 and am not asking for anything to be merged — this is findings only, and the
+timing is yours to pick. Happy to send the wine and DXMT patches, the `+seh` traces, the resize
+measurements, or the harness if any of it is useful — just say which. The two instruments the resize work needed are small and
 generic: a per-monitor-DPI-aware `SetWindowPos` driver (a DPI-unaware process cannot even *request*
 the odd sizes that fail) and an edge-vs-interior pixel probe, because a one-device-pixel seam does
-not survive a screenshot. And sorry for the noise in the earlier comments: the measurements were real, the
-attribution was not.
+not survive a screenshot.
+
+And sorry for the noise in the earlier comments: the measurements were real, the attribution was not.
+
+
+---
+
+## Pre-post accuracy audit (2026-08-31)
+
+Every factual claim re-checked against the ledger and the source before this goes out. Five
+corrections:
+
+| # | was | now | why |
+|---|---|---|---|
+| 1 | "if you implement **(b) and (c)**" | "**(a) and (c)**" | trap 1 (un-hide gating) belongs to (c), trap 2 (`backgroundColor`) to (a). The cross-reference was simply wrong. |
+| 2 | "DXMT has no client-surface path at all (**`main` included**)" | scoped to the **v0.80** tree, with `main` explicitly not checked | there is no `main` checkout on this machine — only `dxmt-v080` (detached) and `dxmt-fork` (`debug/present-path-tracing`). The claim was unsupportable. |
+| 3 | "**Today** only `vulkan.c` reaches it" | "in **stock wine** only `vulkan.c` reaches it" | `grep` finds two callers — `vulkan.c:50` and `macdrv_main.c:793`. The second is *our own patch*, so the unqualified present tense was wrong. |
+| 4 | — | new §5: CEF resizes by **destroy/recreate**, the in-place path logged **0** firings, and the shimmer is **not** stretching (0 stretch events; 101 creates / 83 removes per 24 steps) | both are things an implementer would otherwise have to rediscover, and one of them is a claim I had to withdraw. |
+| 5 | — | acknowledgement of **#152** | a maintainer asked that code changes pause pending relicensing. Offering patches without noting that reads as ignoring it. |
+
+**Still required before posting:**
+
+- `GH_CONFIG_DIR="$HOME/.config/gh-cs2" gh auth status` must say **`iosoceans`**. The Bash tool does
+  not get the zsh wrapper and will otherwise post as `jvspearman` — which is how the first four
+  comments went out under the wrong identity.
+- No diff in the comment body.
+- Posting is James's call. This file does not authorise itself.
+
+**Deliberately NOT in the report:** the winemac title-bar / cursor-offset work. It is a wine
+window-decoration bug (two functions disagreeing about whether a window has a caption), unrelated to
+DXMT, and putting it in a DXMT thread would just dilute the report.
