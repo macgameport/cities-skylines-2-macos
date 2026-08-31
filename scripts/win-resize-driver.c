@@ -138,6 +138,32 @@ int main(int argc, char **argv)
                cr.right - cr.left, cr.bottom - cr.top, tl.x, tl.y);
         printf("CLIENT OFFSET INSIDE WINDOW: dx=%ld  dy=%ld   <== a hosted layer is wrong by this\n",
                tl.x - wr.left, tl.y - wr.top);
+        {
+            /* Does this window ASK to be decorated? A frameless app (Electron/CEF drawing its own
+             * titlebar) has no WS_CAPTION. If the host window manager decorates it anyway, the
+             * client area it reports and the view that actually shows it stop agreeing. */
+            LONG st = GetWindowLongW(h, GWL_STYLE), ex = GetWindowLongW(h, GWL_EXSTYLE);
+            printf("style   : 0x%08lx  ", (unsigned long)st);
+            if (st & WS_CAPTION)     printf("WS_CAPTION ");
+            if (st & WS_THICKFRAME)  printf("WS_THICKFRAME ");
+            if (st & WS_BORDER)      printf("WS_BORDER ");
+            if (st & WS_DLGFRAME)    printf("WS_DLGFRAME ");
+            if (st & WS_POPUP)       printf("WS_POPUP ");
+            if (st & WS_SYSMENU)     printf("WS_SYSMENU ");
+            if (st & WS_MINIMIZEBOX) printf("WS_MINIMIZEBOX ");
+            if (st & WS_MAXIMIZEBOX) printf("WS_MAXIMIZEBOX ");
+            printf("\nexstyle : 0x%08lx\n", (unsigned long)ex);
+            /* winemac's get_window_features_for_style() suppresses the title bar when the window
+             * is SHAPED (has a window region). That is how one WS_CAPTION window can end up
+             * undecorated while another gets a real macOS title bar. */
+            HRGN rgn = CreateRectRgn(0, 0, 0, 0);
+            int rc = GetWindowRgn(h, rgn);
+            printf("region  : %s\n", rc == ERROR ? "NONE (not shaped)" : "present (SHAPED)");
+            DeleteObject(rgn);
+            printf("VERDICT : %s\n", (st & WS_CAPTION) == WS_CAPTION
+                   ? "asks for a caption - a title bar is correct"
+                   : "NO WS_CAPTION - this window asked to be FRAMELESS");
+        }
         return 0;
     }
 

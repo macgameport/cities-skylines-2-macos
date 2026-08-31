@@ -1430,3 +1430,45 @@ report ("several points").
 `grep -c macgameport` over the mouse/cursor/event path is **0**, and this window's layer takes the
 `CGRectNull` branch (trace: `frame=inf,inf`) so it simply fills the content view, correctly. The A/B
 against the stock `winemac.so.bak-*` would settle it and **has not been run**.
+
+## A WS_CAPTION style is not a caption — frameless apps get a doubled title bar (2026-08-31)
+
+> **Ledger:** `PARTIAL` — C23. Decoration fixed and verified; the geometry mismatch behind the
+> cursor offset is **not** fixed.
+
+The frameless-but-resizable pattern (Electron/CEF, and the Paradox launcher) keeps
+`WS_CAPTION|WS_THICKFRAME` so Windows still gives it resize borders and snap, then handles
+`WM_NCCALCSIZE` to take the caption area back for the client and draws its own title bar inside it.
+
+`get_cocoa_window_features()` decides on the **style bits**, so such a window gets a real macOS
+title bar on top of the one it draws itself — two sets of window buttons. Its only escape hatch
+compares `rects.window` with `rects.visible`; it never consults `rects.client`, which is exactly
+the record of what `WM_NCCALCSIZE` did.
+
+**How to tell two lookalike windows apart** — measured, and note that style bits alone cannot:
+
+| | Steam (`SDL_app`) | Paradox launcher (`Chrome_WidgetWin_1`) |
+|---|---|---|
+| `WS_CAPTION` | yes | yes |
+| shaped / layered | no / no | no / no |
+| client vs window | `2346x1500` == window, **dx=0 dy=0** | `2560x1341` vs `2570x1346`, **dx=5 dy=0** |
+| macOS title bar | none (escapes via `EqualRect`) | **added** |
+
+The launcher reserves 5px of frame left/right/bottom and **zero on top**. That is unambiguous: a
+resize border, no caption.
+
+**The change:** after computing the features, suppress `title_bar` (and its buttons) when
+`rects.client.top == rects.window.top`. Left/right/bottom frame untouched. Verified — the launcher
+now renders with no macOS title bar and its own controls in place.
+
+⚠ **This does NOT fix the cursor offset, and do not let the visual improvement suggest otherwise.**
+The mismatch that causes it is content-view vs Win32-*client*:
+
+```
+before:  content view 642.0 pt   vs client 669.5 pt   -> 27.5 pt apart
+after :  content view 643.0 pt   vs client 670.5 pt   -> 27.5 pt apart   UNCHANGED
+```
+
+The Cocoa window merely **shrank** by the caption height instead of the content growing into it, so
+something further down still sizes the window frame as though a caption existed. That is the next
+thing to find. Revert: `winemac.so.bak-pretitlebar-*`, and `window.c.pre-titlebar` in the wine tree.
