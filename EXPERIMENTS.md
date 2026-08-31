@@ -99,6 +99,34 @@ and internal, not environmental. The A/B settles it either way and costs one cel
 added. Every earlier cell in this investigation is silent on it, which is precisely the gap this
 ledger exists to close, reopened one level up.
 
+### 🔧 LEAK FIXED, then RESIZE regression found and mitigated (2026-08-31)
+
+**The leak.** `my_dxmt_acquire_remote_layer` kept every client surface forever, because retiring the
+previous one on acquire destroyed the layer DXMT was still rendering into. Root cause of the design:
+the table was keyed by **HWND**, and DXMT re-acquires the same HWND repeatedly — measured **16
+distinct windows, 4 acquires each**, so an hwnd-keyed table can only ever hold the newest.
+
+**Fix:** key by the **view** instead, and add an exported `dxmt_release_remote_layer(view)` that
+returns TRUE if the view was one of ours. DXMT calls it first in `_ReleaseMetalView` and falls
+through to the ordinary metal-view release otherwise — **no tagging or bookkeeping on the DXMT
+side**, and on an unpatched winemac the symbol is simply absent. Measured: **157 acquires, 142
+release HITs, 0 MISSes**, still rendering, 0 crashes.
+
+⚠ **This introduced a regression, found by James in live use, not by the harness:** *"flickers on
+resize and with some resize I was able to black out the child windows."* The cause is structural:
+`ResizeBuffers` never touches the view — CEF resizes by **destroying a swapchain and creating a new
+one**, so a prompt release un-hosts the old layer before the new one exists. The old leak had been
+accidentally masking this by never releasing at all.
+
+**Mitigation: deferred by one.** Hold exactly one retired surface until the next release arrives,
+then drain it. Something stays hosted across the destroy/create gap, and the cost is bounded at a
+single surface rather than one per acquire. Measured: **130 acquires, 115 deferred releases, 114
+drained**, still rendering, 0 crashes.
+
+⚠ **NOT YET CONFIRMED against the actual symptom.** Resize is interactive and the harness cannot
+drive it; the numbers above only show the mechanism behaves. Whether the flicker and the blackout are
+gone needs a human resizing the window. **Do not record this as fixed until that happens.**
+
 ### ❓ Can the wine patch be avoided? No — and here is exactly why (2026-08-31)
 
 Measured against the **stock shipped** `winemac.so`, not reasoned about:
@@ -997,8 +1025,11 @@ may belong to a different wrapper's Steam.
 | exp_1ee1a5 | 2026-08-31 02:28 | `geometry-mapped` | 0 | 0 | 0 | rendered | candidate |
 | exp_b72adf | 2026-08-31 02:31 | `geom-diag` | 0 | 0 | 0 | rendered | candidate |
 | exp_6d89af | 2026-08-31 02:34 | `geom-points` | 0 | 0 | 0 | rendered | candidate |
+| exp_fc9497 | 2026-08-31 02:57 | `leak-fixed` | 0 | 0 | 0 | rendered | candidate |
+| exp_5e2e93 | 2026-08-31 02:59 | `leak-measured` | 0 | 0 | 0 | rendered | candidate |
+| exp_3a34f1 | 2026-08-31 03:02 | `deferred-release` | 0 | 0 | 0 | rendered | candidate |
 
-73 cells · 45 VOID-LIBS · 28 candidate
+76 cells · 45 VOID-LIBS · 31 candidate
 ---
 
 ## Running a cell (the procedure this ledger assumes)
