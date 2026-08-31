@@ -284,14 +284,46 @@ All three fixes are in [`winemac-crossprocess-remote-layer.patch`](../scripts/wi
 the trace that found them rebuilds with `-DDXMT_RSZ_DEBUG`. The game was re-boot-verified on the
 same binary — `MainMenu reached`, 5 mods, 0 exceptions — because winemac is on the game's boot path.
 
+### Two corrections from the same evening
+
+**A regression of my own, live for about an hour.** The "hide a zero-area layer" fix above put the
+**un-hide** in the same branch as the frame update, so it only ran when the frame *changed*. Steam's
+Friends List reports 0×0 briefly and then comes back to **the size it already had** — equal frames,
+branch skipped, layer hidden forever. Fully black, 20,420 B, interior luminance 0. James found it in
+ordinary use, again. Fixed by testing visibility and geometry separately; verified 274,680 B and
+rendering completely. The general rule is in GOTCHAS: *a "no-op" guard is only a no-op for the state
+it compares — every other effect in that branch silently inherits it.*
+
+**And a claim withdrawn.** `macdrv_swapchain_set_bounds()` was written to fix "stale strips of old
+content … and sometimes a wholly black content area", shipped, and credited. **It has never run.**
+Its only caller never fires — `SURF-UPD` and `CONTENT` are 0 across five instrumented sessions
+against 67/120/184/101 `HOST create`s — because CEF resizes by destroying and recreating the
+swapchain. It went in beside two changes that *did* work, the symptom improved, and the improvement
+was attributed to all three. Kept and annotated; not credited.
+
+### The shimmer — half answered
+
+Resizing now shimmers the **background** art while foreground images stay clear. Measured: it is
+**not** the compositor stretching our layers. The instrumented scale check logged **0** stretch
+events, and the only path that could stretch one is the dead function above.
+
+What the trace does show is **churn**: 24 scripted resize steps produced **101** `HOST create` and
+**83** `HOST remove` across the two browsers. Layers are constantly un-hosted and re-hosted, and the
+window shows whatever is behind during each gap — which would explain a shimmer. That is a
+**hypothesis and it is untested**; a fix would mean holding a retired host layer until its
+replacement is confirmed hosted, which is a design change rather than a tweak.
+
 ## Open
 
-1. **Flicker during a live drag is untested, not fixed.** Every capture after a settle is correct
+1. **The shimmer's positive cause is unproven** — stretching is ruled out, host churn is the
+   candidate, nothing has tested it.
+2. **Flicker during a live drag is untested, not fixed.** Every capture after a settle is correct
    and a 60×60 ms churn ends correct, but a sub-frame flash while the mouse is down would not
    appear in a post-settle capture. Only a video capture or a frame counter would answer it.
-2. **Content-driven states are barely explored.** Defect 3 was reached by navigation, and the only
-   navigation coverage that exists now is one six-step `steam://` sweep. Overlays, the friends
-   window, in-game overlay, popups and modal dialogs each create browsers and have not been tried.
+3. **Content-driven states are barely explored.** Defects 3 and 4 were both reached by *using* the
+   client, not by any sweep. Coverage now: one six-step `steam://` navigation sweep plus the
+   Friends List and Settings windows. The in-game overlay, chat windows, the web browser view and
+   modal dialogs each create browsers and have not been tried.
 2. **Backend-independence is not fully closed** — software rendering gave a byte-identical result,
    which requires `winemetal.so` to be reached under swiftshader too. Not confirmed by `vmmap`.
 3. **43 of 80 cells can never be interpreted.** No config was recorded; permanently `VOID-LIBS`.

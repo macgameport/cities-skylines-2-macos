@@ -1204,3 +1204,63 @@ way in: `INFINITY/2` survives, but relying on that is a trap for the next reader
 converting.
 
 **Scriptable repro, no clicking:** `wine steam.exe steam://open/games`, then `steam://store`.
+
+## Visibility and geometry are independent state — don't gate one on the other (2026-08-31)
+
+> **Ledger:** `SUPPORTED` — C15. Evidence: the Friends List trace, `/tmp/steam-popup.log`.
+
+Self-inflicted, live for about an hour, and found by a human in ordinary use rather than by any
+test. Hiding a zero-area hosted layer was correct; the **un-hide** was written into the same branch
+as the frame update:
+
+```objc
+else if (host && !CGRectIsEmpty(frame) && !CGRectEqualToRect(host.frame, frame))
+{ host.frame = frame; host.hidden = NO; }        /* WRONG */
+```
+
+So un-hiding could only happen if the **frame changed**. Steam's Friends List does this:
+
+```
+create ctx=1274046919 frame 300.0x650.0
+update frame   0.0x0.0                       -> hidden = YES        (window briefly reports 0x0)
+update frame 300.0x650.0 (was 300.0x650.0)   -> EQUAL, branch skipped, hidden stays YES forever
+```
+
+The frame came back to a value it **already held**, so the guard suppressed the recovery
+permanently. Window: fully black, 20,420 B capture, interior luminance 0.
+
+**The rule:** when a branch touches two independent pieces of state, each needs its own test. Write
+
+```objc
+if (!CGRectEqualToRect(host.frame, frame)) host.frame = frame;
+if (host.hidden) host.hidden = NO;
+```
+
+and zero the frame when hiding, so even a single-test version would recover.
+
+**The wider tell:** a "no-op" guard (`!CGRectEqualToRect`) is only a no-op for the state it
+compares. Every *other* effect inside that branch silently becomes conditional on it.
+
+## A fix whose code path never runs — check it logs before you credit it (2026-08-31)
+
+> **Ledger:** `SUPPORTED` — C16. Evidence: SURF-UPD=0 / CONTENT=0 across five instrumented sessions.
+
+`macdrv_swapchain_set_bounds()` was written to fix "stale strips of old content, black boxes in a
+corner, and sometimes a wholly black content area", shipped, and credited in a commit message and
+a patch file. **It has never executed.** Its only caller is `macdrv_client_surface_update()`'s
+remote-layer branch, and across five instrumented Steam sessions:
+
+| session | `SURF-UPD` | `CONTENT` | `HOST create` |
+|---|---:|---:|---:|
+| resize-diag | 0 | 0 | 67 |
+| resize-fix | 0 | 0 | 120 |
+| resize-final | 0 | 0 | 184 |
+| popup runs | 0 | 0 | 101 |
+
+CEF resizes by **destroying and recreating** the swapchain, so a fresh `CAContextSwapChain` is
+built at the new size and the in-place resize path is never taken. Whatever improved in that build
+came from the two changes beside it.
+
+**The trap:** the fix went in alongside two others that *did* work, the symptom improved, and the
+improvement was attributed to all three. A behavioural claim needs the path to be **observed
+running** — `git blame` on a symptom is not attribution. Instrument first, credit after.

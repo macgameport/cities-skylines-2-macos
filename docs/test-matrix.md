@@ -17,6 +17,8 @@
 | **Steam client UI — with shim (`--in-process-gpu`)** | ✅ renders — the earlier workaround, now unnecessary | `ipgpu-fonts-fixed`, 727 KB, [screenshot](images/steam-renders-with-text.png) |
 | **Steam client — resize** | ✅ white edge fixed · ✅ resize blackout fixed · ⚠ live-drag flicker untested | `resize-diag` → `resize-ship`; 3 bright-edge findings before, 0 across 20 captures after |
 | **Steam client — navigation** | ✅ Library blackout fixed (a 0×0 browser was stretched over the view) | found in real use, not by the suite; six-navigation sweep all render, 0 GPU crashes |
+| **Steam popups** (Friends List, Settings) | ✅ render — after fixing a regression of ours that hid them permanently | Friends List 20,420 B lum 0 → 274,680 B lum 38 |
+| **Resize shimmer** (background art) | ⚠ open — *not* layer stretching (0 stretch events); host churn is an untested hypothesis | 24 resize steps → 101 `HOST create` / 83 remove |
 | **Steam store tab** | ⚠ renders but **flickers** on autoplaying video; library is clean | observed live 2026-08-30 |
 | **Game display selection** | ⚠ picks the wrong monitor on a 2-external setup | 3840×2160 window on a 1920×1080 main display |
 
@@ -80,8 +82,11 @@ remaining work was geometry, not graphics.
 | C12 | The white edge hairline is retina **half-point rounding**, not a race | ✅ `SUPPORTED` |
 | C13 | The resize **blackout** is hosted-layer **z-order**, not a lifetime bug | ✅ `SUPPORTED` |
 | C14 | The **navigation** blackout is a 0×0 child rect read as "no rect" and stretched | ✅ `SUPPORTED` |
+| C15 | Gating the un-hide on the frame changing black-holed the Friends List (ours) | ✅ `SUPPORTED` |
+| C16 | `macdrv_swapchain_set_bounds()` is **dead code** — its fix claim is WITHDRAWN | ✅ `SUPPORTED` |
+| C17 | The shimmer is **not** our layers being stretched | ⚠ `PARTIAL` |
 
-**Three retracted plus one disproven — four of fourteen claims withdrawn**, and two more (C2, C7) are only half-standing. That ratio is the point of keeping the register.
+**Three retracted, one disproven, and one fix-claim withdrawn (C16) — five of seventeen claims withdrawn**, and two more (C2, C7) are only half-standing. That ratio is the point of keeping the register.
 
 ## 4. What we are NOT entitled to claim
 

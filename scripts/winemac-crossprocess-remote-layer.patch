@@ -238,3 +238,53 @@
 
 # VERIFIED: store -> library -> friends -> downloads -> library -> store, all six render
 # (2.8-4.6 MB captures, interior luminance 38-115, none black), 0 GPU crashes.
+
+# =====================================================================================
+# ADDENDUM 3 — 2026-08-31: one regression of my own, and one claim withdrawn.
+#
+# (A) REGRESSION, introduced by Addendum 2 and live for about an hour: Steam's FRIENDS LIST
+#     rendered fully black (20,420 B capture, interior luminance 0). Found by James, again in
+#     ordinary use.
+#
+#     Addendum 2 added "hide a zero-area layer". The un-hide was written as one branch:
+#         else if (host && !CGRectIsEmpty(frame) && !CGRectEqualToRect(host.frame, frame))
+#         { host.frame = frame; host.hidden = NO; }
+#     ...so un-hiding only happened when the FRAME CHANGED. Trace of the failure:
+#         create ctx=1274046919 frame 300.0x650.0
+#         update frame   0.0x0.0                      -> hidden = YES          (brief 0x0)
+#         update frame 300.0x650.0 (was 300.0x650.0)  -> EQUAL, branch skipped, stays hidden
+#     The frame returned to a value it already held, so the guard suppressed the un-hide forever.
+#
+#     LESSON, and it is the general one: VISIBILITY AND GEOMETRY ARE INDEPENDENT STATE. Do not
+#     gate a change to one on a change to the other. Fixed by splitting the tests, and by zeroing
+#     the frame on hide as a second net:
++        if (host && CGRectIsEmpty(frame) && !CGRectIsNull(frame))
++        { host.hidden = YES; host.frame = CGRectZero; }
++        else if (host && !CGRectIsEmpty(frame))
++        {
++            if (!CGRectEqualToRect(host.frame, frame)) host.frame = frame;
++            if (host.hidden) host.hidden = NO;
++        }
+#     VERIFIED: Friends List 20,420 B / lum 0  ->  274,680 B / lum 38, rendering completely
+#     (avatar, name, FRIENDS header, GROUP CHATS, all text legible).
+#
+# (B) CLAIM WITHDRAWN — macdrv_swapchain_set_bounds() IS DEAD CODE.
+#
+#     The first addendum above says CAContextSwapChain "sets its layer bounds ONCE at init ... seen
+#     live as stale strips of old content, black boxes in a corner, and sometimes a wholly black
+#     content area", and adds macdrv_swapchain_set_bounds to fix it. THAT FUNCTION HAS NEVER RUN.
+#     Its only caller is macdrv_client_surface_update()'s remote-layer branch, and across five
+#     instrumented sessions that branch logged ZERO firings (SURF-UPD=0, CONTENT=0) while
+#     HOST create/update logged 67, 120, 184 and 101 respectively. CEF resizes by DESTROYING and
+#     RECREATING the swapchain, so the in-place resize path is simply never taken.
+#     Whatever improved in that build came from the two changes beside it. Kept, annotated, not
+#     credited. This is the "never assert a code behavior you have not run" rule, self-inflicted.
+#
+# (C) SHIMMER — partially answered. James reports that resizing now shimmers the BACKGROUND art
+#     while foreground images stay clear. It is NOT the compositor stretching our layers: the only
+#     path that could stretch one is (B), which never executes, and the instrumented SCALE check
+#     logged 0 stretch events. What the trace DOES show is churn — 24 scripted resize steps
+#     produced 101 HOST creates and 83 removes across the two browsers, i.e. layers are constantly
+#     un-hosted and re-hosted, and the window shows whatever is behind during each gap. That is a
+#     HYPOTHESIS, not a finding: it has not been tested. A fix would mean holding the retired host
+#     layer until its replacement is confirmed hosted, which is a design change, not a tweak.
