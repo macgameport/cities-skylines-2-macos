@@ -181,17 +181,81 @@ Result: **0 GPU crashes** (was 6 every launch), full client with text
 ([screenshot](images/steam-crossprocess-complete.png)). The game still boots to `MainMenu` on the
 same configuration, which matters because winemac is on the boot path.
 
-⚠ **Blocker to upstreaming:** `my_dxmt_acquire_remote_layer` deliberately leaks the previous
-client surface — releasing it on the next acquire destroys the layer DXMT is still rendering
-into. Lifetime should be driven by DXMT releasing its swapchain.
+The surface leak that blocked this is closed too: the table is keyed by the **view** rather than
+the HWND, and `dxmt_release_remote_layer` retires exactly the surface DXMT is finished with.
+
+## Resize — both defects diagnosed and fixed (2026-08-31)
+
+Resize was the last thing wrong with it, reported live as *"flickers on resize and with some resize
+I was able to blackout the child windows"* plus white hairlines at the edges. It turned out to be
+**two independent bugs**, and — despite how they look — **neither is a race**. Both are steady
+state, both reproduce on demand, and both are now fixed in `winemac.drv`.
+
+Getting there needed two instruments, because dragging a window by hand cannot answer this: every
+sample is a different size at an unknown moment, and a one-device-pixel seam is invisible in a
+screenshot.
+
+| instrument | what it does |
+|---|---|
+| [`win-resize-driver.c`](../scripts/win-resize-driver.c) | applies **exact** window sizes via `SetWindowPos` from inside the prefix. Per-monitor DPI aware, so it can request **odd** raw pixel sizes — the ones that produce the artifact are unreachable otherwise. Also dumps the Win32 child tree, and closes a window with `WM_CLOSE` rather than a signal. |
+| [`pixel-probe.swift`](../scripts/pixel-probe.swift) | mean RGB of the outermost N columns/rows of a capture against an interior reference. Turns "is there a white line?" into a number. |
+
+### Defect 1 — the white hairline is retina half-point rounding
+
+Win32 speaks **raw pixels**; Cocoa speaks **points**; on retina that is a factor of two. An **odd**
+pixel dimension therefore halves to a `.5` point — and because the `NSWindow`'s content view is
+sized in **whole** points, a layer that Win32 says reaches the window edge stops exactly **one
+device pixel** short of it, and the white window surface beneath shows through.
+
+```
+root 2401x1500 px  ->  host frame 1200.5 x 750.0 pt   inside a   1201.0 x 750.0 pt view
+                                  ^^^^^^                          ^^^^^^
+capture column x=2401 = 255,255,255      interior = 15,25,36
+```
+
+**The axis that is odd is the axis that shows it** — that is the falsification test, and it passed:
+`2401x1500` gives a right-edge line only, `2400x1501` a bottom-edge line only, `2400x1500` neither.
+
+Fixed by extending a hosted frame to the view's edge *only where it already reaches it*, so an
+interior sibling keeps its exact geometry and two widgets can never be made to overlap. No-op when
+retina is off. **3 bright-edge findings before, 0 across 20 captures after.**
+
+### Defect 2 — the blackout is hosted-layer z-order
+
+Steam's client is **two sibling `CefBrowserWindow` trees** on one root — not a parent and a child,
+which is what their rectangles invite you to assume:
+
+```
+root 0x30124  SDL_app "Steam"
+ |- 0x1013E  CefBrowserWindow 2398x1215 @1,250    TOP sibling     -> hosts 0x10140
+ `- 0x6012A  CefBrowserWindow 2400x1500 @0,66     BOTTOM sibling  -> hosts 0x2011E
+```
+
+Hosted `CALayerHost`s were stacked in the order they were **created**. CEF recreates a swapchain on
+every resize, so any resize that recreated the *lower* browser's surface put its full-window layer
+**on top of** the content layer — covering the client with a layer nothing was drawing into. It went
+black **and stayed black**, because the next resize recreated it again.
+
+`2400x1500 → 2399x1499 → 2400x1500` reproduced it every time: interior luminance **82 → 1 → 0**.
+
+Fixed by giving each hosted layer a `zPosition` derived from **Win32 paint order** (siblings walked
+bottom-to-top, a window numbered before its own children), so stacking no longer depends on when a
+layer happened to be added. Observed live: `0x2011E → z2`, `0x10140 → z5`. The same sequence now
+measures **63 → 63 → 113**, and 60 alternations at 60 ms end rendering with the hosted population
+stable at 3 and **0 GPU crashes**.
+
+Both fixes are in [`winemac-crossprocess-remote-layer.patch`](../scripts/winemac-crossprocess-remote-layer.patch);
+the trace that found them rebuilds with `-DDXMT_RSZ_DEBUG`. The game was re-boot-verified on the
+same binary — `MainMenu reached`, 5 mods, 0 exceptions — because winemac is on the game's boot path.
 
 ## Open
 
-1. **Wire DXMT to wine's remote-layer path.** Stop asking for a `macdrv_view` on a window this
-   process does not own; use `macdrv_client_surface_acquire_metal_swapchain` /
-   `WM_MACDRV_CREATE_REMOTE_LAYER` + `CAContext`, which exist for exactly this and which our patched
-   winemac already exposes. DXMT simply never calls them. The winemac half is built; the DXMT half
-   is not.
-3. **Backend-independence is not fully closed** — software rendering gave a byte-identical result,
+1. **Flicker during a live drag is untested, not fixed.** Every capture after a settle is correct
+   and a 60×60 ms churn ends correct, but a sub-frame flash while the mouse is down would not
+   appear in a post-settle capture. Only a video capture or a frame counter would answer it.
+2. **Backend-independence is not fully closed** — software rendering gave a byte-identical result,
    which requires `winemetal.so` to be reached under swiftshader too. Not confirmed by `vmmap`.
-4. **43 of 64 cells can never be interpreted.** No config was recorded; permanently `VOID-LIBS`.
+3. **43 of 80 cells can never be interpreted.** No config was recorded; permanently `VOID-LIBS`.
+4. **None of this is upstreamable as a patch** — dxmt's `CONTRIBUTING.md` forbids AI-authored
+   contributions and asks that they not become PRs. Sharing the findings is explicitly permitted and
+   is the intended route; see [`../CLAUDE.md`](../CLAUDE.md).

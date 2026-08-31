@@ -1095,3 +1095,72 @@ inside unchanged control flow — replace a load/call sequence with `ldc` + nops
 length, leaving every branch, stack shape and the original terminator intact** (v2c: the
 11-byte `hasConflicts` load → `ldc.i4.0` + 10 nops; method computes `(0 & mask) != 0` =
 false). Boot-verify caught all three same-day failures; none reached a play session.
+
+## Retina turns an ODD Win32 pixel size into a HALF POINT — and a 1px white seam (2026-08-31)
+
+> **Ledger:** `SUPPORTED` — C12. Evidence: `resize-diag` vs `resize-ship`, `resize-measurements.txt`.
+
+Win32 speaks **raw pixels**. Cocoa speaks **points**. `retina_on` makes that a factor of two, so
+`cgrect_mac_from_win()` divides — and an **odd** pixel dimension lands on a `.5` point. The
+`NSWindow`'s content view is sized in **whole** points, so anything whose geometry Win32 derives
+lands exactly **one device pixel** short of the view, and whatever is beneath shows through.
+
+```
+root 2401x1500 px -> hosted layer 1200.5 x 750.0 pt   INSIDE a   1201.0 x 750.0 pt view
+capture column x=2401 = 255,255,255                   interior = 15,25,36
+```
+
+**The tells, and why this hides:**
+
+- **It is not a race, though it looks exactly like one.** It appears during resize because resizing
+  is how you reach an odd size — but it is steady state and it will sit there forever.
+- **The odd AXIS is the one that shows it.** `2401x1500` → right edge only. `2400x1501` → bottom
+  edge only. `2400x1500` → nothing. That is the cheapest falsification test available, and if your
+  theory does not predict *which* edge, it is the wrong theory.
+- **A screenshot cannot settle it.** One device pixel disappears in any scaled view. Measure the
+  outermost column against an interior reference (`scripts/pixel-probe.swift`).
+- **You cannot reach the failing sizes by hand or from a DPI-unaware process** — a DPI-unaware
+  `GetWindowRect` reports 1209 for a 2417 px window, and `SetWindowPos` scales by exactly 2, so
+  every size you can ask for is even. `scripts/win-resize-driver.c` calls
+  `SetProcessDpiAwarenessContext(PER_MONITOR_AWARE_V2)` for this reason.
+
+**Fix pattern:** extend to the view's edge *only where the rect already reaches it* — never round
+every rect outward, which makes interior siblings overlap. Set an opaque background on the hosting
+layer as well: the mirrored content is still the odd pixel size, so the residual pixel has to be
+painted by something.
+
+## `CALayerHost` z-order is INSERTION order — which is not Win32 paint order (2026-08-31)
+
+> **Ledger:** `SUPPORTED` — C13. Evidence: `resize-diag` (repro) vs `resize-fix` / `resize-ship`.
+
+Sublayers stack in the order they were added. Cross-process hosted layers are added when the owning
+process receives `WM_MACDRV_CREATE_REMOTE_LAYER`, i.e. **whenever the other process happens to
+create a swapchain** — which has nothing to do with the z-order of the windows they mirror.
+
+CEF recreates a swapchain on **every resize**. Steam's client is **two sibling `CefBrowserWindow`
+trees** on one root — *not* a parent and a child, which their rectangles invite you to assume:
+
+```
+root 0x30124 SDL_app "Steam"
+ |- 0x1013E CefBrowserWindow 2398x1215 @1,250   TOP sibling     -> hosts 0x10140
+ `- 0x6012A CefBrowserWindow 2400x1500 @0,66    BOTTOM sibling  -> hosts 0x2011E
+```
+
+So any resize that recreated the **lower** browser's surface put its full-window layer **on top of**
+the content layer, covering the client with a layer nothing was drawing into. Black — and it
+**stayed** black, because the next resize recreated it again. `2400x1500 → 2399x1499 → 2400x1500`
+reproduced it every time (interior luminance 82 → 1 → 0).
+
+**Two traps worth naming:**
+
+- **Read the ancestry, do not infer it from rectangles.** The fix was going to be "a child must
+  paint above its parent" — which would have been built on a coincidence, because these two are
+  siblings. `win-resize-driver.exe tree` answered it in one call.
+- **"It renders now" is not evidence the ordering is right.** After the fix the blackout stopped,
+  which is consistent with the ordering being correct *and* with it being accidentally lucky again.
+  Log the resulting stack (`-DDXMT_RSZ_DEBUG`) and read the numbers: `0x2011E → z2`,
+  `0x10140 → z5`, independent of creation order.
+
+**Fix pattern:** derive `zPosition` from Win32 paint order — siblings walked bottom-to-top
+(`GW_HWNDNEXT` runs top-to-bottom), each window numbered before its own children, so a child sits
+above its parent and an upper sibling sits above a lower one's whole subtree.

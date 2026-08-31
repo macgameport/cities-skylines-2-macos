@@ -68,3 +68,119 @@
 #   * my_dxmt_acquire_remote_layer deliberately leaks the previous client surface. Releasing it on
 #     the next acquire destroys the layer DXMT is still rendering into and the window goes black.
 #     Lifetime should be driven by DXMT releasing its swapchain instead.
+
+# =====================================================================================
+# ADDENDUM 2026-08-31 — the two RESIZE defects, both measured, both fixed.
+#
+# The footer below ("STILL OPEN") described the surface leak; that was closed earlier the same day
+# by the view-keyed table + dxmt_release_remote_layer. What remained was resize, reported live as
+# "flickers on resize and with some resize i was able to blackout the child windows" plus white
+# hairlines at the right and bottom edges. Those are TWO INDEPENDENT bugs, and neither is a race:
+# both are steady-state and both reproduce on demand.
+#
+# Instruments built for this (both in scripts/, both reusable):
+#   win-resize-driver.exe  -- applies EXACT window sizes via SetWindowPos, per-monitor DPI aware so
+#                             it can request ODD raw pixel sizes; also dumps the Win32 child tree.
+#   pixel-probe            -- mean RGB of the outermost N columns/rows of a captured window against
+#                             an interior reference. A 1-device-pixel seam is invisible in a
+#                             screenshot and unarguable in a measurement.
+# Reproduce with -DDXMT_RSZ_DEBUG on winemac.drv for the dxmt-rsz trace.
+
+--- a/dlls/winemac.drv/cocoa_window.m
++++ b/dlls/winemac.drv/cocoa_window.m
+@@ new helper, and applied at both CALayerHost entry points @@
++/* DEFECT 1 -- the white hairline. Win32 speaks RAW PIXELS, Cocoa speaks POINTS, and on retina that
++ * is a factor of two, so an ODD pixel dimension converts to a HALF point. The NSWindow's content
++ * view is sized in WHOLE points, so a layer that Win32 says reaches the window edge stops exactly
++ * ONE DEVICE PIXEL short of it and the white window surface beneath shows through.
++ *
++ * MEASURED. root 2401x1500 px -> host frame 1200.5x750.0 pt inside a 1201.0x750.0 pt view; the
++ * capture's column x=2401 reads 255,255,255 against an interior of 15,25,36. The axis that is odd
++ * is the axis that shows it: 2401x1500 gives a right-edge line only, 2400x1501 a bottom-edge line
++ * only, 2400x1500 none. All four parity combinations re-measured after the fix: none.
++ *
++ * Extend to the view's edge, and ONLY at the edge -- an interior sibling keeps its exact geometry,
++ * so this can never make two widgets overlap. No-op when retina is off. */
++static CGRect dxmt_fill_view_edges(CGRect frame, CGRect view)
++{
++    if (CGRectIsEmpty(frame) || CGRectIsEmpty(view)) return frame;
++    if (frame.origin.x > 0.0 && frame.origin.x <= 1.0) { frame.size.width  += frame.origin.x; frame.origin.x = 0.0; }
++    if (frame.origin.y > 0.0 && frame.origin.y <= 1.0) { frame.size.height += frame.origin.y; frame.origin.y = 0.0; }
++    if (CGRectGetMaxX(frame) >= view.size.width  - 1.0) frame.size.width  = view.size.width  - frame.origin.x;
++    if (CGRectGetMaxY(frame) >= view.size.height - 1.0) frame.size.height = view.size.height - frame.origin.y;
++    return frame;
++}
+
+@@ addCALayerHostViewWithContextId:frame: @@
++    /* the mirrored content can still be one device pixel narrower than the slot (its size is the
++     * odd Win32 rect, the slot is the whole-point view) -- paint that residue BLACK rather than
++     * letting the white window surface through */
++    host.backgroundColor = CGColorGetConstantColor(kCGColorBlack);
++    frame = dxmt_fill_view_edges(frame, self.layer.bounds);
+
+@@ updateCALayerHostFrame:frame: @@
++    frame = dxmt_fill_view_edges(frame, self.layer.bounds);
+
+@@ new method + both entry points now take a `double zpos` @@
++/* DEFECT 2 -- the blackout. Hosted layers were stacked in the order they were CREATED. */
++- (void) setCALayerHostZPosition:(CAContextID)contextId zPosition:(double)zpos
++{
++    CALayerHost* host = [_caLayerHosts objectForKey:@(contextId)];
++    if (host && host.zPosition != zpos)
++    {
++        [CATransaction begin];
++        [CATransaction setDisableActions:YES];
++        host.zPosition = zpos;
++        [CATransaction commit];
++    }
++}
+
+--- a/dlls/winemac.drv/window.c
++++ b/dlls/winemac.drv/window.c
+@@ new helper; called from WM_MACDRV_CREATE_REMOTE_LAYER and update_remote_layer_frames @@
++/* DEFECT 2, the cause. Steam's client is TWO SIBLING CefBrowserWindow trees on one root --
++ * measured with win-resize-driver.exe tree:
++ *     root 0x30124 SDL_app "Steam"
++ *       +- 0x1013E CefBrowserWindow 2398x1215 @1,250   TOP sibling     -> hosts child 0x10140
++ *       +- 0x6012A CefBrowserWindow 2400x1500 @0,66    BOTTOM sibling  -> hosts child 0x2011E
++ * NOT parent and child, as their rectangles invite you to assume. CEF recreates a swapchain on
++ * every resize, so any resize that recreated the LOWER browser's surface added its layer LAST and
++ * therefore ON TOP of the upper one -- covering the content with a full-window layer nothing was
++ * drawing into. The client went black and STAYED black, because the next resize recreated it
++ * again. 2400x1500 -> 2399x1499 -> 2400x1500 reproduced it every time (interior luminance 82 ->
++ * 1 -> 0); after the fix the same sequence measures 63 -> 63 -> 113, and 60 alternations at 60ms
++ * finish rendering with the hosted population stable at 3 and 0 GPU crashes.
++ *
++ * Siblings are walked BOTTOM to TOP (GW_HWNDNEXT runs top to bottom) and a window is numbered
++ * before its own children, so a child sits above its parent and an upper sibling sits above the
++ * whole subtree of a lower one. Observed live: 0x2011E -> z2, 0x10140 -> z5, independent of
++ * creation order. */
++static void paint_index_walk(HWND parent, HWND target, int *next, int *found, int depth)
++{
++    HWND kids[64], k;
++    int n = 0, i;
++
++    if (depth > 8) return;
++    for (k = NtUserGetWindowRelative(parent, GW_CHILD); k && n < 64;
++         k = NtUserGetWindowRelative(k, GW_HWNDNEXT))
++        kids[n++] = k;
++    for (i = n - 1; i >= 0; i--)
++    {
++        int mine = (*next)++;
++        if (kids[i] == target) *found = mine;
++        paint_index_walk(kids[i], target, next, found, depth + 1);
++    }
++}
++
++static double dxmt_paint_zpos(HWND root, HWND child)
++{
++    int next = 1, found = 0;
++    if (!root || !child) return 0.0;
++    paint_index_walk(root, child, &next, &found, 0);
++    return (double)found;
++}
+#
+# WHAT IS STILL NOT FIXED: nothing found in the resize path by these instruments. The earlier
+# "flicker" report is not separately measurable now — every capture after a settle is correct, and
+# a 60x60ms churn ends correct — but a sub-frame flash during a live drag would not show up in a
+# post-settle capture, so it is UNTESTED rather than fixed. Say that, do not claim more.

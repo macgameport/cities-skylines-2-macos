@@ -85,9 +85,17 @@ and `docs/dxmt-bugs/`.
    from `get_win_data()` for a cross-process child window, and wine's existing remote-layer route was
    never wired up. Full write-up: [`docs/steam-ui-findings.md`](docs/steam-ui-findings.md);
    state per cell: [`docs/test-matrix.md`](docs/test-matrix.md).
-   ⚠ **Resize is still an open defect** (a half-point rounding hairline, and blackouts under rapid
-   destroy/create churn), and the patches are **not** upstreamable as-is — dxmt's `CONTRIBUTING.md`
-   forbids AI-authored PRs, so this goes upstream as a findings report, not a patch.
+   ✅ **Resize fixed the same day** — two more bugs, both in the hosting layer, both measured rather
+   than guessed at: a **one-device-pixel white seam** (retina halves an *odd* Win32 pixel size to a
+   `.5` point, so the layer lands a pixel short of a whole-point content view — the odd axis is the
+   axis that shows it), and a **blackout** caused by hosted layers stacking in *creation* order
+   instead of Win32 paint order, which put a full-window layer over the content on any resize that
+   recreated the lower of Steam's two sibling CEF browsers. Now: 0 seams across 20 captures, and the
+   sequence that used to black the client out permanently renders throughout.
+   ⚠ Still untested: **flicker during a live mouse drag** — a post-settle capture cannot see a
+   sub-frame flash either way. And the patches are **not** upstreamable as-is: dxmt's
+   `CONTRIBUTING.md` forbids AI-authored PRs, so this goes upstream as a findings report, not a
+   patch.
    The original upstream limitation ([dxmt#141](https://github.com/3Shain/dxmt/issues/141)) is that
    Steam's CEF asks for a swapchain on a window owned by another process, which stock DXMT cannot
    serve,

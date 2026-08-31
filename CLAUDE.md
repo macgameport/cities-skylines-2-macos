@@ -22,6 +22,7 @@ issues-per-item ritual. Durable record = this repo + `~/cs2-patch/change-ledger.
 | Agent brief | `docs/agent-brief.md` — hand to every subagent; they inherit no auto-loaded memory |
 | Experiment ledger | `EXPERIMENTS.md` — conclusions register + run index. Read the register at `wake up`; `python3 scripts/check-experiments.py` at `button up` |
 | Evidence store | `~/cs2-patch/evidence/<cell>/` (**outside this repo** — window PNGs carry the persona name). `/tmp/steam-cell-*` is volatile; `scripts/salvage-cells.sh` moves + sanitises |
+| Resize instruments | `scripts/win-resize-driver.c` (exact `SetWindowPos` sizes, **per-monitor DPI aware** so odd raw sizes are reachable; also `tree` and a signal-free `close`) + `scripts/pixel-probe.swift` (edge-vs-interior RGB — a 1-device-pixel seam does not survive a screenshot). Build lines are in each file's header |
 | RE toolchain | `~/cs2-patch/revenv` (dnfile + capstone + pefile) |
 | Disassemble | `~/cs2-patch/revenv/bin/python3 ~/cs2-patch/dis_pdx.py <dll> <Type> <Method>` |
 

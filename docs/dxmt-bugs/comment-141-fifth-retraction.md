@@ -4,16 +4,21 @@ Prior comments: 5400445243 · 5403561498 · 5458926046 · **5466938536** (partly
 
 **Status: DRAFTED, NOT POSTED.**
 
-## Before posting — three decisions
+## Before posting
 
-1. **Identity.** The four existing comments are `jvspearman`. James chose `iosoceans` for this
-   project going forward; posting this one as `iosoceans` splits the thread's authorship mid-
-   conversation. Verify either way:
-   `GH_CONFIG_DIR="$HOME/.config/gh-cs2" gh auth status`
-2. **The AI disclosure paragraph stays.** `CONTRIBUTING.md` forbids AI-authored *PRs* and explicitly
+**Identity: `iosoceans`. Settled 2026-08-31 — not a decision, an instruction.** The four existing
+comments are `jvspearman` and this one splitting the thread's authorship is accepted and intended.
+Verify before posting, because the Bash tool does not get the zsh `gh` wrapper:
+`GH_CONFIG_DIR="$HOME/.config/gh-cs2" gh auth status`
+
+Two things that are still constraints, not choices:
+
+1. **The AI disclosure paragraph stays.** `CONTRIBUTING.md` forbids AI-authored *PRs* and explicitly
    permits sharing findings with developers. A comment is the right channel; concealing how the work
    was done would not be.
-3. **Resize state is unsettled.** The draft says so. Do not soften it before James has re-tested.
+2. **Resize was re-tested 2026-08-31 and both defects are FIXED** — the draft below now says so,
+   with the measurements. What is still open is *flicker during a live mouse drag*, which the
+   post-settle captures cannot see either way. Do not upgrade that one to "fixed".
 
 ⚠ **No diff in the comment.** Describe the change and name the locations; offer the patches if they
 want them. Pasting a diff and asking for it to be applied is a PR wearing a comment's clothes.
@@ -96,14 +101,44 @@ than a new `macdrv_functions_t` member**, because that struct is `C_ASSERT`-ed a
 DXMT built against a larger struct would read past the end of an older winemac's and call whatever
 followed. A separate symbol just resolves to NULL on an unpatched wine and the code falls through.
 
-### 4. What is not solved
+### 4. Resize — two more bugs, both in the hosting layer, both now measured
 
-Resize is rough: CEF resizes by destroying and recreating a swapchain, so the hosted layer is
-un-hosted before its replacement exists — flicker, and sometimes a child that stays black.
-`CAContextSwapChain` also fixes its layer bounds at init with no way to resize them, so the hosted
-layer keeps its original size while the host frame moves on. I have partial mitigations for both and
-would not call either finished.
+An earlier draft of this called resize "rough" and blamed the destroy/recreate cycle. That was wrong
+twice over. There are **two** defects, they are **independent**, and **neither is a race** — both are
+steady state and both reproduce on demand.
 
-Happy to send the wine and DXMT patches, the `+seh` traces, or the harness if any of it is useful —
-just say which. And sorry for the noise in the earlier comments: the measurements were real, the
+**(a) A one-device-pixel white seam at the right/bottom edge.** Win32 gives raw pixels, `CALayer`
+takes points, and `retina_on` makes that a factor of two — so an **odd** pixel dimension becomes a
+`.5` point. The content view is sized in whole points, so the hosted layer lands exactly one device
+pixel short of it and the window surface beneath shows through:
+
+```
+root 2401x1500 px  ->  hosted layer 1200.5 x 750.0 pt   inside a   1201.0 x 750.0 pt view
+capture column x=2401 = 255,255,255                     interior  = 15,25,36
+```
+
+The falsification test is cheap, and it passes: **the odd axis is the axis that shows it.**
+`2401x1500` → right edge only; `2400x1501` → bottom edge only; `2400x1500` → neither.
+
+**(b) The blackout is z-order.** Hosted layers stack in the order they were **added**, which is
+whenever the other process happened to create a swapchain. Steam's client is **two sibling
+`CefBrowserWindow` trees** on one root — not a parent and a child, which is what their rectangles
+suggest — so any resize that recreated the *lower* browser put its full-window layer on top of the
+content layer. Black, and it stayed black because the next resize did it again.
+`2400x1500 → 2399x1499 → 2400x1500` reproduced it every time: interior luminance **82 → 1 → 0**.
+
+Both are fixed in `winemac.drv` — (a) by extending a hosted frame to the view's edge only where it
+already reaches it, (b) by deriving `zPosition` from Win32 paint order. After: **0 seams across 20
+captures**, the blackout sequence measures **63 → 63 → 113**, and 60 alternations at 60 ms end
+rendering with 0 GPU crashes.
+
+**Still open:** flicker during a live mouse drag. Every capture after a settle is correct, but a
+sub-frame flash while the mouse is down would not show up in a post-settle capture — so that is
+untested, not fine.
+
+Happy to send the wine and DXMT patches, the `+seh` traces, the resize measurements, or the harness
+if any of it is useful — just say which. The two instruments the resize work needed are small and
+generic: a per-monitor-DPI-aware `SetWindowPos` driver (a DPI-unaware process cannot even *request*
+the odd sizes that fail) and an edge-vs-interior pixel probe, because a one-device-pixel seam does
+not survive a screenshot. And sorry for the noise in the earlier comments: the measurements were real, the
 attribution was not.

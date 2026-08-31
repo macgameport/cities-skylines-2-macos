@@ -46,7 +46,11 @@ for d in /tmp/steam-cell-*/; do
   for f in stdout.txt windows.txt config.json shim.log; do
     [ -f "$d$f" ] && { [ "$DRY" = 1 ] || cp -p "$d$f" "$out/"; }
   done
-  for p in "$d"win-*.png; do
+  # Steam-window captures a cell made for itself: the resize work names them rsz-/b-/churn*, and
+  # the first salvage after that run silently dropped ALL of them -- the primary evidence for the
+  # measurement -- because only win-*.png was whitelisted. Same privacy class as win-*.png:
+  # evidence store only, never committed. (2026-08-31)
+  for p in "$d"win-*.png "$d"rsz-*.png "$d"b-*.png "$d"churn*.png; do
     [ -e "$p" ] || continue
     [ "$DRY" = 1 ] || cp -p "$p" "$out/"
     kept=$((kept+1))
