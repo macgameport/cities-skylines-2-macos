@@ -9,7 +9,7 @@ polled a log at the wrong path, ran the resize driver against the wrong prefix, 
 with a `$` anchor, and was killed by a tool timeout that took Steam down with it. Every one of those
 is a harness fact, not a game fact, and each cost a launch. The facts are now in `GOTCHAS.md` and
 memory; this plan turns them into a script that cannot get them wrong. The ad-hoc scripts that
-worked on 2026-09-02 are preserved at `~/cs2-patch/evidence/session-2026-09-02-harness/`
+worked on 2026-09-02 are preserved at `~/cs2-patch/harness-2026-09-02/`
 (`boot2.sh` is the seed; this plan supersedes its detachment and verdict handling).
 
 ---
