@@ -1,6 +1,6 @@
 # Cross-process hosting layer — the two design gaps and the three heuristics
 
-**Status: check-it'd 2026-09-02 — needs-rework on D1 as first written; D1 rewritten below from a measurement, D2/D3 corrected; fitted re-check pending before build.** Umbrella:
+**Status: check-it'd 2026-09-02 — build-ready-with-fixes (pass 2; D1 was rewritten from a measurement after a needs-rework pass 1, then re-checked).** Umbrella:
 [issue #1](https://github.com/macgameport/cities-skylines-2-macos/issues/1). Baseline: commit
 `c94d9e9`, installed module `310f13d03e27732d`, source tree
 `~/cs2-patch/build-1116/wine-11.16-dxmt/dlls/winemac.drv/` (line numbers below are against it).
@@ -30,8 +30,8 @@ Both were wrong, and the check lens caught the first from source. The trace sett
 | window | created / hooked by | acquires the remote layer |
 |---|---|---|
 | root `0x40122` (Steam main) | tid `0130` | — |
-| children `0x2011c`, `0x20138` (under the main root) | tid `0130` — `macdrv_create_win_data` runs for them, `win 0x…/0x0` (win_data, no cocoa_window), 25 × `WindowPosChanging`/`Changed` each | tid `01dc` (`my_get_win_data` → NULL → cross-process branch, 7 ×) |
-| popup roots (`0x10194`, `0x3018c`, …) and their children | tid `0130`, same pattern | tid `01dc` |
+| children `0x2011c`, `0x20138` (under the main root) | tid `0130` — `macdrv_create_win_data` runs for them, `win 0x…/0x0` (win_data, no cocoa_window); `WindowPosChanging`/`Changed` 20/20 and 21/21 on `0130` | tid `01dc` (`my_get_win_data` → NULL → cross-process branch, 5 × and 6 ×); `01dc` emits **zero** `WindowPos*` hooks for any window |
+| popup roots (`0x10194`, `0x3018c`, …) and their children (e.g. `0x10198`: 25/25 hooks on `0130`) | tid `0130`, same pattern | tid `01dc` (7 × for `0x10198`) |
 
 So **every child is owned by the browser's UI thread, the same thread that owns its root and runs
 the `WM_MACDRV_CREATE_REMOTE_LAYER` handler**; the GPU process is foreign to the whole tree and
@@ -52,7 +52,9 @@ if (!data->cocoa_window)
     HWND root = NtUserGetAncestor(hwnd, GA_ROOT);
     BOOL moved = ~swp_flags & (SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER) ||
                  swp_flags & (SWP_SHOWWINDOW | SWP_HIDEWINDOW);
-    release_win_data(data);                    /* one global win_data_mutex: never nest */
+    release_win_data(data);   /* release the child before taking the root: keep lock scopes
+                               * single-level (win_data_mutex is recursive, so this is a
+                               * preference, not a requirement) */
     if (moved && root && root != hwnd && (data = get_win_data(root)))
     {
         if (remote_layer_children_has(data, hwnd)) update_remote_layer_frames(data);
@@ -76,7 +78,7 @@ the natural post point. Detect it with the T0 probe below before designing for i
 
 ## D2 — fixed-capacity paint order
 
-**Current.** `PAINT_ORDER_MAX 64` / `PAINT_ORDER_DEPTH 8` (`window.c:86-87`), `HWND kids[64]` on
+**Current.** `PAINT_ORDER_MAX 64` / `PAINT_ORDER_DEPTH 8` (`window.c:85-86`), `HWND kids[64]` on
 the stack per recursion level, a once-per-process `FIXME` when tripped (`paint_order_truncated`).
 When truncated, a layer created for a child outside the recorded set gets `have_z == FALSE` and the
 Cocoa side leaves `zPosition` at 0 — the layer sits under every sibling, which is the blackout class
@@ -137,11 +139,11 @@ today it only probes the outermost edges and one interior reference), `scripts/s
 | # | test | method | pass | mutant (apply to real source, observe red, restore green) |
 |---|---|---|---|---|
 | T0 | the ownership premise still holds on the build under test | one `+macdrv` cell; bucket `WindowPosChanging`/`Changed` tids per hosted child against the tid emitting `cross-process child … -> root` and the tid running the CREATE handler | every hosted child's hook tid == the CREATE-handler tid (owner); the acquiring tid never emits a hook for any of them | n/a — a premise probe; if it fails, D1 needs the message leg |
-| T1 | child-only move re-places the layer | Steam on the **Library** page (the Store's autoplaying video would give false reds); take a hosted child from the CREATE trace (browser-owned, e.g. the `0x2011c` kind); **negative control first**: the strip at x+120 must differ from the strip at x by > 8/channel before the move, else the content is uniform and the test is void; capture; `move <child> +120,+0`; `rects <child>` readback proves the Win32 rect moved (instrument validation — a broken `move` must not read as a red mutant); wait 500 ms; capture; then **one resize** and a third capture; `move` it back | two-sided: the strip at the child's left edge (`strip` mode) now reads the child's content at x+120 **and** the old location no longer does (within 8/channel); the post-resize capture still renders | comment out the `update_remote_layer_frames` call in the new branch → both captures identical; restore. **Pre-registered:** if the mutant is *silent* while `rects` confirms the move, CEF re-created its swapchain on the move — that is a finding about D1 (the move path is unnecessary for CEF), not a harness failure; record it as such |
-| T2 | child-only z change re-stacks | Steam's two `CefBrowserWindow` siblings overlap by construction (2398×1215 @1,250 inside 2400×1500 @0,66); measure the overlap region's mean RGB with the top sibling on top, `front <lower sibling>`, measure again, `front <upper sibling>`, measure a third time | the region changes to the lower sibling's signature and back (> 8/channel each way) | its own mutant: comment out the root lookup in the new branch (leave the move path) → the region does not change; restore |
+| T1 | child-only move re-places the layer (`move <hwnd> <dx,dy>` is a **delta** in pixels, applied in the parent's client space; the `rects` readback confirms a screen-space origin change of exactly (dx,dy)) | Steam on the **Library** page (the Store's autoplaying video would give false reds); take a hosted child from the CREATE trace (browser-owned, e.g. the `0x2011c` kind); **negative control first**: the strip at x+120 must differ from the strip at x by > 8/channel before the move, else the content is uniform and the test is void; capture; `move <child> +120,+0`; `rects <child>` readback proves the Win32 rect moved (instrument validation — a broken `move` must not read as a red mutant); wait 500 ms; capture; then **one resize** and a third capture; `move` it back | two-sided: the strip at the child's left edge (`strip` mode) now reads the child's content at x+120 **and** the old location no longer does (within 8/channel); the post-resize capture still renders | comment out the `update_remote_layer_frames` call in the new branch → both captures identical; restore. **Pre-registered:** if the mutant is *silent* while `rects` confirms the move, CEF re-created its swapchain on the move — that is a finding about D1 (the move path is unnecessary for CEF), not a harness failure; record it as such |
+| T2 | child-only z change re-stacks | Steam's two `CefBrowserWindow` siblings overlap by construction (2398×1215 @1,250 inside 2400×1500 @0,66); measure the overlap region's mean RGB with the top sibling on top, `front <lower sibling>`, measure again, `front <upper sibling>`, measure a third time | the region changes to the lower sibling's signature and back (> 8/channel each way) | its own, **independent** mutant: drop `SWP_NOZORDER` from the `moved` mask → T2 red while T1 stays green; restore |
 | T3 | no regression: blackout sequence | `2400x1500 → 2399x1499 → 2400x1500` | interior luminance > 40 at every step, 0 bright edges | n/a (regression) |
 | T4 | no regression: churn ×2 + static control | `shimmer-probe.sh churn` twice, `static` once, 40 samples each | 0 gap frames | n/a |
-| T5 | D2: no capacity | build with `PAINT_ORDER_DEPTH` forced to 2 as the mutant for the *depth* bound; the growable walk has no breadth cap to mutate. **Observation channel:** the z assignment is a `TRACE` in core (the upstream-form plan converts the former `HOST zpos` instrument line to one `TRACE`), read with `+macdrv` | with the real code: `paint order incomplete` FIXME never logged under Steam; with the depth mutant: FIXME logged once, and every hosted layer above the cut still gets a z in the trace | the old fixed array restored with MAX=4, **with the cap placement pre-registered from a `tree` dump so a hosted child is provably past index 4**; the mutant run must show the `too many windows in the tree` FIXME or it proved nothing → a blackout on churn (the C13 signature) |
+| T5 | D2: no capacity | build with `PAINT_ORDER_DEPTH` forced to 2 as the mutant for the *depth* bound; the growable walk has no breadth cap to mutate. **Observation channel:** the z assignment is a `TRACE` in `window.c`'s `update_remote_layer_frames` (the upstream-form plan converts the former `WINPOS` instrument line to one `TRACE` carrying `context_id`, `zpos`, `have_z`; the `.m` files cannot `TRACE`), read with `+macdrv` | with the real code: `paint order incomplete` FIXME never logged under Steam; with the depth mutant: FIXME logged once, and every hosted layer above the cut still gets a z in the trace | the old fixed array restored with MAX=4, **with the cap placement pre-registered from a `tree` dump so a hosted child is provably past index 4**; the mutant run must show the `too many windows in the tree` FIXME or it proved nothing → a blackout on churn (the C13 signature) |
 | T6 | D3: `set_bounds` deletion is behaviour-neutral (executed in the upstream-form plan; re-verified here) | the C29 battery above | inside the battery's bounds | n/a — the function had 0 firings; the test is that nothing depended on it |
 | T7 | game boots | boot-verify script | `MainMenu reached`, graceful exit, 0 `InvalidProgramException` | n/a |
 | T8 | lifetime traces still clean | `WINEDEBUG=+err,+macdrv` on one cell | 0 `acquire_metal_swapchain FAILED`; ≥ 1 drain with ≥ 1 dead-child slot and ≥ 1 prune on popup close; 0 `ERR` lines from our code | n/a |
@@ -171,7 +173,9 @@ before installing). Source: the git history from the upstream-form plan.
 
 | date | pass | lenses | method | model | verified against | verdict |
 |---|---|---|---|---|---|---|
-| 2026-09-02 | 1 | architecture + correctness (win32u hook path, lock order, enum range, D2/D3 facts, driver verbs) | 1 agent, 16 tool calls | claude-fable-5-1 | `c94d9e9` | needs-rework — D1's hook point was dead code (children *do* get `win_data`) and its process premise was wrong; D2's two-walk race; D3 sound. Then an inline measurement on the existing `+macdrv` trace (cell `exp_9b5030`) showed every child is owner-created (tid `0130`), which reduced D1 to the one-leg owner-side design above. D1/D2/tests rewritten; **fitted re-check required before build.** |
+| 2026-09-02 | 1 | architecture + correctness (win32u hook path, lock order, enum range, D2/D3 facts, driver verbs) | 1 agent, 16 tool calls | claude-fable-5-1 | `c94d9e9` | needs-rework — D1's hook point was dead code (children *do* get `win_data`) and its process premise was wrong; D2's two-walk race; D3 sound. Then an inline measurement on the existing `+macdrv` trace (cell `exp_9b5030`) showed every child is owner-created (tid `0130`), which reduced D1 to the one-leg owner-side design above. D1/D2/tests rewritten. |
+| 2026-09-02 | 1b | cross-plan test-plan audit | 1 agent, 10 tool calls | claude-fable-5-1 | `310e631c` | adequate-with-fixes — negative control and instrument readback for T1, independent T2 measurement, the C29 battery defined numerically, fixtures given an owner (plan 5). Folded. |
+| 2026-09-02 | 2 (fitted re-check of the fold) | one agent over the rewritten sections, cites re-verified against the code and the trace | 1 agent, 11 tool calls | claude-fable-5-1 | `276f43d5` | build-ready-with-fixes — D1 rewrite measurement-backed and correct (T0 re-verified on the trace: `01dc` emits no hooks at all); fixes were prose: the mutex is recursive (rationale reworded), T2's mutant was not independent (now the `SWP_NOZORDER` mask), per-child hook counts, two cites, the z `TRACE` site. **Cleared for build in umbrella order (after plans 5 and 2).** |
 
 **Key paths:** `~/cs2-patch/build-1116/wine-11.16-dxmt/dlls/winemac.drv/{window.c,cocoa_window.m,macdrv_main.c,macdrv.h}` ·
 `~/cs2-patch/build-1116/wine-11.16/dlls/win32u/window.c` (hook call site) · `scripts/win-resize-driver.c` ·

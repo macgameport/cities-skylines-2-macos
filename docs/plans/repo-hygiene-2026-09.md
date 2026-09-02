@@ -1,6 +1,6 @@
 # Repo hygiene — identity section, archive, prune, headers, ledger wording
 
-**Status: check-it'd 2026-09-02 — build-ready-with-fixes (pass 1; corrections folded below).** Umbrella:
+**Status: check-it'd 2026-09-02 — build-ready-with-fixes (pass 2; corrections folded, cross-plan consistency re-checked).** Umbrella:
 [issue #1](https://github.com/macgameport/cities-skylines-2-macos/issues/1). Baseline: commit
 `c94d9e9`. All items are mechanical; the plan exists so the two that carry a decision (H1, H2) are
 decided once and the rest are done in one commit.
@@ -105,7 +105,9 @@ Plain git revert of one commit; `CLAUDE.local.md` is untracked and stays.
 
 | date | pass | lenses | method | model | verified against | verdict |
 |---|---|---|---|---|---|---|
-| 2026-09-02 | 1 | correctness (repo facts, link census, checker constants) + Claude Code guide (the `CLAUDE.local.md` platform fact) | 2 agents, 12 tool calls | claude-fable-5-1 | `c94d9e9` | build-ready-with-fixes — no design change; two test measurements were wrong (T1, T3), H1 needed its residual-mentions decision and the brief's premise corrected, H3 three specifics and the counts, H4/H5 one line each. All folded above. |
+| 2026-09-02 | 1 | correctness (repo facts, link census, checker constants) + Claude Code guide (the `CLAUDE.local.md` platform fact) | 2 agents, 12 tool calls | claude-fable-5-1 | `c94d9e9` | build-ready-with-fixes — no design change; two test measurements were wrong (T1, T3), H1 needed its residual-mentions decision and the brief's premise corrected, H3 three specifics and the counts, H4/H5 one line each. Folded. |
+| 2026-09-02 | 1b | cross-plan test-plan audit | 1 agent, 10 tool calls | claude-fable-5-1 | `310e631c` | inadequate as written → fixed: T1 now a nonce sentinel with a negative control, T7 gates issue creation on the `gh` identity, T8 re-measures the patch counts. Folded. |
+| 2026-09-02 | 2 (fitted re-check of the fold) | one agent over the rewritten sections, cites re-verified against the code and the trace | 1 agent, 11 tool calls | claude-fable-5-1 | `276f43d5` | build-ready-with-fixes — only cross-plan items re-checked (sequencing, status line); content stands on pass 1. **Cleared for build, any time.** |
 
 **Key paths:** `CLAUDE.md` · `.gitignore` · `PLAN.md` · `docs/steam-ui-investigation.md` ·
 `docs/patch-inventory.md` · `EXPERIMENTS.md` · `scripts/check-experiments.py`

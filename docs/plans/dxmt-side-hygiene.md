@@ -34,7 +34,7 @@ provenance: `cmp` against the build artifact (identical, 27,924,120 B) + `git de
 
 | line | now | change |
 |---|---|---|
-| 3 | `#include <stdio.h>` | **keep** — it is unused today, but row 1616 adds an `fprintf`, and a transitive Cocoa include is exactly how `com_guid.cpp` broke under mingw |
+| 3 | `#include <stdio.h>` | **keep** — the file's one existing `fprintf` is inside a comment, so the include is unused today, but row 1616 adds a real `fprintf`, and a transitive Cocoa include is exactly how `com_guid.cpp` broke under mingw |
 | 1660 | `BOOL (*pfn_release_remote)(macdrv_view)` — ObjC `BOOL` is `signed char`, wine returns `int` | declare `int (*)(macdrv_view)` |
 | 1616–1622 | `remote_view == NULL` with a non-NULL layer is returned as success; the PE side then `abort()`s with "your Wine has no exported symbols" | **dead by construction on this wine** — `macdrv_CreateClientSurface` (`window.c:1332-1347`) assigns `cocoa_view` unconditionally and a nil view makes the acquire itself fail, so layer-without-view cannot occur. Write the minimal defensive form anyway: `if (remote_layer && remote_view) { … } else if (remote_layer) fprintf(stderr, "…unreachable on this winemac; defensive…");` and fall through (the `if (win_data)` block is skipped → `STATUS_SUCCESS`, `ret_view` 0 → PE abort) |
 | 1610 | comment "we fall through unchanged" | say what actually happens: on an unpatched **winemac** `dlsym` returns NULL, the block is skipped, `ret_view` stays 0 and the PE aborts with a misleading message. That is an **improvement**, not preserved behaviour — unpatched v0.80 dereferenced `win_data->client_cocoa_view` unconditionally, a NULL-deref crash inside `winemetal.so` with PK's guard-less PE (and `E_FAIL` before the call with upstream's PE) |
@@ -92,7 +92,9 @@ plan 2 should exist first.
 
 | date | pass | lenses | method | model | verified against | verdict |
 |---|---|---|---|---|---|---|
-| 2026-09-02 | 1 | correctness + builder simulation (ninja graph, pefile/capstone on the PE thunks, `git show v0.80`) | 1 agent, 17 tool calls | claude-fable-5-1 | `c94d9e9` | build-ready-with-fixes — code sound; the test gate was the defect (T3's mutant silent), §4's toolchain claim false for a clean build, a third dirty file unaccounted for. All folded above. |
+| 2026-09-02 | 1 | correctness + builder simulation (ninja graph, pefile/capstone on the PE thunks, `git show v0.80`) | 1 agent, 17 tool calls | claude-fable-5-1 | `c94d9e9` | build-ready-with-fixes — code sound; the test gate was the defect (T3's mutant silent), §4's toolchain claim false for a clean build, a third dirty file unaccounted for. Folded. |
+| 2026-09-02 | 1b | cross-plan test-plan audit | 1 agent, 10 tool calls | claude-fable-5-1 | `310e631c` | adequate-with-fixes — T4 became a wine-side mutant run, the checkout and the install got outcome tests. Folded. |
+| 2026-09-02 | 2 (fitted re-check of the fold) | one agent over the rewritten sections, cites re-verified against the code and the trace | 1 agent, 11 tool calls | claude-fable-5-1 | `276f43d5` | build-ready-with-fixes — rows 3/1616 consistent, three dirty files accounted for, C29 referenced not restated; one minor wording fix. **Cleared for build, last in umbrella order.** |
 
 **Key paths:** `~/cs2-patch/dxmt-v080/src/winemetal/unix/winemetal_unix.c` ·
 `~/cs2-patch/dxmt-v080/src/d3d11/d3d11_swapchain.cpp` · `scripts/dxmt-remote-layer-fallback.patch` ·

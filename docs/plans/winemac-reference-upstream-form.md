@@ -1,6 +1,6 @@
 # The wine reference implementation in upstream form — readable, split, and generated from git
 
-**Status: check-it'd 2026-09-02 — build-ready-with-fixes (pass 1; the history design was the blocker, corrected below; fitted re-check pending on §1/§3).** Umbrella:
+**Status: check-it'd 2026-09-02 — build-ready-with-fixes (pass 2; the history design was the pass-1 blocker, corrected and re-checked).** Umbrella:
 [issue #1](https://github.com/macgameport/cities-skylines-2-macos/issues/1). Baseline: commit
 `c94d9e9`; the review lens's separability table and draft commit message are preserved in the issue.
 
@@ -51,7 +51,7 @@ gate (regenerate to a temp file, `cmp` against `scripts/*.patch`).
 | `macgameport` handle tags | **9** (all parenthetical); dated lines 22; union 23 | 0 in core; allowed in glue | `grep -c '^+.*macgameport'` · `grep -c '^+.*2026-0[0-9]-[0-9][0-9]'` |
 | `EXPERIMENT (…)` headers | **1** | 0 | `grep -c '^+.*EXPERIMENT'` |
 | comment share of added lines | **28.7%** comment-only of 839 added (31.3% of non-blank) | ≈10% in core; measurements live in `docs/winemac-crossprocess-remote-layer-history.md` | `grep -c '^+[[:space:]]*\(/\*\|\*\|//\)'` ÷ `grep -c '^+'` (minus `+++`) |
-| `DXMT_RSZ` instrument | 2 definition pairs + 2 `dxmt_rsz_ms` helpers + **3 inline `#ifdef DXMT_RSZ_DEBUG` blocks**, 7 call sites, 5 includes — ≈101 lines | **removed** from the tree; the history doc keeps the definition verbatim. **One observation survives as a core `TRACE`:** the z assignment in `setCALayerHostZPosition:` (the former `HOST zpos` line), because the design-gaps plan's T5 reads it | `grep -c '^+.*DXMT_RSZ'` |
+| `DXMT_RSZ` instrument | 2 definition pairs + 2 `dxmt_rsz_ms` helpers + **3 inline `#ifdef DXMT_RSZ_DEBUG` blocks**, 7 call sites, 5 includes — ≈101 lines | **removed** from the tree; the history doc keeps the definition verbatim. **One observation survives as a core `TRACE`, in C:** the per-layer z assignment in `window.c`'s `update_remote_layer_frames` (`context_id`, `zpos`, `have_z` — replacing the former `WINPOS` instrument line at its call site), because the design-gaps plan's T5 reads it. Not in the `.m` method: no `.m` file includes `wine/debug.h`, and the Cocoa-side `ERR` is not `WINEDEBUG`-controlled | `grep -c '^+.*DXMT_RSZ'` |
 | vendor-named symbols in core | `dxmt_fill_view_edges` (3 sites) | `snap_host_frame_to_view_edges` (file-local static) | `grep -c '^+.*dxmt_fill_view_edges'` |
 | `ERR`/`TRACE`/`FIXME` use | done in the review pass | unchanged | — |
 | non-ASCII | 0 | 0 | `grep -cP '[^\x00-\x7F]'` |
@@ -61,7 +61,8 @@ Behaviour-neutral by construction: the comment/tag pass must produce a **byte-id
 `winemac.so` (the project's own 2026-08-31 precedent). The instrument removal is byte-identical
 too (`DXMT_RSZ` expands to `do {} while (0)`, the `#ifdef` blocks are not compiled, the three libc
 includes change no codegen), and the static rename is byte-identical after `strip -x`. Only the
-`set_bounds` deletion and the insertion-point relocation change the binary, so T5/T6 re-verify.
+`set_bounds` deletion, the insertion-point relocation and the one added z `TRACE` change the
+binary, so T5/T6 re-verify.
 
 ## 3. The split
 
@@ -139,7 +140,9 @@ module's backup sits beside it.
 
 | date | pass | lenses | method | model | verified against | verdict |
 |---|---|---|---|---|---|---|
-| 2026-09-02 | 1 | wine-maintainer form + builder simulation (hunk-by-hunk core/glue classification, `git apply --check` vs pristine, makedep/Makefile `.git` behaviour, link flags, counts) | 1 agent, 13 tool calls | claude-fable-5-1 | `c94d9e9` | build-ready-with-fixes — mechanism sound; the linear history was the blocker (core context carried aquadran lines, measured non-applicable to stock); snap belongs in core; `set_bounds` decision resolved by measurement (delete); counts corrected; licensing wording fixed. All folded; **fitted re-check on §1/§3 before build.** |
+| 2026-09-02 | 1 | wine-maintainer form + builder simulation (hunk-by-hunk core/glue classification, `git apply --check` vs pristine, makedep/Makefile `.git` behaviour, link flags, counts) | 1 agent, 13 tool calls | claude-fable-5-1 | `c94d9e9` | build-ready-with-fixes — mechanism sound; the linear history was the blocker (core context carried aquadran lines, measured non-applicable to stock); snap belongs in core; `set_bounds` decision resolved by measurement (delete); counts corrected; licensing wording fixed. Folded. |
+| 2026-09-02 | 1b | cross-plan test-plan audit | 1 agent, 10 tool calls | claude-fable-5-1 | `310e631c` | adequate-with-fixes — base commits verified against pristine and stock+aquadran, T2 names its string and hunk, T4 a standing gate. Folded. |
+| 2026-09-02 | 2 (fitted re-check of the fold) | one agent over the rewritten sections, cites re-verified against the code and the trace | 1 agent, 11 tool calls | claude-fable-5-1 | `276f43d5` | build-ready-with-fixes — relocation targets confirmed in pristine (`macdrv.h:187`, `window.c:1270`), `diff.srcPrefix`/`dstPrefix` honoured (tested live), no stale text; the z `TRACE` moved from the `.m` method to its C caller. **Cleared for build in umbrella order (after plan 5).** |
 
 **Key paths:** `~/cs2-patch/build-1116/wine-11.16-dxmt/dlls/winemac.drv/` ·
 `~/cs2-patch/build-1116/wine-11.16/dlls/winemac.drv/` (pristine) · `scripts/wineandaqua-dxmt.patch` ·
