@@ -1,7 +1,8 @@
 # Agent brief — read this first
 
-One screen. A subagent does **not** inherit this session's auto-loaded `CLAUDE.md` / memory, so
-everything below would otherwise be re-derived by grep — or, worse, guessed. Full detail:
+One screen. A subagent receives the project `CLAUDE.md` and the memory *index* in its prompt
+(measured 2026-09-02: two review lenses quoted their own), but not this conversation, the memory
+bodies, or the shortcuts — so everything below would otherwise be re-derived by grep, or guessed. Full detail:
 `CLAUDE.md`, `EXPERIMENTS.md`, `GOTCHAS.md` (headings only — it is 2,500 lines, never read whole).
 
 ## What this project is
