@@ -1,7 +1,7 @@
 # Test matrix — what works, what doesn't, and what we're allowed to say
 
 > Generated from the evidence store (`~/cs2-patch/evidence`, 80 cells) and `EXPERIMENTS.md`,
-> **2026-08-31**, last updated after the resize fixes landed. Numbers are read out of `config.json` + `stdout.txt` per cell, not from memory.
+> **2026-09-02**, last updated after the review-pass hardening (C29). Numbers are read out of `config.json` + `stdout.txt` per cell, not from memory.
 > Regenerate the cell table with the snippet at the foot of this file.
 
 ## 1. The port, as it stands
@@ -15,7 +15,7 @@
 | **Steam client UI — patched stack, plain launch** | ✅ **renders, with text** — no shim, no injected switches | `resize-ship`, 3.0 MB capture, 0 GPU crashes |
 | **Steam client UI — stock stack** | ❌ **black** | every pre-patch out-of-process cell; GPU process crashes 6×/launch |
 | **Steam client UI — with shim (`--in-process-gpu`)** | ✅ renders — the earlier workaround, now unnecessary | `ipgpu-fonts-fixed`, 727 KB, [screenshot](images/steam-renders-with-text.png) |
-| **Steam client — resize** | ✅ white edge · ✅ blackout · ✅ shimmer · live-drag flicker reported *minimal* (by eye) | `resize-diag` → `resize-ship`; 3 bright-edge findings before, 0 across 20 captures after |
+| **Steam client — resize** | ✅ white edge · ✅ blackout · ✅ shimmer · live-drag flicker measured 0 gaps in 80 frames at 178 ms sampling (cannot see a single-frame flash) | `resize-diag` → `resize-ship`; 3 bright-edge findings before, 0 across 20 captures after |
 | **Steam client — navigation** | ✅ Library blackout fixed (a 0×0 browser was stretched over the view) | found in real use, not by the suite; six-navigation sweep all render, 0 GPU crashes |
 | **Steam popups** (Friends List, Settings) | ✅ render — after fixing a regression of ours that hid them permanently | Friends List 20,420 B lum 0 → 274,680 B lum 38 |
 | **Resize shimmer** (background art) | ✅ **closed** — gap rate 5.00% → 1.25% → **0.00%** across 520 sampled frames | retire-on-create + per-child deferred release; interior lum min 0 → 28 |
@@ -23,8 +23,14 @@
 | **Game display selection** | ⚠ picks the wrong monitor on a 2-external setup | 3840×2160 window on a 1920×1080 main display |
 
 **Bottom line:** on the patched wine + DXMT everything works, including Steam's client out-of-process
-with no shim. What is left is one *unmeasured* question (flicker during a live drag) and the fact
-that none of the patches can be upstreamed as a PR.
+with no shim. What is left is a resolution limit (a single-frame flash during a live drag sits below
+what `screencapture` can sample) and the fact that none of the patches can be upstreamed as a PR.
+
+**Re-verified 2026-09-02** on the hardened module (`310f13d0…`, four lifetime defects fixed): three
+Steam sessions, 0 GPU crashes; library/friends/settings/store/downloads render; the blackout
+sequence measures interior luminance 83 → 84 → 112 with 0 bright edges on the odd size; two
+40-sample churns and a static control at 0 gap frames; a popup opened, closed and the main window
+stayed rendered. Cells `audit-fix`, `audit-fix2`, `audit-fix3`.
 
 ## 2. Render-cell matrix — the fingerprinted cells
 

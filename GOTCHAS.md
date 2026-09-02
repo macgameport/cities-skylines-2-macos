@@ -1558,3 +1558,37 @@ Steam-managed file only confuses the next reader (Steam would revert it on valid
 **Not worth chasing further unless someone wants Steam-launching specifically.** The shortcut is
 unaffected, and the Steam overlay — the main thing Steam-launching would buy — is deliberately
 disabled anyway because it crashes the game under wine (§12 above).
+
+## A "hold until the next event for the same key" cache leaks when the key never fires again (2026-09-02)
+
+**Root cause.** The per-child deferred release (2026-08-31) parked one retired surface per child
+HWND and drained it on that child's *next* release. A destroyed child — every closed popup menu,
+every closed Friends List — never releases again, so its slot was held forever: CAMetalLayer,
+drawables, a window-server `CAContext` and an orphan NSView per popup ever opened. Found by a code
+review, not by a symptom; it would have shown up as memory growth over a long session.
+
+**Prevention.** Any "keep until the next event for the same key" design needs a second exit: the
+key's *death*. Here that is two guards — a release whose owner is already gone is released
+immediately (`NtUserIsWindow`), and every release sweeps the table for dead keys — measured as
+`dxmt-life ... dead-child slot(s)` traces. The general shape: if an entry's lifetime is tied to a
+future event, list every reason that event might never come and give each one a drain path.
+
+## A hand-maintained patch file drifts from the binary it claims to describe (2026-09-02)
+
+**Root cause.** `scripts/winemac-crossprocess-remote-layer.patch` grew as prose — six dated addenda
+with hunks like `@@ before "..." @@` — while the real code lived in the build tree. `patch` could not
+apply it, and wine bug 60263 linked it as "a working version of both halves". The DXMT half was a
+real diff but cut before its `_ReleaseMetalView` hunk existed, so it described an over-release path
+the installed binary did not have. Neither drift was visible from the docs, which cited the files.
+
+**Prevention.** A patch file is generated, never edited: `diff -ruN` (or `git diff`) from the tree,
+then **dry-run applied to a fresh base and byte-compared against the working tree** before it is
+committed. Narrative goes in a `.md` beside it. `docs/winemac-crossprocess-remote-layer-history.md`
+is where the addenda now live; the two patch headers carry the regeneration date.
+
+## The resize driver prints CRLF — `title=Steam$` never matches its output (2026-09-02)
+
+`win-resize-driver.exe` writes through the Windows CRT, so every line ends `\r\n`. A `grep
+"title=Steam$"` over its `list` output matches nothing, and a `grep -v` meant to *exclude* the main
+window excludes nothing — one verification script closed the main Steam window along with the
+popups that way. Pipe the driver through `tr -d '\r'` first. `winlist` (Swift) is LF and unaffected.

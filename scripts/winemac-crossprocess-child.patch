@@ -9,8 +9,10 @@
 # lives in the owning process. Geometry is NOT mapped yet (the hosted CALayerHost fills the root's
 # content view), which is approximately right when the child covers the client area.
 #
-# STATUS: builds clean; NOT YET VALIDATED — the test clone came up at a Steam login screen, so no
-# cross-process child HWNDs were exercised. See GOTCHAS "Cross-process CHILD windows".
+# STATUS: SUPERSEDED (2026-09-02 label). This was the first, geometry-less version. It was validated
+# on 2026-08-30 (the child path fired 46x per launch and the window composited) and then replaced
+# by scripts/winemac-crossprocess-remote-layer.patch, which carries the geometry, z-order, 0x0 and
+# lifetime work. Kept for the record; do not apply.
 
 --- a/dlls/winemac.drv/window.c
 +++ b/dlls/winemac.drv/window.c

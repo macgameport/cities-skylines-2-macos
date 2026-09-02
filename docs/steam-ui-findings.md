@@ -2,7 +2,7 @@
 
 > **Read this first.** The investigation is recorded elsewhere in reverse chronological order with
 > retractions layered on top, which is faithful but nearly unreadable. This is the same material as
-> one causal story, current as of **2026-08-31**.
+> one causal story, current as of **2026-09-02**.
 >
 > Companions: [`test-matrix.md`](test-matrix.md) = what works today, cell by cell ·
 > [`../EXPERIMENTS.md`](../EXPERIMENTS.md) = the register and per-run evidence (authoritative on
@@ -175,7 +175,9 @@ Two patches, neither of which works alone:
   one removed the black band: `CALayer.frame` is in points, the frames arriving were raw pixels,
   and on retina that is exactly 2×.
 - **DXMT** (`scripts/dxmt-remote-layer-fallback.patch`) — when `get_win_data()` returns NULL,
-  call `dxmt_acquire_remote_layer()` via `dlsym` instead of dereferencing NULL.
+  call `dxmt_acquire_remote_layer()` via `dlsym` instead of dereferencing NULL; and on release,
+  ask `dxmt_release_remote_layer()` first, so a remote view is retired by wine rather than
+  released as a metal view it never was.
 
 Result: **0 GPU crashes** (was 6 every launch), full client with text
 ([screenshot](images/steam-crossprocess-complete.png)). The game still boots to `MainMenu` on the
@@ -339,6 +341,31 @@ to show.
 successor lands" cannot work, for exactly that reason. And retire-on-create's *first* trial measured
 0/40 and would have been reported as fixed; trials 2 and 3 each showed 1. Repeating is the only
 reason this is a result rather than a claim.
+
+## Hardened 2026-09-02 — a review pass, not a failure
+
+An `open up` audit read the whole diff with three independent lenses and found defects the
+measurements could not: **lifetime**, not rendering. All fixed, rebuilt, re-verified:
+
+| defect | fix |
+|---|---|
+| one `CAContextSwapChain` parked forever per **destroyed** child HWND — the per-child slot drained only on that child's *next* release, and a closed popup never releases again | a release whose child is already gone is released immediately, and every release sweeps the table for slots whose child has died (`dxmt-life` traces show 5 drains in one session) |
+| dead children never pruned owner-side; their host stayed painted at its last frame | on a rect failure the host is released and the entry dropped (5 prunes measured) |
+| the release guard skipped **root-keyed** layers once the child table existed | every hosted layer is tracked, root layers with a NULL child |
+| a child destroyed between post and handler was hosted **full-window** | not hosted at all |
+| hosted frames updated *before* the Cocoa frame was applied (edge snap against stale bounds for one pass) | the update now runs after `sync_window_position` |
+| dead struct member + `C_ASSERT 88` (DXMT uses `dlsym` only); stale `@interface` (a measured `-Wincomplete-implementation`); flow logged as `ERR`; a debug string loop compiled into non-debug builds; 25 lines over 100 columns | removed / declared / `TRACE` / `#ifdef` / wrapped |
+
+**And the publication defect that mattered most:** the file wine bug 60263 links as "a working
+version of both halves" was prose — `patch` could not apply it — and the DXMT half was missing its
+`_ReleaseMetalView` hunk, so a DXMT built from it would have released a client-surface view as a
+`WineMetalView` on every resize. Both patches are now regenerated from the working trees and
+dry-run-applied to fresh bases; the prose history moved to
+[`winemac-crossprocess-remote-layer-history.md`](winemac-crossprocess-remote-layer-history.md).
+
+Verification on the new module (`310f13d0…`): 0 GPU crashes over three Steam sessions, six
+navigations render, blackout sequence 83/84/112 with 0 bright edges, two 40-sample churns and a
+static control at 0 gaps, popup open/close clean, game boot-verified (see the ledger).
 
 ## Open
 

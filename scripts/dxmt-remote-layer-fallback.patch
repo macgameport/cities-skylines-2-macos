@@ -1,28 +1,5 @@
-# dxmt-remote-layer-fallback.patch — the DXMT half of the cross-process Steam fix.
-# When get_win_data() returns NULL for a foreign HWND, resolve wine's exported
-# dxmt_acquire_remote_layer via dlsym instead of dereferencing NULL. Pairs with
-# scripts/winemac-crossprocess-remote-layer.patch; NEITHER half works alone.
-#
-# ⚠ AI-AUTHORED. Read this before you read the code.
-#
-# This patch was written with heavy AI assistance. 3Shain/dxmt's CONTRIBUTING.md cannot accept
-# AI-authored contributions, so it was never offered as a PR — the findings went upstream as a
-# report instead: https://github.com/3Shain/dxmt/issues/141#issuecomment-5477055980
-#
-# It is published here on purpose: this is our port's own record, and anyone should be able to
-# find it.
-#
-# It is MIT-licensed like the rest of this repo, so you are welcome to use, adapt or rewrite it
-# under those terms. Nothing is expected back and there is no need to ask first.
-#
-# But if you are a dxmt or wine maintainer who intends to write your own implementation,
-# reading this file is a choice with a consequence — afterwards you cannot cleanly say your work
-# is AI-free. The issue comment above carries the whole diagnosis (mechanism, faulting
-# instruction, measurements, falsification tests) with none of the code, which is the version
-# you probably want.
-#
 diff --git a/src/winemetal/unix/winemetal_unix.c b/src/winemetal/unix/winemetal_unix.c
-index 4744692..9556d0b 100644
+index 4744692..e18e02c 100644
 --- a/src/winemetal/unix/winemetal_unix.c
 +++ b/src/winemetal/unix/winemetal_unix.c
 @@ -1,5 +1,6 @@
@@ -81,3 +58,19 @@ index 4744692..9556d0b 100644
    }
  
    return STATUS_SUCCESS;
+@@ -1622,6 +1652,15 @@ _ReleaseMetalView(void *obj) {
+     pfn_macdrv_view_release_metal_view = dlsym(RTLD_DEFAULT, "macdrv_view_release_metal_view");
+   }
+ 
++  /* A handle from the cross-process remote-layer path is NOT a macdrv_metal_view and must not be
++   * released as one. Ask wine first: dxmt_release_remote_layer() returns TRUE if the view was one
++   * of its client surfaces and it retired it, FALSE otherwise -- so no tagging or bookkeeping is
++   * needed here, and on a winemac without the patch the symbol is simply absent and we behave
++   * exactly as before. (macgameport, 2026-08-31) */
++  BOOL (*pfn_release_remote)(macdrv_view) = dlsym(RTLD_DEFAULT, "dxmt_release_remote_layer");
++  if (pfn_release_remote && pfn_release_remote((macdrv_view)params->handle))
++    return STATUS_SUCCESS;
++
+   if (pfn_macdrv_view_release_metal_view)
+     pfn_macdrv_view_release_metal_view((macdrv_metal_view)params->handle);
+ 

@@ -112,7 +112,9 @@ and `docs/dxmt-bugs/`.
    (wine half) and [`dxmt-remote-layer-fallback.patch`](scripts/dxmt-remote-layer-fallback.patch)
    (DXMT half); neither works alone. Each carries an AI-authored header so a maintainer can make
    an informed choice before reading, because the upstream report deliberately contains the
-   diagnosis and none of the code.
+   diagnosis and none of the code. Both were regenerated from the working trees on 2026-09-02 as
+   applyable diffs (the earlier wine file was prose; its history is in
+   [`docs/winemac-crossprocess-remote-layer-history.md`](docs/winemac-crossprocess-remote-layer-history.md)).
    The original upstream limitation ([dxmt#141](https://github.com/3Shain/dxmt/issues/141)) is that
    Steam's CEF asks for a swapchain on a window owned by another process, which stock DXMT cannot
    serve,

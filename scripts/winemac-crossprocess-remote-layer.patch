@@ -1,410 +1,1121 @@
 # winemac-crossprocess-remote-layer.patch — the wine half of the cross-process Steam fix.
-# ⚠ AI-AUTHORED. Read this before you read the code.
+# APPLYABLE DIFF, regenerated from the working tree on 2026-09-02. The earlier prose version of
+# this file (six dated addenda) is preserved at docs/winemac-crossprocess-remote-layer-history.md.
+#
+# WARNING: AI-AUTHORED. Read this before you read the code.
 #
 # This patch was written with heavy AI assistance. 3Shain/dxmt's CONTRIBUTING.md cannot accept
-# AI-authored contributions, so it was never offered as a PR — the findings went upstream as a
-# report instead: https://github.com/3Shain/dxmt/issues/141#issuecomment-5477055980
+# AI-authored contributions, so it was never offered as a PR; the findings went upstream as reports
+# instead: https://github.com/3Shain/dxmt/issues/141#issuecomment-5477055980 and
+# https://bugs.winehq.org/show_bug.cgi?id=60263. It is published here on purpose, MIT-licensed like
+# the rest of this repo; you are welcome to use, adapt or rewrite it under those terms. If you are
+# a wine or dxmt maintainer who intends to write your own implementation, reading this file is a
+# choice with a consequence: the reports carry the whole diagnosis with none of the code.
 #
-# It is published here on purpose: this is our port's own record, and anyone should be able to
-# find it.
+# WHAT IT DOES (dlls/winemac.drv; five files):
+#   - implements the FIXME "Cross-process child window Metal swapchains are not implemented":
+#     a foreign CHILD hwnd gets its CAContext swapchain built against its ROOT, which owns the
+#     NSWindow and lives in the owning process; the child hwnd rides in wParam so the owner can
+#     position the hosted CALayerHost at the child's rect in the root's space (Win32 pixels
+#     converted to Cocoa points at the Cocoa entry points)
+#   - stacks hosted layers by Win32 paint order (zPosition), not creation order
+#   - hides a 0x0 child instead of stretching it over the view; treats CGRectNull as "no rect"
+#   - retires a superseded layer on CREATE, not destroy, so a child is never unhosted mid-resize
+#   - exports dxmt_acquire_remote_layer / dxmt_release_remote_layer as standalone symbols (dlsym
+#     from DXMT; NOT a macdrv_functions_t member, which would be an ABI break); surfaces keyed by
+#     view, one retired surface held per child hwnd, dead children drained and pruned
+#   - keeps a compiled-out resize diagnostic (-DDXMT_RSZ_DEBUG)
 #
-# It is MIT-licensed like the rest of this repo, so you are welcome to use, adapt or rewrite it
-# under those terms. Nothing is expected back and there is no need to ask first.
-#
-# But if you are a dxmt or wine maintainer who intends to write your own implementation,
-# reading this file is a choice with a consequence — afterwards you cannot cleanly say your work
-# is AI-free. The issue comment above carries the whole diagnosis (mechanism, faulting
-# instruction, measurements, falsification tests) with none of the code, which is the version
-# you probably want.
-#
-# Apply to the DXMT-patched wine 11.16 tree (after wineandaqua-dxmt.patch and
-# winemac-crossprocess-child.patch). Pairs with scripts/dxmt-remote-layer-fallback.patch on the
-# DXMT side; NEITHER half works alone (measured 2026-08-31: stock DXMT + patched winemac still
-# gives 6 GPU crashes and a black window).
-#
-# RESULT: Steam's client renders completely and correctly on stock OUT-OF-PROCESS CEF — no shim,
-# no injected switches, 0 GPU crashes (was 6 every launch). Evidence:
-# docs/images/steam-crossprocess-complete.png
-#
+# APPLY: to a wine 11.16 tree that already carries scripts/wineandaqua-dxmt.patch (aquadran's DXMT
+# support), from the tree root:  patch -p1 < winemac-crossprocess-remote-layer.patch
+# Requires wine >= 11.11 (the CAContext/CALayerHost route this builds on landed there).
 # Rebuild just the module:  gmake dlls/winemac.drv/winemac.so
-
---- a/dlls/winemac.drv/macdrv_main.c
-+++ b/dlls/winemac.drv/macdrv_main.c
-@@ before "DECLSPEC_EXPORT struct macdrv_functions_t macdrv_functions =" @@
-+/* Exported standalone so DXMT can dlsym() it WITHOUT depending on struct layout.
-+ * macdrv_functions_t is C_ASSERT-ed at a fixed size, so adding a member to it is a breaking ABI
-+ * change: a DXMT built against the 11-member struct would read past the end of a 10-member one
-+ * from a stock winemac and call whatever followed it in memory. A separate symbol degrades safely
-+ * instead -- dlsym returns NULL on any winemac without this patch, and DXMT falls back.
-+ * (macgameport, 2026-08-31) */
+# Pairs with scripts/dxmt-remote-layer-fallback.patch; NEITHER half works alone.
+#
+# VERIFIED 2026-09-02 on the installed module (sha256 310f13d0...): Steam renders out-of-process
+# with text, 0 GPU crashes over three sessions; library/friends/settings/store/downloads all
+# render; 2400x1500 -> 2399x1499 -> 2400x1500 measures interior luminance 83/84/112 with 0 bright
+# edges; two 40-sample churns + a static control at 0 gap frames; the game boots to MainMenu.
+#
+diff -ruN a/dlls/winemac.drv/cocoa_window.m b/dlls/winemac.drv/cocoa_window.m
+--- a/dlls/winemac.drv/cocoa_window.m	2026-09-02 15:22:24
++++ b/dlls/winemac.drv/cocoa_window.m	2026-09-02 16:23:25
+@@ -25,6 +25,8 @@
+ #import <Metal/Metal.h>
+ #import <QuartzCore/QuartzCore.h>
+ #include <dlfcn.h>
++#include <sys/time.h>
++#include <unistd.h>
+ 
+ #import "cocoa_window.h"
+ 
+@@ -34,6 +36,65 @@
+ #import "cocoa_opengl.h"
+ #import "dxmt_objc.h"
+ 
++/* ---- RESIZE DIAGNOSTIC -- off unless built with -DDXMT_RSZ_DEBUG (2026-08-31, macgameport) ----
++ * The host frame (owner process) and the hosted layer's size (GPU process) are maintained by two
++ * DIFFERENT processes through two independent paths. This prints both sides plus the resulting
++ * z-order on a common wall clock, which is how the half-point hairline and the z-order blackout
++ * were both identified. Kept, not deleted: the measurements are only reproducible with it.
++ * fprintf rather than ERR() so a WINEDEBUG channel setting cannot filter it away. */
++#ifdef DXMT_RSZ_DEBUG
++static double dxmt_rsz_ms(void)
++{
++    struct timeval tv;
++    gettimeofday(&tv, NULL);
++    return (double)(tv.tv_sec % 1000) * 1000.0 + tv.tv_usec / 1000.0;
++}
++#define DXMT_RSZ(fmt, ...) fprintf(stderr, "dxmt-rsz: %8.1f pid=%-5d " fmt, \
++                                   dxmt_rsz_ms(), (int)getpid(), ## __VA_ARGS__)
++#else
++#define DXMT_RSZ(fmt, ...) do { } while (0)
++#endif
++
++/* Win32 speaks RAW PIXELS; Cocoa speaks POINTS, and on a retina display that is a factor of two.
++ * An ODD pixel dimension therefore converts to a HALF point -- and because the NSWindow's content
++ * view is sized in whole points, a layer that Win32 says reaches the window edge stops exactly ONE
++ * DEVICE PIXEL short of it. The window beneath shows through as a white hairline down the right
++ * edge (odd width) and along the bottom (odd height).
++ *
++ * Measured 2026-08-31: root 2401x1500 px -> host frame 1200.5x750.0 pt inside a 1201.0x750.0 pt
++ * view -> column x=2401 reads 255,255,255 against an interior of 15,25,36. Even sizes show
++ * nothing, and the axis that is odd is the axis that shows it.
++ *
++ * Extend to the view's edge, and ONLY at the edge: an interior sibling keeps its exact geometry,
++ * so this cannot make two widgets overlap. On a non-retina display the threshold is a whole
++ * point, which is still one device pixel. */
++static CGRect dxmt_fill_view_edges(CGRect frame, CGRect view)
++{
++    /* The quantity that matters is ONE DEVICE PIXEL expressed in points -- 0.5 on retina, 1.0
++     * otherwise. Hardcoding 1.0 (the first version) is correct only on the display it was tested
++     * on: on retina it also snaps rects a whole point from the edge, closing a two-device-pixel
++     * gap the app may have asked for. */
++    const CGFloat px = retina_on ? 0.5 : 1.0;
++
++    if (CGRectIsEmpty(frame) || CGRectIsEmpty(view)) return frame;
++
++    if (frame.origin.x > 0.0 && frame.origin.x <= px)
++    {
++        frame.size.width += frame.origin.x;
++        frame.origin.x = 0.0;
++    }
++    if (frame.origin.y > 0.0 && frame.origin.y <= px)
++    {
++        frame.size.height += frame.origin.y;
++        frame.origin.y = 0.0;
++    }
++    if (CGRectGetMaxX(frame) >= view.size.width - px)
++        frame.size.width = view.size.width - frame.origin.x;
++    if (CGRectGetMaxY(frame) >= view.size.height - px)
++        frame.size.height = view.size.height - frame.origin.y;
++    return frame;
++}
++
+ #pragma GCC diagnostic ignored "-Wdeclaration-after-statement"
+ 
+ 
+@@ -409,7 +470,9 @@
+     - (void) wine_setBackingSize:(const int*)newBackingSize;
+ 
+     - (WineMetalView*) newMetalViewWithDevice:(id<MTLDevice>)device;
+-    - (void) addCALayerHostViewWithContextId:(CAContextID)contextId;
++    - (void) addCALayerHostViewWithContextId:(CAContextID)contextId frame:(CGRect)frame;
++    - (void) updateCALayerHostFrame:(CAContextID)contextId frame:(CGRect)frame;
++    - (void) setCALayerHostZPosition:(CAContextID)contextId zPosition:(double)zpos;
+     - (void) removeCALayerHostView:(CAContextID)contextId;
+ 
+ @end
+@@ -725,7 +788,7 @@
+         return _metalView;
+     }
+ 
+-    - (void) addCALayerHostViewWithContextId:(CAContextID)contextId
++    - (void) addCALayerHostViewWithContextId:(CAContextID)contextId frame:(CGRect)frame
+     {
+         if (!_caLayerHosts)
+             _caLayerHosts = [[NSMutableDictionary alloc] init];
+@@ -736,18 +799,163 @@
+         [host setContextId:contextId];
+         host.magnificationFilter = kCAFilterNearest;
+         host.contentsScale = retina_on ? 2.0 : 1.0;
+-        host.frame = self.layer.bounds;
+-        host.autoresizingMask = kCALayerWidthSizable | kCALayerHeightSizable;
++        /* The black background is DEFERRED, and both halves of that are measured (2026-08-31).
++         *
++         * WHY IT EXISTS: the mirrored content is sized from the odd Win32 rect and the slot is a
++         * whole-point view, so up to one device pixel of the slot is never covered. Removing it
++         * outright was tried and re-measured, and the white seam comes straight back, exactly on
++         * the odd axis: 2400x1500 -> 0 bright edges, 2401x1500 -> 1, 2400x1501 -> 1,
++         * 2401x1501 -> 2. So it is load-bearing; dxmt_fill_view_edges alone is NOT enough.
++         *
++         * WHY IT IS DEFERRED: backgroundColor paints the WHOLE layer, and a hosted layer is
++         * visible from the moment it is added -- before the remote CAContext has presented
++         * anything. Setting it at creation therefore flashes a full black rectangle on every newly
++         * hosted layer, reported live as "black box lag as I mouse back and forth over the
++         * menus": each menu is its own popup window, so each one hosts a fresh layer.
++         *
++         * So: transparent while the layer is empty (the window's own surface shows through, as it
++         * did before any of this), black once content has had time to arrive and the only thing
++         * the background can still reveal is the one-pixel seam. */
++        {
++            /* Capture the LAYER, not just its key: a remove+create of the same context id inside
++             * the delay would otherwise paint the replacement's background early -- the very flash
++             * this deferral exists to avoid. The block retains `host`; the identity test makes it a
++             * no-op unless this exact layer is still the live one. */
++            CAContextID cid = contextId;
++            CALayerHost* deferred = host;
++            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(120 * NSEC_PER_MSEC)),
++                           dispatch_get_main_queue(), ^{
++                if ([_caLayerHosts objectForKey:@(cid)] == deferred)
++                    deferred.backgroundColor = CGColorGetConstantColor(kCGColorBlack);
++            });
++        }
++        frame = dxmt_fill_view_edges(frame, self.layer.bounds);
++        /* EXPERIMENT (2026-08-29, macgameport): every host used to be stretched to the whole
++         * content view, so with several hosts on one window only the topmost was ever visible
++         * (measured: bottom-insertion => black). When a real child rect is supplied, position and
++         * clip the host to it instead, so sibling widgets stop occluding one another.
++         *
++         * THREE cases, not two (2026-08-31, macgameport). `CGRectIsEmpty` cannot tell "no rect was
++         * supplied" from "the window really is 0x0", and CEF produces the second one routinely:
++         * navigating Steam to the Library collapses the OTHER browser to 0x0 while keeping it in
++         * the z-order. Under the old two-way test that browser's layer was stretched over the whole
++         * content view, on top, with nothing drawn in it -- the client went black on navigation,
++         * with 0 GPU crashes, and a resize did not clear it. Measured 2026-08-31: 0x1013E/0x10140
++         * read 0x0 exactly while black and 2598x1275 again once the store view came back.
++         * A window with no area must be HIDDEN, never stretched. */
++        if (CGRectIsNull(frame))
++        {
++            /* no child rect supplied at all -- the root-window case, unchanged */
++            host.frame = self.layer.bounds;
++            host.autoresizingMask = kCALayerWidthSizable | kCALayerHeightSizable;
++        }
++        else if (CGRectIsEmpty(frame))
++        {
++            host.frame = CGRectZero;
++            host.masksToBounds = YES;
++            host.hidden = YES;
++        }
++        else
++        {
++            host.frame = frame;
++            host.masksToBounds = YES;
++        }
+ 
++        DXMT_RSZ("HOST     create  ctx=%u frame=%.1f,%.1f %.1fx%.1f  (view %.1fx%.1f)\n",
++                 (unsigned)contextId, frame.origin.x, frame.origin.y,
++                 frame.size.width, frame.size.height,
++                 self.layer.bounds.size.width, self.layer.bounds.size.height);
+         [self.layer addSublayer:host];
+         [_caLayerHosts setObject:host forKey:@(contextId)];
+ 
+         [(WineWindow*)self.window windowDidDrawContent];
+     }
+ 
++    - (void) updateCALayerHostFrame:(CAContextID)contextId frame:(CGRect)frame
++    {
++        CALayerHost* host = [_caLayerHosts objectForKey:@(contextId)];
++        frame = dxmt_fill_view_edges(frame, self.layer.bounds);
++        DXMT_RSZ("HOST     update  ctx=%u frame=%.1f,%.1f %.1fx%.1f  (was %.1f,%.1f %.1fx%.1f%s)\n",
++                 (unsigned)contextId, frame.origin.x, frame.origin.y,
++                 frame.size.width, frame.size.height,
++                 host ? host.frame.origin.x : -1.0, host ? host.frame.origin.y : -1.0,
++                 host ? host.frame.size.width : -1.0, host ? host.frame.size.height : -1.0,
++                 host ? "" : " NO-HOST");
++        if (host && CGRectIsEmpty(frame) && !CGRectIsNull(frame))
++        {
++            /* Became 0x0 while hosted. Skipping this (what the code did before 2026-08-31) leaves
++             * the layer at its last full size, still covering live content -- the same blackout as
++             * the create path above, reached by a different route.
++             * Zero the frame as well as hiding: it is the second half of the safety net below. */
++            [CATransaction begin];
++            [CATransaction setDisableActions:YES];
++            host.hidden = YES;
++            host.frame = CGRectZero;
++            [CATransaction commit];
++        }
++        else if (host && !CGRectIsEmpty(frame))
++        {
++            /* The hosted layer is positioned in the OWNER's coordinate space; the child it mirrors
++             * lives in another process and can move or resize after the layer was hosted, so
++             * refresh it rather than leaving a stale frame.
++             *
++             * WARNING: UN-HIDING MUST NOT BE GATED ON THE FRAME HAVING CHANGED (2026-08-31).
++             * It was, for about an hour, and it black-holed Steam's Friends List every time:
++             *     create ctx=1274046919 frame 300.0x650.0
++             *     update frame 0.0x0.0   -> hidden          (window briefly reports 0x0)
++             *     update frame 300.0x650.0 (was 300.0x650.0) -> EQUAL, so the whole branch was
++             *                                                   skipped and hidden stayed YES
++             * The frame came back to a value it already held, so a `!CGRectEqualToRect` guard on
++             * the entire branch never ran and the layer stayed hidden forever. Visibility and
++             * geometry are independent pieces of state; test each one separately. */
++            [CATransaction begin];
++            [CATransaction setDisableActions:YES];
++            if (!CGRectEqualToRect(host.frame, frame)) host.frame = frame;
++            if (host.hidden) host.hidden = NO;
++            [CATransaction commit];
++        }
++    }
++
++    /* Stack the hosted layers the way the windows they mirror stack. Insertion order is NOT that
++     * order: CEF recreates a swapchain on every resize, so whichever browser happened to be
++     * recreated last ended up on top. Measured 2026-08-31 -- 2400x1500 -> 2399x1499 -> 2400x1500
++     * left a full-window layer above the content layer and Steam's client went black and STAYED
++     * black. zPosition is authoritative regardless of when a layer was added. */
++    - (void) setCALayerHostZPosition:(CAContextID)contextId zPosition:(double)zpos
++    {
++        CALayerHost* host = [_caLayerHosts objectForKey:@(contextId)];
++        if (host && host.zPosition != zpos)
++        {
++            [CATransaction begin];
++            [CATransaction setDisableActions:YES];
++            host.zPosition = zpos;
++            [CATransaction commit];
++
++#ifdef DXMT_RSZ_DEBUG
++            {
++                char order[256]; int off = 0;
++                for (NSNumber* k in [_caLayerHosts allKeys])
++                {
++                    CALayerHost* hh = [_caLayerHosts objectForKey:k];
++                    off += snprintf(order + off, sizeof(order) - off, " %u(z%.0f)",
++                                    (unsigned)[k unsignedIntValue], hh.zPosition);
++                    if (off >= (int)sizeof(order) - 16) break;
++                }
++                DXMT_RSZ("HOST     zpos    ctx=%u -> z%.0f   stack:%s\n",
++                         (unsigned)contextId, zpos, order);
++            }
++#endif
++        }
++    }
++
+     - (void) removeCALayerHostView:(CAContextID)contextId
+     {
+         NSNumber* key = @(contextId);
++#ifdef DXMT_RSZ_DEBUG
++        if ([_caLayerHosts objectForKey:key])
++            DXMT_RSZ("HOST     remove  ctx=%u (%lu hosted before)\n", (unsigned)contextId,
++                     (unsigned long)[_caLayerHosts count]);
++#endif
+         [[_caLayerHosts objectForKey:key] removeFromSuperlayer];
+         [_caLayerHosts removeObjectForKey:key];
+     }
+@@ -4083,24 +4291,26 @@
+ @interface CAContextSwapChain : NSObject <WineMetalSwapChain>
+ {
+     void* hwnd;
++    void* child_hwnd;          /* the cross-process child this layer belongs to (may be NULL) */
+     macdrv_metal_device device;
+     CAMetalLayer* offscreen_layer;
+     CAContext* remote_context;
+     CAContextID context_id;
+ }
+ 
+-- (instancetype) initWithHwnd:(void*)hwnd bounds:(CGRect)bounds;
++- (instancetype) initWithHwnd:(void*)hwnd child:(void*)child bounds:(CGRect)bounds;
+ 
+ @end
+ 
+ @implementation CAContextSwapChain
+ 
+-- (instancetype) initWithHwnd:(void*)newHwnd bounds:(CGRect)bounds
++- (instancetype) initWithHwnd:(void*)newHwnd child:(void*)newChild bounds:(CGRect)bounds
+ {
+     self = [super init];
+     if (!self) return nil;
+ 
+     hwnd = newHwnd;
++    child_hwnd = newChild;
+     if (!(device = macdrv_create_metal_device()))
+     {
+         [self release];
+@@ -4139,7 +4349,7 @@
+         return nil;
+     }
+ 
+-    macdrv_create_remote_layer(hwnd, context_id);
++    macdrv_create_remote_layer(hwnd, child_hwnd, context_id);
+     return self;
+ }
+ 
+@@ -4172,11 +4382,71 @@
+     return (macdrv_metal_swapchain)[[MetalViewSwapChain alloc] initWithView:v];
+ }
+ 
+-macdrv_metal_swapchain macdrv_create_offscreen_swapchain(void* hwnd, CGRect bounds)
++macdrv_metal_swapchain macdrv_create_offscreen_swapchain(void* hwnd, void* child, CGRect bounds)
+ {
+-    return (macdrv_metal_swapchain)[[CAContextSwapChain alloc] initWithHwnd:hwnd bounds:bounds];
++    return (macdrv_metal_swapchain)[[CAContextSwapChain alloc] initWithHwnd:hwnd child:child
++                                                                        bounds:bounds];
+ }
+ 
++/* Resize an existing offscreen swapchain. CAContextSwapChain sets its layer bounds ONCE at init
++ * and the API had no way to change them.
++ *
++ * MEASURED DEAD, 2026-08-31. This function has NEVER been observed to execute: its only caller
++ * is macdrv_client_surface_update()'s remote-layer branch, and across five instrumented Steam
++ * sessions (resize-diag, -fix, -final, -ship, and the popup runs) that branch logged ZERO firings
++ * while HOST create/update logged hundreds. CEF resizes by DESTROYING and RECREATING the
++ * swapchain, so a new CAContextSwapChain is built at the new size and this path is never needed.
++ * The commit that added it claimed it fixed "stale strips of old content, black boxes in a corner,
++ * and sometimes a wholly black content area" -- that claim is WITHDRAWN. Whatever improved in that
++ * build came from the two changes beside it (root-relative child rect, Win32-px -> Cocoa-points).
++ * Kept rather than deleted because it is correct in principle and would be needed by any client
++ * that resizes a swapchain in place; but do not attribute any observed behaviour to it without
++ * seeing it log. (macgameport) */
++void macdrv_swapchain_set_bounds(macdrv_metal_swapchain swapchain, CGRect bounds)
++{
++@autoreleasepool
++{
++    id<WineMetalSwapChain> sc = (id<WineMetalSwapChain>)swapchain;
++    CALayer* layer;
++    CGRect want = cgrect_mac_from_win(bounds);
++
++    /* only an offscreen (CAContext) swapchain owns its layer's geometry; a view-backed one is
++     * sized by its view and must not be resized from here */
++    if (![(id)sc isKindOfClass:[CAContextSwapChain class]]) return;
++    layer = (CALayer*)[sc layer];
++    if (!layer || CGRectIsEmpty(want)) return;
++    OnMainThread(^{
++#ifdef DXMT_RSZ_DEBUG
++        {
++            BOOL isML = [layer isKindOfClass:[CAMetalLayer class]];
++            CGSize dw = isML ? ((CAMetalLayer*)layer).drawableSize : CGSizeZero;
++            CGFloat scale = layer.contentsScale;
++            double sx = want.size.width > 0 ? dw.width / (want.size.width * scale) : 0.0;
++            double sy = want.size.height > 0 ? dw.height / (want.size.height * scale) : 0.0;
++            BOOL stretched = dw.width != want.size.width * scale ||
++                             dw.height != want.size.height * scale;
++            /* SCALE = what the compositor must do to fit the presented drawable into the bounds we
++             * are setting. Anything other than 1.000 means the layer is being STRETCHED this frame,
++             * and with kCAFilterNearest a stretched photographic background shimmers while flat UI
++             * and text stay crisp -- which is the reported symptom exactly. */
++            DXMT_RSZ("CONTENT  set_bounds win=%.0fx%.0f -> pts=%.1fx%.1f (was %.1fx%.1f, "
++                     "drawable %.0fx%.0f) SCALE %.4f x %.4f%s\n",
++                     bounds.size.width, bounds.size.height, want.size.width, want.size.height,
++                     layer.bounds.size.width, layer.bounds.size.height, dw.width, dw.height,
++                     sx, sy, stretched ? "   <== STRETCHED" : "");
++        }
++#endif
++        if (!CGRectEqualToRect(layer.bounds, CGRectMake(0, 0, want.size.width, want.size.height)))
++        {
++            [CATransaction begin];
++            [CATransaction setDisableActions:YES];
++            [layer setBounds:CGRectMake(0, 0, want.size.width, want.size.height)];
++            [CATransaction commit];
++        }
++    });
++}
++}
++
+ macdrv_metal_layer macdrv_swapchain_get_layer(macdrv_metal_swapchain swapchain)
+ {
+     return (macdrv_metal_layer)[(id<WineMetalSwapChain>)swapchain layer];
+@@ -4188,7 +4458,8 @@
+     [(id<WineMetalSwapChain>)swapchain release];
+ }
+ 
+-void macdrv_window_create_ca_layer_host_view(macdrv_window w, unsigned int context_id)
++void macdrv_window_create_ca_layer_host_view(macdrv_window w, unsigned int context_id,
++                                             CGRect frame, double zpos, int zpos_valid)
+ {
+ @autoreleasepool
+ {
+@@ -4197,8 +4468,45 @@
+     OnMainThread(^{
+         NSView* content_view = [window contentView];
+ 
++        /* GEOMETRY (2026-08-31, macgameport): frame arrives in WIN32 coordinates (raw pixels);
++         * CALayer.frame is in POINTS. On a retina display those differ by 2x, so an unconverted
++         * frame is twice the size it should be and its content is pushed down and right --
++         * visible as a black band between Steam's chrome and its page content. Convert here,
++         * matching the driver's convention that window.c works in Win32 space and the Cocoa
++         * side converts. A null frame (no child rect) stays null: it selects the whole-view case
++         * and must not go through the retina divide. */
+         if ([content_view isKindOfClass:[WineContentView class]])
+-            [(WineContentView*)content_view addCALayerHostViewWithContextId:context_id];
++        {
++            CGRect mac_frame = CGRectIsNull(frame) ? CGRectNull : cgrect_mac_from_win(frame);
++
++            [(WineContentView*)content_view addCALayerHostViewWithContextId:context_id
++                                                                      frame:mac_frame];
++            if (zpos_valid)
++                [(WineContentView*)content_view setCALayerHostZPosition:context_id zPosition:zpos];
++        }
++    });
++}
++}
++
++void macdrv_window_update_ca_layer_host_frame(macdrv_window w, unsigned int context_id,
++                                              CGRect frame, double zpos, int zpos_valid)
++{
++@autoreleasepool
++{
++    WineWindow* window = (WineWindow*)w;
++
++    OnMainThread(^{
++        NSView* content_view = [window contentView];
++
++        /* same Win32-pixels -> Cocoa-points conversion as the create path above */
++        if ([content_view isKindOfClass:[WineContentView class]])
++        {
++            CGRect mac_frame = CGRectIsNull(frame) ? CGRectNull : cgrect_mac_from_win(frame);
++
++            [(WineContentView*)content_view updateCALayerHostFrame:context_id frame:mac_frame];
++            if (zpos_valid)
++                [(WineContentView*)content_view setCALayerHostZPosition:context_id zPosition:zpos];
++        }
+     });
+ }
+ }
+diff -ruN a/dlls/winemac.drv/macdrv.h b/dlls/winemac.drv/macdrv.h
+--- a/dlls/winemac.drv/macdrv.h	2026-09-02 15:22:24
++++ b/dlls/winemac.drv/macdrv.h	2026-09-02 16:23:25
+@@ -194,6 +194,8 @@
+     unsigned int        fullscreen : 1;         /* is the window visible rect fullscreen? (unrelated to native AppKit/Cocoa fullscreen) */
+ 
+     CFMutableArrayRef   dxmt_client_surfaces;
++    CFMutableDictionaryRef remote_layer_children; /* CAContextID -> child HWND, for repositioning
++                                                   * hosted cross-process layers on resize */
+ };
+ 
+ struct macdrv_client_surface
+diff -ruN a/dlls/winemac.drv/macdrv_cocoa.h b/dlls/winemac.drv/macdrv_cocoa.h
+--- a/dlls/winemac.drv/macdrv_cocoa.h	2026-09-02 15:22:24
++++ b/dlls/winemac.drv/macdrv_cocoa.h	2026-09-02 16:23:25
+@@ -533,12 +533,17 @@
+ extern macdrv_metal_layer macdrv_view_get_metal_layer(macdrv_metal_view v);
+ extern void macdrv_view_release_metal_view(macdrv_metal_view v);
+ extern macdrv_metal_swapchain macdrv_create_view_swapchain(macdrv_view v);
+-extern macdrv_metal_swapchain macdrv_create_offscreen_swapchain(void* hwnd, CGRect bounds);
++extern macdrv_metal_swapchain macdrv_create_offscreen_swapchain(void* hwnd, void* child,
++                                                                 CGRect bounds);
+ extern macdrv_metal_layer macdrv_swapchain_get_layer(macdrv_metal_swapchain swapchain);
++extern void macdrv_swapchain_set_bounds(macdrv_metal_swapchain swapchain, CGRect bounds);
+ extern void macdrv_destroy_swapchain(macdrv_metal_swapchain swapchain);
+-extern void macdrv_window_create_ca_layer_host_view(macdrv_window w, unsigned int context_id);
++extern void macdrv_window_create_ca_layer_host_view(macdrv_window w, unsigned int context_id,
++                                                    CGRect frame, double zpos, int zpos_valid);
+ extern void macdrv_window_release_ca_layer_host_view(macdrv_window w, unsigned int context_id);
+-extern void macdrv_create_remote_layer(void* hwnd, unsigned int context_id);
++extern void macdrv_window_update_ca_layer_host_frame(macdrv_window w, unsigned int context_id,
++                                                     CGRect frame, double zpos, int zpos_valid);
++extern void macdrv_create_remote_layer(void* hwnd, void* child, unsigned int context_id);
+ extern void macdrv_release_remote_layer(void* hwnd, unsigned int context_id);
+ extern bool macdrv_get_view_backing_size(macdrv_view v, int backing_size[2]);
+ extern void macdrv_set_view_backing_size(macdrv_view v, const int backing_size[2]);
+diff -ruN a/dlls/winemac.drv/macdrv_main.c b/dlls/winemac.drv/macdrv_main.c
+--- a/dlls/winemac.drv/macdrv_main.c	2026-09-02 15:22:24
++++ b/dlls/winemac.drv/macdrv_main.c	2026-09-02 16:23:25
+@@ -768,6 +768,159 @@
+     return macdrv_view_release_metal_view(v);
+ }
+ 
++/* Cross-process remote layers for DXMT (macgameport, 2026-08-29 .. 2026-09-02).
++ *
++ * DXMT reaches these through dlsym() on the two DECLSPEC_EXPORT symbols below, NOT through a
++ * macdrv_functions_t member: that struct is C_ASSERT-ed at a fixed size, so adding a member is a
++ * breaking ABI change (a DXMT built against a larger struct would read past the end of an older
++ * winemac's and call whatever followed). A standalone symbol degrades safely -- dlsym returns
++ * NULL on any winemac without this patch and DXMT falls back to its old path.
++ *
++ * Surfaces are keyed by the VIEW handed to DXMT, not by HWND: DXMT re-acquires the same HWND
++ * several times (measured: 16 distinct windows, 4 acquires each), and retiring the previous
++ * surface on acquire destroys the layer DXMT is still rendering into. Keying by view lets
++ * dxmt_release_remote_layer() retire exactly the surface DXMT is finished with. */
++static pthread_mutex_t remote_layer_mutex = PTHREAD_MUTEX_INITIALIZER;
++static CFMutableDictionaryRef remote_layer_surfaces;   /* view -> client_surface DXMT still uses */
++
++/* One retired surface held PER CHILD HWND, not one globally.
++ *
++ * WHY THIS IS THE ONLY LEVER (measured 2026-08-31). CAContextSwapChain's dealloc releases the
++ * remote CAContext, so once a swapchain dies the CALayerHost mirroring it has nothing to show --
++ * keeping the host alive on the owner side cannot help. Deferring the client_surface release is
++ * what keeps the CONTEXT alive across a recreate, and it is the only thing that does.
++ *
++ * A single global slot was not enough: with two browsers churning, browser A's release drained
++ * browser B's held context early and B's content blinked out. Measured -- retire-on-create alone
++ * took the gap rate from 2/40 (5.0%) to 2/160 (1.25%); the residual frames all carry the same
++ * signature, chrome perfect with a black content area.
++ *
++ * Keyed by the child HWND the surface belongs to, the previous context survives until the NEXT
++ * release FOR THAT SAME CHILD, which by construction happens after its successor was acquired.
++ *
++ * A child that is DESTROYED never releases again, so its slot would be held forever (found by
++ * review 2026-09-02: every closed popup menu parked one swapchain). Two guards close that: a
++ * release whose child is already gone is not parked at all, and every release sweeps the table
++ * for slots whose child has since died. */
++static CFMutableDictionaryRef pending_by_child;        /* child HWND -> retired client_surface */
++
++static macdrv_metal_layer my_dxmt_acquire_remote_layer(HWND hwnd, macdrv_view *ret_view)
++{
++    struct client_surface *client;
++    struct macdrv_client_surface *surface;
++
++    if (ret_view) *ret_view = NULL;
++    if (!(client = macdrv_CreateClientSurface(hwnd, 0))) return NULL;
++    surface = impl_from_client_surface(client);
++
++    if (!macdrv_client_surface_acquire_metal_swapchain(surface))
++    {
++        ERR("dxmt: acquire_metal_swapchain FAILED for hwnd %p\n", hwnd);
++        client_surface_release(client);
++        return NULL;
++    }
++
++    TRACE("dxmt-life: remote layer acquired for hwnd %p (swapchain %p)\n", hwnd,
++          surface->metal_swapchain);
++    if (ret_view) *ret_view = surface->cocoa_view;
++
++    pthread_mutex_lock(&remote_layer_mutex);
++    if (!remote_layer_surfaces)
++        remote_layer_surfaces = CFDictionaryCreateMutable(NULL, 0, NULL, NULL);
++    if (remote_layer_surfaces && surface->cocoa_view)
++        CFDictionarySetValue(remote_layer_surfaces, surface->cocoa_view, client);
++    pthread_mutex_unlock(&remote_layer_mutex);
++
++    return macdrv_swapchain_get_layer(surface->metal_swapchain);
++}
++
++/* Remove every held surface whose child window no longer exists, handing them back for release
++ * OUTSIDE the lock. Called with remote_layer_mutex held. At most `max` per call: anything left
++ * over is collected on the next release, so the bound delays a drain rather than dropping it. */
++static CFIndex collect_dead_pending(struct client_surface **out, CFIndex max)
++{
++    CFIndex count, i, n = 0;
++    const void **keys, **vals;
++
++    if (!pending_by_child || !(count = CFDictionaryGetCount(pending_by_child))) return 0;
++    keys = calloc(count, sizeof(*keys));
++    vals = calloc(count, sizeof(*vals));
++    if (!keys || !vals) { free(keys); free(vals); return 0; }
++    CFDictionaryGetKeysAndValues(pending_by_child, keys, vals);
++    for (i = 0; i < count && n < max; i++)
++    {
++        if (NtUserIsWindow((HWND)keys[i])) continue;
++        out[n++] = (struct client_surface *)vals[i];
++        CFDictionaryRemoveValue(pending_by_child, keys[i]);
++    }
++    free(keys);
++    free(vals);
++    return n;
++}
++
++/* Retire the surface behind a view DXMT is finished with. Returns TRUE if the view was one of
++ * ours, so DXMT can fall through to the ordinary metal-view release when it was not -- no tagging
++ * or bookkeeping needed on the DXMT side.
++ *
++ * DEFERRED BY ONE (2026-08-31). Releasing immediately deallocs the CAContextSwapChain and posts
++ * WM_MACDRV_RELEASE_REMOTE_LAYER, un-hosting the layer at once. CEF resizes by DESTROYING a
++ * swapchain and CREATING a new one, so an immediate release leaves a window with nothing hosted
++ * between the two -- seen live as flicker on resize, and as a permanent black child when the
++ * ordering is unlucky. Holding exactly ONE retired surface per child until that child's next
++ * release keeps something hosted across the gap while bounding the cost. */
++DECLSPEC_EXPORT BOOL dxmt_release_remote_layer(macdrv_view view)
++{
++    struct client_surface *client = NULL, *drain = NULL;
++    struct client_surface *dead[16];
++    CFIndex ndead, i;
++    HWND owner;
++
++    if (!view) return FALSE;
++
++    pthread_mutex_lock(&remote_layer_mutex);
++    if (remote_layer_surfaces)
++    {
++        client = (struct client_surface *)CFDictionaryGetValue(remote_layer_surfaces, view);
++        if (client) CFDictionaryRemoveValue(remote_layer_surfaces, view);
++    }
++    pthread_mutex_unlock(&remote_layer_mutex);
++
++    if (!client)
++    {
++        /* the normal case for every same-process metal view: not ours, DXMT releases it itself */
++        TRACE("dxmt-life: view %p is not a remote surface\n", view);
++        return FALSE;
++    }
++
++    owner = client->hwnd;
++    pthread_mutex_lock(&remote_layer_mutex);
++    if (!pending_by_child)
++        pending_by_child = CFDictionaryCreateMutable(NULL, 0, NULL, NULL);
++    if (!pending_by_child || !NtUserIsWindow(owner))
++    {
++        /* no table, or the child is already gone and no successor will ever come: release now */
++        drain = client;
++    }
++    else
++    {
++        drain = (struct client_surface *)CFDictionaryGetValue(pending_by_child, owner);
++        CFDictionarySetValue(pending_by_child, owner, client);
++    }
++    ndead = collect_dead_pending(dead, ARRAY_SIZE(dead));
++    pthread_mutex_unlock(&remote_layer_mutex);
++
++    TRACE("dxmt-life: release view %p child %p -- %s; draining %p and %ld dead-child slot(s)\n",
++          view, owner, drain == client ? "child gone, released now" : "held", drain, (long)ndead);
++    if (drain) client_surface_release(drain);
++    for (i = 0; i < ndead; i++) client_surface_release(dead[i]);
++    return TRUE;
++}
++
 +DECLSPEC_EXPORT macdrv_metal_layer dxmt_acquire_remote_layer(HWND hwnd, macdrv_view *ret_view)
 +{
 +    return my_dxmt_acquire_remote_layer(hwnd, ret_view);
 +}
-
---- a/dlls/winemac.drv/window.c
-+++ b/dlls/winemac.drv/window.c
-@@ macdrv_client_surface_acquire_metal_swapchain, the cross-process CHILD branch @@
-     /* was: surface->metal_swapchain = macdrv_create_offscreen_swapchain(root, hwnd,
-                                            cgrect_from_rect(rect));   <- rect is the CHILD's own
-        client rect, i.e. (0,0,w,h), so every hosted layer landed at the root's origin. */
-+    /* GEOMETRY: pass the child's rect IN THE ROOT'S SPACE. Computed the same way the update path
-+     * further down already does (NtUserGetWindowRect + OffsetRect by the root), so the frame set
-+     * at creation and the frame set on every later move agree. WineContentView isFlipped == YES,
-+     * so top-left origin matches Win32 and no Y-flip is needed. */
-+    RECT child_rect = rect, root_rect;
-+    UINT geom_dpi = NtUserGetWinMonitorDpi(hwnd, MDT_RAW_DPI);
 +
-+    if (NtUserGetWindowRect(hwnd, &child_rect, geom_dpi) &&
-+        NtUserGetWindowRect(root, &root_rect, geom_dpi))
-+        OffsetRect(&child_rect, -root_rect.left, -root_rect.top);
-+    else
-+        child_rect = rect;   /* fall back to the old behaviour rather than guess */
+ DECLSPEC_EXPORT struct macdrv_functions_t macdrv_functions =
+ {
+     &my_macdrv_init_display_devices,
+diff -ruN a/dlls/winemac.drv/window.c b/dlls/winemac.drv/window.c
+--- a/dlls/winemac.drv/window.c	2026-09-02 15:22:24
++++ b/dlls/winemac.drv/window.c	2026-09-02 16:23:25
+@@ -34,12 +34,134 @@
+ #undef GetCurrentThread
+ #undef LoadResource
+ 
++#include <stdio.h>
++#include <sys/time.h>
++#include <unistd.h>
 +
-+    surface->metal_swapchain = macdrv_create_offscreen_swapchain(root, hwnd,
-+                                   cgrect_from_rect(child_rect));
-
---- a/dlls/winemac.drv/cocoa_window.m
-+++ b/dlls/winemac.drv/cocoa_window.m
-@@ macdrv_window_create_ca_layer_host_view / macdrv_window_update_ca_layer_host_frame @@
-     /* ⚠ THIS IS THE ONE THAT REMOVED THE BLACK BAND.
-      * frame arrives in WIN32 coordinates (raw pixels); CALayer.frame is in POINTS. On a retina
-      * display those differ by 2x, so an unconverted frame is twice the size it should be and its
-      * content is pushed down and right -- seen as a black band between Steam's chrome and its page
-      * content. Measured: window 1010x600 points, frames arriving as 2020x1200.
-      * Convert at the Cocoa entry points, matching the driver's convention that window.c works in
-      * Win32 space and the .m side converts. */
--            [(WineContentView*)content_view addCALayerHostViewWithContextId:context_id frame:frame];
-+            [(WineContentView*)content_view addCALayerHostViewWithContextId:context_id
-+                                                                      frame:cgrect_mac_from_win(frame)];
-...
--            [(WineContentView*)content_view updateCALayerHostFrame:context_id frame:frame];
-+            [(WineContentView*)content_view updateCALayerHostFrame:context_id
-+                                                             frame:cgrect_mac_from_win(frame)];
-
-# STILL OPEN, carried from the earlier work and not addressed here:
-#   * my_dxmt_acquire_remote_layer deliberately leaks the previous client surface. Releasing it on
-#     the next acquire destroys the layer DXMT is still rendering into and the window goes black.
-#     Lifetime should be driven by DXMT releasing its swapchain instead.
-
-# =====================================================================================
-# ADDENDUM 2026-08-31 — the two RESIZE defects, both measured, both fixed.
-#
-# The footer below ("STILL OPEN") described the surface leak; that was closed earlier the same day
-# by the view-keyed table + dxmt_release_remote_layer. What remained was resize, reported live as
-# "flickers on resize and with some resize i was able to blackout the child windows" plus white
-# hairlines at the right and bottom edges. Those are TWO INDEPENDENT bugs, and neither is a race:
-# both are steady-state and both reproduce on demand.
-#
-# Instruments built for this (both in scripts/, both reusable):
-#   win-resize-driver.exe  -- applies EXACT window sizes via SetWindowPos, per-monitor DPI aware so
-#                             it can request ODD raw pixel sizes; also dumps the Win32 child tree.
-#   pixel-probe            -- mean RGB of the outermost N columns/rows of a captured window against
-#                             an interior reference. A 1-device-pixel seam is invisible in a
-#                             screenshot and unarguable in a measurement.
-# Reproduce with -DDXMT_RSZ_DEBUG on winemac.drv for the dxmt-rsz trace.
-
---- a/dlls/winemac.drv/cocoa_window.m
-+++ b/dlls/winemac.drv/cocoa_window.m
-@@ new helper, and applied at both CALayerHost entry points @@
-+/* DEFECT 1 -- the white hairline. Win32 speaks RAW PIXELS, Cocoa speaks POINTS, and on retina that
-+ * is a factor of two, so an ODD pixel dimension converts to a HALF point. The NSWindow's content
-+ * view is sized in WHOLE points, so a layer that Win32 says reaches the window edge stops exactly
-+ * ONE DEVICE PIXEL short of it and the white window surface beneath shows through.
-+ *
-+ * MEASURED. root 2401x1500 px -> host frame 1200.5x750.0 pt inside a 1201.0x750.0 pt view; the
-+ * capture's column x=2401 reads 255,255,255 against an interior of 15,25,36. The axis that is odd
-+ * is the axis that shows it: 2401x1500 gives a right-edge line only, 2400x1501 a bottom-edge line
-+ * only, 2400x1500 none. All four parity combinations re-measured after the fix: none.
-+ *
-+ * Extend to the view's edge, and ONLY at the edge -- an interior sibling keeps its exact geometry,
-+ * so this can never make two widgets overlap. No-op when retina is off. */
-+static CGRect dxmt_fill_view_edges(CGRect frame, CGRect view)
+ #include "macdrv.h"
+ #include "wine/server.h"
+ 
++/* ---- RESIZE DIAGNOSTIC -- off unless built with -DDXMT_RSZ_DEBUG (2026-08-31, macgameport) ----
++ * The host frame (owner process) and the hosted layer's size (GPU process) are maintained by two
++ * DIFFERENT processes through two independent paths. This prints both sides plus the resulting
++ * z-order on a common wall clock, which is how the half-point hairline and the z-order blackout
++ * were both identified. Kept, not deleted: the measurements are only reproducible with it.
++ * fprintf rather than ERR() so a WINEDEBUG channel setting cannot filter it away. */
++#ifdef DXMT_RSZ_DEBUG
++static double dxmt_rsz_ms(void)
 +{
-+    if (CGRectIsEmpty(frame) || CGRectIsEmpty(view)) return frame;
-+    if (frame.origin.x > 0.0 && frame.origin.x <= 1.0) { frame.size.width  += frame.origin.x; frame.origin.x = 0.0; }
-+    if (frame.origin.y > 0.0 && frame.origin.y <= 1.0) { frame.size.height += frame.origin.y; frame.origin.y = 0.0; }
-+    if (CGRectGetMaxX(frame) >= view.size.width  - 1.0) frame.size.width  = view.size.width  - frame.origin.x;
-+    if (CGRectGetMaxY(frame) >= view.size.height - 1.0) frame.size.height = view.size.height - frame.origin.y;
-+    return frame;
++    struct timeval tv;
++    gettimeofday(&tv, NULL);
++    return (double)(tv.tv_sec % 1000) * 1000.0 + tv.tv_usec / 1000.0;
 +}
-
-@@ addCALayerHostViewWithContextId:frame: @@
-+    /* the mirrored content can still be one device pixel narrower than the slot (its size is the
-+     * odd Win32 rect, the slot is the whole-point view) -- paint that residue BLACK rather than
-+     * letting the white window surface through */
-+    host.backgroundColor = CGColorGetConstantColor(kCGColorBlack);
-+    frame = dxmt_fill_view_edges(frame, self.layer.bounds);
-
-@@ updateCALayerHostFrame:frame: @@
-+    frame = dxmt_fill_view_edges(frame, self.layer.bounds);
-
-@@ new method + both entry points now take a `double zpos` @@
-+/* DEFECT 2 -- the blackout. Hosted layers were stacked in the order they were CREATED. */
-+- (void) setCALayerHostZPosition:(CAContextID)contextId zPosition:(double)zpos
-+{
-+    CALayerHost* host = [_caLayerHosts objectForKey:@(contextId)];
-+    if (host && host.zPosition != zpos)
-+    {
-+        [CATransaction begin];
-+        [CATransaction setDisableActions:YES];
-+        host.zPosition = zpos;
-+        [CATransaction commit];
-+    }
-+}
-
---- a/dlls/winemac.drv/window.c
-+++ b/dlls/winemac.drv/window.c
-@@ new helper; called from WM_MACDRV_CREATE_REMOTE_LAYER and update_remote_layer_frames @@
-+/* DEFECT 2, the cause. Steam's client is TWO SIBLING CefBrowserWindow trees on one root --
-+ * measured with win-resize-driver.exe tree:
-+ *     root 0x30124 SDL_app "Steam"
-+ *       +- 0x1013E CefBrowserWindow 2398x1215 @1,250   TOP sibling     -> hosts child 0x10140
-+ *       +- 0x6012A CefBrowserWindow 2400x1500 @0,66    BOTTOM sibling  -> hosts child 0x2011E
-+ * NOT parent and child, as their rectangles invite you to assume. CEF recreates a swapchain on
-+ * every resize, so any resize that recreated the LOWER browser's surface added its layer LAST and
-+ * therefore ON TOP of the upper one -- covering the content with a full-window layer nothing was
-+ * drawing into. The client went black and STAYED black, because the next resize recreated it
-+ * again. 2400x1500 -> 2399x1499 -> 2400x1500 reproduced it every time (interior luminance 82 ->
-+ * 1 -> 0); after the fix the same sequence measures 63 -> 63 -> 113, and 60 alternations at 60ms
-+ * finish rendering with the hosted population stable at 3 and 0 GPU crashes.
++#define DXMT_RSZ(fmt, ...) fprintf(stderr, "dxmt-rsz: %8.1f pid=%-5d " fmt, \
++                                   dxmt_rsz_ms(), (int)getpid(), ## __VA_ARGS__)
++#else
++#define DXMT_RSZ(fmt, ...) do { } while (0)
++#endif
++
++
++
+ WINE_DEFAULT_DEBUG_CHANNEL(macdrv);
+ 
++/* Win32 paint order for the hosted children of one root. Higher index = nearer the viewer.
 + *
-+ * Siblings are walked BOTTOM to TOP (GW_HWNDNEXT runs top to bottom) and a window is numbered
++ * Steam's client is TWO SIBLING CefBrowserWindow trees on one root -- measured 2026-08-31:
++ *     root 0x30124 SDL_app
++ *       +- 0x1013E CefBrowserWindow 2398x1215 @1,250   (TOP sibling)    -> hosts 0x10140
++ *       +- 0x6012A CefBrowserWindow 2400x1500 @0,66    (BOTTOM sibling) -> hosts 0x2011E
++ * and the hosted layers used to be stacked in the order they were CREATED. CEF recreates a
++ * swapchain on every resize, so a resize that recreated the LOWER browser's surface put it on top
++ * of the upper one and the client went black -- and stayed black.
++ *
++ * Siblings are walked BOTTOM to TOP (GW_HWNDNEXT runs top to bottom) and a window is recorded
 + * before its own children, so a child sits above its parent and an upper sibling sits above the
-+ * whole subtree of a lower one. Observed live: 0x2011E -> z2, 0x10140 -> z5, independent of
-+ * creation order. */
-+static void paint_index_walk(HWND parent, HWND target, int *next, int *found, int depth)
++ * whole subtree of a lower one. That is what Win32 painting does.
++ *
++ * COMPUTE THIS ONCE PER UPDATE, NOT ONCE PER LAYER. The first version walked the entire tree
++ * inside update_remote_layer_frames()'s per-layer loop, so a window with N hosted layers cost N
++ * full tree walks -- every NtUserGetWindowRelative a syscall -- on a path that fires continuously
++ * while a window is being dragged. */
++#define PAINT_ORDER_MAX 64
++#define PAINT_ORDER_DEPTH 8
+ 
++struct paint_order
 +{
-+    HWND kids[64], k;
++    HWND hwnds[PAINT_ORDER_MAX];   /* index 0 = furthest back */
++    int  count;
++    BOOL truncated;                /* a bound was hit; z-order below is incomplete */
++};
++
++/* Never silently: an unlogged cap reads as "we ordered everything" when we did not. Once per
++ * process, though -- this runs on the drag path. Layers past the cap keep their previous z. */
++static void paint_order_truncated(struct paint_order *po, const char *why, HWND at)
++{
++    static BOOL warned;
++
++    if (!warned)
++    {
++        FIXME("%s below %p -- paint order incomplete, hosted layers past the cap keep their z\n",
++              why, at);
++        warned = TRUE;
++    }
++    po->truncated = TRUE;
++}
++
++static void paint_order_walk(HWND parent, struct paint_order *po, int depth)
++{
++    HWND kids[PAINT_ORDER_MAX];
++    HWND k;
 +    int n = 0, i;
 +
-+    if (depth > 8) return;
-+    for (k = NtUserGetWindowRelative(parent, GW_CHILD); k && n < 64;
++    if (depth >= PAINT_ORDER_DEPTH)
++    {
++        paint_order_truncated(po, "window tree too deep", parent);
++        return;
++    }
++
++    for (k = NtUserGetWindowRelative(parent, GW_CHILD); k;
 +         k = NtUserGetWindowRelative(k, GW_HWNDNEXT))
++    {
++        if (n == PAINT_ORDER_MAX)
++        {
++            paint_order_truncated(po, "too many siblings", parent);
++            break;
++        }
 +        kids[n++] = k;
++    }
++
 +    for (i = n - 1; i >= 0; i--)
 +    {
-+        int mine = (*next)++;
-+        if (kids[i] == target) *found = mine;
-+        paint_index_walk(kids[i], target, next, found, depth + 1);
++        if (po->count == PAINT_ORDER_MAX)
++        {
++            paint_order_truncated(po, "too many windows in the tree", parent);
++            return;
++        }
++        po->hwnds[po->count++] = kids[i];
++        paint_order_walk(kids[i], po, depth + 1);
 +    }
 +}
 +
-+static double dxmt_paint_zpos(HWND root, HWND child)
++static void build_paint_order(HWND root, struct paint_order *po)
 +{
-+    int next = 1, found = 0;
-+    if (!root || !child) return 0.0;
-+    paint_index_walk(root, child, &next, &found, 0);
-+    return (double)found;
++    po->count = 0;
++    po->truncated = FALSE;
++    if (root) paint_order_walk(root, po, 0);
 +}
-#
-# WHAT IS STILL NOT FIXED: nothing found in the resize path by these instruments. The earlier
-# "flicker" report is not separately measurable now — every capture after a settle is correct, and
-# a 60x60ms churn ends correct — but a sub-frame flash during a live drag would not show up in a
-# post-settle capture, so it is UNTESTED rather than fixed. Say that, do not claim more.
-
-# =====================================================================================
-# ADDENDUM 2 — 2026-08-31, DEFECT 3: a 0x0 window stretched over the whole view.
-#
-# Found by JAMES in ~2 minutes of ordinary use ("when i navigated to library"), immediately after
-# the scripted resize suite above passed clean. Worth stating plainly: the suite drove GEOMETRY and
-# never drove CONTENT, so it could not have found this. Navigation is a different axis entirely.
-#
-# SYMPTOM: Steam's client goes fully black on navigating to the Library. 0 GPU crashes. A resize
-# does NOT clear it. Navigating back to the store DOES.
-#
-# MECHANISM: CEF keeps both browsers in the z-order and collapses the inactive one to 0x0.
-#   while black:   0x1013E / 0x10140  =  0x0        (top sibling, hosted)
-#   after back:    0x1013E / 0x10140  =  2598x1275
-# The create path tested `CGRectIsEmpty(frame)` and treated empty as "no child rect was supplied",
-# which is the ROOT-window case -- so it stretched the layer to the whole content view with an
-# autoresizing mask. z-order then correctly put that top sibling above the live content, and the
-# layer had nothing drawn in it. Black. The update path SKIPPED empty frames, so a layer that
-# became 0x0 while hosted kept its last full-size frame -- the same blackout by a second route,
-# and the reason a resize could not clear it.
-#
-# Trace of the exact moment (-DDXMT_RSZ_DEBUG), on the Library navigation:
-#   HOST update ctx=1003097821 frame=0.0,0.0 0.0x0.0  (was 0.0,92.0 1300.0x637.5)   <- collapsed
-#   HOST create ctx=2870122112 frame=0.0,0.0 0.0x0.0  (view 1300.0x780.0)           <- empty at birth
-#   HOST zpos   ctx=2870122112 -> z5  stack: 2870122112(z5) 1003097821(z5) 280041656(z2)
-# Under the old code that z5 layer became 1300x780 and covered everything.
-#
-# FIX: `CGRectIsEmpty` cannot distinguish "unknown" from "genuinely zero" -- so stop asking it to.
-# window.c already passes CGRectNull when no child rect exists, so test THAT first. Three cases:
-
---- a/dlls/winemac.drv/cocoa_window.m
-+++ b/dlls/winemac.drv/cocoa_window.m
-@@ addCALayerHostViewWithContextId:frame: @@
--    if (!CGRectIsEmpty(frame)) { host.frame = frame; host.masksToBounds = YES; }
--    else { host.frame = self.layer.bounds; host.autoresizingMask = WidthSizable|HeightSizable; }
-+    if (CGRectIsNull(frame))          /* no child rect supplied -- root window, unchanged */
-+    { host.frame = self.layer.bounds; host.autoresizingMask = WidthSizable|HeightSizable; }
-+    else if (CGRectIsEmpty(frame))    /* the window really is 0x0 -- HIDE it, never stretch it */
-+    { host.frame = CGRectZero; host.masksToBounds = YES; host.hidden = YES; }
-+    else
-+    { host.frame = frame; host.masksToBounds = YES; }
-
-@@ updateCALayerHostFrame:frame: -- an empty frame was silently skipped @@
-+    if (host && CGRectIsEmpty(frame) && !CGRectIsNull(frame))
-+        host.hidden = YES;            /* became 0x0 while hosted */
-+    else if (host && !CGRectIsEmpty(frame) && !CGRectEqualToRect(host.frame, frame))
-+    { host.frame = frame; host.hidden = NO; }   /* and un-hide when it gets area again */
-
-@@ both entry points: do NOT run CGRectNull through the retina divide @@
--    frame:cgrect_mac_from_win(frame)
-+    frame:CGRectIsNull(frame) ? CGRectNull : cgrect_mac_from_win(frame)
-
-# VERIFIED: store -> library -> friends -> downloads -> library -> store, all six render
-# (2.8-4.6 MB captures, interior luminance 38-115, none black), 0 GPU crashes.
-
-# =====================================================================================
-# ADDENDUM 3 — 2026-08-31: one regression of my own, and one claim withdrawn.
-#
-# (A) REGRESSION, introduced by Addendum 2 and live for about an hour: Steam's FRIENDS LIST
-#     rendered fully black (20,420 B capture, interior luminance 0). Found by James, again in
-#     ordinary use.
-#
-#     Addendum 2 added "hide a zero-area layer". The un-hide was written as one branch:
-#         else if (host && !CGRectIsEmpty(frame) && !CGRectEqualToRect(host.frame, frame))
-#         { host.frame = frame; host.hidden = NO; }
-#     ...so un-hiding only happened when the FRAME CHANGED. Trace of the failure:
-#         create ctx=1274046919 frame 300.0x650.0
-#         update frame   0.0x0.0                      -> hidden = YES          (brief 0x0)
-#         update frame 300.0x650.0 (was 300.0x650.0)  -> EQUAL, branch skipped, stays hidden
-#     The frame returned to a value it already held, so the guard suppressed the un-hide forever.
-#
-#     LESSON, and it is the general one: VISIBILITY AND GEOMETRY ARE INDEPENDENT STATE. Do not
-#     gate a change to one on a change to the other. Fixed by splitting the tests, and by zeroing
-#     the frame on hide as a second net:
-+        if (host && CGRectIsEmpty(frame) && !CGRectIsNull(frame))
-+        { host.hidden = YES; host.frame = CGRectZero; }
-+        else if (host && !CGRectIsEmpty(frame))
++
++/* TRUE + *zpos on success. On failure the caller must leave zPosition ALONE -- returning 0.0 would
++ * be indistinguishable from a legitimate bottom-most position, which is how a lookup miss would
++ * silently slam a layer to the back of the stack. */
++static BOOL paint_order_zpos(const struct paint_order *po, HWND child, double *zpos)
++{
++    int i;
++
++    for (i = 0; i < po->count; i++)
++        if (po->hwnds[i] == child) { *zpos = (double)(i + 1); return TRUE; }
++    return FALSE;
++}
++
++
+ static pthread_mutex_t win_data_mutex;
+ static CFMutableDictionaryRef win_datas;
+ 
+@@ -843,6 +965,48 @@
+ }
+ 
+ 
++/* Retire every OTHER hosted layer that mirrors the same child, called AFTER the replacement is
++ * already in the layer tree.
++ *
++ * THIS IS THE GAP FIX, and it is a reordering rather than a delay. Removal used to be driven by the
++ * OLD swapchain dying (WM_MACDRV_RELEASE_REMOTE_LAYER, posted from CAContextSwapChain's dealloc),
++ * while the replacement arrived later on its own message. Between the two, nothing was hosted for
++ * that child and the window showed straight through.
++ *
++ * MEASURED 2026-08-31 (T1, docs/plans/hosting-layer-hardening.md): 240 scripted resize steps with
++ * 40 captures taken DURING the churn produced 35 distinct frames, 2 of them with a black content
++ * area -- Steam's chrome (menu bar, nav, URL bar, bottom bar) rendering perfectly with nothing in
++ * the middle. A 40-capture static control on the same window produced ONE distinct frame and zero
++ * black ones. That is the shimmer: the content layer blinking out and back at churn rate.
++ *
++ * Driving the retirement from the CREATE side instead guarantees the child is never unhosted: the
++ * new layer is added first, then its predecessors go. */
++static void retire_superseded_layers(struct macdrv_win_data *data, HWND child, unsigned int keep)
++{
++    CFIndex count, i;
++    const void **keys, **vals;
++
++    if (!data->remote_layer_children || !child) return;
++    if (!(count = CFDictionaryGetCount(data->remote_layer_children))) return;
++
++    keys = calloc(count, sizeof(*keys));
++    vals = calloc(count, sizeof(*vals));
++    if (!keys || !vals) { free(keys); free(vals); return; }
++    CFDictionaryGetKeysAndValues(data->remote_layer_children, keys, vals);
++
++    for (i = 0; i < count; i++)
++    {
++        unsigned int ctx = (unsigned int)(UINT_PTR)keys[i];
++
++        if (ctx == keep || (HWND)vals[i] != child) continue;
++        TRACE("retiring superseded layer ctx %u for child %p (replaced by %u)\n", ctx, child, keep);
++        if (data->cocoa_window) macdrv_window_release_ca_layer_host_view(data->cocoa_window, ctx);
++        CFDictionaryRemoveValue(data->remote_layer_children, (const void *)(UINT_PTR)ctx);
++    }
++    free(keys);
++    free(vals);
++}
++
+ /***********************************************************************
+  *              move_window
+  *
+@@ -1108,6 +1272,26 @@
+ 
+     TRACE("%s\n", debugstr_client_surface(client));
+ 
++    /* REMOTE-LAYER CASE (2026-08-31, macgameport): for a cross-process child the toplevel belongs
++     * to another process, so get_win_data() below returns NULL and this hook used to bail without
++     * doing anything -- which is why a resize never reached the hosted layer. Resize the offscreen
++     * swapchain here instead, using the same root-relative rect the create path uses. */
++    if (surface->metal_swapchain && toplevel && toplevel != hwnd)
++    {
++        RECT cr, root_rect;
++        UINT dpi = NtUserGetWinMonitorDpi(hwnd, MDT_RAW_DPI);
++
++        if (NtUserGetWindowRect(hwnd, &cr, dpi) && NtUserGetWindowRect(toplevel, &root_rect, dpi))
 +        {
-+            if (!CGRectEqualToRect(host.frame, frame)) host.frame = frame;
-+            if (host.hidden) host.hidden = NO;
++            OffsetRect(&cr, -root_rect.left, -root_rect.top);
++            DXMT_RSZ("SURF-UPD child %p root %p child=%d,%d %dx%d  root=%dx%d\n", hwnd, toplevel,
++                     (int)cr.left, (int)cr.top, (int)(cr.right - cr.left),
++                     (int)(cr.bottom - cr.top), (int)(root_rect.right - root_rect.left),
++                     (int)(root_rect.bottom - root_rect.top));
++            macdrv_swapchain_set_bounds(surface->metal_swapchain, cgrect_from_rect(cr));
 +        }
-#     VERIFIED: Friends List 20,420 B / lum 0  ->  274,680 B / lum 38, rendering completely
-#     (avatar, name, FRIENDS header, GROUP CHATS, all text legible).
-#
-# (B) CLAIM WITHDRAWN — macdrv_swapchain_set_bounds() IS DEAD CODE.
-#
-#     The first addendum above says CAContextSwapChain "sets its layer bounds ONCE at init ... seen
-#     live as stale strips of old content, black boxes in a corner, and sometimes a wholly black
-#     content area", and adds macdrv_swapchain_set_bounds to fix it. THAT FUNCTION HAS NEVER RUN.
-#     Its only caller is macdrv_client_surface_update()'s remote-layer branch, and across five
-#     instrumented sessions that branch logged ZERO firings (SURF-UPD=0, CONTENT=0) while
-#     HOST create/update logged 67, 120, 184 and 101 respectively. CEF resizes by DESTROYING and
-#     RECREATING the swapchain, so the in-place resize path is simply never taken.
-#     Whatever improved in that build came from the two changes beside it. Kept, annotated, not
-#     credited. This is the "never assert a code behavior you have not run" rule, self-inflicted.
-#
-# (C) SHIMMER — partially answered. James reports that resizing now shimmers the BACKGROUND art
-#     while foreground images stay clear. It is NOT the compositor stretching our layers: the only
-#     path that could stretch one is (B), which never executes, and the instrumented SCALE check
-#     logged 0 stretch events. What the trace DOES show is churn — 24 scripted resize steps
-#     produced 101 HOST creates and 83 removes across the two browsers, i.e. layers are constantly
-#     un-hosted and re-hosted, and the window shows whatever is behind during each gap. That is a
-#     HYPOTHESIS, not a finding: it has not been tested. A fix would mean holding the retired host
-#     layer until its replacement is confirmed hosted, which is a design change, not a tweak.
-
-# =====================================================================================
-# ADDENDUM 4 — 2026-08-31: hardening pass. Six defects found by re-reading the code above,
-# not by any failure. Plan: docs/plans/hosting-layer-hardening.md
-#
-# D1 QUADRATIC WALK ON THE HOT PATH (the worst one). dxmt_paint_zpos() walked the ENTIRE window
-#    tree from the root, and was called INSIDE update_remote_layer_frames()'s per-layer loop — so
-#    every WindowPosChanged cost layers x full_tree_walk, each node an NtUserGetWindowRelative
-#    syscall, on the path that fires continuously while a window is dragged. Replaced with one
-#    walk per update into a flat paint-ordered array, then an index lookup per layer. The create
-#    path handles a single child and builds the same order once, which is what it did before.
-#
-# D2 SILENT TRUNCATION. `HWND kids[64]` and `depth > 8`, neither logged: exceed either and layers
-#    silently got z-order 0. Both now ERR() exactly once per build (guarded so a deep tree cannot
-#    spam a per-frame path). An unlogged cap reads as "we ordered everything" when we did not.
-#
-# D3 AMBIGUOUS SENTINEL. dxmt_paint_zpos() returned 0.0 for "not found" AND as a legitimate
-#    bottom-most position, so a lookup miss silently slammed a layer to the back. Now
-#    paint_order_zpos() returns BOOL with the index by out-param, and a `zpos_valid` flag travels
-#    to the Cocoa side, which leaves zPosition untouched when we do not know it.
-#
-# D4 MAGIC THRESHOLD. dxmt_fill_view_edges() hardcoded 1.0 point. The quantity that matters is ONE
-#    DEVICE PIXEL — 0.5 pt on retina, 1.0 otherwise — so it is now derived from retina_on. The old
-#    value also snapped rects a whole point from the edge on retina, closing a two-device-pixel gap
-#    an app may have asked for.
-#
-# D5 ALIASING IN THE DEFERRED BACKGROUND. The block re-looked-up the context id, so a remove+create
-#    of the same id inside the 120 ms would paint the replacement's background early — the very
-#    flash the deferral exists to prevent. It now captures the CALayerHost and tests identity.
-#
-# D6 pending_release IS STILL ONE GLOBAL SLOT — deliberately NOT changed. It is a delay, not a
-#    lifetime design, and the proper fix (hold the retired host until its replacement is confirmed
-#    hosted) rests on the UNTESTED churn hypothesis. Building on that before measuring it is how
-#    you aim a good fix at the wrong mechanism. See the plan, phase 2b.
-#
-# VERIFIED on the rebuilt module: seam 0 bright edges on all four parities; blackout sequence
-# 2400x1500 -> 2399x1499 -> 2400x1500 measures 54 -> 43 -> 80 interior luminance; navigation and
-# the Friends List render; 40-alternation churn ends clean; no truncation logged; 0 GPU crashes.
-
-# =====================================================================================
-# ADDENDUM 5 — 2026-08-31: the shimmer, measured and closed.
-#
-# T1 (docs/plans/hosting-layer-hardening.md) finally isolated it. Capture DURING a scripted churn,
-# against an identically-sampled static control:
-#
-#   build                       samples  near-black frames  rate    interior lum min
-#   pre-fix                          40                  2  5.00%                   0
-#   + retire-on-create              160                  2  1.25%                   0
-#   + per-child deferred release    320                  0  0.00%                  28
-#
-# The dark frames are DIAGNOSTIC, not merely dark: Steam's chrome (menu bar, nav, URL bar, bottom
-# bar) renders perfectly with the ENTIRE content area black. That is the content browser's layer
-# with nothing to show. At churn rate during a drag, that is the shimmer.
-#
-# TWO CHANGES, and the second only became findable after the first:
-#
-# (1) RETIRE ON CREATE, NOT ON DESTROY (window.c, retire_superseded_layers()). Removal used to be
-#     driven by the old swapchain dying; the replacement arrived later on its own message, and
-#     nothing was hosted in between. Now the replacement is added first and its predecessors for
-#     the same child are dropped after, so the child is never unhosted. 5.00% -> 1.25%.
-#
-# (2) THE DEFERRED RELEASE IS NOW PER CHILD HWND (macdrv_main.c), not one global slot. This is the
-#     only lever that can keep CONTENT alive across a recreate: CAContextSwapChain's dealloc
-#     releases the remote CAContext, so a CALayerHost whose context is gone has nothing to show and
-#     keeping the host hosted cannot help. Deferring the client_surface release defers the dealloc,
-#     which defers the context destruction. With one global slot, browser A's release drained
-#     browser B's held context early. Keyed per child, a context now survives until the NEXT
-#     release for that same child, which by construction is after its successor was acquired.
-#     1.25% -> 0.00% across 320 samples (p ~ 0.018 against the prior rate).
-#
-# ⚠ A DESIGN THAT WAS KILLED BY READING BEFORE BUILDING: "keep the orphaned host alive until a
-#   successor lands" cannot work. dealloc does `[context setLayer:nil]; [context release]`, so the
-#   host has no content source to preserve. Checking that saved building the wrong fix.
-#
-# BOOT-VERIFIED on the final module (winemac is on the game's boot path): SceneFlow 07:56:32 ->
-# "MainMenu reached" 07:57:35, 0 InvalidProgramException, 6 mods. Judged by a timestamp that
-# postdates the install — the first attempt matched a STALE 06:14 log and was nearly reported as
-# a pass.
-
-# =====================================================================================
-# ADDENDUM 6 — 2026-08-31: style pass, measured against winemac's own conventions.
-#
-# Checked rather than assumed. Our code vs the file it lives in:
-#   Allman braces (opening brace on its own line)   MATCHES
-#   no tabs introduced                              MATCHES (the file's only 2 tabs are pre-existing,
-#                                                    in a comment at window.c:923)
-#   no `//` comments introduced                     MATCHES — 0 across all three files
-#   ERR/TRACE rather than fprintf in shipped code   MATCHES (5 uses; the only `fprintf` outside the
-#                                                    -DDXMT_RSZ_DEBUG block is the word inside a comment)
-#   lines <= 100 columns                            3 VIOLATIONS, now fixed:
-#     - the two ca_layer_host entry-point signatures ran to 129/130 cols; wrapped, and their
-#       declarations in macdrv_cocoa.h with them
-#     - one PRE-EXISTING wine line hit 119 cols only because our new guard indented it a level
-#       further; wrapped rather than left as collateral
-#
-# The rebuilt module hashes to 49746334d0875733 — BYTE-IDENTICAL to the pre-reformat build. The
-# style pass provably changed no behaviour, so nothing needed re-verifying.
-#
-# Still knowingly divergent from wine's house style, and stated so it is a choice rather than an
-# oversight: the comments are far longer than wine's. That is deliberate here — this project
-# requires measurements to live next to the code they justify — and it is the first thing that
-# would have to be cut in half for upstream.
++    }
++
+     if (!(data = get_win_data(toplevel))) return;
+     macdrv_set_view_frame(surface->cocoa_view, cgrect_from_rect(client->monitor_rect));
+     macdrv_set_view_superview(surface->cocoa_view, toplevel == hwnd ? NULL : data->client_view, data->cocoa_window, NULL, NULL);
+@@ -1178,14 +1362,41 @@
+     {
+         RECT rect;
+ 
+-        if (NtUserGetAncestor(hwnd, GA_ROOT) != hwnd)
+-        {
+-            FIXME("Cross-process child window Metal swapchains are not implemented\n");
+-            return FALSE;
+-        }
++        HWND root = NtUserGetAncestor(hwnd, GA_ROOT);
+ 
+         if (!NtUserGetClientRect(hwnd, &rect, NtUserGetWinMonitorDpi(hwnd, MDT_RAW_DPI))) return FALSE;
+-        surface->metal_swapchain = macdrv_create_offscreen_swapchain(hwnd, cgrect_from_rect(rect));
++
++        if (root && root != hwnd)
++        {
++            /* Cross-process CHILD window (macgameport, 2026-08-29). The root-window path below
++             * exports a CAContext and posts WM_MACDRV_CREATE_REMOTE_LAYER to the HWND's owner,
++             * which hosts it via CALayerHost. A child HWND has no cocoa_window of its own, so the
++             * message must go to its ROOT instead -- the window which both owns an NSWindow and
++             * lives in the other process.
++             *
++             * GEOMETRY (2026-08-31): pass the child's rect IN THE ROOT'S SPACE, not its own client
++             * rect. NtUserGetClientRect() yields (0,0,w,h), so every hosted layer landed at the
++             * root's origin -- visible as a displaced band of content. Compute it the same way the
++             * update path does (NtUserGetWindowRect + OffsetRect by the root), so the frame set at
++             * creation and the frame set on every later move agree. WineContentView isFlipped ==
++             * YES, so top-left origin matches Win32 and no Y-flip is needed. */
++            RECT child_rect = rect, root_rect;
++            UINT geom_dpi = NtUserGetWinMonitorDpi(hwnd, MDT_RAW_DPI);
++
++            if (NtUserGetWindowRect(hwnd, &child_rect, geom_dpi) &&
++                NtUserGetWindowRect(root, &root_rect, geom_dpi))
++                OffsetRect(&child_rect, -root_rect.left, -root_rect.top);
++            else
++                child_rect = rect;   /* fall back to the old behaviour rather than guess */
++
++            TRACE("cross-process child %p -> root %p frame %s\n", hwnd, root,
++                  wine_dbgstr_rect(&child_rect));
++            surface->metal_swapchain =
++                macdrv_create_offscreen_swapchain(root, hwnd, cgrect_from_rect(child_rect));
++        }
++        else
++            surface->metal_swapchain =
++                macdrv_create_offscreen_swapchain(hwnd, NULL, cgrect_from_rect(rect));
+     }
+ 
+     return surface->metal_swapchain != NULL;
+@@ -1275,6 +1486,8 @@
+ 
+     if (data->dxmt_client_surfaces)
+         CFRelease(data->dxmt_client_surfaces);
++    if (data->remote_layer_children)
++        CFRelease(data->remote_layer_children);
+ 
+     CFDictionaryRemoveValue(win_datas, hwnd);
+     release_win_data(data);
+@@ -1560,8 +1773,59 @@
+     case WM_MACDRV_CREATE_REMOTE_LAYER:
+         if ((data = get_win_data(hwnd)))
+         {
+-            TRACE("WM_MACDRV_CREATE_REMOTE_LAYER context_id %u\n", (unsigned int)lp);
+-            if (data->cocoa_window) macdrv_window_create_ca_layer_host_view(data->cocoa_window, (unsigned int)lp);
++            HWND child = (HWND)wp;
++            CGRect frame = CGRectNull;
++            BOOL host = TRUE;
++
++            TRACE("WM_MACDRV_CREATE_REMOTE_LAYER child %p context_id %u\n", child,
++                  (unsigned int)lp);
++            if (child)
++            {
++                UINT dpi = NtUserGetWinMonitorDpi(hwnd, MDT_RAW_DPI);
++                RECT cr, rr;
++
++                if (NtUserGetWindowRect(child, &cr, dpi) && NtUserGetWindowRect(hwnd, &rr, dpi))
++                {
++                    OffsetRect(&cr, -rr.left, -rr.top);
++                    frame = CGRectMake(cr.left, cr.top, cr.right - cr.left, cr.bottom - cr.top);
++                    TRACE("child %p layer frame in root %p = %s\n", child, hwnd,
++                          wine_dbgstr_rect(&cr));
++                }
++                else
++                {
++                    /* the child went away between the post and this handler; with no rect the
++                     * layer would be hosted over the whole content view, above live content,
++                     * with nothing ever drawn into it */
++                    TRACE("child %p gone before context %u could be hosted -- not hosting\n",
++                          child, (unsigned int)lp);
++                    host = FALSE;
++                }
++            }
++            if (host && data->cocoa_window)
++            {
++                struct paint_order po;
++                double zpos = 0.0;
++                BOOL have_z;
++
++                build_paint_order(hwnd, &po);
++                have_z = child && paint_order_zpos(&po, child, &zpos);
++                macdrv_window_create_ca_layer_host_view(data->cocoa_window, (unsigned int)lp, frame,
++                                                       zpos, have_z);
++                /* Track every hosted layer: a child's so it can be repositioned when the window
++                 * resizes (the child lives in another process and its own WindowPosChanged never
++                 * reaches us -- children are not managed windows), and a top-level's own layer
++                 * (child NULL) so WM_MACDRV_RELEASE_REMOTE_LAYER can tell "never tracked" from
++                 * "already retired". */
++                if (!data->remote_layer_children)
++                    data->remote_layer_children = CFDictionaryCreateMutable(NULL, 0, NULL, NULL);
++                if (data->remote_layer_children)
++                {
++                    CFDictionarySetValue(data->remote_layer_children,
++                                         (const void *)(UINT_PTR)(unsigned int)lp, child);
++                    /* the replacement is hosted now -- only now do its predecessors go */
++                    if (child) retire_superseded_layers(data, child, (unsigned int)lp);
++                }
++            }
+             release_win_data(data);
+         }
+         return 0;
+@@ -1569,7 +1833,20 @@
+         if ((data = get_win_data(hwnd)))
+         {
+             TRACE("WM_MACDRV_RELEASE_REMOTE_LAYER context_id %u\n", (unsigned int)lp);
+-            if (data->cocoa_window) macdrv_window_release_ca_layer_host_view(data->cocoa_window, (unsigned int)lp);
++            /* Every hosted layer is tracked, so an untracked id is one retire_superseded_layers()
++             * already took: the layer went with the entry, and skipping keeps the two paths from
++             * racing over a context id that has since been reused. A window that never hosted
++             * anything has no table at all. */
++            if (!data->remote_layer_children ||
++                CFDictionaryContainsKey(data->remote_layer_children,
++                                        (const void *)(UINT_PTR)(unsigned int)lp))
++            {
++                if (data->cocoa_window)
++                    macdrv_window_release_ca_layer_host_view(data->cocoa_window, (unsigned int)lp);
++                if (data->remote_layer_children)
++                    CFDictionaryRemoveValue(data->remote_layer_children,
++                                            (const void *)(UINT_PTR)(unsigned int)lp);
++            }
+             release_win_data(data);
+         }
+         return 0;
+@@ -1580,9 +1857,11 @@
+ }
+ 
+ 
+-void macdrv_create_remote_layer(void* hwnd_ptr, unsigned int context_id)
++void macdrv_create_remote_layer(void* hwnd_ptr, void* child_ptr, unsigned int context_id)
+ {
+-    NtUserPostMessage((HWND)hwnd_ptr, WM_MACDRV_CREATE_REMOTE_LAYER, 0, context_id);
++    /* wParam carries the cross-process CHILD hwnd (0 for a root window) so the owning process can
++     * position the hosted layer; lParam is the CAContext id. */
++    NtUserPostMessage((HWND)hwnd_ptr, WM_MACDRV_CREATE_REMOTE_LAYER, (WPARAM)child_ptr, context_id);
+ }
+ 
+ 
+@@ -1638,6 +1917,69 @@
+ /***********************************************************************
+  *              WindowPosChanged   (MACDRV.@)
+  */
++
++/* Re-place the cross-process layers hosted on this window. Each mirrors a child HWND owned by
++ * another process; those children are not managed windows, so their own WindowPosChanged never
++ * arrives here and a hosted layer would otherwise keep the frame it was given at creation. */
++static void update_remote_layer_frames(struct macdrv_win_data *data)
++{
++    CFIndex count, i;
++    const void **keys, **vals;
++    RECT root_rect;
++    UINT dpi;
++    struct paint_order order;
++
++    if (!data->remote_layer_children || !data->cocoa_window) return;
++    if (!(count = CFDictionaryGetCount(data->remote_layer_children))) return;
++
++    dpi = NtUserGetWinMonitorDpi(data->hwnd, MDT_RAW_DPI);
++    if (!NtUserGetWindowRect(data->hwnd, &root_rect, dpi)) return;
++
++    /* ONE tree walk for every hosted layer on this window -- see the comment on paint_order_walk */
++    build_paint_order(data->hwnd, &order);
++
++    keys = calloc(count, sizeof(*keys));
++    vals = calloc(count, sizeof(*vals));
++    if (!keys || !vals) { free(keys); free(vals); return; }
++    CFDictionaryGetKeysAndValues(data->remote_layer_children, keys, vals);
++
++    for (i = 0; i < count; i++)
++    {
++        HWND child = (HWND)vals[i];
++        unsigned int context_id = (unsigned int)(UINT_PTR)keys[i];
++        RECT cr;
++
++        if (!child) continue;   /* a top-level's own layer fills the content view and autoresizes */
++        if (!NtUserGetWindowRect(child, &cr, dpi))
++        {
++            /* the child is gone; left alone its layer would stay painted at its last frame */
++            TRACE("child %p gone -- releasing hosted layer %u\n", child, context_id);
++            macdrv_window_release_ca_layer_host_view(data->cocoa_window, context_id);
++            CFDictionaryRemoveValue(data->remote_layer_children,
++                                    (const void *)(UINT_PTR)context_id);
++            continue;
++        }
++        OffsetRect(&cr, -root_rect.left, -root_rect.top);
++        /* DIAGNOSTIC (2026-08-31): a black band persists between Steam's chrome and its page
++         * content. Creation geometry was ruled out (children sit at the root origin), so log the
++         * frames this update path actually lands to see which widget is misplaced or missing. */
++        DXMT_RSZ("WINPOS   ctx=%u child %p frame=%d,%d %dx%d  root=%dx%d\n", context_id, child,
++                 (int)cr.left, (int)cr.top, (int)(cr.right - cr.left), (int)(cr.bottom - cr.top),
++                 (int)(root_rect.right - root_rect.left),
++                 (int)(root_rect.bottom - root_rect.top));
++        {
++            double zpos = 0.0;
++            BOOL have_z = paint_order_zpos(&order, child, &zpos);
++
++            macdrv_window_update_ca_layer_host_frame(data->cocoa_window, context_id,
++                CGRectMake(cr.left, cr.top, cr.right - cr.left, cr.bottom - cr.top),
++                zpos, have_z);
++        }
++    }
++    free(keys);
++    free(vals);
++}
++
+ void macdrv_WindowPosChanged(HWND hwnd, HWND insert_after, HWND owner_hint, UINT swp_flags,
+                              const struct window_rects *new_rects, struct window_surface *surface)
+ {
+@@ -1689,6 +2031,10 @@
+                 show_window(data);
+         }
+     }
++
++    /* after the Cocoa frame is current, so hosted cross-process layers are placed against the
++     * content view's new bounds rather than the ones it is about to leave */
++    update_remote_layer_frames(data);
+ 
+     if (fullscreen || fullscreen != data->fullscreen)
+     {

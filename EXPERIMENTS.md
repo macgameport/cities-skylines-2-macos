@@ -235,9 +235,14 @@ correct — it is the units of its input that were wrong.
 **Patches:** `scripts/winemac-crossprocess-remote-layer.patch` (wine, three files) +
 `scripts/dxmt-remote-layer-fallback.patch` (DXMT). Neither half works alone.
 
-⚠ **Still open:** `my_dxmt_acquire_remote_layer` deliberately leaks the previous client surface —
-releasing it on the next acquire destroys the layer DXMT is still rendering into. Lifetime should be
-driven by DXMT releasing its swapchain. That is the remaining blocker to offering this upstream.
+~~⚠ **Still open:** `my_dxmt_acquire_remote_layer` deliberately leaks the previous client surface.~~
+**Closed 2026-08-31** — view-keyed table + `dxmt_release_remote_layer`, lifetime driven by DXMT's
+own release — and **hardened 2026-09-02**: a destroyed child's held surface is drained instead of
+parked forever, dead children are pruned owner-side, root-keyed layers are tracked so the release
+guard cannot skip them, and a child that dies between post and handler is not hosted. The 2026-09-02
+audit also found the *published* patch files had never carried the release mechanism; both were
+regenerated from the working trees (the prose version is preserved at
+`docs/winemac-crossprocess-remote-layer-history.md`).
 
 ### 🏆 IT RENDERS OUT-OF-PROCESS, NO SHIM — the cross-process path works (2026-08-31)
 
@@ -852,6 +857,7 @@ Each row: what we believe, what it rests on, and what would overturn it. **Audit
 | C26 | The resize **shimmer is closed** — retire-on-create plus a per-child deferred release | `SUPPORTED` | T1 across three builds, 520 sampled frames, static controls throughout | Gap rate **5.00% (2/40) → 1.25% (2/160) → 0.00% (0/320)**, interior-luminance minimum **0 → 0 → 28**. p≈0.018 for zero in 320 against the 1.25% rate. Dark frames were diagnostic: chrome perfect, content area black. Two changes — (1) retire superseded layers on CREATE so the child is never unhosted, (2) hold the deferred `client_surface` release **per child HWND** rather than in one global slot, since that is the only lever that keeps the remote `CAContext` alive across a recreate. ⚠ A third design ("keep the orphaned host until a successor lands") was **killed by reading before building**: `dealloc` releases the context, so the host has no content source to preserve. **First post-fix trial showed 0/40 and would have been reported as fixed** — trials 2 and 3 each showed 1; repeating is what turned "fixed" into "4× better". Overturned by: a near-black content frame on the per-child build with the instrument validated live. |
 | C27 | The winemac frameless-decoration bug reproduces on **stock** wine 11.16, in 60 lines | `SUPPORTED` | `scripts/frameless-window-repro.c` on `engine-1116` in a throwaway prefix; `~/cs2-patch/evidence/repro-stock.png` | A window whose `WM_NCCALCSIZE` reserves a 5px border and **zero** caption (`dx=5 dy=0`) gets a macOS title bar with traffic lights. Stock `winemac.so`, zero project symbols. **The trigger is a border without a caption:** reclaiming the whole rect gives `dx=0 dy=0`, fires wine's own `EqualRect(window, visible)` guard and is undecorated — which is Steam's window and why Steam is unaffected, and why the naive reproducer would have "proved" there is no bug. `SWP_FRAMECHANGED` after creation is mandatory or `WM_NCCALCSIZE` never takes effect (`dy=30`) and the run means nothing. Overturned by: a stock run with `dx=5 dy=0` and no title bar. |
 | C28 | Live-drag flicker: **no gap-class events** during a real mouse drag | `PARTIAL` | `scripts/livedrag-probe.sh`, 80 frames over 14.2 s of a genuine drag (25 distinct window sizes) | **Now measured**, which `shimmer-probe.sh` could not do — it drives `SetWindowPos`, while a human dragging an edge goes through macOS live-resize. `livedrag-probe.sh` waits for the window to settle, arms, detects the drag starting, then samples hard: **0 near-black frames in 80**, interior lum min 23 / median 77. The drag was genuine — 25 distinct window sizes while sampling — and the probe reports VOID rather than a pass if no drag happens. **`PARTIAL`, not `SUPPORTED`, and the limit is arithmetic:** sampling ran at 5.6/s (one frame per **178 ms**), so this rules out a gap rate near the pre-fix 5% (P=0.017 of seeing zero) but **cannot see a single-frame 16 ms flash**, which would usually fall between samples. James's independent assessment by eye was "minimal". Overturned by: a gap caught at higher sampling density. |
+| C29 | The 2026-09-02 lifetime hardening (dead-child drain + per-release sweep, owner-side pruning, root-keyed tracking, no hosting of a child that died in flight, frame update after the Cocoa frame is current) keeps every prior result | `SUPPORTED` | `exp_9b5030` `exp_2e93af` `exp_a879f0` (fingerprinted, FT 0) + game boot: `Logs/SceneFlow.log` 16:24:23 → `MainMenu reached` 16:25:25, graceful `GameManager destroyed`, 0 `InvalidProgramException`, 7 mod logs | Installed module `310f13d03e27732d`. 0 GPU crashes across three sessions; six navigations render; blackout sequence 83/84/112 with 0 bright edges on the odd size; two 40-sample churns + a static control at 0 gap frames; popup open/close with 5 dead-child prunes and 5 drained slots seen in `dxmt-life` traces. **What would overturn it:** a gap frame or crash on the same battery, or held-surface growth over a long popup session — only the drain *firing* was measured, not the steady-state count. |
 
 ### ✅ C10 CLOSED (2026-08-30) — it was `nohup`, in our own harness
 
@@ -1079,8 +1085,11 @@ may belong to a different wrapper's Steam.
 | exp_f9c0fb | 2026-08-31 03:49 | `resize-fix` | 0 | 0 | 0 | rendered | candidate |
 | exp_cd86e0 | 2026-08-31 03:52 | `resize-final` | 0 | 0 | 0 | rendered | candidate |
 | exp_c40e9c | 2026-08-31 03:55 | `resize-ship` | 0 | 0 | 0 | rendered | candidate |
+| exp_9b5030 | 2026-09-02 15:57 | `audit-fix` | 0 | 0 | 0 | rendered | candidate |
+| exp_2e93af | 2026-09-02 16:02 | `audit-fix2` | 0 | 0 | 0 | rendered | candidate |
+| exp_a879f0 | 2026-09-02 16:05 | `audit-fix3` | 0 | 0 | 0 | rendered | candidate |
 
-80 cells · 45 VOID-LIBS · 35 candidate
+83 cells · 45 VOID-LIBS · 38 candidate
 ---
 
 ## Running a cell (the procedure this ledger assumes)

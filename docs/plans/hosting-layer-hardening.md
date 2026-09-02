@@ -21,7 +21,17 @@
 >
 > **Verify against:** `window.c` (`paint_order_walk`, `retire_superseded_layers`) ·
 > `cocoa_window.m` (`dxmt_fill_view_edges`, the deferred background) ·
-> `macdrv_main.c` (`pending_by_child`) · `scripts/winemac-crossprocess-remote-layer.patch` addenda 4–5.
+> `macdrv_main.c` (`pending_by_child`, `collect_dead_pending`) ·
+> `scripts/winemac-crossprocess-remote-layer.patch` (now the applyable diff; the addenda moved to
+> `docs/winemac-crossprocess-remote-layer-history.md`).
+>
+> **Re-hardened 2026-09-02** after an `open up` review: installed module `310f13d03e27732d`. Four
+> lifetime defects (parked-forever surface per destroyed child, no owner-side pruning, root-keyed
+> layers skipped by the release guard, dead-child create hosted full-window), the stale
+> `@interface`, the dead ABI member, the frame-update ordering and the log levels — all fixed and
+> re-verified on the same T2–T7 battery (game boot: SceneFlow 16:24:23 → `MainMenu reached`
+> 16:25:25, graceful exit, 0 `InvalidProgramException`). Details: `docs/steam-ui-findings.md` § Hardened;
+> ledger C29.
 
 **Scope:** the cross-process `CALayerHost` code in `winemac.drv` that this project added on
 2026-08-31 (`scripts/winemac-crossprocess-remote-layer.patch`). It works — Steam's client renders

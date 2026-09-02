@@ -1,3 +1,9 @@
+# dxmt-force-crossprocess.patch — DIAGNOSTIC ONLY, not part of the shipped fix.
+# Env-gates DXMT's CreateSwapChain cross-process refusal (DXMT_ALLOW_CROSS_PROCESS_SWAPCHAIN=1) so
+# what breaks after the guard can be observed. The installed stack does not carry it: the shipped
+# d3d11.dll is Porting Kit's PE build (version string v0.80-17-g79f6279), which has no such guard
+# string at all, and only winemetal.so was rebuilt (see dxmt-remote-layer-fallback.patch).
+# AI-AUTHORED, MIT like the rest of this repo. Labelled 2026-09-02.
 diff --git a/src/d3d11/d3d11_swapchain.cpp b/src/d3d11/d3d11_swapchain.cpp
 index 73c4203..366af8b 100644
 --- a/src/d3d11/d3d11_swapchain.cpp
