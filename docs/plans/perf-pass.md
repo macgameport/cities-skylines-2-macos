@@ -11,7 +11,7 @@
 > edits via file (not menu) after the controlled experiment. Remaining: P3 pacing cells,
 > P4 late-game CPU cells (M0-L), P5 ship. Verify against: docs/perf-pass-results.md ·
 > scripts/perf-bench.sh · ~/cs2-patch/perf-runs/settings-series.py · GOTCHAS.md.
-> Tracking: PLAN.md § "Performance: the deep optimization pass" (personal-tier repo, no issue tracker).
+> Tracking: PLAN.md § "Performance: the deep optimization pass" (personal-tier repo; GitHub issues were not in use when this shipped — enabled 2026-09-02).
 
 James, 2026-08-23: *"take a deep hard look at optimizing efficiency"* — serious token budget
 approved, and the goal restated at kickoff: **make the experience awesome, squeeze every

@@ -22,7 +22,7 @@
 > headline cell, reached via the user path. See PLAN.md § "ADOPTED: retina / native swapchain"
 > and the GOTCHAS addendum.
 > Tracking: PLAN.md § "Retina / native-swapchain experiment" (section created at build time;
-> personal-tier repo, no issue tracker). Raw run artifacts stay in `~/cs2-patch/perf-runs/` per the
+> personal-tier repo; GitHub issues were not in use when this shipped — enabled 2026-09-02). Raw run artifacts stay in `~/cs2-patch/perf-runs/` per the
 > publishability rule; only reduced numbers and decisions land here.
 
 James, 2026-08-26: playing on the built-in panel (no external display), *"resolution has changed on
