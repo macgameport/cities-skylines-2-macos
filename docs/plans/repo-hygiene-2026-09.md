@@ -1,6 +1,6 @@
 # Repo hygiene — identity section, archive, prune, headers, ledger wording
 
-**Status: Not yet triple-checked — run `check it` before build.** Umbrella:
+**Status: check-it'd 2026-09-02 — build-ready-with-fixes (pass 1; corrections folded below).** Umbrella:
 [issue #1](https://github.com/macgameport/cities-skylines-2-macos/issues/1). Baseline: commit
 `c94d9e9`. All items are mechanical; the plan exists so the two that carry a decision (H1, H2) are
 decided once and the rest are done in one commit.
@@ -15,9 +15,19 @@ inferable from dxmt#141 (comments 5 and 6 continue the earlier account's thread)
 consistency fix, not a leak response.
 
 **Design.** Move the section verbatim to `CLAUDE.local.md` at the repo root, add
-`CLAUDE.local.md` to `.gitignore`, leave a one-line pointer in `CLAUDE.md` ("agent identity and
-`gh` config: see the untracked `CLAUDE.local.md`; agents without it must not run `gh` for this
-project"). **Platform fact, verified 2026-09-02 by the Claude Code guide lens against
+`CLAUDE.local.md` to `.gitignore` (matching the file's existing comment style), leave a one-line
+pointer in `CLAUDE.md`: *"identity detail lives in the untracked `CLAUDE.local.md`; the `gh`
+invocation rule is `docs/agent-brief.md` § If you run gh"* — the brief keeps the
+`GH_CONFIG_DIR="$HOME/.config/gh-cs2"` line (a path, not an account) and is what subagents are
+handed. Reword `CLAUDE.md:103`, which cites "the `GH_CONFIG_DIR` requirement" as if it still lived
+in this file. **Residual public mentions, left deliberately:** the earlier account's name stays in
+`docs/dxmt-bugs/comment-141-fifth-retraction.md:5,14-15,215-216` and
+`comment-141-sixth-shimmer.md:5-6` — they document a public thread whose authorship is visible on
+GitHub anyway. **Premise correction for `docs/agent-brief.md:3-4`:** a subagent spawned from a
+session *does* receive the project `CLAUDE.md` and the memory index in its system prompt (the
+check lens observed its own); what it lacks is the conversation and the memory bodies. The
+"agent without the local file" case is therefore a clone on another machine, not a subagent —
+say that in the brief. **Platform fact, verified 2026-09-02 by the Claude Code guide lens against
 https://code.claude.com/docs/en/memory.md ("Local instructions"):** `CLAUDE.local.md` is the
 documented mechanism for personal, gitignored project instructions; it loads *after* the project
 `CLAUDE.md` in the same directory (managed policy → `~/.claude/CLAUDE.md` → project `CLAUDE.md` →
@@ -25,36 +35,43 @@ documented mechanism for personal, gitignored project instructions; it loads *af
 already public, a rewrite of a public branch with a triager's links into it costs more than it
 buys).
 
-## H2 — `docs/steam-ui-investigation.md` (1652 lines, 33 sections)
+## H2 — `docs/steam-ui-investigation.md` (1652 lines, 32 sections the checker counts; 33 `## ` lines)
 
 It is the raw chronology; `docs/steam-ui-findings.md` is the readable story. **Constraint:** the
-file is one of the two banner corpora `scripts/check-experiments.py` scans (`BANNER_DOCS`,
-5 references), so moving it means editing the checker and every link (`git grep` the name).
+file is one of the two banner corpora `scripts/check-experiments.py` scans (`BANNER_DOCS` at
+`:27`, the name hard-coded five times incl. a regex at `:238`), and it has **42 inbound
+references** (34 in `GOTCHAS.md`, 5 in the checker, `EXPERIMENTS.md:778`, `PLAN.md:59`,
+`docs/steam-ui-findings.md:9`), so moving it means editing the checker and every link.
 
-**Design: do not move it.** Add a two-line banner at the top ("ARCHIVE — the raw chronology;
-read `steam-ui-findings.md` first; kept in place because the ledger checker scans its status
-banners") and leave the checker alone. Cheaper and no link churn; the "archive" is a label.
+**Design: do not move it.** Extend the existing blockquote at lines 3–8 (which already says
+"read the index first" but never names `steam-ui-findings.md`) with an ARCHIVE line: "the raw
+chronology; read `steam-ui-findings.md` first; kept in place because the ledger checker scans its
+status banners". Leave the checker alone. Cheaper and no link churn; the "archive" is a label.
 
 ## H3 — `PLAN.md` (571 lines)
 
 | section (lines) | disposition |
 |---|---|
-| `✅ SOLVED: the alt-tab freeze` (12–62) | delete; pointer line to `GOTCHAS.md` § alt-tab and `docs/dxmt-bugs/` |
-| `✅ ADOPTED: retina` (239–260) | delete; pointer to `docs/plans/retina-swapchain-experiment.md` (as-built) |
-| `✅ Retired: fix it upstream in Wine` (261–274) | delete; pointer to `docs/wine-bugs/README.md` |
-| `Known-unresolved, low severity` (284–564, 280 lines) | **triage, do not bulk-move**: list every item with a one-line "still real / superseded / fixed silently" — still-real items become GitHub issues (the tracker is on), the rest are deleted with a pointer to where they were resolved |
+| `✅ SOLVED: the alt-tab freeze` (12–62) | delete; pointer line to `GOTCHAS.md:464` § alt-tab, `docs/dxmt-bugs/DRAFT-focus-loss-freeze.md` and `docs/plans/build-wine1116-dxmt-engine.md`. **The open decision at `:41-44`** (a game-level confirmation on dxmt#183, "James's call") gets an explicit disposition: memory records it as closed-not-owed (#206 was closed as a dup of #183); write that, or open an issue |
+| `✅ ADOPTED: retina` (239–260) | delete; pointer to `docs/plans/retina-swapchain-experiment.md` (as-built) **and** `docs/plans/launcher-display-profiles.md`; the `:256-260` ship note still says "T10 open" — T10 closed 2026-08-27, say so |
+| `✅ Retired: fix it upstream in Wine` (261–274) | delete; pointer text "retired for R1–R3; later filings (60262, 60263) are tracked in `docs/wine-bugs/README.md`" — `:272-273` "nothing is left to file against Wine" is false since 2026-08-31 |
+| `Known-unresolved, low severity` (284–564, 281 lines) | **triage, do not bulk-move.** Measured: **9 top-level items + 18 nested bullets, all nested under item 5** (Steam's visible UI, `:322–546`, ~225 lines, superseded by `docs/steam-ui-findings.md` + the ledger). The other eight: home-profile 1080p assumption · `scripts/README.md` 25-of-40 coverage · Metal HUD off · ~~Game.dll.bak~~ (already struck) · fullscreen-toggle cursor desync (untested on 11.16) · graphics-in-game rule (already in CLAUDE.md) · D3DMetal API notices (Wine 10 only) · Rosetta horizon. Each gets one line: still real → GitHub issue; superseded / fixed → deleted with a pointer |
 | `Queued: mod keybinding alerts`, `Performance: RUNNING`, `Report upstream to Paradox`, `Not worth doing` | keep; refresh status lines |
 
 ## H4 — `docs/patch-inventory.md` header
 
 Describes only the Wine 10 stack. Add the default `dxmt11` target (10 patches, no licence bypass)
-above it and keep the Wine 10 block as the fallback; bump `Last verified`.
+above it, add `dxmt11` to the `Applied by:` line, keep the Wine 10 block as the fallback, bump
+`Last verified` — and fix `:11` in the same edit: "retires 7 of the 17" contradicts the measured
+16 total / 10 on `dxmt11` / 6 errno (`CLAUDE.md`: "the old 17 counted the cohtml warning").
 
 ## H5 — ledger C2 wording
 
 C2 (`PARTIAL`) describes the geometry-less child patch of 2026-08-29. Keep the row and status (a
-measurement is never deleted); reword the notes to "superseded for the current build by C12–C29;
-the 2,588,759 B composite measurement stands as the first proof the route composites".
+measurement is never deleted) **and keep its `**void-ok:**` marker** — `check-experiments.py:181-188`
+exempts a claim resting on VOID cells only if the row text contains it; dropping it turns T4 red.
+Reword the notes to "superseded for the current build by C12–C29; the 2,588,759 B composite
+measurement stands as the first proof the route composites".
 
 ---
 
@@ -62,15 +79,16 @@ the 2,588,759 B composite measurement stands as the first proof the route compos
 
 | # | test | method | pass |
 |---|---|---|---|
-| T1 | H1 loads | in a fresh `claude` session in the repo, ask what `GH_CONFIG_DIR` the project uses; the answer must come from `CLAUDE.local.md` | correct answer; `git status` shows the file untracked |
+| T1 | H1 loads | in a fresh `claude` session in the repo, ask what `GH_CONFIG_DIR` the project uses; the answer must come from `CLAUDE.local.md` | correct answer; `git check-ignore -v CLAUDE.local.md` prints the rule and `git ls-files CLAUDE.local.md` is empty (an ignored file is *invisible* in `git status`, so "shows untracked" was the wrong measurement) |
 | T2 | H1 pointer is enough for an agent without the local file | the pointer text tells it not to run `gh` | reviewed by reading |
-| T3 | H2/H3/H4 leave no broken links | `git grep -n "steam-ui-investigation\|PLAN.md#\|patch-inventory"` and open each hit | every link resolves |
+| T3 | H2/H3/H4 leave no broken links | `git grep -n 'PLAN\.md\|steam-ui-investigation\|steam-ui-findings\|patch-inventory'` and open each hit — `PLAN.md#` has **0** hits today; every inbound reference is `§`-prose, and H3 breaks three: `docs/plans/retina-swapchain-experiment.md:22,24`, `scripts/steam-render-cell.sh:5`; `REFERENCES.md:39` ("P4 in PLAN.md") is already stale | every reference resolves or is rewritten |
 | T4 | ledger gate | `python3 scripts/check-experiments.py` | exit 0 |
-| T5 | H3 triage is complete | every item in the old 284–564 span appears exactly once: as an issue number, or as a deletion with a pointer | count matches |
+| T5 | H3 triage is complete | every item in the old 284–564 span appears exactly once: as an issue number, or as a deletion with a pointer | 9 top-level + 18 nested = 27 dispositions |
+| T6 | H1 headline | `git grep -c jvspearman -- CLAUDE.md` | 0; the accepted residual is exactly the dxmt-bugs hits listed in H1 |
 
 ## Exit criteria
-1. `CLAUDE.local.md` exists, is untracked, and is auto-loaded (T1); the public `CLAUDE.md` no
-   longer names the personal account.
+1. `CLAUDE.local.md` exists, is ignored, and is auto-loaded (T1); the public `CLAUDE.md` no
+   longer names the personal account (T6); the residual mentions are listed, not discovered later.
 2. H2 banner present; checker untouched; T3, T4 green.
 3. `PLAN.md` under 250 lines with the H3 triage table applied; each still-real item has an issue.
 4. H4, H5 done.
@@ -82,7 +100,7 @@ Plain git revert of one commit; `CLAUDE.local.md` is untracked and stays.
 
 | date | pass | lenses | method | model | verified against | verdict |
 |---|---|---|---|---|---|---|
-| — | not yet checked | — | — | — | — | — |
+| 2026-09-02 | 1 | correctness (repo facts, link census, checker constants) + Claude Code guide (the `CLAUDE.local.md` platform fact) | 2 agents, 12 tool calls | claude-fable-5-1 | `c94d9e9` | build-ready-with-fixes — no design change; two test measurements were wrong (T1, T3), H1 needed its residual-mentions decision and the brief's premise corrected, H3 three specifics and the counts, H4/H5 one line each. All folded above. |
 
 **Key paths:** `CLAUDE.md` · `.gitignore` · `PLAN.md` · `docs/steam-ui-investigation.md` ·
 `docs/patch-inventory.md` · `EXPERIMENTS.md` · `scripts/check-experiments.py`

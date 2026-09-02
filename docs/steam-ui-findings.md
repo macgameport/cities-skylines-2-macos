@@ -156,6 +156,15 @@ a child whose parent chain leaves the process, so neither gets a `win_data`. Tha
 winemac's own `FIXME` names — *"Cross-process child window Metal swapchains are not implemented"*.
 The Win32 process check and the winemac realization check disagree, and DXMT trusts the first.
 
+> **Corrected 2026-09-02 (ledger C30).** On the current stack the ownership is the other way
+> round: every hosted child — `0x2011c`, `0x20138` under the main root, the popup children — is
+> *created* by the browser's UI thread (tid `0130`, which also owns the root and runs the hosting
+> handler) and gets `win_data` there, without a `cocoa_window`. The GPU process (tid `01dc`) is
+> foreign to the whole tree, holds no `win_data` for any of it, and that is why its acquire takes
+> the cross-process branch. The reading above was measured on `0x10104` under the fork build and
+> does not hold here. It matters for one thing: the owner already receives every child move
+> through its own driver hook — see `docs/plans/hosting-layer-design-gaps.md` D1.
+
 **This explains every failed fix at once:**
 
 | attempt | why it could not work |
