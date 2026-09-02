@@ -36,7 +36,8 @@ Patch scripts live in `~/cs2-patch/`, deliberately outside the repo.
   mid-run edit shifts byte offsets and produces a bogus syntax error.
 - **Judge runs by timestamp** — only read a run whose `SceneFlow.log` first line postdates the change.
 - **Boot-verify with `bash scripts/boot-verify.sh`, detached, and read its `VERDICT:` line.** Never
-  hand-roll a boot check: the flush-on-exit `Logs/SceneFlow.log`, the driver's CRLF output, the
+  hand-roll a boot check: the `Logs/SceneFlow.log` path (written live; only `GameManager destroyed`
+  is exit-only), the driver's CRLF output, the
   right prefix and the process-group kill are all encoded there (three attempts without it,
   2026-09-02). `--selftest` exercises every judge branch with no launch; `--judge-only DIR --t0 EPOCH`
   judges an existing run.

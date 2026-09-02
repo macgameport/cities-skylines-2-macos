@@ -1,8 +1,8 @@
 # Cross-process hosting layer — the two design gaps and the three heuristics
 
-**Status: check-it'd 2026-09-02 — build-ready-with-fixes (pass 2; D1 was rewritten from a measurement after a needs-rework pass 1, then re-checked).** Umbrella:
-[issue #1](https://github.com/macgameport/cities-skylines-2-macos/issues/1). Baseline: commit
-`c94d9e9`, installed module `310f13d03e27732d`, source tree
+**Status: check-it'd 2026-09-03 — build-ready-with-fixes (pass 3, fitted re-check after the instruments build at `cc62ff8`; prose corrections folded, nothing in D1/D2/D3 or the test rows invalidated). Pass 2: check-it'd 2026-09-02 — build-ready-with-fixes (D1 was rewritten from a measurement after a needs-rework pass 1, then re-checked).** Umbrella:
+[issue #1](https://github.com/macgameport/cities-skylines-2-macos/issues/1). Baseline: winemac tree as of commit
+`c94d9e9`; instruments at `cc62ff8`; installed module `310f13d03e27732d` (hash re-verified 2026-09-03); source tree
 `~/cs2-patch/build-1116/wine-11.16-dxmt/dlls/winemac.drv/` (line numbers below are against it).
 
 **Scope:** the three things the 2026-09-02 review left open *in the mechanism itself*: (D1) a
@@ -42,7 +42,7 @@ GPU process" described hwnd `0x10104` under the fork build; it does not hold for
 and is corrected there.) Two facts the check lens verified in win32u: the hook runs in the window's
 **owning thread** — a foreign caller's `SetWindowPos` is marshalled to the owner via
 `WM_WINE_SETWINDOWPOS` (`win32u/window.c:4243-4250`) — and `swp_flags` at the hook are the
-**effective** flags after `fixup_swp_flags` (`:3934-3956`), so a no-op call already carries
+**effective** flags after `fixup_swp_flags` (`:3901-3956`; the NOMOVE/NOSIZE/NOZORDER fixups at `:3934-3950`), so a no-op call already carries
 `SWP_NOMOVE|SWP_NOSIZE|SWP_NOZORDER`.
 
 **Design — one leg, owner-side, no new message.** At the `window.c:2002` exit:
@@ -105,8 +105,8 @@ every hosted layer — worse than one walk once there are three or more layers.
 
 | heuristic | measured status | decision proposed |
 |---|---|---|
-| 120 ms deferred black `backgroundColor` (`cocoa_window.m` ≈ 800–825) | load-bearing for the odd-axis seam, and the *deferral* is what stops the menu black-box flash (C18) | **keep locally**; replace the wall-clock with a content signal only if one exists — a check lens should look for a CALayerHost "first frame" callback; if none, the 120 ms stays with the measurement beside it |
-| half-device-pixel edge snap (`dxmt_fill_view_edges`, ≈ 71–113) | load-bearing (C12): removing it brings the seam back on the odd axis | **keep locally**; rename for upstream form (other plan) |
+| 120 ms deferred black `backgroundColor` (`cocoa_window.m:802-830`; the `dispatch_after(… 120 * NSEC_PER_MSEC …)` at `:826`) | load-bearing for the odd-axis seam, and the *deferral* is what stops the menu black-box flash (C18) | **keep locally**; replace the wall-clock with a content signal only if one exists — a check lens should look for a CALayerHost "first frame" callback; if none, the 120 ms stays with the measurement beside it |
+| half-device-pixel edge snap (`dxmt_fill_view_edges`, `:71-96`) | load-bearing (C12): removing it brings the seam back on the odd axis | **keep locally**; rename for upstream form (other plan) |
 | `macdrv_swapchain_set_bounds` + its caller branch in `macdrv_client_surface_update` + prototype | **dead** across every instrumented session (C16); the call is live, only its diagnostic is `#ifdef`'d; class-guarded since 09-02 | **delete** all three pieces — done in the upstream-form plan's cleanup step, which precedes this plan. The 08-31 decision to keep it ("correct in principle") is reversed: a cross-process client resizing a swapchain *in place* has never been observed, and the check lens showed that if the branch ever *did* fire it would change the layer's bounds without the drawable — which the code's own diagnostic defines as stretching. The history doc records the function verbatim |
 
 ---
@@ -126,26 +126,35 @@ Measured 2026-09-02 on `310f13d03e27732d`: 0/0/0 crashes; six navigations 1.2 MB
 
 ## Test plan
 
-Instruments: `scripts/win-resize-driver.c` (needs one new verb, `move <hwnd> <x,y>` →
-`SetWindowPos` with `SWP_NOSIZE|SWP_NOZORDER`; the existing `front` already does `HWND_TOP` with
-`SWP_NOMOVE|SWP_NOSIZE`, and its `SWP_SHOWWINDOW` is stripped for a visible window. Cross-process
-`SetWindowPos` is permitted — win32u has no ownership check — and is marshalled to the owner
-thread; it blocks until the owner pumps, `SWP_ASYNCWINDOWPOS` if a cell ever hangs),
-`scripts/pixel-probe.swift` (needs a `strip <x> <w>` mode: mean RGB of an arbitrary column strip —
-today it only probes the outermost edges and one interior reference), `scripts/steam-render-cell.sh`,
-`scripts/shimmer-probe.sh`, the boot-verify script from the instruments plan. Targets come from the
+Instruments (all shipped by plan 5 at `cc62ff8`, 2026-09-03, and re-verified in pass 3):
+`scripts/win-resize-driver.c` `move <hwnd> <dx,dy> [async]` — a **delta** in raw pixels applied in
+the parent's client space, `SetWindowPos` with `SWP_NOSIZE|SWP_NOZORDER|SWP_NOACTIVATE` (`:251`);
+prints `move <hwnd> by +dx,+dy: screen origin x,y -> x',y'  ok|DID NOT TAKE (…)|SetWindowPos FAILED`,
+rc 0/1 (`:269-275`), so a move that did not take can never read as a red mutant; `async` adds
+`SWP_ASYNCWINDOWPOS` if a cell ever hangs. The existing `front` does `HWND_TOP` with
+`SWP_NOMOVE|SWP_NOSIZE|SWP_SHOWWINDOW` (`:150`); win32u strips `SWP_SHOWWINDOW` for a visible window
+(`fixup_swp_flags`, `win32u/window.c:3929`) and, because `move` passes `SWP_NOACTIVATE`, never turns
+a `move` into a z change (`:3942-3950`) — which is what keeps the T1 and T2 mutants independent.
+Cross-process `SetWindowPos` is permitted — no ownership check — and is marshalled to the owner
+thread (`:4243-4250`); it blocks until the owner pumps. Driver output is LF since `cc62ff8`, but
+every caller keeps `tr -d '\r'` (the gitignored `.exe` can be older than the source).
+`scripts/pixel-probe.swift strip <x> <w>` prints exactly `strip x=<x> w=<w>  r,g,b  lum <l>` and
+refuses images under 24 px on a side (exit 4). `scripts/steam-render-cell.sh`;
+`scripts/shimmer-probe.sh` (`churn` / `static`, `SAMPLES` default 40; builds `/tmp/winlist` itself);
+`scripts/boot-verify.sh` (run **detached**, never inside a tool call that can time out; read its one
+`VERDICT:` line; exit 2 = refused, prefix busy — rerun, not a FAIL). Targets come from the
 `WM_MACDRV_CREATE_REMOTE_LAYER child %p` TRACE and `tree`'s `pid=` column.
 
 | # | test | method | pass | mutant (apply to real source, observe red, restore green) |
 |---|---|---|---|---|
 | T0 | the ownership premise still holds on the build under test | one `+macdrv` cell; bucket `WindowPosChanging`/`Changed` tids per hosted child against the tid emitting `cross-process child … -> root` and the tid running the CREATE handler | every hosted child's hook tid == the CREATE-handler tid (owner); the acquiring tid never emits a hook for any of them | n/a — a premise probe; if it fails, D1 needs the message leg |
-| T1 | child-only move re-places the layer (`move <hwnd> <dx,dy>` is a **delta** in pixels, applied in the parent's client space; the `rects` readback confirms a screen-space origin change of exactly (dx,dy)) | Steam on the **Library** page (the Store's autoplaying video would give false reds); take a hosted child from the CREATE trace (browser-owned, e.g. the `0x2011c` kind); **negative control first**: the strip at x+120 must differ from the strip at x by > 8/channel before the move, else the content is uniform and the test is void; capture; `move <child> +120,+0`; `rects <child>` readback proves the Win32 rect moved (instrument validation — a broken `move` must not read as a red mutant); wait 500 ms; capture; then **one resize** and a third capture; `move` it back | two-sided: the strip at the child's left edge (`strip` mode) now reads the child's content at x+120 **and** the old location no longer does (within 8/channel); the post-resize capture still renders | comment out the `update_remote_layer_frames` call in the new branch → both captures identical; restore. **Pre-registered:** if the mutant is *silent* while `rects` confirms the move, CEF re-created its swapchain on the move — that is a finding about D1 (the move path is unnecessary for CEF), not a harness failure; record it as such |
+| T1 | child-only move re-places the layer (`move <hwnd> <dx,dy>` is a **delta** in pixels, applied in the parent's client space; the `rects` readback confirms a screen-space origin change of exactly (dx,dy)) | Steam on the **Library** page (the Store's autoplaying video would give false reds); take a hosted child from the CREATE trace (browser-owned, e.g. the `0x2011c` kind); **negative control first**: the strip at x+120 must differ from the strip at x by > 8/channel before the move, else the content is uniform and the test is void; capture; `move <child> +120,+0`; `rects <child>` readback proves the Win32 rect moved (instrument validation — a broken `move` must not read as a red mutant); wait 500 ms; capture; then **one resize** and a third capture; `move` it back. **Units and timing (pass 3):** `+120` is raw Win32 pixels and `strip x` is capture pixels — record the display profile in the cell's `config.json` and assert the capture-px : Win32-px ratio is 1:1 before computing strip offsets (a HiDPI capture puts the column at 2×); the post-move capture lands ≥ 700 ms after the request (`move` sleeps 200 ms before its own readback, plus the 500 ms wait), so a silent mutant is not a slow presentation; pipe `move`/`rects` output through `tr -d '\r'` like every other caller | two-sided: the strip at the child's left edge (`strip` mode) now reads the child's content at x+120 **and** the old location no longer does (within 8/channel); the post-resize capture still renders | comment out the `update_remote_layer_frames` call in the new branch → both captures identical; restore. **Pre-registered:** if the mutant is *silent* while `rects` confirms the move, CEF re-created its swapchain on the move — that is a finding about D1 (the move path is unnecessary for CEF), not a harness failure; record it as such |
 | T2 | child-only z change re-stacks | Steam's two `CefBrowserWindow` siblings overlap by construction (2398×1215 @1,250 inside 2400×1500 @0,66); measure the overlap region's mean RGB with the top sibling on top, `front <lower sibling>`, measure again, `front <upper sibling>`, measure a third time | the region changes to the lower sibling's signature and back (> 8/channel each way) | its own, **independent** mutant: drop `SWP_NOZORDER` from the `moved` mask → T2 red while T1 stays green; restore |
 | T3 | no regression: blackout sequence | `2400x1500 → 2399x1499 → 2400x1500` | interior luminance > 40 at every step, 0 bright edges | n/a (regression) |
 | T4 | no regression: churn ×2 + static control | `shimmer-probe.sh churn` twice, `static` once, 40 samples each | 0 gap frames | n/a |
 | T5 | D2: no capacity | build with `PAINT_ORDER_DEPTH` forced to 2 as the mutant for the *depth* bound; the growable walk has no breadth cap to mutate. **Observation channel:** the z assignment is a `TRACE` in `window.c`'s `update_remote_layer_frames` (the upstream-form plan converts the former `WINPOS` instrument line to one `TRACE` carrying `context_id`, `zpos`, `have_z`; the `.m` files cannot `TRACE`), read with `+macdrv` | with the real code: `paint order incomplete` FIXME never logged under Steam; with the depth mutant: FIXME logged once, and every hosted layer above the cut still gets a z in the trace | the old fixed array restored with MAX=4, **with the cap placement pre-registered from a `tree` dump so a hosted child is provably past index 4**; the mutant run must show the `too many windows in the tree` FIXME or it proved nothing → a blackout on churn (the C13 signature) |
 | T6 | D3: `set_bounds` deletion is behaviour-neutral (executed in the upstream-form plan; re-verified here) | the C29 battery above | inside the battery's bounds | n/a — the function had 0 firings; the test is that nothing depended on it |
-| T7 | game boots | boot-verify script | `MainMenu reached`, graceful exit, 0 `InvalidProgramException` | n/a |
+| T7 | game boots | `bash scripts/boot-verify.sh`, detached (`--judge-only <run> --t0 <epoch>` re-judges a run) | `VERDICT: PASS` + `GRACEFUL: yes`, exit 0 — PASS already requires `MainMenu reached`, `GameManager destroyed` and 0 `InvalidProgramException`; a killed run reads `FAIL` + `GRACEFUL: no` (SceneFlow is written live), `VOID` only if nothing was written | n/a |
 | T8 | lifetime traces still clean | `WINEDEBUG=+err,+macdrv` on one cell | 0 `acquire_metal_swapchain FAILED`; ≥ 1 drain with ≥ 1 dead-child slot and ≥ 1 prune on popup close; 0 `ERR` lines from our code | n/a |
 | T9 | edge: show/hide of a child | `SetWindowPos(child, SWP_HIDEWINDOW)` then `SWP_SHOWWINDOW` via a driver verb (or a popup that hides itself) | recorded as a **known pre-existing gap**: the gate refreshes geometry, but `update_remote_layer_frames` does not consult `WS_VISIBLE`, so a hidden child's layer stays visible. Out of scope here; the test documents the behaviour, pass = no crash, no `ERR`, and the note in the plan | n/a |
 
@@ -160,14 +169,31 @@ today it only probes the outermost edges and one interior reference), `scripts/s
 
 ## Sequencing
 **Order across the umbrella: instruments (plan 5) → upstream form (plan 2) → this plan → DXMT
-side (plan 3); repo hygiene (plan 4) is independent.** This plan needs the `move` verb, the
-`strip` mode and `boot-verify.sh` from plan 5, and the git history (with `set_bounds` already
-deleted and the z `TRACE` in place) from plan 2.
+side (plan 3); repo hygiene (plan 4) is independent.** Plan 5 shipped at `cc62ff8` (2026-09-03:
+`move`, `strip`, `boot-verify.sh` present and re-verified in pass 3). Still needed from plan 2
+(check-it'd, not built): the git history with `set_bounds` already deleted and the z `TRACE` in
+place.
 
 ## Rollback
 One file swap: the installed module's previous build sits beside it as
 `winemac.so.bak-preaudit-20260902-155549` (the C29 build is `310f13d0…`; back it up the same way
-before installing). Source: the git history from the upstream-form plan.
+before installing). Source: the git history from the upstream-form plan once it lands; until then
+that `.bak-preaudit-20260902-155549` file is the only rollback source — the tree has no git today.
+
+## Review corrections (triple-check 2026-09-03, pass 3 — fitted re-check after the instruments build)
+
+Trigger: `cc62ff8` built plan 5 and moved `scripts/win-resize-driver.c`, `scripts/pixel-probe.swift`,
+the probes and added `scripts/boot-verify.sh` under this plan. One agent re-verified every cite
+(winemac tree, win32u, scripts), the instrument contracts against the T1/T2/T7 rows, swept for the
+withdrawn "flushed on exit" belief (zero occurrences), and spot-checked the C30 premise, the
+`GW_HWNDLAST`/`GW_HWNDPREV` walk and the `set_bounds` dependency. Nothing in D1/D2/D3 or the test
+rows was invalidated. Folded, all prose: the `move <hwnd> <x,y>` spelling and "needs" wording in
+the Instruments paragraph (the built verb is a delta, `<dx,dy>`, with `SWP_NOACTIVATE`); T7 in the
+judge's vocabulary (`VERDICT: PASS` + `GRACEFUL: yes`); the sequencing and rollback text now say
+plan 5 is shipped and plan 2 is the only remaining prerequisite; `fixup_swp_flags` `:3901-3956`;
+`cocoa_window.m:802-830` / `:826` and `dxmt_fill_view_edges` `:71-96`; the baseline line names the
+instruments commit. Gaps folded into T1: the Win32-px vs capture-px ratio under a HiDPI profile,
+the ≥ 700 ms post-move capture timing, and `tr -d '\r'` on `move`/`rects` output.
 
 ## Review log
 
@@ -176,7 +202,9 @@ before installing). Source: the git history from the upstream-form plan.
 | 2026-09-02 | 1 | architecture + correctness (win32u hook path, lock order, enum range, D2/D3 facts, driver verbs) | 1 agent, 16 tool calls | claude-fable-5-1 | `c94d9e9` | needs-rework — D1's hook point was dead code (children *do* get `win_data`) and its process premise was wrong; D2's two-walk race; D3 sound. Then an inline measurement on the existing `+macdrv` trace (cell `exp_9b5030`) showed every child is owner-created (tid `0130`), which reduced D1 to the one-leg owner-side design above. D1/D2/tests rewritten. |
 | 2026-09-02 | 1b | cross-plan test-plan audit | 1 agent, 10 tool calls | claude-fable-5-1 | `310e631c` | adequate-with-fixes — negative control and instrument readback for T1, independent T2 measurement, the C29 battery defined numerically, fixtures given an owner (plan 5). Folded. |
 | 2026-09-02 | 2 (fitted re-check of the fold) | one agent over the rewritten sections, cites re-verified against the code and the trace | 1 agent, 11 tool calls | claude-fable-5-1 | `276f43d5` | build-ready-with-fixes — D1 rewrite measurement-backed and correct (T0 re-verified on the trace: `01dc` emits no hooks at all); fixes were prose: the mutex is recursive (rationale reworded), T2's mutant was not independent (now the `SWP_NOZORDER` mask), per-child hook counts, two cites, the z `TRACE` site. **Cleared for build in umbrella order (after plans 5 and 2).** |
+| 2026-09-03 | 3 (fitted re-check after the instruments build) | instruments-contract (move/rects/strip/boot-verify/winlist) + cite re-verification (winemac tree, win32u, scripts) + SceneFlow fact sweep + 3 design spot-checks (C30 premise, GW_HWNDLAST/PREV walk, set_bounds dependency on plan 2) | 1 agent, 13 tool calls | claude-fable-5-1 | `cc62ff8` | build-ready-with-fixes — every instrument the plan needs exists and matches the T1/T7 rows; no reliance on "flushed on exit"; fixes prose only (folded above). Still gated on plan 2 per umbrella order. |
 
 **Key paths:** `~/cs2-patch/build-1116/wine-11.16-dxmt/dlls/winemac.drv/{window.c,cocoa_window.m,macdrv_main.c,macdrv.h}` ·
 `~/cs2-patch/build-1116/wine-11.16/dlls/win32u/window.c` (hook call site) · `scripts/win-resize-driver.c` ·
-`scripts/winemac-crossprocess-remote-layer.patch`
+`scripts/winemac-crossprocess-remote-layer.patch` · `scripts/pixel-probe.swift` · `scripts/boot-verify.sh` ·
+`scripts/shimmer-probe.sh`
