@@ -1,8 +1,35 @@
 # Verification instruments — a committed boot-verify, probe hygiene, and the live-drag re-run
 
-**Status: check-it'd 2026-09-02 — build-ready-with-fixes (pass 2; I1 was rewritten after a needs-rework pass 1, then re-checked).** Umbrella:
+**Status: BUILT 2026-09-03 except I3 (needs James at the mouse) · check-it'd 2026-09-02 — build-ready-with-fixes (pass 2; I1 was rewritten after a needs-rework pass 1, then re-checked).** Umbrella:
 [issue #1](https://github.com/macgameport/cities-skylines-2-macos/issues/1). Baseline: commit
 `c94d9e9`.
+
+> **🔧 As-built (2026-09-03):** **built, except I3** (the human live-drag step, T8). Shipped in one
+> commit: `scripts/boot-verify.sh` (I1, plus a `--selftest` that runs every judge branch with no
+> launch); the whole I2 table — winlist auto-build in both probes, `kg.png` deleted right after its
+> size test, `pixel-probe` size guard (exit 4) + margin/depth clamps + `strip <x> <w>`, the driver's
+> `move <hwnd> <dx,dy> [async]` verb and binary-mode (LF) stdio; driver rebuilt and deployed to
+> `~/cs2-patch/win-resize-driver.exe`, `pixel-probe` and `winlist` rebuilt in `/tmp`. **Measured:**
+> T1 PASS (run `~/cs2-patch/boot-verify/20260902-191156`: game +105 s, MainMenu 19:15:32, graceful,
+> exit 0; `--selftest` 8/8) · T2 REFUSED, pid listed, exit 2 · T3 **FAIL + GRACEFUL: no**, exit 1
+> (see deviation 3) · T4 winlist rebuilt, abort = `no SDL_app top-level Steam window` · T5 `kg.png`
+> absent; mutant (rm dropped) → present, restored · T6 10×10 → `too small to probe (10x10)` exit 4,
+> 30×30 probes, depth 100 clamps to 14 · T7 2 `title=` lines, 0 CR on stdout and stderr,
+> `title=Steam$` matches raw · T9 child `0x1013E` (CefBrowserWindow) origin 1,122 → 121,122 → 1,122;
+> strip 15,25,36 vs 200,200,200 on the synthetic edge, five strips read on a real capture.
+> **Deviations:** (1) macOS ships no `setsid`; the launcher is detached with perl `POSIX::setsid`
+> (same session semantics; the DYLD purge on that SIP exec is harmless because the launcher
+> re-exports at `:63`). (2) T2's fixture as written (`cp /bin/sleep` + `exec -a`) does not register
+> on macOS 26; as executed it is a symlink named `wineserver` to `/bin/sleep` (GOTCHAS 2026-09-03).
+> (3) **SceneFlow.log is written live**, not flushed on exit: T3 left a fresh 67-line log ending
+> 11 s before the SIGTERM, so a killed run judges FAIL + GRACEFUL: no, and VOID is reached only when
+> nothing was written this run. The I1 fact and the T3 expectation both came from the 2026-09-02
+> wrong-path polling; the judge's branches are unchanged. (4) A failed `close` goes straight to
+> SIGTERM — the 120 s wait applies only after a posted WM_CLOSE. (5) `GRACEFUL: unknown` on a VOID
+> run with no override, rather than reporting a stale log's exit as this run's. **Exit criteria:**
+> 1 ✓ · 2 ✓ · 3 ✗ (I3 open) · 4 ✓. **Verify against:** `scripts/boot-verify.sh` (header TESTS block),
+> `scripts/win-resize-driver.c`, `scripts/pixel-probe.swift`, `scripts/shimmer-probe.sh`,
+> `scripts/livedrag-probe.sh`, `docs/agent-brief.md`, `CLAUDE.md` § Where things live.
 
 **Why.** On 2026-09-02 the game boot verification took three attempts because the script in use
 polled a log at the wrong path, ran the resize driver against the wrong prefix, matched CRLF output

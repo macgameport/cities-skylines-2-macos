@@ -17,13 +17,20 @@ out="${OUT_DIR:-/tmp/livedrag}"; rm -rf "$out"; mkdir -p "$out"
 FRAMES="${FRAMES:-60}"; WAIT="${WAIT:-90}"
 
 [ -x /tmp/pixel-probe ] || swiftc -O "$(dirname "$0")/pixel-probe.swift" -o /tmp/pixel-probe || exit 1
+# winlist too: without it the known-good capture below fails first and the abort reads "instrument
+# blind" — a misdiagnosis, not a result (verification-instruments.md I2, 2026-09-03)
+[ -x /tmp/winlist ] || swiftc -O "$(dirname "$0")/winlist.swift" -o /tmp/winlist || exit 1
 
 if python3 -c "import subprocess,sys; sys.exit(0 if 'CGSSessionScreenIsLocked' in subprocess.run(['ioreg','-n','Root','-d1','-a'],capture_output=True,text=True).stdout else 1)"; then
   echo "  ABORT: screen locked — screencapture is blind"; exit 1; fi
 
 GID=$(/tmp/winlist 2>/dev/null | grep -iE "owner=(Ghostty|Terminal|Claude|Finder)" | head -1 | sed -E 's/^id=([0-9]+).*/\1/')
 rm -f /tmp/kg.png; [ -n "$GID" ] && screencapture -x -o -l "$GID" /tmp/kg.png 2>/dev/null
-[ -s /tmp/kg.png ] || { echo "  ABORT: known-good capture failed — instrument blind, nothing here would be evidence"; exit 1; }
+kg=0; [ -s /tmp/kg.png ] && kg=1
+# That capture is of an arbitrary terminal or Claude window. Its only datum is "the instrument
+# sees", now held in $kg — delete it before anything else can happen (privacy, EXPERIMENTS.md).
+rm -f /tmp/kg.png
+[ "$kg" = 1 ] || { echo "  ABORT: known-good capture failed — instrument blind, nothing here would be evidence"; exit 1; }
 
 line=$(/tmp/winlist 2>/dev/null | grep "title=Steam$")
 ID=$(echo "$line" | sed -E 's/^id=([0-9]+).*/\1/')

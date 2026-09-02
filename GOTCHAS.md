@@ -1592,3 +1592,44 @@ is where the addenda now live; the two patch headers carry the regeneration date
 "title=Steam$"` over its `list` output matches nothing, and a `grep -v` meant to *exclude* the main
 window excludes nothing — one verification script closed the main Steam window along with the
 popups that way. Pipe the driver through `tr -d '\r'` first. `winlist` (Swift) is LF and unaffected.
+
+## A process-impersonation fixture must be proven detectable before the test that needs it (2026-09-03)
+
+**Root cause.** The busy-prefix test for `scripts/boot-verify.sh` needs a process whose command
+line matches `wineserver` and which holds a prefix file open. The planned fixture — `cp /bin/sleep
+/tmp/wineserver-fake; exec -a wineserver /tmp/wineserver-fake 300` — produced nothing: the copied
+platform binary never appeared in `ps` on macOS 26, and the fallback `exec -a wineserver /bin/bash
+-c 'sleep 300'` lost its name because bash tail-execs a lone simple command, so `ps` showed
+`sleep 300`. In both cases `pgrep -f wineserver` matched nothing. Had the test then run the script
+"to see it refuse", it would have measured a free prefix and **launched the game inside a tool
+call** — the negative test's failure mode is the positive action.
+
+**Prevention.** Two rules. (1) A symlink carries the name: `ln -s /bin/sleep /tmp/wineserver;
+/tmp/wineserver 300 3<"$PREFIX/system.reg" &` shows as `/tmp/wineserver 300` and inherits the open
+fd — the fixture as executed for T2. (2) Before invoking the script under test, prove the fixture
+is detectable with the **same predicate the script uses** (`pgrep -f` + `lsof -p … | grep -q
+"$PREFIX"`), and do not invoke it otherwise. A refusal test whose fixture is absent is not a red
+test; it is the thing the test exists to prevent.
+
+## SceneFlow.log is written live — "flushed on graceful exit" was a wrong-path artifact (2026-09-03)
+
+**Root cause.** On 2026-09-02 the ad-hoc boot harness watched `SceneFlow.log` in the LocalLow root
+while the game writes it under `Logs/`. The file it watched never changed during the run, a
+complete log was found after the exit, and that became the recorded fact "flushed on graceful
+exit, not written live". It was then encoded — as an *instrument fact* — into the boot-verify
+plan, the umbrella issue and memory, and the plan's T3 expectation (a SIGTERM'd run leaves the
+previous run's log in place → VOID) was derived from it.
+
+**Measured.** `boot-verify.sh --hwnd 1 --dwell 60` (run `20260902-191631`): the new log's first
+line appeared 6 s after the game pid; at the SIGTERM the copy held 67 lines, the last written
+11 s earlier, and the file's mtime was that line's time. The log is written line by line; only
+`GameManager destroyed` is exit-only. A killed run therefore judges **FAIL + GRACEFUL: no** (fresh,
+truncated), and VOID is reachable only when nothing was written this run — the launcher dying
+before the game starts, or a kill inside the first few seconds.
+
+**Prevention.** A fact about *when a file is written* is measured by watching the file at its real
+path with timestamps, never inferred from what a script that looked elsewhere failed to see. And
+when an instrument is fixed — here, the path — re-measure every fact that was recorded while it
+was broken; the plan's own "facts it encodes" list is the checklist. The judge was designed with a
+"fresh but truncated → FAIL" branch anyway, which is why the wrong belief cost nothing but the
+expectation in one test row.

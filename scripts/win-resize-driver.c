@@ -6,14 +6,21 @@
  * as winemac.drv's dxmt-rsz diagnostics, so the two streams can be read together.
  *
  * Build:  x86_64-w64-mingw32-gcc -O2 -o win-resize-driver.exe scripts/win-resize-driver.c -lgdi32
+ *         then deploy to ~/cs2-patch/win-resize-driver.exe (the path the probes hardcode; the
+ *         .exe is gitignored, so callers keep their `tr -d '\r'` -- they may run an older binary)
  * Usage:  wine win-resize-driver.exe list
  *         wine win-resize-driver.exe drive <hwnd-hex> <WxH> [WxH ...]   (settle 1500ms each)
  *         wine win-resize-driver.exe churn <hwnd-hex> <WxH> <WxH> <n>   (alternate, 60ms apart)
+ *         wine win-resize-driver.exe move  <hwnd-hex> <dx,dy> [async]   (a DELTA, parent-client space)
+ *         wine win-resize-driver.exe front|close|rects|tree|cursor <hwnd-hex>
+ * Output is LF-terminated (binary-mode stdio) so `title=Steam$` matches; earlier builds were CRLF.
  *
- * (macgameport, 2026-08-31)
+ * (macgameport, 2026-08-31; move verb + LF output 2026-09-03)
  */
 #include <windows.h>
 #include <stdio.h>
+#include <io.h>
+#include <fcntl.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -99,7 +106,19 @@ static void become_dpi_aware(void)
 
 int main(int argc, char **argv)
 {
-    if (argc < 2) { fprintf(stderr, "usage: list | drive <hwnd> <WxH>... | churn <hwnd> <WxH> <WxH> <n>\n"); return 2; }
+    /* Scripts consume this output through grep and awk. In the CRT's default text mode every "\n"
+     * becomes "\r\n", a `$`-anchored pattern never matches, and a `grep -v` meant to exclude the
+     * main window excludes nothing (GOTCHAS 2026-09-02: one script closed the main Steam window that
+     * way). Binary mode first, before anything is printed; stderr too, since the STAMP stream is
+     * grepped as well. */
+    _setmode(_fileno(stdout), _O_BINARY);
+    _setmode(_fileno(stderr), _O_BINARY);
+    if (argc < 2)
+    {
+        fprintf(stderr, "usage: list | cursor | drive <hwnd> <WxH>... | churn <hwnd> <WxH> <WxH> <n> | "
+                        "move <hwnd> <dx,dy> [async] | front|close|rects|tree|cursor <hwnd>\n");
+        return 2;
+    }
     become_dpi_aware();
 
     if (!strcmp(argv[1], "list"))
@@ -214,6 +233,45 @@ if (argc < 3) { fprintf(stderr, "need an hwnd for %s\n", argv[1]); return 2; }
         report(h, "TREE");
         dump_children(h, 1);
         return 0;
+    }
+
+    if (!strcmp(argv[1], "move"))
+    {
+        /* A DELTA in raw pixels, applied in the PARENT'S CLIENT space -- the only frame in which
+         * SetWindowPos positions a child. GetWindowRect answers in screen space, so the origin is
+         * mapped into the parent first (the identity for a top-level window). Cross-process is
+         * fine: win32u has no ownership check and marshals the change to the owner thread, where it
+         * blocks until that thread pumps -- "async" adds SWP_ASYNCWINDOWPOS for an owner that never
+         * does. The readback below is the instrument check: a move that did not take must print
+         * as one, never as a quiet "ok". */
+        int dx = 0, dy = 0;
+        RECT before, after;
+        POINT o;
+        HWND parent;
+        UINT flags = SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE;
+        BOOL ok;
+
+        if (argc < 4 || sscanf(argv[3], "%d,%d", &dx, &dy) != 2)
+        {
+            fprintf(stderr, "move: want <dx,dy>, e.g. +120,+0\n");
+            return 2;
+        }
+        if (argc >= 5 && !strcmp(argv[4], "async")) flags |= SWP_ASYNCWINDOWPOS;
+        GetWindowRect(h, &before);
+        o.x = before.left; o.y = before.top;
+        parent = GetAncestor(h, GA_PARENT);
+        if (parent && parent != GetDesktopWindow()) MapWindowPoints(HWND_DESKTOP, parent, &o, 1);
+        STAMP("MOVE     %p by %+d,%+d (parent-client %ld,%ld -> %ld,%ld)\n", h, dx, dy,
+              o.x, o.y, o.x + dx, o.y + dy);
+        ok = SetWindowPos(h, NULL, o.x + dx, o.y + dy, 0, 0, flags);
+        Sleep(200);
+        GetWindowRect(h, &after);
+        printf("move %p by %+d,%+d: screen origin %ld,%ld -> %ld,%ld  %s\n", h, dx, dy,
+               before.left, before.top, after.left, after.top,
+               !ok ? "SetWindowPos FAILED"
+                   : (after.left - before.left == dx && after.top - before.top == dy) ? "ok"
+                   : "DID NOT TAKE (readback differs from the request)");
+        return ok ? 0 : 1;
     }
 
     if (argc < 4) return 2;

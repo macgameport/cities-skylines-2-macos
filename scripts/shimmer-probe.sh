@@ -28,6 +28,9 @@ mode="${1:-churn}"; out="${OUT_DIR:-/tmp/shimmer-$mode}"; rm -rf "$out"; mkdir -
 N="${SAMPLES:-40}"
 
 [ -x /tmp/pixel-probe ] || swiftc -O "$(dirname "$0")/pixel-probe.swift" -o /tmp/pixel-probe || exit 1
+# winlist too: without it the window lookup below reads as "no Steam window" — a misdiagnosis, not
+# a result (verification-instruments.md I2, 2026-09-03)
+[ -x /tmp/winlist ] || swiftc -O "$(dirname "$0")/winlist.swift" -o /tmp/winlist || exit 1
 
 # guard 3a — locked screen makes every capture fail
 if python3 -c "import subprocess,sys; sys.exit(0 if 'CGSSessionScreenIsLocked' in subprocess.run(['ioreg','-n','Root','-d1','-a'],capture_output=True,text=True).stdout else 1)"; then
