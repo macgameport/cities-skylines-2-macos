@@ -109,6 +109,19 @@ every hosted layer — worse than one walk once there are three or more layers.
 
 ---
 
+## The C29 battery, defined once (every plan's "matches C29" means exactly this)
+
+| measurement | instrument | pass |
+|---|---|---|
+| GPU-process crashes, scoped to the launch | `steam-render-cell.sh` (`cef_log` marker) | 0 per cell, 3 cells |
+| navigation ×6 (library, friends, settings, store, downloads, library) | `steam://` + winlist capture + `pixel-probe` | each `RENDERED` (capture ≥ 120,000 B) with interior luminance ≥ 20 |
+| blackout sequence 2400×1500 → 2399×1499 → 2400×1500 | driver `drive` + `pixel-probe` | interior luminance ≥ 40 at all three steps; 0 bright edges on the odd size |
+| churn ×2 + static control, 40 samples each | `shimmer-probe.sh` | 0 gap frames in each |
+| popup open, capture, close (WM_CLOSE), main window after | driver `close` + capture + `+macdrv` trace | popup `RENDERED`; ≥ 1 `dxmt-life … draining` line with ≥ 1 dead-child slot; ≥ 1 `gone -- releasing hosted layer` prune; main window `RENDERED` after |
+| game boot | `scripts/boot-verify.sh` | `VERDICT: PASS`, `GRACEFUL: yes`, 0 `InvalidProgramException` |
+
+Measured 2026-09-02 on `310f13d03e27732d`: 0/0/0 crashes; six navigations 1.2 MB / 147 KB / 851 KB-class / 1.58 MB / 515 KB / 1.2 MB; 83 / 84 / 112 with 0 edges; 0 / 0 / 0 gaps; 5 drains, 5 prunes; boot 16:25:25. A rerun is not "identical"; it is inside these bounds.
+
 ## Test plan
 
 Instruments: `scripts/win-resize-driver.c` (needs one new verb, `move <hwnd> <x,y>` →
@@ -124,18 +137,19 @@ today it only probes the outermost edges and one interior reference), `scripts/s
 | # | test | method | pass | mutant (apply to real source, observe red, restore green) |
 |---|---|---|---|---|
 | T0 | the ownership premise still holds on the build under test | one `+macdrv` cell; bucket `WindowPosChanging`/`Changed` tids per hosted child against the tid emitting `cross-process child … -> root` and the tid running the CREATE handler | every hosted child's hook tid == the CREATE-handler tid (owner); the acquiring tid never emits a hook for any of them | n/a — a premise probe; if it fails, D1 needs the message leg |
-| T1 | child-only move re-places the layer | Steam up; take a hosted child from the CREATE trace (browser-owned, e.g. the `0x2011c` kind); capture; `move <child> +120,+0`; wait 500 ms; capture; then **one resize** and a third capture | two-sided: the strip at the child's left edge (`strip` mode, over the root's own surface) now reads the child's content at x+120 **and** the old location no longer does (within 8/channel); the post-resize capture still renders (guards against the layer being re-hosted wrongly) | comment out the `update_remote_layer_frames` call in the new branch → both captures identical; restore |
-| T2 | child-only z change re-stacks | two overlapping hosted children — `tree` shows Steam's two `CefBrowserWindow` siblings overlap by construction; `front <lower sibling>` | the raised sibling's content is visible in the overlap region (interior luminance of the region changes from the lower's to the upper's signature) | its own mutant: comment out the root lookup in the new branch (leave the move path) → no re-stack; restore |
+| T1 | child-only move re-places the layer | Steam on the **Library** page (the Store's autoplaying video would give false reds); take a hosted child from the CREATE trace (browser-owned, e.g. the `0x2011c` kind); **negative control first**: the strip at x+120 must differ from the strip at x by > 8/channel before the move, else the content is uniform and the test is void; capture; `move <child> +120,+0`; `rects <child>` readback proves the Win32 rect moved (instrument validation — a broken `move` must not read as a red mutant); wait 500 ms; capture; then **one resize** and a third capture; `move` it back | two-sided: the strip at the child's left edge (`strip` mode) now reads the child's content at x+120 **and** the old location no longer does (within 8/channel); the post-resize capture still renders | comment out the `update_remote_layer_frames` call in the new branch → both captures identical; restore. **Pre-registered:** if the mutant is *silent* while `rects` confirms the move, CEF re-created its swapchain on the move — that is a finding about D1 (the move path is unnecessary for CEF), not a harness failure; record it as such |
+| T2 | child-only z change re-stacks | Steam's two `CefBrowserWindow` siblings overlap by construction (2398×1215 @1,250 inside 2400×1500 @0,66); measure the overlap region's mean RGB with the top sibling on top, `front <lower sibling>`, measure again, `front <upper sibling>`, measure a third time | the region changes to the lower sibling's signature and back (> 8/channel each way) | its own mutant: comment out the root lookup in the new branch (leave the move path) → the region does not change; restore |
 | T3 | no regression: blackout sequence | `2400x1500 → 2399x1499 → 2400x1500` | interior luminance > 40 at every step, 0 bright edges | n/a (regression) |
 | T4 | no regression: churn ×2 + static control | `shimmer-probe.sh churn` twice, `static` once, 40 samples each | 0 gap frames | n/a |
-| T5 | D2: no capacity | build with `PAINT_ORDER_DEPTH` forced to 2 as the mutant for the *depth* bound; the growable walk has no breadth cap to mutate | with the real code: `paint order incomplete` FIXME never logged under Steam; with the depth mutant: FIXME logged once, and every hosted layer above the cut still gets a z | the old fixed array restored with MAX=4 → layers beyond get no z → a blackout on churn (the C13 signature) |
-| T6 | D3: `set_bounds` deletion is behaviour-neutral | Steam battery (T3, T4, navigation ×6, popup open/close) | identical results to C29 | n/a — the function had 0 firings; the test is that nothing depended on it |
+| T5 | D2: no capacity | build with `PAINT_ORDER_DEPTH` forced to 2 as the mutant for the *depth* bound; the growable walk has no breadth cap to mutate. **Observation channel:** the z assignment is a `TRACE` in core (the upstream-form plan converts the former `HOST zpos` instrument line to one `TRACE`), read with `+macdrv` | with the real code: `paint order incomplete` FIXME never logged under Steam; with the depth mutant: FIXME logged once, and every hosted layer above the cut still gets a z in the trace | the old fixed array restored with MAX=4, **with the cap placement pre-registered from a `tree` dump so a hosted child is provably past index 4**; the mutant run must show the `too many windows in the tree` FIXME or it proved nothing → a blackout on churn (the C13 signature) |
+| T6 | D3: `set_bounds` deletion is behaviour-neutral (executed in the upstream-form plan; re-verified here) | the C29 battery above | inside the battery's bounds | n/a — the function had 0 firings; the test is that nothing depended on it |
 | T7 | game boots | boot-verify script | `MainMenu reached`, graceful exit, 0 `InvalidProgramException` | n/a |
-| T8 | lifetime traces still clean | `WINEDEBUG=+err,+macdrv` on one cell | 0 `acquire_metal_swapchain FAILED`, drains and prunes still fire on popup close | n/a |
+| T8 | lifetime traces still clean | `WINEDEBUG=+err,+macdrv` on one cell | 0 `acquire_metal_swapchain FAILED`; ≥ 1 drain with ≥ 1 dead-child slot and ≥ 1 prune on popup close; 0 `ERR` lines from our code | n/a |
+| T9 | edge: show/hide of a child | `SetWindowPos(child, SWP_HIDEWINDOW)` then `SWP_SHOWWINDOW` via a driver verb (or a popup that hides itself) | recorded as a **known pre-existing gap**: the gate refreshes geometry, but `update_remote_layer_frames` does not consult `WS_VISIBLE`, so a hidden child's layer stays visible. Out of scope here; the test documents the behaviour, pass = no crash, no `ERR`, and the note in the plan | n/a |
 
 ## Exit criteria
 1. T0 confirms the ownership premise on the build under test; T1 and T2 green with their mutants observed red and restored.
-2. T3–T8 match or beat C29.
+2. T3–T8 inside the C29 battery bounds defined above (one set of numbers, not two).
 3. `struct paint_order` has no compile-time capacity; the walk is `GW_HWNDLAST`/`GW_HWNDPREV`; only the depth bound remains and it logs.
 4. `macdrv_swapchain_set_bounds` is gone from the tree, the prototype and the patch; C16 updated to
    say it was removed.
@@ -143,8 +157,10 @@ today it only probes the outermost edges and one interior reference), `scripts/s
    ledger with the cells named.
 
 ## Sequencing
-Build **after** `winemac-reference-upstream-form.md`: that plan puts the source under git and
-deletes `set_bounds`; this plan's commits go on top of its `glue` history.
+**Order across the umbrella: instruments (plan 5) → upstream form (plan 2) → this plan → DXMT
+side (plan 3); repo hygiene (plan 4) is independent.** This plan needs the `move` verb, the
+`strip` mode and `boot-verify.sh` from plan 5, and the git history (with `set_bounds` already
+deleted and the z `TRACE` in place) from plan 2.
 
 ## Rollback
 One file swap: the installed module's previous build sits beside it as

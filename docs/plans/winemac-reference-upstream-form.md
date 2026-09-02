@@ -34,10 +34,14 @@ after aquadran's `CFRelease`), and `git apply --check` against pristine fails on
 - `main` — `stock` → `aquadran` → cherry-pick(`core`) → `glue`. Combined patch =
   `git diff aquadran main`; glue = `git diff <cherry-pick> main`.
 Set `diff.srcPrefix=a/dlls/winemac.drv/` and `diff.dstPrefix=b/dlls/winemac.drv/` in the nested
-repo's config so regeneration cannot forget them. Cost of the relocation: struct field order
+repo's config so regeneration cannot forget them. **Verify the base commits, not just the patches:**
+the `stock` commit `cmp`s byte-for-byte against `~/cs2-patch/build-1116/wine-11.16/dlls/winemac.drv/`,
+and `aquadran` equals `stock` + `scripts/wineandaqua-dxmt.patch` applied (`cmp` after `patch -p1`).
+Without that, T3/T4 compare git to git. Cost of the relocation: struct field order
 changes, so the rebuilt module is not byte-identical to C29's — T5/T6 cover that. **Before deleting
 the eleven `*.pre-*` backups, `git bundle` the nested repo into `~/cs2-patch/evidence/`**: it is
-the only copy of the history and has no remote. The drift guard is T4, promoted to a `button up`
+the only copy of the history and has no remote; the deletion is gated on `git bundle verify`
+passing, not on a week elapsing. The drift guard is T4, promoted to a `button up`
 gate (regenerate to a temp file, `cmp` against `scripts/*.patch`).
 
 ## 2. Upstream form (counts re-measured 2026-09-02 by the check lens on the combined diff, added lines only)
@@ -47,7 +51,7 @@ gate (regenerate to a temp file, `cmp` against `scripts/*.patch`).
 | `macgameport` handle tags | **9** (all parenthetical); dated lines 22; union 23 | 0 in core; allowed in glue | `grep -c '^+.*macgameport'` · `grep -c '^+.*2026-0[0-9]-[0-9][0-9]'` |
 | `EXPERIMENT (…)` headers | **1** | 0 | `grep -c '^+.*EXPERIMENT'` |
 | comment share of added lines | **28.7%** comment-only of 839 added (31.3% of non-blank) | ≈10% in core; measurements live in `docs/winemac-crossprocess-remote-layer-history.md` | `grep -c '^+[[:space:]]*\(/\*\|\*\|//\)'` ÷ `grep -c '^+'` (minus `+++`) |
-| `DXMT_RSZ` instrument | 2 definition pairs + 2 `dxmt_rsz_ms` helpers + **3 inline `#ifdef DXMT_RSZ_DEBUG` blocks**, 7 call sites, 5 includes — ≈101 lines | **removed** from the tree; the history doc keeps the definition verbatim | `grep -c '^+.*DXMT_RSZ'` |
+| `DXMT_RSZ` instrument | 2 definition pairs + 2 `dxmt_rsz_ms` helpers + **3 inline `#ifdef DXMT_RSZ_DEBUG` blocks**, 7 call sites, 5 includes — ≈101 lines | **removed** from the tree; the history doc keeps the definition verbatim. **One observation survives as a core `TRACE`:** the z assignment in `setCALayerHostZPosition:` (the former `HOST zpos` line), because the design-gaps plan's T5 reads it | `grep -c '^+.*DXMT_RSZ'` |
 | vendor-named symbols in core | `dxmt_fill_view_edges` (3 sites) | `snap_host_frame_to_view_edges` (file-local static) | `grep -c '^+.*dxmt_fill_view_edges'` |
 | `ERR`/`TRACE`/`FIXME` use | done in the review pass | unchanged | — |
 | non-ASCII | 0 | 0 | `grep -cP '[^\x00-\x7F]'` |
@@ -106,13 +110,13 @@ a future submission would *add*, not strip. The AI-assisted disclosure stays in 
 
 | # | test | method | pass | mutant |
 |---|---|---|---|---|
-| T1 | the form passes are behaviour-neutral | rebuild after each pass: (a) comments/tags, (b) instrument removal, (c) the static rename | (a) and (b): `winemac.so` byte-identical to the pre-pass build (compare before codesign); (c) byte-identical after `strip -x` | introduce one code change alongside (a) → hash differs → the detector works; run once |
-| T2 | core applies to **stock** 11.16 and compiles with stock flags | fresh stock tree + `git diff stock core`; `git apply --check` then apply; configure a stock build dir with the engine's configure line **minus `-fvisibility=default`** (core adds no exports; a maintainer builds hidden) and with the stock `configure` path; `gmake dlls/winemac.drv/{window,cocoa_window,macdrv_main}.o` as the fast compile check, then `gmake dlls/winemac.drv/winemac.so` — which first builds `ntdll.so`/`win32u.so` in a fresh dir (budget it) | apply-check clean, exit 0, no new warnings on stock flags, the FIXME string gone from the binary, the link succeeds (macOS `-undefined error` catches a core function left in glue) | drop one core hunk → apply fails, or build/link fails, or the FIXME string returns |
+| T1 | the form passes are behaviour-neutral | rebuild after each pass: (a) comments/tags, (b) instrument removal, (c) the static rename | (a) and (b): `winemac.so` byte-identical to the pre-pass build (compare before codesign); (c) byte-identical after `strip -x`. (The z `TRACE` is added in its own step and is *not* expected byte-identical.) | introduce one **codegen-visible** change alongside (a) — a string literal, not a dead store the optimiser removes → hash differs → the detector works; run once |
+| T2 | core applies to **stock** 11.16 and compiles with stock flags (T7 folded in: `vulkan.c`'s callers keep their signatures, so this build is the vulkan check) | fresh stock tree + `git diff stock core`; `git apply --check` then apply; configure a stock build dir with the engine's configure line **minus `-fvisibility=default`** (core adds no exports; a maintainer builds hidden) and with the stock `configure` path; **record the stock warning count from the same build dir before applying**; `gmake dlls/winemac.drv/{window,cocoa_window,macdrv_main}.o` as the fast compile check, then `gmake dlls/winemac.drv/winemac.so` — which first builds `ntdll.so`/`win32u.so` in a fresh dir (budget it) | apply-check clean, exit 0, warning count unchanged, the string `Cross-process child window Metal swapchains are not implemented` absent from the binary, the link succeeds (macOS `-undefined error` catches a core function left in glue) | drop **the hunk that replaces the FIXME** (`window.c` `@@ -1178`) → the string returns; drop the `macdrv.h` field hunk → build fails |
 | T3 | the branched history reproduces the tree | `git diff aquadran main` applied to a fresh stock+aquadran copy; `cmp` all five files against `main` | byte-identical | n/a |
 | T4 | the published patches match git — **standing `button up` gate** | regenerate combined/core/glue to temp files; `cmp` against `scripts/*.patch` | identical; the gate fails loudly on any hand edit | edit one byte in a `.patch` → gate red |
-| T5 | Steam battery on the rebuilt module | 3 cells, navigation ×6, blackout sequence, churn ×2 + control, popup open/close | matches C29 | n/a |
+| T5 | Steam battery on the rebuilt module | the C29 battery as defined in `hosting-layer-design-gaps.md` § "The C29 battery" | inside its bounds | n/a |
 | T6 | game boots | boot-verify | `MainMenu reached`, graceful exit | n/a |
-| T7 | vulkan path still builds | core on stock includes `vulkan.c`'s caller unchanged | compiles (T2 covers it); runtime not testable here — say so in the header | n/a |
+| T7 | vulkan path at runtime | not testable here (no Vulkan cross-process client); the core header says so | — | n/a |
 
 ## Exit criteria
 1. Source under git with the branched history (`stock` → `core`; `main` = stock → aquadran → cherry-pick → glue), diff prefixes configured, a bundle in `~/cs2-patch/evidence/`; `*.pre-*` backups gone. `set_bounds` deleted.
@@ -123,8 +127,9 @@ a future submission would *add*, not strip. The AI-assisted disclosure stays in 
    James's go-ahead**, which this plan records as a step, not a given.
 
 ## Sequencing
-This plan **first**; `hosting-layer-design-gaps.md` builds on its history (and its D3 is executed
-here). The instruments plan is independent.
+**Umbrella order: instruments (plan 5) → this plan → design gaps (plan 1) → DXMT side (plan 3);
+repo hygiene (plan 4) independent.** This plan needs `boot-verify.sh` from plan 5 (T6); plan 1
+builds on this plan's history, its `set_bounds` deletion and its z `TRACE`.
 
 ## Rollback
 The git history *is* the rollback: `git checkout main` restores the pre-form tree; the installed

@@ -79,12 +79,14 @@ measurement stands as the first proof the route composites".
 
 | # | test | method | pass |
 |---|---|---|---|
-| T1 | H1 loads | in a fresh `claude` session in the repo, ask what `GH_CONFIG_DIR` the project uses; the answer must come from `CLAUDE.local.md` | correct answer; `git check-ignore -v CLAUDE.local.md` prints the rule and `git ls-files CLAUDE.local.md` is empty (an ignored file is *invisible* in `git status`, so "shows untracked" was the wrong measurement) |
-| T2 | H1 pointer is enough for an agent without the local file | the pointer text tells it not to run `gh` | reviewed by reading |
+| T1 | H1 loads | put a **nonce sentinel** (a random word) in `CLAUDE.local.md`; in a fresh `claude` session in the repo ask for the nonce; then rename the file and ask again (negative control). Asking about `GH_CONFIG_DIR` would prove nothing — `docs/agent-brief.md:52`, two `docs/dxmt-bugs/` files and auto-memory all carry it | nonce returned with the file present, unknown with it renamed; `git check-ignore -v CLAUDE.local.md` prints the rule and `git ls-files CLAUDE.local.md` is empty (an ignored file is *invisible* in `git status`) |
+| T2 | H1 pointer present and the brief unchanged | `grep -c 'CLAUDE.local.md' CLAUDE.md` = 1 and `git grep -n GH_CONFIG_DIR -- ':!CLAUDE.local.md'` lists only `docs/agent-brief.md` and the two `docs/dxmt-bugs/` files | counts as stated |
 | T3 | H2/H3/H4 leave no broken links | `git grep -n 'PLAN\.md\|steam-ui-investigation\|steam-ui-findings\|patch-inventory'` and open each hit — `PLAN.md#` has **0** hits today; every inbound reference is `§`-prose, and H3 breaks three: `docs/plans/retina-swapchain-experiment.md:22,24`, `scripts/steam-render-cell.sh:5`; `REFERENCES.md:39` ("P4 in PLAN.md") is already stale | every reference resolves or is rewritten |
-| T4 | ledger gate | `python3 scripts/check-experiments.py` | exit 0 |
+| T4 | ledger gate | `python3 scripts/check-experiments.py` — **pre-registered:** the H2 banner is a blockquote line, not a `## ` heading, so the checker's section count stays 32 | exit 0 and "32 section(s)" unchanged |
 | T5 | H3 triage is complete | every item in the old 284–564 span appears exactly once: as an issue number, or as a deletion with a pointer | 9 top-level + 18 nested = 27 dispositions |
 | T6 | H1 headline | `git grep -c jvspearman -- CLAUDE.md` | 0; the accepted residual is exactly the dxmt-bugs hits listed in H1 |
+| T7 | H3 issues are filed as the right account | `GH_CONFIG_DIR="$HOME/.config/gh-cs2" gh auth status` **before** the first `gh issue create`, and each created issue's `author.login` | `iosoceans` throughout — the dxmt#141 failure mode, gated this time |
+| T8 | H4's counts are measured, not copied | count the `patch_*.py` invocations in `~/cs2-patch/repatch.sh` and those inside `ERRNO_PATCHES`/`COHTML_LICENSE` guards | 16 total, 6 errno-guarded, 10 on `dxmt11` (re-run, do not trust `CLAUDE.md`'s number) |
 
 ## Exit criteria
 1. `CLAUDE.local.md` exists, is ignored, and is auto-loaded (T1); the public `CLAUDE.md` no
@@ -92,6 +94,9 @@ measurement stands as the first proof the route composites".
 2. H2 banner present; checker untouched; T3, T4 green.
 3. `PLAN.md` under 250 lines with the H3 triage table applied; each still-real item has an issue.
 4. H4, H5 done.
+
+## Sequencing
+Independent of the other four plans; any time.
 
 ## Rollback
 Plain git revert of one commit; `CLAUDE.local.md` is untracked and stays.
