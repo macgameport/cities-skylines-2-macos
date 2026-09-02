@@ -6,8 +6,9 @@ everything below would otherwise be re-derived by grep — or, worse, guessed. F
 
 ## What this project is
 
-macOS port notes for Cities: Skylines II under Wine + DXMT. Personal-tier: **no issue tracker, no
-phases, no SPEC.md.** Durable record = this repo + `~/cs2-patch/change-ledger.txt`.
+macOS port notes for Cities: Skylines II under Wine + DXMT. Personal-tier: **no phases, no
+SPEC.md**; GitHub Issues ARE enabled (umbrella issues for multi-item work). Durable record = this
+repo + its issues + `~/cs2-patch/change-ledger.txt`.
 Patch scripts live in `~/cs2-patch/`, deliberately outside the repo.
 
 ## Evidence rules — the ones that bite

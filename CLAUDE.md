@@ -1,7 +1,9 @@
 # Claude Instructions — cs2 (macOS CS2 port notes)
 
-Personal/throwaway-tier project: **no issue tracker, no phases, no SPEC.md.** Skip the
-issues-per-item ritual. Durable record = this repo + `~/cs2-patch/change-ledger.txt`.
+Personal-tier project: **no phases, no SPEC.md** — but **GitHub Issues are enabled** (corrected
+2026-09-02; this line used to say "no issue tracker"). Use them for umbrella/multi-item work and
+anything a future session must not lose; single mechanical fixes still go straight to a commit.
+Durable record = this repo + its issues + `~/cs2-patch/change-ledger.txt`.
 
 ## Where things live
 

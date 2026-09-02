@@ -44,9 +44,14 @@ if [ "$mode" = churn ]; then
   "$W" "$DRV" churn "$H" 2400x1500 2200x1360 240 >/dev/null 2>&1 &
   sleep 1
   mid=$(/tmp/winlist 2>/dev/null | grep "title=Steam$" | grep -oE 'size=[0-9]+x[0-9]+')
-  # guard 2 — if nothing moved, this measures nothing
-  [ "$mid" = "$before" ] && { echo "  ABORT: window never changed size ($before) — churn did not take"; exit 1; }
-  echo "  churn live: $before -> $mid"
+  sleep 0.09
+  mid2=$(/tmp/winlist 2>/dev/null | grep "title=Steam$" | grep -oE 'size=[0-9]+x[0-9]+')
+  # guard 2 — if nothing moved, this measures nothing. TWO samples 90 ms apart (2026-09-02): the
+  # churn alternates every 60 ms, so a single sample taken while the window happens to sit at its
+  # starting size read as "did not take" and aborted a valid run half the time when the window
+  # started at one of the two churn sizes.
+  [ "$mid" = "$before" ] && [ "$mid2" = "$before" ] && { echo "  ABORT: window never changed size ($before) — churn did not take"; exit 1; }
+  echo "  churn live: $before -> $mid -> $mid2"
 fi
 
 for i in $(seq 1 "$N"); do screencapture -x -o -l "$ID" "$out/f$i.png" 2>/dev/null; done

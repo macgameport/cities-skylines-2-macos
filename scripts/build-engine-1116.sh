@@ -127,6 +127,30 @@ dyld_info -exports "$E/lib/wine/x86_64-unix/winemac.so" 2>/dev/null | grep -q ma
   || die "self-check: DXMT shim not exported from winemac.so"
 echo "  engine OK: $v, DXMT shim present"
 
+# ─────────────────────────────────────────────────────────────────────────────────────────────
+# STEP 4b (was step 8, 2026-08-30): make the engine find its OWN libraries with no environment variable.
+#
+# Stock configure gives these modules only an `@loader_path/` rpath, so a bare
+# dlopen("libfreetype.dylib") resolves ONLY via DYLD_FALLBACK_LIBRARY_PATH. macOS purges DYLD_*
+# across an exec into any SIP-protected system binary (nohup, env, /bin/bash), so a single `nohup`
+# anywhere in a launch path left wine with no font backend: DirectWrite then enumerated 204
+# families and rasterised ZERO, and Steam drew art with no glyphs. That cost a week.
+#
+# Porting Kit's engine carries `@loader_path/../../` here, which is why it always looked immune.
+# Verified 2026-08-30: bare-soname dlopen DOES consult LC_RPATH, and with this applied a launch
+# through `nohup` with DYLD_* unset resolves fonts cleanly (63 FreeType failures -> 0).
+step "adding @loader_path/../../ rpath so libs resolve without DYLD_* (see GOTCHAS: nohup)"
+# (2026-09-02) This used to run AFTER step 5 and patched the staging tree the wrapper had already
+# been copied from, so a fresh run installed an engine WITHOUT the fix. It now runs before the copy.
+for m in win32u dwrite crypt32 secur32; do
+  so="$E/lib/wine/x86_64-unix/$m.so"
+  [ -f "$so" ] || continue
+  otool -l "$so" | grep -q '@loader_path/../../' && { echo "  $m.so: already present"; continue; }
+  install_name_tool -add_rpath "@loader_path/../../" "$so" || die "add_rpath failed on $m.so"
+  codesign -f -s - "$so" 2>/dev/null   # add_rpath invalidates the ad-hoc signature
+  echo "  $m.so: rpath added"
+done
+
 # ---------------------------------------------------------------- 5. swap into the wrapper
 step "install into the wrapper"
 SS="$APP/Contents/SharedSupport"
@@ -178,25 +202,3 @@ Rollback (engine only, one command — your game/saves are untouched):
   (the prefix has then seen a newer wine once; in practice it keeps working, worst case
    delete + recreate the prefix = reinstall Steam inside the wrapper)
 DONE
-
-# ─────────────────────────────────────────────────────────────────────────────────────────────
-# STEP 8 (2026-08-30): make the engine find its OWN libraries with no environment variable.
-#
-# Stock configure gives these modules only an `@loader_path/` rpath, so a bare
-# dlopen("libfreetype.dylib") resolves ONLY via DYLD_FALLBACK_LIBRARY_PATH. macOS purges DYLD_*
-# across an exec into any SIP-protected system binary (nohup, env, /bin/bash), so a single `nohup`
-# anywhere in a launch path left wine with no font backend: DirectWrite then enumerated 204
-# families and rasterised ZERO, and Steam drew art with no glyphs. That cost a week.
-#
-# Porting Kit's engine carries `@loader_path/../../` here, which is why it always looked immune.
-# Verified 2026-08-30: bare-soname dlopen DOES consult LC_RPATH, and with this applied a launch
-# through `nohup` with DYLD_* unset resolves fonts cleanly (63 FreeType failures -> 0).
-step "adding @loader_path/../../ rpath so libs resolve without DYLD_* (see GOTCHAS: nohup)"
-for m in win32u dwrite crypt32 secur32; do
-  so="$E/lib/wine/x86_64-unix/$m.so"
-  [ -f "$so" ] || continue
-  otool -l "$so" | grep -q '@loader_path/../../' && { echo "  $m.so: already present"; continue; }
-  install_name_tool -add_rpath "@loader_path/../../" "$so" || die "add_rpath failed on $m.so"
-  codesign -f -s - "$so" 2>/dev/null   # add_rpath invalidates the ad-hoc signature
-  echo "  $m.so: rpath added"
-done
