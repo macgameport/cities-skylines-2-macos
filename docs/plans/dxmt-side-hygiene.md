@@ -1,6 +1,6 @@
 # DXMT side — record the mixed vintage, close the review nits, generate the patch from git
 
-**Status: check-it'd 2026-09-02 — build-ready-with-fixes (pass 1; corrections folded below).** Umbrella:
+**Status: check-it'd 2026-09-02 — build-ready-with-fixes (pass 2; corrections folded, re-checked).** Umbrella:
 [issue #1](https://github.com/macgameport/cities-skylines-2-macos/issues/1). Baseline: commit
 `c94d9e9`; scratch tree `~/cs2-patch/dxmt-v080` (git, tag `v0.80` checked out, uncommitted diff).
 
@@ -34,7 +34,7 @@ provenance: `cmp` against the build artifact (identical, 27,924,120 B) + `git de
 
 | line | now | change |
 |---|---|---|
-| 3 | `#include <stdio.h>` | **keep** — the file's one existing `fprintf` is inside a comment, so the include is unused today, but row 1616 adds a real `fprintf`, and a transitive Cocoa include is exactly how `com_guid.cpp` broke under mingw |
+| 3 | `#include <stdio.h>` | **keep** — the file already has one real `fprintf` (line 1305, a signal-handler message) that compiles only through a transitive Cocoa include, row 1616 adds another, and a transitive include is exactly how `com_guid.cpp` broke under mingw |
 | 1660 | `BOOL (*pfn_release_remote)(macdrv_view)` — ObjC `BOOL` is `signed char`, wine returns `int` | declare `int (*)(macdrv_view)` |
 | 1616–1622 | `remote_view == NULL` with a non-NULL layer is returned as success; the PE side then `abort()`s with "your Wine has no exported symbols" | **dead by construction on this wine** — `macdrv_CreateClientSurface` (`window.c:1332-1347`) assigns `cocoa_view` unconditionally and a nil view makes the acquire itself fail, so layer-without-view cannot occur. Write the minimal defensive form anyway: `if (remote_layer && remote_view) { … } else if (remote_layer) fprintf(stderr, "…unreachable on this winemac; defensive…");` and fall through (the `if (win_data)` block is skipped → `STATUS_SUCCESS`, `ret_view` 0 → PE abort) |
 | 1610 | comment "we fall through unchanged" | say what actually happens: on an unpatched **winemac** `dlsym` returns NULL, the block is skipped, `ret_view` stays 0 and the PE aborts with a misleading message. That is an **improvement**, not preserved behaviour — unpatched v0.80 dereferenced `win_data->client_cocoa_view` unconditionally, a NULL-deref crash inside `winemetal.so` with PK's guard-less PE (and `E_FAIL` before the call with upstream's PE) |
