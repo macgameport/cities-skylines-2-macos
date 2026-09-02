@@ -16,8 +16,8 @@ disproven at the Win32 layer (below) and R3 was retired by Wine 11 itself
 | ~~R1~~ | ~~`GetLastError` returns garbage after file APIs~~ | — | **[60220](https://bugs.winehq.org/show_bug.cgi?id=60220) — CLOSED INVALID. Disproven.** |
 | ~~R2~~ | ~~`CreateFile` returns handle `0` for a valid file~~ | — | **DISPROVEN 2026-08-22. Do not file.** |
 | [R3](R3-bcrypt-verifysignature.md) | `BCryptVerifySignature` fails on valid ECDSA | 1 | **not filed — fixed upstream in Wine 11** (measured 2026-08-22; the dxmt11 target needs no bypass) |
-| [R4](R4-frameless-window-decorated.md) | winemac decorates a frameless-but-resizable window; ~28 pt cursor offset | — | **FILED [60262](https://bugs.winehq.org/show_bug.cgi?id=60262)** 2026-08-31 · UNCONFIRMED · triager set the URL to the reproducer 2026-09-02 |
-| — | cross-process **child-window** Metal swapchains not implemented (Steam's client black) | — | **FILED [60263](https://bugs.winehq.org/show_bug.cgi?id=60263)** 2026-08-31 · UNCONFIRMED · reference implementation: [`scripts/winemac-crossprocess-remote-layer.patch`](../../scripts/winemac-crossprocess-remote-layer.patch) (applyable since 2026-09-02) |
+| [R4](R4-frameless-window-decorated.md) | winemac decorates a frameless-but-resizable window; ~28 pt cursor offset | — | **FILED [60262](https://bugs.winehq.org/show_bug.cgi?id=60262)** 2026-08-31 · UNCONFIRMED · triager set the URL to the reproducer 2026-09-02 · reproducer attached as att 82020 (2026-09-02) |
+| — | cross-process **child-window** Metal swapchains not implemented (Steam's client black) | — | **FILED [60263](https://bugs.winehq.org/show_bug.cgi?id=60263)** 2026-08-31 · UNCONFIRMED · reference implementation: [`scripts/winemac-crossprocess-remote-layer.patch`](../../scripts/winemac-crossprocess-remote-layer.patch) (applyable since 2026-09-02) · attached as att 82021, `is_patch` (2026-09-02) |
 
 ## ⚠️ R1 was filed and disproven — read this before filing anything else
 

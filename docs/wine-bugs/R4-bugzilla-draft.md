@@ -1,6 +1,6 @@
 # R4 — Bugzilla submission draft
 
-**Status: ✅ FILED 2026-08-31 — [bug 60262](https://bugs.winehq.org/show_bug.cgi?id=60262).** Verified after posting: `Wine/winemac.drv`, version 11.16, MacOS, reproducer link present.
+**Status: ✅ FILED 2026-08-31 — [bug 60262](https://bugs.winehq.org/show_bug.cgi?id=60262).** Verified after posting: `Wine/winemac.drv`, version 11.16, MacOS, reproducer link present. **2026-09-02:** triager Ken Sharp set the bug's URL to the reproducer's GitHub blob (keywords download/source/testcase); the reproducer is now also attached (att 82020) so it no longer depends on the link. Attachments go through the REST API with `api_key` in the JSON body — the `X-BUGZILLA-API-KEY` header is ignored by this Bugzilla and a query-string key is off limits.
 
 - **Product:** Wine · **Component:** winemac.drv · **Version:** 11.16 · **Platform:** macOS
 - **Attach:** `scripts/frameless-window-repro.c` and `~/cs2-patch/evidence/repro-stock.png`
