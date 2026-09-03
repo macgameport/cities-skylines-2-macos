@@ -24,6 +24,8 @@ SS=$HOME/Applications/CS2dxmt11.app/Contents/SharedSupport
 export WINEPREFIX="$SS/prefix" WINEDEBUG=-all
 export DYLD_FALLBACK_LIBRARY_PATH="$HOME/Applications/CS2dxmt11.app/Contents/Frameworks:$SS/wine/lib:/usr/lib:/usr/local/lib"
 W="$SS/wine/bin/wine64"; DRV=$HOME/cs2-patch/win-resize-driver.exe
+# CHURN_A / CHURN_B / CHURN_N override the driver's size pair and step count (issue #7 T7:
+# width-only and height-only churns); the defaults are the C29 pair.
 mode="${1:-churn}"; out="${OUT_DIR:-/tmp/shimmer-$mode}"; rm -rf "$out"; mkdir -p "$out"
 N="${SAMPLES:-40}"
 
@@ -58,7 +60,7 @@ fi
 before=$(/tmp/winlist 2>/dev/null | grep "title=Steam$" | grep -oE 'size=[0-9]+x[0-9]+')
 
 if [ "$mode" = churn ]; then
-  "$W" "$DRV" churn "$H" 2400x1500 2200x1360 240 >/dev/null 2>&1 &
+  "$W" "$DRV" churn "$H" "${CHURN_A:-2400x1500}" "${CHURN_B:-2200x1360}" "${CHURN_N:-240}" >/dev/null 2>&1 &
   CHURN=$!
   # guard 2 — if nothing moved, this measures nothing. POLL for the change rather than sampling at
   # a fixed instant (2026-09-03): wine needs about a second to start, so two samples at t=1.00 s

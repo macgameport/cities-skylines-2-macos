@@ -1,17 +1,20 @@
 # Live resize — the black strip at the growing edge
 
-**Status: DRAFT 2026-09-03 — not yet triple-checked; run `check it` before build.** Tracker:
+**Status: Triple-checked 2026-09-03 — build-ready-with-fixes (pass 1; corrections folded, test
+plan reworked per the audit; one fitted re-check of the fold queued — see § Review log).** Tracker:
 [issue #7](https://github.com/macgameport/cities-skylines-2-macos/issues/7); umbrella
-[#1](https://github.com/macgameport/cities-skylines-2-macos/issues/1). Baseline: cs2 `9a1ee73`;
-nested winemac history `main` = `5d28d7b` (glue tip), `core` = `eddf167`; installed module
-`cd79fc463795939f`; pre-D1/D2 backup `winemac.so.bak-preD12-20260902-221649` = `53c9443db3145f58`.
-Line numbers below are against the nested `main` unless a branch is named.
+[#1](https://github.com/macgameport/cities-skylines-2-macos/issues/1). Baseline: cs2 `563130a`
+(the fold commit follows it); nested winemac history `main` = `5d28d7b` (glue tip), `core` =
+`eddf167`; installed module `cd79fc463795939f`; pre-D1/D2 backup
+`winemac.so.bak-preD12-20260902-221649` = `53c9443db3145f58`. Line numbers are against the nested
+`main` and name their file; unqualified `:N` is `cocoa_window.m`.
 
 **Scope.** One user-visible artifact: while a Steam window is being dragged larger, the newly
 exposed strip along the growing edge is solid black until the hosted browser catches up. Not in
 scope: the ~1-frame content gap at a swapchain recreate (C26 closed it to the probe's resolution),
-the top-level's own GDI surface colour, matching Windows pixel-for-pixel, or offering any of this
-upstream — this is a beyond-Windows quality fix for daily use (§2.4 says why).
+the colour of the top-level's own GDI surface, matching Windows pixel-for-pixel, or offering any of
+this upstream — no Windows code path paints that strip (§2.4), so this is a beyond-Windows quality
+fix for daily use.
 
 ---
 
@@ -32,45 +35,67 @@ keep in mind: the chrome row and the bottom bar already span the new width, the 
 at its old width, and the ~280 px between the page's right edge and the window's is solid black.
 
 ⚠ The first publication said 56 of 60 — a field-mapping bug in the scorer's summary (GOTCHAS
-2026-09-03). The numbers above are the recomputed ones; `scripts/darkboxes.swift` is the scorer.
+2026-09-03). The numbers above are the recomputed ones and were reproduced to the frame by the
+correctness lens; `scripts/darkboxes.swift` is the scorer, `scripts/darkboxes-attrib.py` the
+per-colour table (both parse by label; the latter accepts the evidence store's `churn-NN`/`drag-NN`
+names as well as a probe's live `f*.png`).
 
 ## 2. Mechanism, read from the code
 
 ### 2.1 The child side has no resize path
 
-`CAContextSwapChain` (`cocoa_window.m:4191-4278`) is an offscreen `CAMetalLayer` whose bounds are
-fixed at creation (`:4234`), background black (`:4232`), exported through a `CAContext`. There is
-no method that changes its size. The only way a hosted child changes size is a **new swapchain**,
-and CEF does exactly that on every size step — 417 `CREATE`s in one session (C30).
+`CAContextSwapChain` (`:4191-4278`) is an offscreen `CAMetalLayer` whose bounds are fixed at
+creation (`:4234`) with `anchorPoint (0,0)` (`:4235`) and the default position, so the remote root's
+frame is `(0,0,w,h)` in the host's space — which is why stale content pins to the host's origin.
+Its background is black (`:4232`) and it is exported through a `CAContext` (`:4239-4244`). The class
+has only `init`, `layer` and `dealloc`; "no resize path" is a winemac statement — DXMT receives the
+`CAMetalLayer` through `layer` (`:4256`), and the evidence that it recreates rather than resizes is
+the count: 417 `CREATE` firings against 417 acquires in one session
+(`docs/plans/hosting-layer-design-gaps.md` § T1; C30 records the same client's 20 hosted children on
+one thread, not this count). Chromium's own host does the same (`display_ca_layer_tree.mm`: anchor
+zero, "macOS expects all attached layers of the context at (0,0)") and never sets its host's bounds; a
+host's bounds reach the remote tree only through `masksToBounds`.
 
 ### 2.2 The owner side, per size step of a drag
 
 1. CEF resizes its child HWND → `macdrv_WindowPosChanged(child)` takes the cross-process branch
-   (`window.c:1984-2007`, D1) → `update_remote_layer_frame_for` (`:1884`) →
-   `macdrv_window_update_ca_layer_host_frame` (`:4328`) → `updateCALayerHostFrame`
-   (`:813-838`), which sets `host.frame` to the **new** rect at once (`:835`, actions disabled).
-   The root's own `WindowPosChanged` runs the full pass `update_remote_layer_frames` (`:1909`)
-   with the same effect — which is why the pre-D1/D2 module shows the same strip.
+   (`window.c:1984-2007`, D1) → `update_remote_layer_frame_for` (`window.c:1884`) →
+   `macdrv_window_update_ca_layer_host_frame` (`:4328`) → `updateCALayerHostFrame` (`:813-838`),
+   which sets `host.frame` to the **new** rect at once (`:835`, actions disabled `:834`). The root's
+   own `WindowPosChanged` runs the full pass `update_remote_layer_frames` (`window.c:1909-1963`,
+   called at `:2042`) with the same effect — which is why the pre-D1/D2 module shows the same strip.
 2. The host's remote content is still the **old** swapchain at its creation bounds. A `CALayerHost`
-   shows the remote tree 1:1; `masksToBounds` clips, nothing stretches. The uncovered remainder of
-   the host's frame shows **`host.backgroundColor`** — black, set 120 ms after creation by the
-   deferred block at `:769-782`, which the hardening pass added to close the odd-pixel white sliver
+   shows the remote tree 1:1; `masksToBounds` (`:804`) clips, nothing stretches. The uncovered
+   remainder of the host's frame shows **`host.backgroundColor`** — black, set 120 ms after
+   creation by the deferred block at `:773-783` (120 ms at `:778`, black at `:781`; the host has no
+   background before it), which the hardening pass added to close the odd-pixel white sliver
    (GOTCHAS 2026-08-31 "Retina turns an ODD Win32 pixel size into a HALF POINT"). A host that has
    lived longer than 120 ms is black underneath.
 3. The GPU process creates a swapchain at the new size → `WM_MACDRV_CREATE_REMOTE_LAYER`
-   (`:1709`) → `addCALayerHostViewWithContextId` (`:758-811`) adds a **new** host at the new rect
-   (transparent for its first 120 ms, then black) and `retire_superseded_layers` (`:946`) removes the
-   old host at once (`:1760`).
+   (`window.c:1709`) → `addCALayerHostViewWithContextId` (`:758-811`) adds a **new** host at the
+   new rect (transparent for its first 120 ms, then black) and `retire_superseded_layers`
+   (`window.c:946`, called at `window.c:1760` — "only now do its predecessors go") removes the old
+   host at once through the synchronous release entry point (`:4351-4364`).
 4. The new host shows content when the GPU process presents its first frame. Under a continuous
    drag the cycle repeats every size step, so the visible state is mostly steps 1–3.
 
 **Anchoring, measured (M0 frame 15):** when a host is reframed larger, its stale content stays at
-the **top-left** of the new frame and the uncovered L-shape is at the right and bottom — so the
-remote layer is effectively top-left anchored in the content view's coordinate space. A **shrink**
-is not a clean clip: M0 frame 14 (2400x1500 → 2200x1360) shows the chrome row cut off at the top
-and a black band at the bottom, i.e. content displaced, not cropped. Both directions are therefore
-in scope for T7, and the two top-edge live-drag frames (chrome row black) are the same displacement
-seen from the other side.
+the **top-left** of the new frame and the uncovered L-shape is at the right and bottom. That is the
+expected result of a flipped layer space: `WineContentView` returns YES from `isFlipped`
+(`:560-563`), it is layer-backed (`:542`), `cgrect_mac_from_win` is a retina divide with no y-flip
+(`macdrv_cocoa.h:133-144`), and the fork already treats the backing layer's `geometryFlipped` as
+AppKit-managed (`:2953` copies it). In that space `anchorPoint (0,0)` is the visual top-left.
+
+**A shrink is not a clean clip, and it is not yet attributed.** M0 frame 14 (2400x1500 →
+2200x1360) shows the top ≈138 px of content (menu bar, nav, URL row, store nav) cut off and, below
+the footer, a ≈16 px light strip over a ≈130 px **dark-grey** band — not true black (`B = 0.0 %` at
+lum < 6 in both cells' `churn-14.png`; 67.6 % at lum < 40). The displaced content is laid out at
+2200 px and the displacement equals the height delta. **Inferred, not measured:** which layer is
+displaced. In the flipped space the plain `frame` setter keeps the host's top-left on a shrink just
+as on a grow, so the setter that explains frame 15 does not explain frame 14. One untested
+candidate, listed so T7's measurement discriminates it: the content view's own backing layer moves
+(`layer.position = surfaceRect.origin`, `:596`, `surfaceRect` set at `:614`), which would displace
+every host together. T7 attributes this before any shrink handling is written (§4.2).
 
 **The black sources, measured** (M0/M0b, §2.3), and what lies beneath them:
 
@@ -79,214 +104,472 @@ seen from the other side.
 | **S1** | the *reframed old* host's black background, uncovered where the stale content ends (step 2) | **9 / 10** (green) | keep content and frame in lock-step: scale the stale content (§4 stage 1) |
 | **S2** | a *new* host older than 120 ms whose first frame has not arrived (step 3) | not cleanly measurable yet — the diagnostic red is also the store banner's colour; T0 re-runs with magenta | the deferred-black timing (§4 stage 3, conditional) |
 | **S3** | the child's own offscreen `CAMetalLayer` background (`:4232`, black) before its first drawable | **0 / 0** — painted blue in M0b, and no blue appeared in any frame | none needed |
-| **S4** | **beneath every host**: the window has grown but no host covers the strip yet, so the content view's layer shows — its `contents` is the GDI window-surface image (`:597`), black for Steam's root, which never GDI-paints | **6 / 8** (black with no diagnostic colour) | stretch the full-client hosts with the root during live resize (§4 stage 2) |
+| **S4** | **beneath every host**: no host covers the strip yet, so the content view's own backing layer shows — its `contents` is the window-surface image cropped to `layer.bounds` (`updateLayer`, `:569-597`) | **6 / 8** (black with no diagnostic colour) | stretch the full-client hosts with the root during live resize (§4 stage 2) |
 
-S4's *why* is an inference: the root's `WindowPosChanged` has run (the content view is already the new
-size) but the app has not yet resized its child HWNDs, so the hosts still mirror the old child
-rects and nothing covers the new strip. T0 verifies it from the `+macdrv` trace (root rect vs child
-rects per frame). On Windows that strip is the top-level's own client area with a NULL class brush —
-no erase, stale pixels — so black there is, again, Windows-faithful.
+Two inferences ride on S4 and T0 measures both. *Why nothing covers the strip:* the root's
+`WindowPosChanged` has run (the content view is already the new size) but the app has not yet
+resized its child HWNDs, so the hosts still mirror the old child rects — T0 checks the `+macdrv`
+trace for root rect ≠ child rects in the S4 frames. *Why it is black:* the strip's colour is a
+property of the surface image (the default `contentsGravity` stretches a smaller image over grown
+bounds), assumed black because Steam's root never GDI-paints — T0 attributes it by nil-ing
+`contents` and colouring `layer.backgroundColor`. On Windows that strip is the top-level's own
+client area; what Windows shows there is not established (§2.4).
 
 ### 2.3 M0/M0b — the colour diagnostics (executable spec)
 
 Rather than argue which source dominates, colour them: a diagnostic module with the create-path
-background **red** (`:781`) and the reframe-grow path **green** (a line before `:835` that paints
-the background when the new frame is larger), churned with frames kept, scored by
-`darkboxes.swift`, which now counts pure red and pure green per band.
+background **red** (`:781`), the reframe-grow path **green** (a line before `:835` that paints the
+background when the new frame is larger) and, in M0b, the child's offscreen layer **blue**
+(`:4232`), churned with frames kept and scored per band and per colour.
 
 **Result (cells `m0-colour`, `m0b-colour`, 40 churn frames each, ledger C36):** green (S1) in 9 and
 10 frames at 78–86 % of the right band; black with **no** diagnostic colour (S4) in 6 and 8 frames
 at 77–86 %; **blue never** (S3 ruled out); red unusable because the store banner is red — the top
 band, which the banner does not reach, shows red only where the content was displaced. Two lessons
 folded into `darkboxes.swift`'s header: choose diagnostic colours the page cannot contain (magenta,
-green, blue), and parse its output by label, never by position.
+green, blue), and parse its output by label, never by position. The class-brush output (§2.4) had
+lived only in a terminal log and is now `classbg/classbg.txt` in its cell.
 
-### 2.4 Why the native client does not show it, and what Windows shows
+### 2.4 Why the native client does not show it, and what Windows does
 
 Chromium's macOS resize path — `ui/accelerated_widget_mac/window_resize_helper_mac.h`, verified
-2026-09-03 from chromium.googlesource.com — waits *"inside AppKit drawing routines on the UI thread
-for the compositor to produce a frame of same size as the NSView"*, *"until a timeout occurs"*, so
-that *"the window size and the size of the contents being drawn in that window are resized in
-lock-step"*. Wine has no hook into CEF's compositor, and Steam's Windows build has no such helper.
+verbatim 2026-09-03 from chromium.googlesource.com — waits *"inside AppKit drawing routines on the UI
+thread for the compositor to produce a frame of same size as the NSView"*, *"until a timeout
+occurs"*, so that *"the window size and the size of the contents being drawn in that window are
+resized in lock-step"*. Wine has no hook into CEF's compositor, and Steam's Windows build has no such
+helper.
 
-What Windows would paint into the exposed area is the class background brush. Measured
-2026-09-03 with `win-resize-driver.exe classbg` (new verb):
+The class background brushes, measured 2026-09-03 with `win-resize-driver.exe classbg` (new verb;
+output in cell `classbg`):
 
 | window | class | `hbrBackground` |
 |---|---|---|
 | root `0x1011E` | `SDL_app` | **NULL** (no erase) |
 | both hosted children | `CefBrowserWindow` | **NULL** |
-| their `Chrome_WidgetWin_1` | Chromium's widget | solid brush, **colour 000000 (black)** |
+| their `Chrome_WidgetWin_1` | Chromium's widget | solid brush, colour 000000 (black) |
 | `Chrome_RenderWidgetHostHWND` | | `COLOR_WINDOW+1` → white, beneath the widget |
 
-So on Windows the exposed area of the resized CEF widget is erased **black** by Chromium's own
-brush until the compositor presents. Black at the growing edge is therefore consistent with the
-Windows behaviour (unverified on a real Windows machine — nobody here has one), and *any* fix is a
-beyond-Windows nicety that only makes sense because the native Mac client sets the bar. That is
-also why none of this goes to wine bug 60263: wine's bar is Windows.
+A class brush is applied only when `WM_ERASEBKGND` reaches `DefWindowProc`, and Chromium answers
+it itself: `HWNDMessageHandler::OnEraseBkgnd` (`ui/views/win/hwnd_message_handler.cc`, read
+2026-09-03) returns 1 — *"Needed to prevent resize flicker"* — after at most a one-shot black fill
+of the DWM title-bar inset. The widget's black brush is registered but never used to erase, and the
+parents have none. **Windows erases nothing in the exposed area, and what it shows there is not
+established by this measurement.** What is established is that no Windows path paints the strip,
+so any fix is a beyond-Windows nicety that only makes sense because the native Mac client sets the
+bar — and that is why none of this goes to wine bug 60263, whose bar is Windows.
 
 ## 3. Options
 
 | | option | verdict |
 |---|---|---|
-| A | paint the class-brush colour (issue #7's first candidate) | **dead** — measured black; it is the status quo. Recorded so it is not re-proposed. |
+| A | paint the class-brush colour (issue #7's first candidate) | **dead** — the brushes are NULL or black, and Windows does not use them (§2.4). Recorded so it is not re-proposed. |
 | B | **scale the stale host to its new frame** until the replacement presents — what a native `CAMetalLayer` does during live resize | **build** — S1 is measured (stage 1) |
 | B′ | during a live resize, stretch the hosts of **full-client** children with the root, before the app resizes those children | **build, guarded** — S4 is measured (stage 2) |
 | C | re-arm the 120 ms deferred black on every reframe, so a host that is still being resized never turns black before its content arrives | conditional on T0's magenta count (stage 3) |
-| D | do nothing (Windows-faithful) | the upstream answer; not the daily-use answer |
+| D | do nothing | the upstream answer; not the daily-use answer |
 
 **Decision, from M0/M0b:** S1 and S4 are each roughly a quarter of churn frames and neither is the
-child layer, so B and B′ are both needed and are independent (different code paths: the child's own
-reframe vs the root's full pass). C waits for a clean S2 number. Nothing here changes what Windows
-would show; §2.4 stands.
+child layer, so B and B′ are both needed. They touch different paths (the child's own reframe vs
+the root's pass) but **B′ depends on B**: a stretched host without content scaling is exactly S1.
+C waits for a clean S2 number.
 
 ## 4. Design — three stages, each measured before the next
 
-All owner-side; stage 1 in `cocoa_window.m`'s `WineContentView`, stage 2 in `window.c`'s root pass;
-no change to the child side, the message protocol, the paint order, D1/D2, or DXMT. Ship and
-measure stage 1 before writing stage 2: T2's per-source counts say what each stage bought.
+All owner-side; stage 1 in `cocoa_window.m`'s `WineContentView`, stage 2 in `window.c`'s root pass
+plus two event handlers and one bit in `macdrv_win_data`; no change to the child side, the message
+protocol, D2's paint order, or DXMT. D1's path is touched only by sharing one target-frame helper
+(§4.2b). Ship and measure stage 1 before writing stage 2: T2's per-source counts say what each
+stage bought.
 
 ### 4.0 Stage 1 = B (S1) · Stage 2 = B′ (S4) · Stage 3 = C (S2, conditional)
 
-### 4.1 Content size is known: it is the creation rect
+### 4.1 Content size is known: it is the creation rect, read twice
 
 The remote content's size only changes through a recreate (§2.1), and a recreate arrives as a new
 context id with a new host. So the size the content was created at **is** the content size for the
-host's whole life. Store it beside the host: a second dictionary `_caLayerHostContentSizes`
-(`NSNumber` context id → `NSValue` `CGSize`) set in `addCALayerHostViewWithContextId` from the
-snapped frame (`:784`), removed in `removeCALayerHostView` (`:856`). ⚠ The create handler reads the
-child's **window** rect (`window.c:1723`), the child's swapchain is created from its **client** rect
-(`:1187`); for CEF children these coincide (no border), and T6 checks the stored size against the
-frame the content actually fills.
+host's whole life. The swapchain is created in the surface path (`window.c:1304-1334`) from the
+child's **window** rect offset into the root (`:1321-1323`, `:1330`; the client rect at `:1309` is
+used only for an own window at `:1334` or as the fallback at `:1325`), and the CREATE handler reads
+the same window rect (`window.c:1723-1725`) — **but later, in the owner**. Under a drag with
+hundreds of creates the child can be resized between the two reads, so the stored size can be one
+step stale for that host's life, and the host mis-scaled until the next CREATE retires it. Accepted
+as transient; T0 counts the mismatches between the `cross-process child %p -> root %p frame %s`
+trace (`window.c:1327`, GPU process) and the `child %p layer frame in root %p = %s` trace
+(`window.c:1727`, owner) per context, and T6 compares the stored size against the former. Carrying
+the size in the post (`NtUserSetProp` on the child before `NtUserPostMessage`, `NtUserGetProp` in
+the handler) removes the race — a protocol change, deferred unless T0/T6 say it fires.
 
-### 4.2 Reframe = position + scale, never a bare frame
+**State.** `NSMutableDictionary<NSNumber*, NSValue*>* _caLayerHostContentSizes` declared beside
+`_caLayerHosts` (`:397`), released beside it in `dealloc` (`:554`), lazily created beside `:760`,
+set **only** in the non-empty create branch (`:802-805`, from the snapped frame — nothing for the
+`CGRectIsNull` root case or the `CGRectIsEmpty` case), removed in `removeCALayerHostView`
+(`:856-861`), and cleared in `setRetinaMode:` (`:902-903`, where each host's `contentsScale` flips —
+a stored size in points would be 2× off for every surviving host). Beside the size, the **last
+target frame** (§4.2). Alternative if a third per-host field arrives (stage 3): subclass —
+`@interface WineCALayerHost : CALayerHost` with `contentSize` — so `_caLayerHosts` stays the only
+dictionary; not chosen for stage 1 because subclassing a private class is one more unknown.
 
-In `updateCALayerHostFrame` (`:827-838`), replace `host.frame = frame` with:
+### 4.2 Reframe = position + scale; `frame` is never read or written on a host again
+
+`CALayer.h` documents `frame` as derived from `bounds`, `anchorPoint`, `position` and `transform`,
+and undefined to set under a transform; `masksToBounds` clips in layer space, so a scaled host still
+clips at exactly its scaled frame. Therefore all three geometry paths — create (`:803`), reframe
+(`:835`) and zero-size (`:824`) — go through **one helper** that sets `anchorPoint`, `bounds`,
+`position` and `transform`; the zero-size path additionally resets the transform to identity and
+hides; the `CGRectEqualToRect(host.frame, frame)` short-circuit at `:835` is replaced by a compare
+against the last target frame stored beside the content size (on a transformed layer `frame` reads
+back as a float product and the equality test is noise). In `updateCALayerHostFrame`'s reframe
+branch (`:827-838`), inside the existing `CATransaction` with actions disabled:
 
 ```objc
-CGSize content = [self contentSizeForHost:contextId];      /* creation size, §4.1 */
-CGFloat sx = content.width  > 0 ? frame.size.width  / content.width  : 1.0;
-CGFloat sy = content.height > 0 ? frame.size.height / content.height : 1.0;
-host.anchorPoint = CGPointMake(0, 0);                       /* Cocoa: bottom-left */
+NSValue* stored = [_caLayerHostContentSizes objectForKey:@(contextId)];
+CGSize content = stored ? stored.sizeValue : frame.size;      /* creation size, §4.1 */
+const CGFloat px = retina_on ? 0.5 : 1.0;                     /* one device pixel, as the snap */
+if (content.width <= 0 || content.height <= 0 ||              /* no usable base (empty create) */
+    (fabs(frame.size.width  - content.width)  <= px &&        /* or within a seam of identity: */
+     fabs(frame.size.height - content.height) <= px))         /* the background covers that */
+    content = frame.size;
+BOOL identity = CGSizeEqualToSize(content, frame.size);
+host.anchorPoint = CGPointMake(0, 0);   /* top-left: WineContentView is flipped (isFlipped YES, :560);
+                                         * T1 traces self.layer.geometryFlipped once to confirm */
 host.bounds = (CGRect){ CGPointZero, content };
 host.position = frame.origin;
-host.transform = CATransform3DMakeScale(sx, sy, 1.0);
-host.magnificationFilter = (sx == 1.0 && sy == 1.0) ? kCAFilterNearest : kCAFilterLinear;
+host.transform = identity ? CATransform3DIdentity
+                          : CATransform3DMakeScale(frame.size.width  / content.width,
+                                                   frame.size.height / content.height, 1.0);
+host.edgeAntialiasingMask = 0;          /* a scaled layer antialiases its edges by default:
+                                         * a hairline at the window edge while scaled (T4 runs at rest) */
 ```
 
-inside the existing `CATransaction` with actions disabled. A host whose frame matches its content
-gets the identity transform, i.e. today's behaviour exactly. `snap_host_frame_to_view_edges`
-(`:508`) still runs on the target frame first; the 1-px seam logic is unchanged because the scaled
-host covers the same snapped rect. The create path (`:803`) sets an unscaled host, as now.
+The `px` tolerance matters twice: a zero-size creation rect must not make a host invisible for life
+(the case `:832-838` keeps working today), and `snap_host_frame_to_view_edges` (`:508-530`) extends a
+frame by ≤ `px` only when it reaches the *current* view edge, so after the root grows the same child
+rect is up to half a point narrower than the stored snapped size — an exact compare would leave
+`sx ≈ 0.9998` and a linear-filtered blur on every page for any child that never recreates. The create
+path's `magnificationFilter` (`:767`) is left alone: `CALayer.h` scopes the filters to a layer's own
+`contents`, so their effect on a hosted tree is undocumented. Absurd factors (Chromium does create
+1x1 widgets; `window.c:2126` special-cases them) are one compositor transform of one texture with no
+re-render or memory cost, for one size step — accepted. **Invariant:** a transformed host has
+`autoresizingMask == kCALayerNotSizable`; only the root-window branch (`:791-793`) sets a mask, and
+that host is never reframed (the root pass skips `child == NULL`, `window.c:1937`).
 
-**Anchor.** M0 frame 15 shows the stale content pinned to the **top-left** of a grown host, so the
-content view's layer space is effectively flipped and the corner to keep is the top-left: set
-`anchorPoint` to the top-left in that space (`(0,1)` if the layer is unflipped, `(0,0)` if
-`geometryFlipped` — read `WineContentView`'s flip state at build time rather than assume it) and
-`position` to the frame's top-left. The shrink displacement in frame 14 says the *current* setter
-does not keep that corner on a shrink; stage 1 must, in both directions. T7 measures both.
+**Anchor.** `(0,0)` is the min-x/min-y corner of the bounds rect (`CALayer.h`), which is the visual
+top-left only in flipped geometry; the content view is flipped (§2.2) and Apple documents only that
+the view "is responsible for managing" its backing layer's `geometryFlipped`, so T1 prints
+`self.layer.geometryFlipped` once and the choice is measured, not assumed. Frame 14's displacement is
+unattributed (§2.2); stage 1 sets the anchor explicitly in both directions, and T7's shrink churns
+measure whether that alone removes it — if not, the displacement is not the host's and gets its own
+attribution before any "shrink handling" is written.
 
-**Retire timing** is untouched: the replacement still retires the old host at CREATE (`:1760`),
-so C26's "never unhosted" property holds.
+**Retire timing** is untouched: the replacement still retires the old host at CREATE
+(`window.c:1760`), so C26's "never unhosted" property holds. Note that stage 1 makes the retired host
+the *good* one, so the CREATE-time gap (replacement transparent then black, no first-frame callback)
+becomes the dominant residual; expect T3's leftovers to carry that signature.
 
 ### 4.2b Stage 2 — B′: stretch full-client hosts with the root during live resize (S4)
 
-In `update_remote_layer_frames` (`window.c:1909`, the root's full pass), a hosted child whose rect
-**equalled the root's client rect before this move** is a full-client child; for it, use the root's
-**new** client rect as the target frame instead of the child's (still old) rect, so its host is
-stretched with the root in the same pass — the strip is covered before the app has resized the
-child. When the child follows (its own `WindowPosChanged`, D1), the frame matches and nothing
-changes. **Guard:** only while the window is in live resize (`-[NSWindow inLiveResize]`, observed
-on the owner's main thread and mirrored into `macdrv_win_data`), and re-derive every host from the
-child's *actual* rect at `windowDidEndLiveResize` — so an app whose child does **not** follow the
-root is misrepresented for the duration of the drag at most, never afterwards. Programmatic
-resizes (`SetWindowPos`, the churn probe) are not live resizes; T2's churn measures stage 1 only
-and T3's drag measures both. This is a heuristic and is listed with D3's three.
+The live-resize signal already exists in stock and needs no new observation, delegate or query:
+every `WINDOW_FRAME_CHANGED` carries `in_resize = [self inLiveResize]` (`:3246` → `:2373`,
+`macdrv_cocoa.h:400`, consumed at `window.c:2109-2139`), and `windowDidEndLiveResize:` (`:3150-3157`)
+posts `WINDOW_RESIZE_ENDED` → `macdrv_window_resize_ended` (`window.c:2313-2317`), which today only
+sends `WM_EXITSIZEMOVE` — **nothing re-derives the hosts at the end of a drag**. Both handlers run
+on the window's own wine thread (`event.c:375, :524`), the thread that owns `win_data`. An
+`OnMainThread` query of `-[NSWindow inLiveResize]` would block the app thread mid-resize and is not
+used. Five edits:
 
-### 4.3 C — re-arm the deferred black on reframe (if M0 says S2)
+1. `macdrv.h`: `unsigned int in_live_resize : 1;   /* WINDOW_FRAME_CHANGED.in_resize; cleared by WINDOW_RESIZE_ENDED */`
+   placed **beside core's own `remote_layer_children` field**, not beside `fullscreen : 1` where
+   aquadran's hunk lands (`scripts/wineandaqua-dxmt.patch:239-241`), so the generator's invariant 2
+   keeps applying.
+2. `window.c:1909`: `static void update_remote_layer_frames(struct macdrv_win_data *data, const struct window_rects *old_rects)`
+   (the pattern `sync_window_position` uses, `window.c:850`). The pass works in **window-rect
+   space** (`root_rect` from `NtUserGetWindowRect(data->hwnd)`, `:1921`; child frames offset by
+   `root_rect.left/top`, `:1946`), and by the time it runs the new rects are installed
+   (`data->rects = *new_rects` at `:1979`, `sync_window_position` at `:2021`), so the "before this
+   move" rect **must** be passed in — the function has no memory of its own. After the
+   `OffsetRect(&cr, …)` at `:1947`:
+
+   ```c
+   if (old_rects && data->in_live_resize)
+   {
+       /* B': a child that filled the client area before this move is stretched with the root
+        * now, before the app resizes it; its own WindowPosChanged (D1) re-frames it after. */
+       RECT old_client = old_rects->client, new_client = data->rects.client;
+       OffsetRect(&old_client, -old_rects->window.left, -old_rects->window.top);
+       OffsetRect(&new_client, -data->rects.window.left, -data->rects.window.top);
+       if (EqualRect(&cr, &old_client)) cr = new_client;
+   }
+   ```
+
+   Compared relative to the root, never in screen space — a root move shifts every child's screen
+   rect while its parent-relative rect is unchanged, so a screen-space compare never matches during a
+   top- or left-edge drag. `cr` comes from raw-DPI queries and `data->rects` are "in monitor DPI":
+   assert their equality with one TRACE before trusting `EqualRect`. **Which child can match is a
+   measurement, not an assumption:** on the 2026-09-03 tree only the full-window browser (`0x2012C`,
+   1920x1050 @0,30) equals the root client rect, while frame 09 shows the *page* (the inset sibling)
+   lagging — so stage 2 covers S4 only if the full-window browser sits below the page in z; T0
+   records the match and the z-order before T2b's threshold means anything.
+3. `window.c:2042`: `update_remote_layer_frames(data, &old_rects);` (`old_rects` is the local at
+   `:1972`, snapshotted at `:1978` before the new rects are installed).
+4. `window.c:2132`, before `release_win_data(data)`: `data->in_live_resize =
+   event->window_frame_changed.in_resize;` — written on **every** event, so the bit self-heals; it
+   must precede `NtUserSetRawWindowPos` (`:2142`), which is what triggers the full pass. This is why a
+   maximized window, whose `windowDidEndLiveResize` posts nothing (`:3152`), cannot leave the
+   heuristic armed: each frame-changed event rewrites the bit and `windowWillResize` pins the size
+   (`:3325-3328`).
+5. `window.c:2313-2317`:
+
+   ```c
+   void macdrv_window_resize_ended(HWND hwnd)
+   {
+       struct macdrv_win_data *data;
+
+       TRACE("hwnd %p\n", hwnd);
+       if ((data = get_win_data(hwnd)))
+       {
+           data->in_live_resize = 0;
+           update_remote_layer_frames(data, NULL);   /* re-derive every host from its child's real rect */
+           release_win_data(data);
+       }
+       send_message(hwnd, WM_EXITSIZEMOVE, 0, 0);
+   }
+   ```
+
+**One shared helper.** D1's child path (`update_remote_layer_frame_for`, `window.c:1884`) reframes
+to the child's *actual* rect; a z-only move mid-drag would un-stretch a stage-2 host until the next
+root pass. The create handler's own comment (`window.c:1313-1317`) already demands that creation
+and update compute one frame — factor the target computation (offset into root, then the
+full-client substitution when `in_live_resize`) into one helper both passes and the create handler
+call. "No change to D1" therefore means "D1 calls the shared helper".
+
+**Latency and the alternative not taken.** Stage 2 covers the strip only after a Cocoa → unix →
+Cocoa round trip (AppKit grows the content view synchronously; hosts move when the wine thread
+processes `WINDOW_FRAME_CHANGED` → `NtUserSetRawWindowPos` → `WindowPosChanged` → `OnMainThread`).
+The zero-latency alternative — `autoresizingMask` on full-client hosts, what the root's own host gets
+at `:793` — was rejected because springs-and-struts adjust the *frame* (`CALayer.h`), which does not
+compose with stage 1's bounds/transform model. T2b/T3 are the only measurements of whether the round
+trip is short enough. An app that lays out on `WM_EXITSIZEMOVE` (not Steam — frame 09 shows children
+following mid-drag) sees the end-of-resize re-derive snap hosts back to actual rects; T3's verdict
+includes the drag-end frame. **Programmatic resizes (`SetWindowPos`, the churn probe) are not live
+resizes**, so churn measures stage 1 only and never stage 2; stage 2's only measurement is a live
+drag (§5 T2b/T10). This is a heuristic and is listed with D3's three (exit criterion 6).
+
+### 4.3 Stage 3 — C: re-arm the deferred black on reframe (only if T0's magenta count says S2)
 
 The deferred block (`:773-783`) fires 120 ms after creation. Under a recreate storm a new host can
-pass 120 ms before its first frame. Change: keep the dispatch, but have `updateCALayerHostFrame`
-record `host.lastReframe = now` and have the block re-schedule itself while `now - lastReframe <
-120 ms`. A host that is still being resized never turns black; a host that has settled turns black
-120 ms after its last reframe, which is what the seam fix needs. Measured, not argued: T2 with C
-alone must move the red count in M0's terms.
+pass 120 ms before its first frame. Change: keep the dispatch, add a per-id entry
+`_caLayerHostLastReframe` (`NSNumber` cid → `@(CFAbsoluteTimeGetCurrent())`, the same
+add/remove/dealloc lifecycle as the content size — `CALayerHost` has no such property) written in
+`updateCALayerHostFrame`, and have the block re-schedule itself only while
+`[_caLayerHosts objectForKey:@(cid)] == deferred` **and** `now − lastReframe < 120 ms`, so a retired
+host retains nothing beyond one more period. A host that is still being resized never turns black; a
+settled host turns black 120 ms after its last reframe, which is what the seam fix needs. Measured,
+not argued: T8 with C alone must move the magenta count.
 
-### 4.4 Which patch each hunk lands in
+### 4.4 Which patch each hunk lands in, and how
 
-`updateCALayerHostFrame`, `addCALayerHostViewWithContextId` and `removeCALayerHostView` are core
-(`stock..core`); the deferred background block is glue (the glue patch's own description names it).
-So B is a `core` commit and C is a `glue` change. **Both go through the generator's invariants**:
-commits land on `core`, `main` is rebuilt as aquadran → core → glue, `--check` must print three
-`ok` lines plus the three invariants (GOTCHAS 2026-09-03 "a generator with a relative range").
-The builder does not commit on `main` after glue; the generator refuses if they do.
+`updateCALayerHostFrame`, `snap_host_frame_to_view_edges` and the `frame:` form of
+`addCALayerHostViewWithContextId` exist only on `core`/`main` (0 hits on `stock`/`aquadran`; the
+1-arg `add` and `remove` are stock methods core extends), and `window.c`'s pass, handlers and
+`macdrv.h` field are core territory: **stages 1 and 2 are `core` commits.** The deferred background
+block is the glue commit (`5d28d7b` is `cocoa_window.m +15` at `@@ -766,6 +766,21 @@`; `git diff
+aquadran core -- cocoa_window.m` has no `dispatch_after`), so **stage 3 re-authors the glue commit**
+— same subject, the only one on `main`, at its tip (`scripts/regen-winemac-patches.sh:106-108`
+refuses otherwise); its `lastReframe` line inside `updateCALayerHostFrame` is a glue insertion into
+a core method, the pattern the glue commit already documents, and its rollback is the previous glue
+commit, not `core`. Conflict hazard: stage 1's store-size line goes in the `else` branch after
+`:805`, not under the glue hunk at `:766-781`, or re-applying glue on the rebuilt `main` conflicts
+there. Workflow, every time: commits on `core`, `main` rebuilt as aquadran → core → glue,
+`regen-winemac-patches.sh --check` printing three `ok` lines plus the three invariants (GOTCHAS
+2026-09-03 "a generator with a relative range"). The generator refuses a commit on `main` after glue.
+
+### 4.5 How to build, install, trace
+
+Build tree `~/cs2-patch/build-1116/wine-1116-vis-build` (configured against `wine-11.16-dxmt`):
+`gmake dlls/winemac.drv/winemac.so`. Install with Steam down (the `steam_up` check by prefix, never
+by command line) to `~/Applications/CS2dxmt11.app/Contents/SharedSupport/wine/lib/wine/x86_64-unix/winemac.so`
+with a dated `winemac.so.bak-<stage>-<date>` beside it; hash = `shasum -a 256 <so> | cut -c1-16`,
+recorded in the cell's `config.json` by `cell-fingerprint.sh`. Mutants go through the
+`hosting-layer-tests.sh --mutants` pattern (edit → build → install → cell → `git checkout` → rebuild
+→ reinstall) or by hand with the same restore; the nested tree is clean after every one.
+**`cocoa_window.m` has no `TRACE`** (0 hits; it never includes wine's debug headers): the scale
+comes back to `window.c` through out-params on `macdrv_window_update_ca_layer_host_frame`
+(`double *scale_x, *scale_y`, filled inside the `OnMainThread` block at `:4335` from
+`host.transform.m11/.m22`), and the existing `child %p context %u frame %s` traces at `window.c:1904`
+and `:1953` are extended with `creation WxH scale %.3f,%.3f` on channel `macdrv` (`window.c:40`).
+The pristine-11.16 compile gate is the one C31's addendum records: `wine-11.16-stockcore` +
+`wine-1116-stock-build`, `gmake dlls/winemac.drv/winemac.so`, warning set compared by message text.
 
 ## 5. Test plan
 
-The battery instruments already exist: `hosting-layer-tests.sh` (C29 T0–T8, churn, blackout),
-`shimmer-probe.sh` and `livedrag-probe.sh` with the EXPOSED-EDGE line, `darkboxes.swift` with
-per-band and per-colour counts. Every mutant below is applied to real source, built, observed red,
-then restored — "argued red" is not red.
+**Instruments.** `hosting-layer-tests.sh` (rows: T0 ownership · T1 child move · T2 restack ·
+T3/T4 blackout + churn + static · T8 traces; its `--mutants` are the design-gaps M1–M3),
+`shimmer-probe.sh` (gains `CHURN_A`/`CHURN_B`/`CHURN_N` env overrides, defaults unchanged),
+`livedrag-probe.sh` (`WAIT=1800`), `darkboxes.swift` (gains a magenta classifier
+`r ≥ 200, b ≥ 200, g ≤ 60` and colour bands for all four edges), `darkboxes-attrib.py` (gains an S2
+magenta column). **Mutants are E1–E7**, not M*, which is the battery's own set. **Modules, hashes
+recorded per cell:** baseline `cd79fc46`; pre-D1/D2 `53c9443d`; **diag-pre** (`main` + magenta /
+green / blue); **diag-fix** (each stage + the same colours); **prod** (each stage, no colours) —
+James judges prod only. Every mutant is applied to real source, built, observed red, then restored
+— "argued red" is not red. Churn runs are 40 frames, ×3 where a "→ 0" must be resolvable against a
+9/40 baseline (P(0/40 | p ≈ 0.24) ≈ 1.7e-5 in one run; three runs guard against C26's misleading
+first 0/40); live drags are 60 frames, normalised **per grow step** because trajectories differ
+(C35's own rule for churn). **Fixed drag script for every live drag:** right edge out ~300 px over
+~5 s, hold, then top edge up ~150 px; frames classified grow/shrink from `drag-sizes.txt`.
 
 | # | test | pass | mutant (observed red) |
 |---|---|---|---|
-| T0 | **attribution, completed for churn (§2.3), still owed for the live drag and for S2** — the diagnostic module rebuilt with **magenta** (create path), green (reframe-grow), blue (child layer); one churn cell with the `+macdrv` trace to confirm S4's root-vs-child rect timing; one live drag by James | per-frame magenta/green/blue/black split for the drag; the trace shows root rect ≠ child rects in the S4 frames | none — it is the measurement stages 2–3 key on |
-| T1 | **spike: a transformed `CALayerHost` scales its remote content** — a mutant that applies a fixed 1.5× scale to every host on `main`, one churn cell | the page renders enlarged in the frames (a feature's width measured by `pixel-probe strip` grows ×1.5) | **gate, not a test** — if the host ignores the transform, B is dead and §3 falls back to C/D |
-| T2 | **churn EXPOSED-EDGE** on the built module, same churn as `edge-post`, scored per source with the diagnostic colours of T0 | after stage 1: green (S1) frames 9–10/40 → **0**; black-no-colour (S4) unchanged (churn is not a live resize); after stage 2 under a live drag (T3): both → **≤ 1**; right-band black maximum 86 % → **< 20 %** | M1: `host.transform = CATransform3DIdentity` → green returns to 9–10/40 |
-| T3 | **live drag by James**, `livedrag-probe.sh` with `WAIT=1800` | right band ≥ 20 %: 19/60 → **≤ 2/60**; and his verdict on the stretch (a rubbery page for ~100 ms is the native look; a persistent distortion is a fail) | same as M1, one run |
-| T4 | **the seam fix still holds** — the blackout sequence 2400x1500 → 2399x1499 → 2400x1500 | interior 85/84/85-class, **0 bright edges** on the odd size, exactly the C29 row | M2: skip the snap → the 1-px white seam returns (already an observed-red mutant in C29's history) |
-| T5 | **C29 battery + boot** — `hosting-layer-tests.sh` T0–T8, `boot-verify.sh` | all as in C32/C33: T0 disjoint, T1 green, T2 restack + restore, churn/static 0 gaps, 0 acquire failures, 0 GPU crashes, `VERDICT: PASS` | — |
-| T6 | **no host stays scaled after the drag settles** — a `TRACE("host %u scale %.3f,%.3f")` on every reframe; after 3 s of rest the last trace per surviving host is 1.000,1.000 | every surviving host at identity; stored content size equals the host's bounds | M3: never store the content size (falls back to `frame`) → hosts report scale ≠ 1 at rest, or never scale at all |
-| T7 | **anchor, both directions** — four churns with the diagnostic colours: width-only grow, width-only shrink, height-only grow, height-only shrink (`churn <hwnd> 2200x1500 2400x1500`, …), plus a top-edge live drag (James) | on a grow the content stays top-left and the new area is stretched content, never background; on a shrink the top-left content is what remains (M0 frame 14's cut-off chrome row and bottom black band are gone); the chrome row is never black in the top band | M4: the other corner as anchor → the content jumps on one of the four churns; M5: skip the shrink handling → frame 14's displacement returns |
-| T8 | **C alone** (only if built) | the M0 red count under churn → 0 with B disabled | M5: do not re-arm on reframe → red returns |
-| T9 | **the reference regenerates** — `regen-winemac-patches.sh --check` | three `ok` + three invariants; core applies to pristine 11.16 and compiles with the warning set unchanged (the T-gate from the upstream-form plan) | — |
+| T0 | **attribution** — churn half done (§2.3); owed: (a) one churn on **diag-pre** with `WINEDEBUG=+timestamp,+macdrv`, frame mtimes (`stat -f %Fm`), and the root pass tracing the root *client* rect and every hosted child's rect; (b) one churn with the content view's `contents` nil-ed and `layer.backgroundColor` coloured; (c) one live drag by James on diag-pre, scored on the probe's `f*.png` | per-frame S1/S2/S3/S4 split for churn and drag; every S4 frame's mtime falls (± 180 ms) inside a window where the root rect changed and a child rect had not; the S4 strip takes the content view's colour in (b); the trace records which hosted child equals the root client rect and its z-order relative to the page (§4.2b); the count of `:1327`-vs-`:1727` size mismatches per context under the drag (0, or a recorded bound) | none — measurement |
+| T1 | **spike, gate** — fixed `CATransform3DMakeScale(1.5, 1.5, 1)` applied in `addCALayerHostViewWithContextId` (after `:803`, so it holds at rest) with `anchorPoint (0,0)` set first, on a throwaway branch off `main`; Library page, no churn, each hosted child in turn as `run_t1` in `hosting-layer-tests.sh` does; TRACE `self.layer.geometryFlipped` once; record the display profile; the module is **not pointer-operable** (visual ≠ HWND rects), reverted before any interactive use, its hash in `config.json` | with `strip_at`/`dchan` from `hosting-layer-tests.sh`: choose X with control contrast > 8; after the spike `dchan(strip(after, 1.5X), strip(before, X)) ≤ 8` and `dchan(strip(after, X), strip(before, X)) > 8` for at least one decisive child; the right/bottom third of the page is clipped (`masksToBounds`); the flip TRACE says YES | **gate, not a test** — both strips unchanged (≤ 2) = the host ignores `transform`; B is dead, §3 falls back to C/D, plan re-checked |
+| T2a | **churn, stage 1** — diag-fix module, `shimmer-probe.sh churn` ×3 = 120 frames | `Rgreen ≥ 20 %` frames 9–10/40 → **0/120**; black-no-colour **3–13 per 40** as a positive control (churn is not a live resize; this is not a criterion); blue 0; `static` 0 gaps | **E1:** content-size lookup returns `frame.size` (never stored) → green ≥ 5/40 in every run |
+| T2b | **live drag, stage 2** — diag-fix module, James, the fixed drag script | among grow-step frames: `Rgreen ≥ 20 %` ≤ 1, black-no-colour ≥ 20 % ≤ 1, worst right band < 20 %; top band black-no-colour 0 in the top-edge segment | E4 (T10) and E1 |
+| T3 | **live drag, production module** — same script, James's verdict | right band ≥ 20 % true black in **≤ 2 grow-step frames** (baseline 19/60 on a mixed drag); worst < 20 %; verdict verbatim, including the drag-end frame (rubbery ≤ ~100 ms = the native look; persistent distortion or a snap-back flash = fail) | none beyond T2b's — a human drag is not repeated per mutant |
+| T4 | **seam** — the battery's blackout rows, plus one capture *while scaled* (mid-churn) for a hairline at the window edge | interior lum > 40 at each step and **0 BRIGHT edges at 2399x1499** (C29 83/84/112, C32 87/92/113 — the interior varies with the page, the bright count is the invariant), at rest and while scaled | **E2:** skip `snap_host_frame_to_view_edges` at `:816` → ≥ 1 BRIGHT at 2399x1499, re-observed on this build (the scaled host is a new geometry path; C29's old red does not count) |
+| T5 | **battery + boot** — `hosting-layer-tests.sh` (all its rows) **and `--mutants`** (stage 2 touches `update_remote_layer_frames`), `boot-verify.sh` detached | as C32: T0 disjoint, T1 GREEN, T2 restack + restore, churn/static 0 gaps, 0 acquire failures, 0 GPU crashes, M1 red / M2 green / M3 ≥ 1 `paint order incomplete`, `VERDICT: PASS` | the battery's own |
+| T6 | **no residual scale at rest, and the base is right** — the §4.5 trace; run after T2b's drag and after T7's churns | 3 s after the last size change the last line per surviving context id reads `1.000,1.000`; each surviving host's creation size equals the GPU-process `cross-process child … frame` rect (`window.c:1327`) for the same context id — **not** the host's bounds, which are set from the stored size; no `child NULL` context appears in the reframe trace (`:1937`) | **E3:** store half the creation size → `2.000,2.000` at rest and the page renders doubled |
+| T7 | **anchor, both axes, both directions, and frame 14 attributed** — diag-fix module, `CHURN_A=2200x1500 CHURN_B=2400x1500` and `CHURN_A=2400x1360 CHURN_B=2400x1500`, ×1 each (a churn alternates, so each run holds grow and shrink steps), frames classified grow/shrink by PNG size vs the previous frame, the §4.5 trace on; plus T2b's top-edge segment | grow frames: `Rgreen` (width) and `Bgreen` (height) ≥ 20 % → 0; shrink frames: top band true black ≥ 20 % → 0 (frame 14's signature) — **or**, if it persists, the trace says which layer moved and the displacement gets its own attribution before any code; T-band 0 in the top-edge segment | **E5:** anchor at the opposite corner → L- or T-band black ≥ 20 % in ≥ 5 frames of the width churn; **E6:** clamp `sx, sy ≥ 1` → shrink frames of the height churn show T-band black ≥ 20 % again |
+| T8 | **C alone** (only if built) — diag build with stage 1 removed by the named switch (`core` minus the stage-1 commit), churn ×3 | **magenta** (S2) right-band frames → 0 against T0's magenta count | **E7:** no re-arm on reframe → magenta returns to T0's count |
+| T9 | **the reference regenerates** — `regen-winemac-patches.sh --check`; the pristine-11.16 compile gate (§4.5) | three `ok` + three invariants; warning set unchanged by message text | — |
+| T10 | **stage-2 guard** — T2a's churn on the stage-2 build | the T6 trace shows no scale ≠ 1 emitted by the root pass; the S4 control frames persist (3–13/40); after T2b every host at identity within 3 s (the `windowDidEndLiveResize` re-derive) | **E4:** force `in_live_resize` true (or drop the guard) → churn black-no-colour → ≤ 1/40 and the root pass emits scale ≠ 1 |
+| T11 | **root hosts and popups** — open/close a Steam popup on prod during and after a drag, `+macdrv` cell | popup capture non-black; ≥ 1 dead-child prune / drained slot on close as C29; no `child NULL` context in the reframe trace; the game's boot and 1 %-low unchanged (`MetalViewSwapChain` is disjoint: `window.c:1301`, `:4145-4190`) | none — structural (`window.c:1937`, `:790-795`) |
 
-**Fixtures:** the Steam store page (two hosted `CefBrowserWindow` siblings, black artwork in the
-lower tiles — which is why only the right and top bands are scored); the `edge-post`/`edge-pre`
-cells as the before-baseline; module backups for A/B.
+**Fixtures.** The Steam store page for churn (two hosted `CefBrowserWindow` siblings, black artwork
+in the lower tiles; `tree` at T0 records which child equals the root client rect); the Library page
+for T1; the `edge-post`/`edge-pre` cells as the before-baseline and `m0-colour`/`m0b-colour` as the
+attribution baseline; module backups for A/B. **James drags three times minimum** (T0 diag-pre ·
+T2b diag-fix · T3 prod including the top edge), across ≥ 2 sessions. If he cannot: T0's live half
+is deferred and **stage 2 does not ship** — its only measurement is a live resize; the fallback is a
+CGEvent-posted edge drag instrument (new; needs Accessibility permission; validated by
+`livedrag-probe.sh` detecting the drag) built before use.
 
 ## 6. Exit criteria
 
-1. T0 completed for the live drag and for S2 with magenta, numbers folded into §2.3 (the churn half
-   is done); T1 passed (or B abandoned with the spike's frames as the reason, and the plan re-checked).
-2. T2 and T3 at their thresholds, T3 with James's verdict recorded verbatim in the ledger row.
-3. T4–T7 green; every mutant observed red and restored; `--check` green.
-4. Ledger row (C36 or later) with Config · Measured · Inferred separated; C35 amended to point at
-   it; issue #7 updated; as-built header on this doc; module hash recorded; GOTCHAS entry if a
-   test-discovered assumption fell.
-5. The wine bug is **not** updated — see §2.4.
+1. T0 complete for the live drag and S2 (scorer and attrib extended; numbers in §2.2/§2.3; the
+   tree match and z-order for stage 2 recorded); T1 passed, or B abandoned with the spike's frames
+   as the reason and the plan re-checked.
+2. Stage 1: T2a 0/120, static 0 gaps; T4, T6, T7 green; E1, E2, E3, E5, E6 observed red and
+   restored — nested tree clean (`git status --porcelain` empty), `--check` green.
+3. Stage 2: T2b and T10 at threshold; E4 red; T3 with James's verdict verbatim in the ledger; T11
+   clean.
+4. Stage 3 decision recorded either way: built (T8 green, E7 red) or declined with T0's magenta
+   count as the reason.
+5. T5 battery + its `--mutants` + boot `VERDICT: PASS`; T9.
+6. Ledger row (C37 or later) with Config · Measured · Inferred; hashes for diag-pre / diag-fix /
+   prod; C35/C36 amended to point at it; issue #7 updated; as-built header on this doc; GOTCHAS
+   entry if a test-discovered assumption fell; a row for the full-client stretch in
+   `hosting-layer-design-gaps.md` D3 with T0's firing evidence and T2b's S4 count beside it.
+7. The wine bug is **not** updated (§2.4).
 
 ## 7. Rollback
 
 Owner-side only; the installed module is replaced with a dated backup beside it, as every build has
-done (`winemac.so.bak-*`). Revert = copy the backup back with Steam down; no prefix, registry or
-DXMT change to undo. Source: the commits sit on `core`; `git branch -f core <previous>` and rebuild
-`main` per the generator's rule; tags `pre-*` are taken first, as on 2026-09-03.
+done (`winemac.so.bak-*`, ten of them today). Revert = copy the backup back with Steam down; the
+launcher never references `winemac`, so nothing re-installs a reverted module; no prefix, registry
+or DXMT change to undo; no reboot. Source: stage 1/2 commits sit on `core` — `git branch -f core
+<previous>` and rebuild `main` per the generator's rule, tags `pre-*` taken first (as on
+2026-09-03); stage 3 = the previous glue commit.
 
 ## 8. Sequencing
 
-After the M0/M0b attribution (done) and before anything else on the hosting layer: it is the most user-visible
-open item. Independent of the #6 audit. T1 (the spike) is the first build step and takes one
-module build plus one churn cell; if it fails, stop and re-plan before writing §4's code.
+After the M0/M0b attribution (done) and before anything else on the hosting layer: it is the most
+user-visible open item, independent of the #6 audit. Order: T1 (one module build plus one Library
+cell; if it fails, stop and re-plan) → T0's remaining halves → stage 1 → T2a/T4/T5/T6/T7/T9 →
+stage 2 → T2b/T3/T10/T11 → stage 3 only if T0's magenta count warrants → ledger, as-built, issue.
 
 ## 9. Non-goals and open questions
 
 - **Not** a Windows-parity change and **not** for upstream (§2.4).
-- The content view's own surface colour beneath the hosts — if M0 shows black with neither colour,
-  that is a separate, cheaper question (a background on the content view's layer) filed on its own.
-- Whether Chromium's Windows build shows the same black strip on a real Windows machine: assumed
-  from the measured brush, unverified. Anyone with Windows can settle it in a minute.
+- `inLiveResize` is true only for user edge/corner drags; zoom, the green button, animated
+  `setFrame:` and full-screen transitions are not live resizes and stage 2 does not cover them.
+- Frame 14's displacement is unattributed until T7 (§2.2); `preservesContentDuringLiveResize`
+  returns YES (`:474-478`) and its interplay with Cocoa-driven live resize is unmeasured.
+- The content view's surface colour beneath the hosts (S4's "black") — T0(b) attributes it; if it is
+  the surface image, a background on the content view's layer is a separate, cheaper question.
+- Whether Chromium's Windows build shows a strip on a real Windows machine: nobody here has one;
+  the brush table says only that no erase path paints it.
 - The ~1-frame gap at each recreate (retire at CREATE, replacement empty until its first present):
-  C26 measured it at the probe's resolution; a 60 Hz screen recording would say more. Out of scope.
+  C26 measured it at the probe's resolution; stage 1 makes it the dominant residual; a 60 Hz screen
+  recording would say more. Out of scope.
+- Pre-existing, not introduced: any process can post `WM_MACDRV_CREATE_REMOTE_LAYER` with a bogus
+  id and get a transparent-then-black host over the window. Out of scope.
+
+## Review corrections (triple-check 2026-09-03, pass 1)
+
+Six lenses (architecture, correctness, builder-simulation, platform-facts, security, test-plan
+audit), one agent each at the top tier per the project's tier rule, batches of ≤ 4, ≤ 15 tool
+calls each, all read-only; the builder ran the real gates (`--check`, `check-experiments.py`,
+`bash -n`, `swiftc`, `gmake -n`), all exit 0. Verdicts: five × build-ready-with-fixes and the
+test-plan audit **needs-rework (test plan)**, all supplied with text; every correction is folded
+into the normative sections above, and the audit's own closing line — "after folding a single
+fitted re-check should suffice rather than another fleet" — is the next step (Review log).
+
+- **Wrong cite, wrong caveat (all lenses):** `window.c:1187` is `WM_MOUSEACTIVATE`; the child's
+  swapchain is created from its **window** rect offset into the root (`:1321-1330`), the same rect
+  the CREATE handler reads (`:1723`). The window-vs-client caveat is gone; the real hazard — the two
+  reads are in different processes at different times — is §4.1's race, with T0 counting it.
+- **"Windows erases the resized widget black" was an inference from a brush table (correctness):**
+  Chromium's `OnEraseBkgnd` returns 1 and never uses the brush (verified from source). §2.4, §2.2
+  and C36 now say Windows erases nothing and what it shows is not established; the scope decision
+  stands on "no Windows path paints the strip".
+- **Frame 14 (correctness):** the band is dark grey, not black (`B = 0.0 %` at lum < 6), and the
+  flipped-space `frame` setter cannot explain the displacement; "shrink handling" is replaced by
+  attribution in T7 (E6 conditional on the outcome).
+- **Stage 2's plumbing exists and its end does not (architecture, builder, platform, security):**
+  `in_resize` rides every frame-changed event, `WINDOW_RESIZE_ENDED` reaches
+  `macdrv_window_resize_ended`, which today only sends `WM_EXITSIZEMOVE`; §4.2b now names the five
+  edits with text, compares in window-rect space relative to the root, passes `old_rects` in,
+  latches the bit on every event (self-healing, covers the maximized case), and re-derives at the end.
+- **Which child stage 2 can match (test-plan audit):** only the full-window browser equals the root
+  client rect, and frame 09 shows the page lagging — so stage 2 helps only if that browser sits
+  below the page in z; T0 measures the match and the z-order.
+- **Stage 1 typeability (builder, security, platform):** no `contentSizeForHost:` existed; the
+  snippet is now real code with the dictionary lookup, the zero-base and `px`-tolerance guards, one
+  geometry helper for all three paths, no `frame` reads under a transform, the `edgeAntialiasingMask`
+  line, no `magnificationFilter` line (undocumented for hosted trees), the `autoresizingMask`
+  invariant, and the retina-flip clearing. Per-host state lifecycle spelled out; the subclass
+  alternative recorded.
+- **Anchor (architecture, builder, platform):** the snippet said "bottom-left" while the prose said
+  top-left; `isFlipped` → YES settles it as `(0,0)` = top-left, with one TRACE in T1 as the measurement.
+- **B′ depends on B (architecture)** — a stretched frame without content scaling is S1; §3 says so.
+- **Glue workflow (architecture, builder):** stage 3 re-authors the sole glue commit; `macdrv.h`'s
+  bit sits beside core's own field; the store-size line avoids the glue hunk.
+- **Test plan reworked (test-plan audit — three blockers):** the two mutant observations were
+  inverted (`transform = identity` uncovers the strip, so black rises and green cannot return;
+  "never store the size" *is* today's path, so green returns and the old T6 stayed green under its
+  own mutant); T6's second clause was tautological and its trace had no channel in the `.m` file;
+  stage 2 had no mutant and thresholds churn can never meet. Now: E1–E7 with observations that
+  distinguish each mutant from the fixed build; T2 split into T2a (churn, stage 1) and T2b (live
+  drag, stage 2); T10 as the guard test with E4; T6 compares the stored size against the GPU-process
+  trace; T3 normalised per grow step with a fixed drag script; T4's numbers corrected (the invariant
+  is 0 BRIGHT at 2399x1499); T5 names the battery's real rows and re-runs its `--mutants`; T8 uses
+  magenta; T7 gets probe overrides and a per-frame trace; T11 covers popups and root hosts; the
+  fixtures name three module variants and the fallback when James cannot drag; §6 rewritten per stage.
+- **Instruments (test-plan audit):** magenta classifier and four-edge colour bands in
+  `darkboxes.swift`, an S2 column and store-name sort in `darkboxes-attrib.py`,
+  `CHURN_A`/`CHURN_B`/`CHURN_N` in `shimmer-probe.sh` — done in the fold commit, so T0 is runnable.
+- **T1 was not executable (builder, test-plan audit):** `pixel-probe strip` returns a colour, not a
+  width; the spike now scales at create (holds at rest, no churn confound) on the Library page and
+  measures with the battery's `strip_at`/`dchan` contrast test.
+- **T6's trace cannot live in the `.m` file (builder, test-plan audit):** out-params to `window.c`,
+  channel `macdrv`, extending the existing frame trace.
+- **Missing on day one (builder):** §4.5 build/install/hash/trace/compile gate.
+- **Cites (correctness):** `retire_superseded_layers` is `window.c:946`; the deferred block is
+  `:773-783` everywhere; key paths end at `:4364` / `:1785`; the 417-CREATE figure is the design-gaps
+  plan's, not C30's.
+- **Evidence hygiene (correctness, test-plan audit):** the `classbg` output existed only in a
+  terminal log — saved as `classbg/classbg.txt`; `darkboxes-attrib.py` crashed on the evidence store's
+  names — fixed.
 
 ## Review log
 
 | date | pass | lenses | method | model | verified against | verdict |
 |---|---|---|---|---|---|---|
-| — | — | — | — | — | — | not yet triple-checked |
+| 2026-09-03 | 1 (triple-check + fitted extras) | architecture · correctness · builder-simulation · platform-facts · security · test-plan audit | manual agents, ≤ 4 concurrent, ≤ 15 calls each, read-only; builder ran the gates | Claude Fable 5.1 (`claude-fable-5-1`) | cs2 `563130a` · nested `main` `5d28d7b`, `core` `eddf167` | five × build-ready-with-fixes, one needs-rework (test plan); all folded → **build-ready-with-fixes**, fitted re-check of the fold queued |
 
-Key paths: `dlls/winemac.drv/cocoa_window.m` (`WineContentView` host methods `:758-861`,
-`CAContextSwapChain :4191-4278`, entry points `:4302-4360`), `dlls/winemac.drv/window.c`
-(`:1709-1780`, `:1884-1963`, `:1984-2007`), `scripts/darkboxes.swift`, `scripts/shimmer-probe.sh`,
-`scripts/livedrag-probe.sh`, `scripts/regen-winemac-patches.sh`, `scripts/win-resize-driver.c`
-(`classbg`).
+Key paths: `dlls/winemac.drv/cocoa_window.m` (`WineContentView` host methods `:758-861`, `updateLayer`
+`:569-597`, `CAContextSwapChain :4191-4278`, entry points `:4302-4364`, live-resize delegates `:3150`,
+`:3246`, `:3362`), `dlls/winemac.drv/window.c` (`:946`, `:1304-1334`, `:1709-1785`, `:1884-1963`,
+`:1965-2042`, `:2097-2145`, `:2313-2317`), `dlls/winemac.drv/macdrv.h`, `dlls/winemac.drv/macdrv_cocoa.h:400`,
+`scripts/darkboxes.swift`, `scripts/darkboxes-attrib.py`, `scripts/shimmer-probe.sh`,
+`scripts/livedrag-probe.sh`, `scripts/hosting-layer-tests.sh`, `scripts/regen-winemac-patches.sh`,
+`scripts/win-resize-driver.c` (`classbg`).
