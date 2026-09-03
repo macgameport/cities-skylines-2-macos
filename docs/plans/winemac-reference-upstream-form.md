@@ -1,8 +1,45 @@
 # The wine reference implementation in upstream form — readable, split, and generated from git
 
-**Status: check-it'd 2026-09-03 — build-ready-with-fixes (pass 3, fitted re-check after the instruments build at `cc62ff8`; T6 restated in boot-verify's contract, §2 greps corrected, no structural change). Pass 2: check-it'd 2026-09-02 — build-ready-with-fixes (the history design was the pass-1 blocker, corrected and re-checked).** Umbrella:
+**Status: BUILT 2026-09-03 (exit criterion 5 held for James) · check-it'd 2026-09-03 — build-ready-with-fixes (pass 3, fitted re-check after the instruments build at `cc62ff8`; T6 restated in boot-verify's contract, §2 greps corrected, no structural change). Pass 2: check-it'd 2026-09-02 — build-ready-with-fixes (the history design was the pass-1 blocker, corrected and re-checked).** Umbrella:
 [issue #1](https://github.com/macgameport/cities-skylines-2-macos/issues/1). Baseline: commit
 `c94d9e9`; the review lens's separability table and draft commit message are preserved in the issue.
+
+> **🔧 As-built (2026-09-03): BUILT.** Commits `e32fc34` (the split, the generator and the three
+> patches), `938fb50` (the T1 gate correction and `scripts/strip-comments.py`), `d5318a1` + `564a76e`
+> (a probe defect found by the battery). Source history: the nested repo at
+> `~/cs2-patch/build-1116/wine-11.16-dxmt/dlls/winemac.drv`, bundled to
+> `~/cs2-patch/evidence/winemac-drv-history-20260903.bundle` and verified complete before the eleven
+> `*.pre-*` backups were deleted. Ledger **C31**; cells `exp_519eef` `exp_1da98c` `exp_37f651`
+> `exp_4679e5`; boot-verify run `20260902-214032`.
+>
+> **Measured.** T1: each form pass verified by two gates, a comment-stripped source comparison and
+> an object comparison — `cocoa_window.o` and `macdrv_main.o` byte-identical across passes (a) and
+> (b), `window.o` byte-identical under `-DNDEBUG`, and the (c) rename byte-identical even before
+> `strip -x`. T2: core applies with zero fuzz to pristine 11.16 **and** to 11.16+aquadran, builds on
+> pristine at exit 0 with the driver's warning set identical to the 56-warning stock baseline, and
+> takes the FIXME string 1 → 0; both mutants observed red and restored. T3: stock+aquadran+combined
+> reproduces all five files byte-for-byte, and core-then-glue reaches the same place. T4: the
+> `--check` drift gate is green and its mutant red. T5: the C29 battery on module `53c9443db3145f58`
+> — six navigations RENDERED, blackout 83/84/85 with 0 bright edges, 0 GPU crashes over three cells,
+> 2 prunes, 1 slot drained, churn ×2 + control at 0 gaps. T6: `VERDICT: PASS`, `GRACEFUL: yes`.
+>
+> **Deviations.** (1) **Three** hunks carried vendor context, not two — the import block was the
+> third, and the helper moved to sit before `@implementation WineContentView`. (2) The
+> `DestroyWindow` release must go on the plan's exact anchor; one statement later its trailing
+> context reaches the line aquadran edits. (3) T1's byte-identity premise is false for a unit
+> containing `assert()`, which bakes `__LINE__` into the object. (4) T2's first mutant fails as a
+> compile error, not the predicted string return, because that hunk also carries a call-signature
+> change. (5) Comment share landed at **14%**, not ≈10% — stopped deliberately, the remainder being
+> reasons rather than evidence. (6) The first battery run was VOID on its capture rows: the cell
+> harness's `caffeinate` covers only its own 215 s, and captures were taken without raising the
+> window first. Both fixed in the harness, then re-run.
+>
+> **Not done.** Exit criterion 5 — offering the core patch to bug 60263 as a second attachment —
+> needs James's go-ahead and has not been requested.
+>
+> **Verify against:** `scripts/winemac-crossprocess-child-core.patch` ·
+> `scripts/winemac-crossprocess-dxmt-glue.patch` · `scripts/winemac-crossprocess-remote-layer.patch` ·
+> `scripts/regen-winemac-patches.sh` · `scripts/strip-comments.py` · the nested git history.
 
 **Standing decision this plan does not change:** the project files *reports, not patches* (dxmt
 forbids AI-authored PRs; wine got bug 60263 with the implementation offered as a reference). The
@@ -21,16 +58,24 @@ instrument, neutral names in the core. (3) Split the published patch into a stoc
 never globs a source dir and only writes a `.gitignore` into the *object* dir of an in-tree build,
 and this build is out-of-tree; the build Makefile's `git describe` looks at the tree top, which has
 no `.git`). **Branched, not linear** — the check lens measured that a core patch cut from the
-current insertion points does not apply to stock: two core hunks carry aquadran's lines as
-context (`macdrv.h`'s field sits after `dxmt_client_surfaces`; the `DestroyWindow` release sits
-after aquadran's `CFRelease`), and `git apply --check` against pristine fails on both. So:
+current insertion points does not apply to stock: core hunks carry aquadran's lines as context,
+and `git apply --check` against pristine fails on them. **Measured at build time: there are THREE
+such hunks, not two.** `macdrv.h`'s field sits after `dxmt_client_surfaces`; the `DestroyWindow`
+release sits after aquadran's `CFRelease`; and — the one the check pass missed — the retina
+edge-snap helper was inserted straight after `#import "cocoa_opengl.h"`, which is exactly where
+aquadran inserts `#import "dxmt_objc.h"`. So:
 - `stock` — the pristine 11.16 files (which already ship a `.gitattributes` giving ObjC `@@`
   headers for `.m`/`.h`).
-- `core` — branched off `stock`, authored with both insertion points **moved away from
+- `core` — branched off `stock`, authored with all three insertion points **moved away from
   aquadran's**: `remote_layer_children` goes after `drag_event` (pristine `macdrv.h:187`, before
   the bitfields); the `CFRelease` goes right after `if (!(data = get_win_data(hwnd))) return;`
-  in `DestroyWindow` (pristine `window.c:1270`). `git diff stock core` then applies fuzz-free to
-  both stock and stock+aquadran.
+  in `DestroyWindow` (pristine `window.c:1270`) — **not one statement later, past `drag_event`:
+  three lines of trailing context then reach `destroy_cocoa_window()`, which is where aquadran
+  inserts, and the hunk stops applying to the vendor base**; and the edge-snap helper moves off
+  the import block entirely, to just before `@implementation WineContentView`, whose surrounding
+  context is identical in both bases and which is where its callers live. `git diff stock core`
+  then applies fuzz-free to both stock and stock+aquadran — verified with `patch -F0` against a
+  clean copy of each base, 0 failed hunks.
 - `main` — `stock` → `aquadran` → cherry-pick(`core`) → `glue`. Combined patch =
   `git diff aquadran main`; glue = `git diff <cherry-pick> main`.
 Set `diff.srcPrefix=a/dlls/winemac.drv/` and `diff.dstPrefix=b/dlls/winemac.drv/` in the nested
@@ -53,7 +98,7 @@ gate (regenerate to a temp file, `cmp` against `scripts/*.patch`).
 |---|---|---|---|
 | `macgameport` handle tags | **9** (all parenthetical); dated lines 22 (the grep returns 27 — minus the five `+++ … 2026-09-02 16:23:25` file-header lines); union 23 (28 − 5) | 0 in core; allowed in glue | `grep -c '^+.*macgameport'` · `grep -c '^+.*2026-0[0-9]-[0-9][0-9]'` (subtract the `+++` lines) |
 | `EXPERIMENT (…)` headers | **1** | 0 | `grep -c '^+.*EXPERIMENT'` |
-| comment share of added lines | **28.7%** comment-only of 839 added (31.3% of non-blank) | ≈10% in core; measurements live in `docs/winemac-crossprocess-remote-layer-history.md` | `grep -c '^+[[:space:]]*\(/\*\|\*\|//\)'` ÷ `grep -c '^+'` (minus `+++`) |
+| comment share of added lines | **28.7%** comment-only of 839 added (31.3% of non-blank) | ≈10% in core; measurements live in `docs/winemac-crossprocess-remote-layer-history.md`. **Landed at 14% (88 of 602), not 10%** — both passes stopped there deliberately, on the ground that what remains is the reason a maintainer needs (why a child's rect is converted to the root's space, why a zero-area layer is hidden, why visibility and geometry are tested separately, why layers stack by paint order, why a superseded layer is retired late) rather than the evidence, which moved to the history doc | `grep -c '^+[[:space:]]*\(/\*\|\*\|//\)'` ÷ `grep -c '^+'` (minus `+++`) |
 | `DXMT_RSZ` instrument | 2 definition pairs + 2 `dxmt_rsz_ms` helpers + **3 inline `#ifdef DXMT_RSZ_DEBUG` blocks**, 7 call sites, 5 include lines (three headers — `<sys/time.h>`, `<unistd.h>` in the `.m`; `<stdio.h>`, `<sys/time.h>`, `<unistd.h>` in `window.c` — unconditional, none inside the `#ifdef` blocks) — ≈101 lines | **removed** from the tree; the history doc keeps the definition verbatim. **One observation survives as a core `TRACE`, in C:** the per-layer z assignment in `window.c`'s `update_remote_layer_frames` (`context_id`, `zpos`, `have_z` — replacing the former `WINPOS` instrument line at its call site), because the design-gaps plan's T5 reads it. Not in the `.m` method: no `.m` file includes `wine/debug.h`, and the Cocoa-side `ERR` is not `WINEDEBUG`-controlled | `grep -c '^+.*DXMT_RSZ'` |
 | vendor-named symbols in core | `dxmt_fill_view_edges` (4 lines: definition, 2 call sites, 1 comment mention) | `snap_host_frame_to_view_edges` (file-local static) | `grep -c '^+.*dxmt_fill_view_edges'` |
 | `ERR`/`TRACE`/`FIXME` use | done in the review pass | unchanged | — |
@@ -125,7 +170,7 @@ a future submission would *add*, not strip. The AI-assisted disclosure stays in 
 | # | test | method | pass | mutant |
 |---|---|---|---|---|
 | T1 | the form passes are behaviour-neutral | rebuild after each pass: (a) comments/tags, (b) instrument removal, (c) the static rename. **Two gates, both required**: the comment-stripped source comparison (`scripts/strip-comments.py`, proves no code moved) and the object comparison | Per translation unit: byte-identical, **except a unit containing `assert()`, which is byte-identical only under `-DNDEBUG`** — `assert` bakes `__LINE__` into the object, so any comment line added or removed above it shifts an immediate (measured 2026-09-03: `window.c`, 5 bytes, `0x30 -> 0x10`). The referent is the **unsigned build-dir artifact** `wine-1116-vis-build/dlls/winemac.drv/winemac.so`, sha256 `acbf3156…`, 503,800 B, not the 526,016 B signed installed module. `(c)` byte-identical after `strip -x`. The z `TRACE` is added in its own step and is *not* expected byte-identical | introduce one **codegen-visible** change alongside (a) — a string literal, not a dead store the optimiser removes → the object differs by more than the line-number immediates → the detector works; run once |
-| T2 | core applies to **stock** 11.16 and compiles with stock flags (T7 folded in: `vulkan.c`'s callers keep their signatures, so this build is the vulkan check) | fresh stock tree + `git diff stock core`; `git apply --check` then apply; configure a stock build dir with the engine's configure line **minus `-fvisibility=default`** (core adds no exports; a maintainer builds hidden) and with the stock `configure` path — the engine's line, from `wine-1116-vis-build/config.log`: `…/wine-11.16-dxmt/configure --prefix=…/vis-throwaway --host=x86_64-apple-darwin --enable-archs=i386,x86_64 --without-x … 'CC=clang -arch x86_64' 'CFLAGS=-fvisibility=default -O2 -Wno-error' … LDFLAGS=-L…/CS2dxmt11.app/Contents/SharedSupport/wine/lib`; run the pristine `wine-11.16/configure` with the same flags minus the visibility one and decide the LDFLAGS deliberately; check `build-1116/vanilla-1116/` first, it may already be that dir; **record the stock warning count from the same build dir before applying**; `gmake dlls/winemac.drv/{window,cocoa_window,macdrv_main}.o` as the fast compile check, then `gmake dlls/winemac.drv/winemac.so` — which first builds `ntdll.so`/`win32u.so` in a fresh dir (budget it) | apply-check clean, exit 0, warning count unchanged, the string `Cross-process child window Metal swapchains are not implemented` absent from the binary, the link succeeds (macOS `-undefined error` catches a core function left in glue) | drop **the hunk that replaces the FIXME** (the one carrying `-            FIXME("Cross-process child window Metal swapchains are not implemented\n")` — `@@ -1178` in the combined patch, pristine `window.c:1183` in the core patch) → the string returns; drop the `macdrv.h` field hunk → build fails |
+| T2 | core applies to **stock** 11.16 and compiles with stock flags (T7 folded in: `vulkan.c`'s callers keep their signatures, so this build is the vulkan check) | fresh stock tree + `git diff stock core`; `git apply --check` then apply; configure a stock build dir with the engine's configure line **minus `-fvisibility=default`** (core adds no exports; a maintainer builds hidden) and with the stock `configure` path — the engine's line, from `wine-1116-vis-build/config.log`: `…/wine-11.16-dxmt/configure --prefix=…/vis-throwaway --host=x86_64-apple-darwin --enable-archs=i386,x86_64 --without-x … 'CC=clang -arch x86_64' 'CFLAGS=-fvisibility=default -O2 -Wno-error' … LDFLAGS=-L…/CS2dxmt11.app/Contents/SharedSupport/wine/lib`; run the pristine `wine-11.16/configure` with the same flags minus the visibility one and decide the LDFLAGS deliberately; check `build-1116/vanilla-1116/` first, it may already be that dir; **record the stock warning count from the same build dir before applying**; `gmake dlls/winemac.drv/{window,cocoa_window,macdrv_main}.o` as the fast compile check, then `gmake dlls/winemac.drv/winemac.so` — which first builds `ntdll.so`/`win32u.so` in a fresh dir (budget it) | apply-check clean, exit 0, warning count unchanged, the string `Cross-process child window Metal swapchains are not implemented` absent from the binary, the link succeeds (macOS `-undefined error` catches a core function left in glue) | drop **the hunk that replaces the FIXME** (the one carrying `-            FIXME("Cross-process child window Metal swapchains are not implemented\n")` — `@@ -1178` in the combined patch, pristine `window.c:1183` in the core patch) **Both observed red 2026-09-03, and the first does not fail as predicted:** the string does **not** return, because that hunk also carries the `macdrv_create_offscreen_swapchain` call-signature change, so the build fails first with `window.c: too few arguments to function call, expected 3, have 2` — louder than the predicted red, but a different mechanism, since the hunk is not independent. Reversing the `macdrv.h` field hunk gives `error: no member named 'remote_layer_children' in 'struct macdrv_win_data'`. ⚠ Extract each mutant hunk **with its file header**: splitting the patch on `^@@` and dropping a part orphans the header, and the following file's hunks are then applied to the wrong file, which reads as a spurious failure |
 | T3 | the branched history reproduces the tree | `git diff aquadran main` applied to a fresh stock+aquadran copy; `cmp` all five files against `main` | byte-identical | n/a |
 | T4 | the published patches match git — **standing `button up` gate** | regenerate combined/core/glue to temp files; `cmp` against `scripts/*.patch` | identical; the gate fails loudly on any hand edit | edit one byte in a `.patch` → gate red |
 | T5 | Steam battery on the rebuilt module | the C29 battery as defined in `hosting-layer-design-gaps.md` § "The C29 battery" | inside its bounds | n/a |
