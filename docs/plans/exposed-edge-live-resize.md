@@ -1,7 +1,8 @@
 # Live resize — the black strip at the growing edge
 
-**Status: Triple-checked 2026-09-03 — build-ready-with-fixes (pass 1; corrections folded, test
-plan reworked per the audit; one fitted re-check of the fold queued — see § Review log).** Tracker:
+**Status: Triple-checked 2026-09-03 — build-ready (pass 1 + a fitted re-check of the fold;
+corrections folded, test plan reworked per the audit, one blocker in the fold itself found and
+fixed — see § Review log).** Tracker:
 [issue #7](https://github.com/macgameport/cities-skylines-2-macos/issues/7); umbrella
 [#1](https://github.com/macgameport/cities-skylines-2-macos/issues/1). Baseline: cs2 `563130a`
 (the fold commit follows it); nested winemac history `main` = `5d28d7b` (glue tip), `core` =
@@ -63,7 +64,7 @@ host's bounds reach the remote tree only through `masksToBounds`.
    `macdrv_window_update_ca_layer_host_frame` (`:4328`) → `updateCALayerHostFrame` (`:813-838`),
    which sets `host.frame` to the **new** rect at once (`:835`, actions disabled `:834`). The root's
    own `WindowPosChanged` runs the full pass `update_remote_layer_frames` (`window.c:1909-1963`,
-   called at `:2042`) with the same effect — which is why the pre-D1/D2 module shows the same strip.
+   called at `window.c:2042`) with the same effect — which is why the pre-D1/D2 module shows the same strip.
 2. The host's remote content is still the **old** swapchain at its creation bounds. A `CALayerHost`
    shows the remote tree 1:1; `masksToBounds` (`:804`) clips, nothing stretches. The uncovered
    remainder of the host's frame shows **`host.backgroundColor`** — black, set 120 ms after
@@ -147,7 +148,7 @@ output in cell `classbg`):
 | root `0x1011E` | `SDL_app` | **NULL** (no erase) |
 | both hosted children | `CefBrowserWindow` | **NULL** |
 | their `Chrome_WidgetWin_1` | Chromium's widget | solid brush, colour 000000 (black) |
-| `Chrome_RenderWidgetHostHWND` | | `COLOR_WINDOW+1` → white, beneath the widget |
+| `Chrome_RenderWidgetHostHWND` | | `COLOR_0+1` (index 0, `GetSysColor` → `FFFFFF`), beneath the widget |
 
 A class brush is applied only when `WM_ERASEBKGND` reaches `DefWindowProc`, and Chromium answers
 it itself: `HWNDMessageHandler::OnEraseBkgnd` (`ui/views/win/hwnd_message_handler.cc`, read
@@ -188,8 +189,9 @@ stage bought.
 The remote content's size only changes through a recreate (§2.1), and a recreate arrives as a new
 context id with a new host. So the size the content was created at **is** the content size for the
 host's whole life. The swapchain is created in the surface path (`window.c:1304-1334`) from the
-child's **window** rect offset into the root (`:1321-1323`, `:1330`; the client rect at `:1309` is
-used only for an own window at `:1334` or as the fallback at `:1325`), and the CREATE handler reads
+child's **window** rect offset into the root (`window.c:1321-1323`, `:1330`; the client rect at
+`:1309` is used only for an own window at `:1334` or as the fallback at `:1325` — every cite in this
+parenthesis is `window.c`), and the CREATE handler reads
 the same window rect (`window.c:1723-1725`) — **but later, in the owner**. Under a drag with
 hundreds of creates the child can be resized between the two reads, so the stored size can be one
 step stale for that host's life, and the host mis-scaled until the next CREATE retires it. Accepted
@@ -204,8 +206,9 @@ the handler) removes the race — a protocol change, deferred unless T0/T6 say i
 set **only** in the non-empty create branch (`:802-805`, from the snapped frame — nothing for the
 `CGRectIsNull` root case or the `CGRectIsEmpty` case), removed in `removeCALayerHostView`
 (`:856-861`), and cleared in `setRetinaMode:` (`:902-903`, where each host's `contentsScale` flips —
-a stored size in points would be 2× off for every surviving host). Beside the size, the **last
-target frame** (§4.2). Alternative if a third per-host field arrives (stage 3): subclass —
+a stored size in points would be 2× off for every surviving host). Beside the size, the **last target frame** —
+`NSMutableDictionary<NSNumber*, NSValue*>* _caLayerHostTargetFrames` (`valueWithRect:` / `rectValue`),
+same lifecycle sites including the `setRetinaMode:` clear (§4.2). Alternative if a third per-host field arrives (stage 3): subclass —
 `@interface WineCALayerHost : CALayerHost` with `contentSize` — so `_caLayerHosts` stays the only
 dictionary; not chosen for stage 1 because subclassing a private class is one more unknown.
 
@@ -214,7 +217,9 @@ dictionary; not chosen for stage 1 because subclassing a private class is one mo
 `CALayer.h` documents `frame` as derived from `bounds`, `anchorPoint`, `position` and `transform`,
 and undefined to set under a transform; `masksToBounds` clips in layer space, so a scaled host still
 clips at exactly its scaled frame. Therefore all three geometry paths — create (`:803`), reframe
-(`:835`) and zero-size (`:824`) — go through **one helper** that sets `anchorPoint`, `bounds`,
+(`:835`) and zero-size (`:824`) — go through **one helper** —
+`- (void) placeCALayerHost:(CALayerHost*)host contextId:(CAContextID)cid frame:(CGRect)frame`, whose body is
+the snippet below, called from `:803`, `:824` and `:835` — that sets `anchorPoint`, `bounds`,
 `position` and `transform`; the zero-size path additionally resets the transform to identity and
 hides; the `CGRectEqualToRect(host.frame, frame)` short-circuit at `:835` is replaced by a compare
 against the last target frame stored beside the content size (on a transformed layer `frame` reads
@@ -275,7 +280,7 @@ posts `WINDOW_RESIZE_ENDED` → `macdrv_window_resize_ended` (`window.c:2313-231
 sends `WM_EXITSIZEMOVE` — **nothing re-derives the hosts at the end of a drag**. Both handlers run
 on the window's own wine thread (`event.c:375, :524`), the thread that owns `win_data`. An
 `OnMainThread` query of `-[NSWindow inLiveResize]` would block the app thread mid-resize and is not
-used. Five edits:
+used. Five edits, plus the shared helper below (a sixth change):
 
 1. `macdrv.h`: `unsigned int in_live_resize : 1;   /* WINDOW_FRAME_CHANGED.in_resize; cleared by WINDOW_RESIZE_ENDED */`
    placed **beside core's own `remote_layer_children` field**, not beside `fullscreen : 1` where
@@ -283,11 +288,11 @@ used. Five edits:
    keeps applying.
 2. `window.c:1909`: `static void update_remote_layer_frames(struct macdrv_win_data *data, const struct window_rects *old_rects)`
    (the pattern `sync_window_position` uses, `window.c:850`). The pass works in **window-rect
-   space** (`root_rect` from `NtUserGetWindowRect(data->hwnd)`, `:1921`; child frames offset by
-   `root_rect.left/top`, `:1946`), and by the time it runs the new rects are installed
-   (`data->rects = *new_rects` at `:1979`, `sync_window_position` at `:2021`), so the "before this
+   space** (`root_rect` from `NtUserGetWindowRect(data->hwnd)`, `window.c:1921`; child frames offset by
+   `root_rect.left/top`, `window.c:1947`), and by the time it runs the new rects are installed
+   (`data->rects = *new_rects` at `window.c:1979`, `sync_window_position` at `window.c:2021`), so the "before this
    move" rect **must** be passed in — the function has no memory of its own. After the
-   `OffsetRect(&cr, …)` at `:1947`:
+   `OffsetRect(&cr, …)` at `window.c:1947`:
 
    ```c
    if (old_rects && data->in_live_resize)
@@ -310,10 +315,10 @@ used. Five edits:
    lagging — so stage 2 covers S4 only if the full-window browser sits below the page in z; T0
    records the match and the z-order before T2b's threshold means anything.
 3. `window.c:2042`: `update_remote_layer_frames(data, &old_rects);` (`old_rects` is the local at
-   `:1972`, snapshotted at `:1978` before the new rects are installed).
+   `window.c:1972`, snapshotted at `window.c:1978` before the new rects are installed).
 4. `window.c:2132`, before `release_win_data(data)`: `data->in_live_resize =
    event->window_frame_changed.in_resize;` — written on **every** event, so the bit self-heals; it
-   must precede `NtUserSetRawWindowPos` (`:2142`), which is what triggers the full pass. This is why a
+   must precede `NtUserSetRawWindowPos` (`window.c:2142`), which is what triggers the full pass. This is why a
    maximized window, whose `windowDidEndLiveResize` posts nothing (`:3152`), cannot leave the
    heuristic armed: each frame-changed event rewrites the bit and `windowWillResize` pins the size
    (`:3325-3328`).
@@ -337,10 +342,14 @@ used. Five edits:
 
 **One shared helper.** D1's child path (`update_remote_layer_frame_for`, `window.c:1884`) reframes
 to the child's *actual* rect; a z-only move mid-drag would un-stretch a stage-2 host until the next
-root pass. The create handler's own comment (`window.c:1313-1317`) already demands that creation
+root pass. The swapchain-creation comment (`window.c:1313-1317`) already demands that creation
 and update compute one frame — factor the target computation (offset into root, then the
-full-client substitution when `in_live_resize`) into one helper both passes and the create handler
-call. "No change to D1" therefore means "D1 calls the shared helper".
+full-client substitution when `in_live_resize`) into one helper **both update passes** call. The
+CREATE handler keeps the unsubstituted `window.c:1723` rect: the stored content size must be the
+swapchain's creation rect (§4.1), so a host created mid-drag records its real bounds and is
+stretched by the next root pass — substituting there would re-introduce S1 for exactly the hosts
+stage 2 targets and confound T0's race count. "No change to D1" therefore means "D1 calls the
+shared helper".
 
 **Latency and the alternative not taken.** Stage 2 covers the strip only after a Cocoa → unix →
 Cocoa round trip (AppKit grows the content view synchronously; hosts move when the wine thread
@@ -352,7 +361,7 @@ trip is short enough. An app that lays out on `WM_EXITSIZEMOVE` (not Steam — f
 following mid-drag) sees the end-of-resize re-derive snap hosts back to actual rects; T3's verdict
 includes the drag-end frame. **Programmatic resizes (`SetWindowPos`, the churn probe) are not live
 resizes**, so churn measures stage 1 only and never stage 2; stage 2's only measurement is a live
-drag (§5 T2b/T10). This is a heuristic and is listed with D3's three (exit criterion 6).
+drag (§5 T2b; T10 is the churn-side guard). This is a heuristic and is listed with D3's three (exit criterion 6).
 
 ### 4.3 Stage 3 — C: re-arm the deferred black on reframe (only if T0's magenta count says S2)
 
@@ -377,8 +386,8 @@ aquadran core -- cocoa_window.m` has no `dispatch_after`), so **stage 3 re-autho
 — same subject, the only one on `main`, at its tip (`scripts/regen-winemac-patches.sh:106-108`
 refuses otherwise); its `lastReframe` line inside `updateCALayerHostFrame` is a glue insertion into
 a core method, the pattern the glue commit already documents, and its rollback is the previous glue
-commit, not `core`. Conflict hazard: stage 1's store-size line goes in the `else` branch after
-`:805`, not under the glue hunk at `:766-781`, or re-applying glue on the rebuilt `main` conflicts
+commit, not `core`. Conflict hazard: stage 1's store-size line goes after `:804`, inside
+the branch — not under the glue hunk, which spans `:766-786` (`@@ -766,6 +766,21 @@`) — or re-applying glue on the rebuilt `main` conflicts
 there. Workflow, every time: commits on `core`, `main` rebuilt as aquadran → core → glue,
 `regen-winemac-patches.sh --check` printing three `ok` lines plus the three invariants (GOTCHAS
 2026-09-03 "a generator with a relative range"). The generator refuses a commit on `main` after glue.
@@ -396,7 +405,7 @@ recorded in the cell's `config.json` by `cell-fingerprint.sh`. Mutants go throug
 comes back to `window.c` through out-params on `macdrv_window_update_ca_layer_host_frame`
 (`double *scale_x, *scale_y`, filled inside the `OnMainThread` block at `:4335` from
 `host.transform.m11/.m22`), and the existing `child %p context %u frame %s` traces at `window.c:1904`
-and `:1953` are extended with `creation WxH scale %.3f,%.3f` on channel `macdrv` (`window.c:40`).
+and `window.c:1953` are extended with `creation WxH scale %.3f,%.3f` on channel `macdrv` (`window.c:40`).
 The pristine-11.16 compile gate is the one C31's addendum records: `wine-11.16-stockcore` +
 `wine-1116-stock-build`, `gmake dlls/winemac.drv/winemac.so`, warning set compared by message text.
 
@@ -419,15 +428,15 @@ first 0/40); live drags are 60 frames, normalised **per grow step** because traj
 
 | # | test | pass | mutant (observed red) |
 |---|---|---|---|
-| T0 | **attribution** — churn half done (§2.3); owed: (a) one churn on **diag-pre** with `WINEDEBUG=+timestamp,+macdrv`, frame mtimes (`stat -f %Fm`), and the root pass tracing the root *client* rect and every hosted child's rect; (b) one churn with the content view's `contents` nil-ed and `layer.backgroundColor` coloured; (c) one live drag by James on diag-pre, scored on the probe's `f*.png` | per-frame S1/S2/S3/S4 split for churn and drag; every S4 frame's mtime falls (± 180 ms) inside a window where the root rect changed and a child rect had not; the S4 strip takes the content view's colour in (b); the trace records which hosted child equals the root client rect and its z-order relative to the page (§4.2b); the count of `:1327`-vs-`:1727` size mismatches per context under the drag (0, or a recorded bound) | none — measurement |
-| T1 | **spike, gate** — fixed `CATransform3DMakeScale(1.5, 1.5, 1)` applied in `addCALayerHostViewWithContextId` (after `:803`, so it holds at rest) with `anchorPoint (0,0)` set first, on a throwaway branch off `main`; Library page, no churn, each hosted child in turn as `run_t1` in `hosting-layer-tests.sh` does; TRACE `self.layer.geometryFlipped` once; record the display profile; the module is **not pointer-operable** (visual ≠ HWND rects), reverted before any interactive use, its hash in `config.json` | with `strip_at`/`dchan` from `hosting-layer-tests.sh`: choose X with control contrast > 8; after the spike `dchan(strip(after, 1.5X), strip(before, X)) ≤ 8` and `dchan(strip(after, X), strip(before, X)) > 8` for at least one decisive child; the right/bottom third of the page is clipped (`masksToBounds`); the flip TRACE says YES | **gate, not a test** — both strips unchanged (≤ 2) = the host ignores `transform`; B is dead, §3 falls back to C/D, plan re-checked |
+| T0 | **attribution** — churn half done (§2.3); owed: (a) one churn on **diag-pre** with `WINEDEBUG=+timestamp,+macdrv`, frame mtimes (`stat -f %Fm`), and the root pass tracing the root *client* rect and every hosted child's rect; (b) one churn with the content view's `contents` nil-ed and `layer.backgroundColor` coloured; (c) one live drag by James on diag-pre, scored on the probe's `f*.png` | per-frame S1/S2/S3/S4 split for churn and drag; every S4 frame's mtime falls (± 180 ms) inside a window where the root rect changed and a child rect had not; the S4 strip takes the content view's colour in (b); the trace records which hosted child equals the root client rect and its z-order relative to the page (§4.2b); the count of `window.c:1327`-vs-`window.c:1727` size mismatches per context under the drag (0, or a recorded bound) | none — measurement |
+| T1 | **spike, gate** — fixed `CATransform3DMakeScale(1.5, 1.5, 1)` applied in `addCALayerHostViewWithContextId` (after `:803`, so it holds at rest) with `anchorPoint (0,0)` set first, on a throwaway branch off `main`; Library page, no churn, each hosted child in turn as `run_t1` in `hosting-layer-tests.sh` does; TRACE `self.layer.geometryFlipped` once; record the display profile; the module is **not pointer-operable** (visual ≠ HWND rects), reverted before any interactive use, its hash in `config.json` | with `strip_at`/`dchan` from `hosting-layer-tests.sh`: choose X with control contrast > 8 (**X is measured from the host's own origin**, so `1.5X` lands inside the scaled child only for the full-window browser @0,30, not the inset page); after the spike `dchan(strip(after, 1.5X), strip(before, X)) ≤ 8` and `dchan(strip(after, X), strip(before, X)) > 8` for at least one decisive child; the right/bottom third of the page is clipped (`masksToBounds`); the flip TRACE says YES | **gate, not a test** — both strips unchanged (≤ 2) = the host ignores `transform`; B is dead, §3 falls back to C/D, plan re-checked |
 | T2a | **churn, stage 1** — diag-fix module, `shimmer-probe.sh churn` ×3 = 120 frames | `Rgreen ≥ 20 %` frames 9–10/40 → **0/120**; black-no-colour **3–13 per 40** as a positive control (churn is not a live resize; this is not a criterion); blue 0; `static` 0 gaps | **E1:** content-size lookup returns `frame.size` (never stored) → green ≥ 5/40 in every run |
 | T2b | **live drag, stage 2** — diag-fix module, James, the fixed drag script | among grow-step frames: `Rgreen ≥ 20 %` ≤ 1, black-no-colour ≥ 20 % ≤ 1, worst right band < 20 %; top band black-no-colour 0 in the top-edge segment | E4 (T10) and E1 |
 | T3 | **live drag, production module** — same script, James's verdict | right band ≥ 20 % true black in **≤ 2 grow-step frames** (baseline 19/60 on a mixed drag); worst < 20 %; verdict verbatim, including the drag-end frame (rubbery ≤ ~100 ms = the native look; persistent distortion or a snap-back flash = fail) | none beyond T2b's — a human drag is not repeated per mutant |
 | T4 | **seam** — the battery's blackout rows, plus one capture *while scaled* (mid-churn) for a hairline at the window edge | interior lum > 40 at each step and **0 BRIGHT edges at 2399x1499** (C29 83/84/112, C32 87/92/113 — the interior varies with the page, the bright count is the invariant), at rest and while scaled | **E2:** skip `snap_host_frame_to_view_edges` at `:816` → ≥ 1 BRIGHT at 2399x1499, re-observed on this build (the scaled host is a new geometry path; C29's old red does not count) |
-| T5 | **battery + boot** — `hosting-layer-tests.sh` (all its rows) **and `--mutants`** (stage 2 touches `update_remote_layer_frames`), `boot-verify.sh` detached | as C32: T0 disjoint, T1 GREEN, T2 restack + restore, churn/static 0 gaps, 0 acquire failures, 0 GPU crashes, M1 red / M2 green / M3 ≥ 1 `paint order incomplete`, `VERDICT: PASS` | the battery's own |
-| T6 | **no residual scale at rest, and the base is right** — the §4.5 trace; run after T2b's drag and after T7's churns | 3 s after the last size change the last line per surviving context id reads `1.000,1.000`; each surviving host's creation size equals the GPU-process `cross-process child … frame` rect (`window.c:1327`) for the same context id — **not** the host's bounds, which are set from the stored size; no `child NULL` context appears in the reframe trace (`:1937`) | **E3:** store half the creation size → `2.000,2.000` at rest and the page renders doubled |
-| T7 | **anchor, both axes, both directions, and frame 14 attributed** — diag-fix module, `CHURN_A=2200x1500 CHURN_B=2400x1500` and `CHURN_A=2400x1360 CHURN_B=2400x1500`, ×1 each (a churn alternates, so each run holds grow and shrink steps), frames classified grow/shrink by PNG size vs the previous frame, the §4.5 trace on; plus T2b's top-edge segment | grow frames: `Rgreen` (width) and `Bgreen` (height) ≥ 20 % → 0; shrink frames: top band true black ≥ 20 % → 0 (frame 14's signature) — **or**, if it persists, the trace says which layer moved and the displacement gets its own attribution before any code; T-band 0 in the top-edge segment | **E5:** anchor at the opposite corner → L- or T-band black ≥ 20 % in ≥ 5 frames of the width churn; **E6:** clamp `sx, sy ≥ 1` → shrink frames of the height churn show T-band black ≥ 20 % again |
+| T5 | **battery + boot** — `hosting-layer-tests.sh` (all its rows) **and `--mutants`** (stage 2 touches `update_remote_layer_frames`), `boot-verify.sh` detached | as C32 (**the battery's own row names**, not this plan's T-numbers): battery T0 disjoint, battery T1 GREEN, battery T2 restack + restore, churn/static 0 gaps, 0 acquire failures, 0 GPU crashes, M1 red / M2 green / M3 ≥ 1 `paint order incomplete`, `VERDICT: PASS` | the battery's own |
+| T6 | **no residual scale at rest, and the base is right** — the §4.5 trace; run after T2b's drag and after T7's churns | 3 s after the last size change the last line per surviving context id reads `1.000,1.000`; each surviving host's creation size equals the GPU-process `cross-process child … frame` rect (`window.c:1327`) for the same context id — **not** the host's bounds, which are set from the stored size; no `child NULL` context appears in the reframe trace (`window.c:1937`) | **E3:** store half the creation size → `2.000,2.000` at rest and the page renders doubled |
+| T7 | **anchor, both axes, both directions, and frame 14 attributed** — diag-fix module, `CHURN_A=2200x1500 CHURN_B=2400x1500` and `CHURN_A=2400x1360 CHURN_B=2400x1500`, ×1 each (a churn alternates, so each run holds grow and shrink steps), frames classified grow/shrink by PNG size vs the previous frame, the §4.5 trace on; plus T2b's top-edge segment | grow frames: `Rgreen` (width) and `Bgreen` (height) ≥ 20 % → 0; shrink frames: frame 14's signature — bottom band `B` ≥ 20 % at lum < 40 (`darkboxes 40 …`; 67.6 % today, 0.0 % at lum < 6) with the top ≈138 px of content cut off → 0 — **or**, if it persists, the trace says which layer moved and the displacement gets its own attribution before any code; T-band 0 in the top-edge segment | **E5:** anchor at the opposite corner → L- or T-band black ≥ 20 % in ≥ 5 frames of the width churn; **E6 (only if T7 attributes the displacement to the host):** clamp `sx, sy ≥ 1` → the height churn's shrink frames show `B` ≥ 20 % at lum < 40 again |
 | T8 | **C alone** (only if built) — diag build with stage 1 removed by the named switch (`core` minus the stage-1 commit), churn ×3 | **magenta** (S2) right-band frames → 0 against T0's magenta count | **E7:** no re-arm on reframe → magenta returns to T0's count |
 | T9 | **the reference regenerates** — `regen-winemac-patches.sh --check`; the pristine-11.16 compile gate (§4.5) | three `ok` + three invariants; warning set unchanged by message text | — |
 | T10 | **stage-2 guard** — T2a's churn on the stage-2 build | the T6 trace shows no scale ≠ 1 emitted by the root pass; the S4 control frames persist (3–13/40); after T2b every host at identity within 3 s (the `windowDidEndLiveResize` re-derive) | **E4:** force `in_live_resize` true (or drop the guard) → churn black-no-colour → ≤ 1/40 and the root pass emits scale ≠ 1 |
@@ -447,8 +456,10 @@ CGEvent-posted edge drag instrument (new; needs Accessibility permission; valida
 1. T0 complete for the live drag and S2 (scorer and attrib extended; numbers in §2.2/§2.3; the
    tree match and z-order for stage 2 recorded); T1 passed, or B abandoned with the spike's frames
    as the reason and the plan re-checked.
-2. Stage 1: T2a 0/120, static 0 gaps; T4, T6, T7 green; E1, E2, E3, E5, E6 observed red and
-   restored — nested tree clean (`git status --porcelain` empty), `--check` green.
+2. Stage 1: T2a 0/120, static 0 gaps; T4, T6, T7 green; E1, E2, E3, E5 observed red and
+   restored, E6 likewise **if T7 attributed frame 14 to the host** — else recorded as not
+   applicable with T7's trace as the reason — nested tree clean (`git status --porcelain` empty),
+   `--check` green.
 3. Stage 2: T2b and T10 at threshold; E4 red; T3 with James's verdict verbatim in the ledger; T11
    clean.
 4. Stage 3 decision recorded either way: built (T8 green, E7 red) or declined with T0's magenta
@@ -504,8 +515,8 @@ into the normative sections above, and the audit's own closing line — "after f
 fitted re-check should suffice rather than another fleet" — is the next step (Review log).
 
 - **Wrong cite, wrong caveat (all lenses):** `window.c:1187` is `WM_MOUSEACTIVATE`; the child's
-  swapchain is created from its **window** rect offset into the root (`:1321-1330`), the same rect
-  the CREATE handler reads (`:1723`). The window-vs-client caveat is gone; the real hazard — the two
+  swapchain is created from its **window** rect offset into the root (`window.c:1321-1330`), the
+  same rect the CREATE handler reads (`window.c:1723`). The window-vs-client caveat is gone; the real hazard — the two
   reads are in different processes at different times — is §4.1's race, with T0 counting it.
 - **"Windows erases the resized widget black" was an inference from a brush table (correctness):**
   Chromium's `OnEraseBkgnd` returns 1 and never uses the brush (verified from source). §2.4, §2.2
@@ -554,22 +565,56 @@ fitted re-check should suffice rather than another fleet" — is the next step (
   channel `macdrv`, extending the existing frame trace.
 - **Missing on day one (builder):** §4.5 build/install/hash/trace/compile gate.
 - **Cites (correctness):** `retire_superseded_layers` is `window.c:946`; the deferred block is
-  `:773-783` everywhere; key paths end at `:4364` / `:1785`; the 417-CREATE figure is the design-gaps
+  `:773-783` everywhere; key paths end at `:4364` / `window.c:1785`; the 417-CREATE figure is the design-gaps
   plan's, not C30's.
 - **Evidence hygiene (correctness, test-plan audit):** the `classbg` output existed only in a
   terminal log — saved as `classbg/classbg.txt`; `darkboxes-attrib.py` crashed on the evidence store's
   names — fixed.
 
+### Fitted re-check of the fold (2026-09-03, one agent, Claude Opus 5)
+
+Brief: verify the fold's own edits against the codebase — cites, id consistency, whether the two
+code fragments compile, whether every lens correction reached a normative section. It confirmed the
+fold (every correction has a normative landing; both fragments compile against `5d28d7b`; E1–E7 and
+T0–T11 consistent across §5/§6/§8; the instruments are in `c7afacb`) and found six defects **the
+fold itself introduced**, all fixed here:
+
+- **[BLOCKER] T7's shrink criterion could not go red.** The fold wrote frame 14's signature as
+  *top-band true black*; §2.2 and C36 measured it as a **bottom** band of **dark grey** (`B = 0.0 %`
+  at lum < 6, 67.6 % at lum < 40) with the top ≈138 px of content cut off. The pass was therefore
+  already 0 on the baseline and **E6 could never be observed red** — while §6.2 demanded it red
+  unconditionally and the correction bullet said it was conditional. T7's shrink pass now names the
+  measured signature at lum < 40, E6 is explicitly conditional on T7 attributing the displacement to
+  the host, and §6.2 says what to record if it is not.
+- **[SHOULD-FIX] The shared helper would have poisoned the stored content size.** §4.2b routed the
+  CREATE handler through the helper that substitutes the full client rect during a live resize, while
+  §4.1 stores the content size from that same rect — so a host created mid-drag would record the
+  *stretched* rect as its creation size, re-introducing S1 for exactly the hosts stage 2 targets and
+  confounding T0's race count. The CREATE handler now keeps the unsubstituted `window.c:1723` rect.
+- **[SHOULD-FIX] Unqualified `window.c` cites.** The plan's own convention (header) makes a bare
+  `:N` mean `cocoa_window.m`, so eleven `window.c` line cites in §1, §4.2b, §4.5, T0 and T6 resolved
+  to unrelated lines. All qualified; `:1946` → `window.c:1947` (1946 is the closing brace).
+- **[MINOR] The brush index was wrong in both the plan and C36** — the evidence prints `COLOR_0+1`
+  (index 0), not `COLOR_WINDOW+1` (index 5). The printed colour `FFFFFF` and the white conclusion
+  stand; both corrected.
+- **[MINOR] Two artifacts the "real code" claim left unnamed** — the last-target-frame store
+  (`_caLayerHostTargetFrames`) and the placement helper's signature.
+- **[MINOR] Range and wording slips** — "Five edits" over six, the glue hunk is `:766-786` not
+  `:766-781`, the store-size line goes after `:804` inside the branch, T1's `1.5X` holds only with X
+  measured from the host's own origin, T5's pass column names the battery's T-numbers not the plan's,
+  key paths `:2097-2145` → `:2097-2146`.
+
 ## Review log
 
 | date | pass | lenses | method | model | verified against | verdict |
 |---|---|---|---|---|---|---|
-| 2026-09-03 | 1 (triple-check + fitted extras) | architecture · correctness · builder-simulation · platform-facts · security · test-plan audit | manual agents, ≤ 4 concurrent, ≤ 15 calls each, read-only; builder ran the gates | Claude Fable 5.1 (`claude-fable-5-1`) | cs2 `563130a` · nested `main` `5d28d7b`, `core` `eddf167` | five × build-ready-with-fixes, one needs-rework (test plan); all folded → **build-ready-with-fixes**, fitted re-check of the fold queued |
+| 2026-09-03 | 1b (fitted re-check of the fold) | fold verification (cites · id consistency · compilability · normative landing) | one agent, read-only, 12 calls | Claude Opus 5 (`claude-opus-5`) | cs2 `c7afacb` · nested `main` `5d28d7b` | fold verified; 1 blocker + 2 should-fix + 3 minor **in the fold**, all fixed → **build-ready** |
+| 2026-09-03 | 1 (triple-check + fitted extras) | architecture · correctness · builder-simulation · platform-facts · security · test-plan audit | manual agents, ≤ 4 concurrent, ≤ 15 calls each, read-only; builder ran the gates | Claude Fable 5.1 (`claude-fable-5-1`) | cs2 `563130a` · nested `main` `5d28d7b`, `core` `eddf167` | five × build-ready-with-fixes, one needs-rework (test plan); all folded → **build-ready-with-fixes**, superseded by pass 1b |
 
 Key paths: `dlls/winemac.drv/cocoa_window.m` (`WineContentView` host methods `:758-861`, `updateLayer`
 `:569-597`, `CAContextSwapChain :4191-4278`, entry points `:4302-4364`, live-resize delegates `:3150`,
 `:3246`, `:3362`), `dlls/winemac.drv/window.c` (`:946`, `:1304-1334`, `:1709-1785`, `:1884-1963`,
-`:1965-2042`, `:2097-2145`, `:2313-2317`), `dlls/winemac.drv/macdrv.h`, `dlls/winemac.drv/macdrv_cocoa.h:400`,
+`:1965-2042`, `:2097-2146`, `:2313-2317`), `dlls/winemac.drv/macdrv.h`, `dlls/winemac.drv/macdrv_cocoa.h:400`,
 `scripts/darkboxes.swift`, `scripts/darkboxes-attrib.py`, `scripts/shimmer-probe.sh`,
 `scripts/livedrag-probe.sh`, `scripts/hosting-layer-tests.sh`, `scripts/regen-winemac-patches.sh`,
 `scripts/win-resize-driver.c` (`classbg`).
