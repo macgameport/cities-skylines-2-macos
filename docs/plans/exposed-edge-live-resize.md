@@ -10,6 +10,41 @@ fixed — see § Review log).** Tracker:
 `winemac.so.bak-preD12-20260902-221649` = `53c9443db3145f58`. Line numbers are against the nested
 `main` and name their file; unqualified `:N` is `cocoa_window.m`.
 
+> **🔧 As-built (2026-09-03): stage 1 BUILT and measured; stages 2 and 3 not started.**
+> Nested winemac `core` +3 commits (`af4b6d8` scale-a-stale-host · `717d431` the scale TRACE ·
+> `23c5404` the degenerate-size floor), `main` rebuilt as aquadran → core → glue; reference patches
+> regenerated, `regen-winemac-patches.sh --check` three `ok` + three invariants (T9's first half).
+> Modules: baseline `cd79fc463795939f` · stage 1 `2a251a4b2510fb84`. Ledger **C37** (T1 gate) and
+> **C38** (the A/B).
+>
+> **Deviations from this plan, in the order they were forced:**
+> 1. **The two per-host tables are NOT ivars beside `_caLayerHosts` (§4.1).** They are a
+>    `@interface WineContentView ()` class extension, the idiom `WineWindow` and
+>    `WineApplicationController` already use. Reason, measured: aquadran adds
+>    `@public void *dxmt_client_surface;` at the end of that ivar block, so **any** hunk inserting
+>    within three lines of it fails to apply to the aquadran tree and breaks the generator's
+>    invariant 2 (`aquadran + core == glue's parent`). Two placements were tried and rejected
+>    before the class extension. ⚠ `af4b6d8`'s own message still says "beside `_caLayerHosts`" —
+>    written before the third placement; this header is the accurate one.
+> 2. **The §4.5 trace ships on `core`, not as a diagnostic-only build.** It is a `TRACE` on the
+>    off-by-default `macdrv` channel, and without it "the layer was scaled and it did not help" and
+>    "the layer was never scaled" are the same evidence. It paid for itself twice in its first run.
+> 3. **A degenerate-content-size floor was added, which §4.2 explicitly declined** ("absurd factors
+>    … accepted"). The trace caught two frames at `scale 1920.000,907.000` from a 1x1 Chromium
+>    widget: costless in compute, but it paints one pixel's colour over the whole window, which is
+>    worse than the gap. Below 8 px on a side, place at identity.
+> 4. **T2a as specified is UNRUN.** It needs the diag-fix module (green/magenta/blue) to separate
+>    S1 from S4; what was run is a colourless interleaved A/B (C38): right band −33 %, bottom band
+>    −48 %, worst band unchanged at 86–94 %. No claim is made that S1 went to zero.
+> 5. The glue hunk moved from `:766-786` to **`:837-857`** — stage 1 inserts ~71 lines above it.
+> 6. New instruments, all committed: `scripts/t1-spike.sh` (the T1 gate, both phases + analysis),
+>    `scripts/stage1-tests.sh`, `scripts/band-counts.py`. One harness defect found and fixed en
+>    route (GOTCHAS 2026-09-03, "Two scripts sharing `OUT_DIR`").
+>
+> **Verify against:** `scripts/winemac-crossprocess-child-core.patch` (the `placeCALayerHost:`
+> method, the class extension, `getCALayerHostPlacement:`), `scripts/stage1-tests.sh`,
+> `scripts/t1-spike.sh`, `EXPERIMENTS.md` C37/C38, `~/cs2-patch/stage1-ab2/`.
+
 **Scope.** One user-visible artifact: while a Steam window is being dragged larger, the newly
 exposed strip along the growing edge is solid black until the hosted browser catches up. Not in
 scope: the ~1-frame content gap at a swapchain recreate (C26 closed it to the probe's resolution),
