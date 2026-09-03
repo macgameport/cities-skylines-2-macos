@@ -148,6 +148,39 @@ absolute `/Users/<name>` paths **out of committed files** — use `$HOME`, `$WIN
   something generic while doing capture work and new captures are clean at source. A mask you got
   wrong is worse than no mask, because it looks safe.
 
+## Escalate the model tier by SURFACE, not by task (2026-09-03, provisional)
+
+**Where a gate can decide it, the tier barely matters. Where prose is the deliverable and no gate
+can check it, use the most capable model.**
+
+Measured on 2026-09-03, one session, both directions:
+
+- **Execution found the behavioural defects, at any tier.** Three hunks carrying vendor context
+  rather than the predicted two, `assert()` baking `__LINE__` into the object so a comment-only
+  edit is not byte-identical, a probe leaking a running churn on its abort path, the exact anchor
+  a relocated hunk needs. Every one surfaced from a build, a mutant or a byte-compare. The gate was
+  the reviewer.
+- **The top tier found the latent inconsistencies, which no gate can reach.** A plan asserting a
+  131-entry unixlib table that is really 132 — its own test gate would have failed red for the
+  wrong reason; an install step whose `codesign` contradicted the same plan's `cmp` outcome test; a
+  test stating a pass condition absent from the tool's vocabulary; cites off by one after a table
+  grew; five nested items missed in a census. All are cross-referencing work: hold a lot of material
+  in mind, check it against the code and against itself.
+
+**So:** `check it` lenses, and any audit of prose a human will act on that no test verifies, get the
+top tier. Execution-gated work gets whatever is cheapest — the mutant is the reviewer, not the model.
+
+**The label:** GitHub label `needs-high-tier-review` marks the judgment surface; `blocker` marks
+what it holds up. First use: [#6](https://github.com/macgameport/cities-skylines-2-macos/issues/6),
+comment accuracy in the published winemac reference, where `strip-comments.py`, the object
+comparison and the whole C29 battery all pass while saying nothing about whether the surviving
+comments are TRUE.
+
+⚠ **Provisional — one session's evidence.** The mechanism is plausible (cross-referencing is
+attention-heavy, execution is not) but it is not yet a cross-repo rule. Promote it to
+`~/.claude/rules/` only if it holds in other repos; per the cross-repo sweep rule a convention
+earns promotion at three, not one.
+
 ## Deliberate deviations from sibling-repo practice
 
 - **`.claude/rules/` in `.prettierignore`** (from meritmap, declined 2026-08-26) — Python / C / shell (20 py, 17 sh, 16 c); no package.json anywhere, so prettier can never run here. The guard exists because a repo `.prettierrc` whose `printWidth` differs from the global source's default 80 makes format-on-commit fight the session-start sync forever (diagnosed in meritmap, where it had run since 2026-08-14). Adopted in bespoke-tr, isnotus and homeOne, which have a JS toolchain that could grow a `.prettierrc`. Here it would configure a tool that will never exist. **Revisit if this repo ever gains a `package.json`.**
