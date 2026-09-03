@@ -1,0 +1,199 @@
+#!/bin/bash
+# hosting-layer-tests.sh — the cross-process hosting-layer tests, in one command.
+#
+#   bash scripts/hosting-layer-tests.sh              # T0 T1 T2 + the regression rows
+#   bash scripts/hosting-layer-tests.sh --mutants    # + rebuild/install each mutant, then restore
+#   bash scripts/hosting-layer-tests.sh --list       # what it runs, no Steam
+#
+# Plan: docs/plans/hosting-layer-design-gaps.md (T0-T9). Run it DETACHED with a log; a tool timeout
+# kills the process group and takes Steam with it.
+#
+# WHY THIS IS COMMITTED. On 2026-09-03 these tests were driven by throwaway scripts and SEVEN
+# harness defects came out of them, every one producing a plausible wrong answer rather than an
+# error. Each is encoded below so it cannot recur:
+#
+#   1. macOS ships bash 3.2 — no `mapfile`, no `${var,,}`. Both are fatal at the point of use, and
+#      one hit before the shutdown line and left Steam running for the next run to trip over.
+#   2. A `cd` inside a helper leaked into the caller, so `scripts/...` was no longer found and the
+#      failure surfaced as "no steam". Every cd is in a subshell here.
+#   3. Shutdown checked only steam.exe. Webhelpers outlive it, reparent to launchd and carry
+#      Windows-style argv, so three were left holding the prefix. Sweep the family by prefix.
+#   4. Diagnostics printed to stdout were swallowed by `x=$(...)`, so a failed step looked like a
+#      step that never ran. Diagnostics go to stderr; stdout is the value.
+#   5. `winlist` is on-screen-only, so a fullscreen app on another Space hides Steam's window while
+#      Win32 still lists it. That read as "no Steam window (sign-in still up?)". Reported as
+#      OCCLUDED now, by cross-checking the Win32 list.
+#   6. `screencapture -l` returns NO FILE for a window with no imageable backing store, which is
+#      indistinguishable from black in a size check. Raise the window first.
+#   7. The cell harness's own refusal (`preconditions: N fatal -> VOID`) was ignored and reported as
+#      "no steam". Its FATAL line is surfaced verbatim.
+#
+# And two test-design facts, each of which cost a run:
+#   * Pick the child from the CREATE trace, NOT by size from the tree. A Chrome_RenderWidgetHostHWND
+#     is large and never hosted, so moving it correctly changes nothing and proves nothing.
+#   * A hosted child parked at 0x0 is the inactive browser (ledger C14); skip it. The store page is
+#     where two non-zero overlapping CefBrowserWindow siblings exist, which T2 needs.
+set -u
+REPO="$(cd "$(dirname "$0")/.." && pwd)"
+SS="${CS2_WRAPPER:-$HOME/Applications/CS2dxmt11.app}/Contents/SharedSupport"
+W="$SS/wine/bin/wine64"; S="$SS/prefix/drive_c/Program Files (x86)/Steam"
+DRV="${CS2_DRIVER:-$HOME/cs2-patch/win-resize-driver.exe}"
+SRC="${WINEMAC_SRC:-$HOME/cs2-patch/build-1116/wine-11.16-dxmt/dlls/winemac.drv}"
+BD="${WINEMAC_BUILD:-$HOME/cs2-patch/build-1116/wine-1116-vis-build}"
+INST="$SS/wine/lib/wine/x86_64-unix/winemac.so"
+OUT="${OUT_DIR:-$HOME/cs2-patch/hosting-layer-tests/$(date +%Y%m%d-%H%M%S)}"
+MUTANTS=0
+case "${1:-}" in
+  --list) sed -n '/^# Plan:/,/^set -u/p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+  --mutants) MUTANTS=1 ;;
+  "") ;;
+  *) echo "unknown arg: $1" >&2; exit 64 ;;
+esac
+mkdir -p "$OUT"
+export WINEPREFIX="$SS/prefix"
+export DYLD_FALLBACK_LIBRARY_PATH="${CS2_WRAPPER:-$HOME/Applications/CS2dxmt11.app}/Contents/Frameworks:$SS/wine/lib:/usr/lib:/usr/local/lib"
+
+# the cell harness caffeinates only its own ~215 s window; these tests keep working after it, and
+# a display that sleeps mid-run makes every capture silently empty
+caffeinate -d -i -u -t 3600 & CAF=$!
+_owns() { lsof -p "$1" 2>/dev/null | grep -q "$WINEPREFIX"; }
+steam_up() { for p in $(pgrep -f "steam.exe" 2>/dev/null); do _owns "$p" && return 0; done; return 1; }
+steam_family() { for p in $(pgrep -f "steam" 2>/dev/null); do _owns "$p" && echo "$p"; done; }
+down() {
+  steam_up && WINEDEBUG=-all "$W" "$S/steam.exe" -shutdown >/dev/null 2>&1
+  for _ in $(seq 30); do steam_up || break; sleep 1; done
+  steam_up && { "$SS/wine/bin/wineserver" -k >/dev/null 2>&1; sleep 3; }
+  local left; left=$(steam_family | tr '\n' ' ')
+  [ -n "$left" ] && { "$SS/wine/bin/wineserver" -k >/dev/null 2>&1; sleep 2
+                      left=$(steam_family | tr '\n' ' '); [ -n "$left" ] && kill $left 2>/dev/null; }
+  return 0
+}
+cleanup() { kill $CAF 2>/dev/null; down; (cd "$SRC" && git checkout -q -- . 2>/dev/null); }
+trap cleanup EXIT
+drv() { WINEDEBUG=-all "$W" "$DRV" "$@" 2>/dev/null | tr -d '\r'; }
+dlist() { drv list | grep 'class='; }
+shot() {   # stdout = path, stderr = why not
+  local id; id=$(/tmp/winlist 2>/dev/null | grep 'title=Steam$' | head -1 | sed -E 's/^id=([0-9]+).*/\1/')
+  if [ -z "$id" ]; then
+    if dlist | grep -q 'title=Steam$'; then
+      echo "    OCCLUDED: Win32 lists the Steam window but macOS does not — something fullscreen is covering it" >&2
+    else echo "    no Steam window on screen" >&2; fi
+    return 1
+  fi
+  local hw; hw=$(dlist | grep 'title=Steam$' | awk '{print $1}' | head -1)
+  [ -n "$hw" ] && { drv front "$hw" >/dev/null; sleep 1; }
+  screencapture -x -o -l "$id" "$OUT/$1.png" 2>/dev/null
+  [ -s "$OUT/$1.png" ] || { echo "    capture produced no file (no imageable backing store?)" >&2; return 1; }
+  echo "$OUT/$1.png"
+}
+strip_at() { /tmp/pixel-probe "$1" strip "$2" 10 2>/dev/null | grep -oE '[0-9]+, *[0-9]+, *[0-9]+' | tr -d ' '; }
+dchan() { python3 -c "
+import sys
+a=[int(x) for x in sys.argv[1].split(',')]; b=[int(x) for x in sys.argv[2].split(',')]
+print(max(abs(p-q) for p,q in zip(a,b)))" "$1" "$2" 2>/dev/null || echo 999; }
+build_install() { (cd "$BD" && gmake dlls/winemac.drv/winemac.so >"$OUT/build.log" 2>&1 \
+    && cp dlls/winemac.drv/winemac.so "$INST") \
+  && echo "    module $(shasum -a 256 "$INST" | cut -c1-12)" \
+  || { echo "    BUILD FAILED"; grep -m2 'error:' "$OUT/build.log"; return 1; }; }
+cell() {   # cell <label> ; brings Steam up and leaves it running, or reports the harness's refusal
+  WINEDEBUG=+err,+macdrv bash "$REPO/scripts/steam-render-cell.sh" --label "$1" --keep-running >"$OUT/$1.txt" 2>&1
+  if ! steam_up; then
+    local why; why=$(grep -m1 'FATAL' "$OUT/$1.txt" | sed 's/^ *//' | cut -c1-110)
+    echo "    VOID: ${why:-Steam did not come up and the harness reported no FATAL}"
+    return 1
+  fi
+  return 0
+}
+# hosted_child <label> — echo a hosted child that currently has area, per the CREATE trace
+hosted_child() {
+  local log=/tmp/steam-cell-$1/stdout.txt tree="$OUT/$1-tree.txt" h hx line
+  drv tree "$2" > "$tree"
+  for h in $(grep -oE 'cross-process child 0x[0-9a-f]+' "$log" 2>/dev/null | awk '{print $3}' | sort -u); do
+    hx=$(printf '%016X' $((h)))
+    line=$(grep -i "child $hx" "$tree" | head -1); [ -z "$line" ] && continue
+    case "$(echo "$line" | awk '{print $4}')" in 0x0|"") continue;; esac
+    echo "$hx"; return 0
+  done
+  return 1
+}
+run_t1() {   # run_t1 <label> -> "movedin leftold"
+  local H C b a s40
+  H=$(dlist | grep 'class=SDL_app' | grep 'title=Steam$' | awk '{print $1}' | head -1)
+  WINEDEBUG=-all "$W" "$S/steam.exe" steam://store >/dev/null 2>&1; sleep 12
+  C=$(hosted_child "$1" "$H") || { echo "    VOID: no hosted child with area in the tree"; return 1; }
+  b=$(shot "$1-before") || return 1
+  s40=$(strip_at "$b" 40)
+  local nc; nc=$(dchan "$s40" "$(strip_at "$b" 160)")
+  [ "$nc" -le 8 ] && { echo "    VOID: negative control $nc <= 8 — content is uniform, a move could not show"; return 1; }
+  drv move "$C" +120,+0 >/dev/null; sleep 1
+  a=$(shot "$1-after") || return 1
+  echo "    child $C  control $nc  moved-in $(dchan "$(strip_at "$a" 160)" "$s40") (<=8 green)  left-old $(dchan "$(strip_at "$a" 40)" "$s40") (>8 green)"
+}
+echo "########## hosting-layer tests $(date '+%F %T')  module $(shasum -a 256 "$INST" | cut -c1-16)"
+echo "  run dir: $OUT"
+if cell main; then
+  LOG=/tmp/steam-cell-main/stdout.txt
+  echo "=== T0 ownership premise"
+  python3 - "$LOG" <<'PY'
+import re, sys, collections
+log = open(sys.argv[1], errors='replace').read()
+c = collections.Counter(re.findall(r'^([0-9a-f]{4}):.*WM_MACDRV_CREATE_REMOTE_LAYER', log, re.M))
+x = collections.Counter(re.findall(r'^([0-9a-f]{4}):.*cross-process child', log, re.M))
+print("    CREATE tids %s   acquiring tids %s" % (dict(c) or 'none', dict(x) or 'none'))
+print("    T0:", "PASS (disjoint)" if c and x and not (set(c) & set(x)) else "INCONCLUSIVE")
+PY
+  echo "=== T1 child-only move"; run_t1 main
+  echo "=== T2 z restack (needs two non-zero CefBrowserWindow siblings; the store page has them)"
+  H=$(dlist | grep 'class=SDL_app' | grep 'title=Steam$' | awk '{print $1}' | head -1)
+  drv tree "$H" > "$OUT/t2-tree.txt"
+  SIB=$(awk '$1=="child" && $NF ~ /CefBrowserWindow/ && $4 !~ /^0x0$/ {print $2}' "$OUT/t2-tree.txt" | tr '\n' ' ')
+  set -- $SIB
+  if [ $# -ge 2 ]; then
+    b=$(shot t2-base) && { s=$(strip_at "$b" 400)
+      drv front "$1" >/dev/null; sleep 2; m=$(shot t2-f0) && echo "    front $1 delta $(dchan "$(strip_at "$m" 400)" "$s")"
+      drv front "$2" >/dev/null; sleep 2; m=$(shot t2-f1) && echo "    front $2 delta $(dchan "$(strip_at "$m" 400)" "$s")  (>8 = restacked)"; }
+  else echo "    VOID: only $# non-zero CefBrowserWindow sibling(s); the inactive browser is parked at 0x0 (C14)"; fi
+  echo "=== T3/T4 regression rows"
+  for sz in 2400x1500 2399x1499 2400x1500; do drv drive "$H" "$sz" >/dev/null; sleep 2
+    f=$(shot "seq-$sz") && printf '    %-10s lum %s bright %s\n' "$sz" \
+      "$(/tmp/pixel-probe "$f" 1 | grep -oE 'lum [0-9]+' | head -2 | awk '{print $2}' | tr '\n' '/')" "$(/tmp/pixel-probe "$f" 4 | grep -c BRIGHT)"; done
+  SAMPLES=40 OUT_DIR="$OUT/churn" bash "$REPO/scripts/shimmer-probe.sh" churn 2>&1 | sed 's/^/    churn /'
+  sleep 20
+  SAMPLES=40 OUT_DIR="$OUT/static" bash "$REPO/scripts/shimmer-probe.sh" static 2>&1 | sed 's/^/    static /'
+  echo "=== T8 traces"
+  for k in 'paint order incomplete' 'acquire_metal_swapchain FAILED' 'gone -- releasing hosted layer'; do
+    printf '    %-36s %s\n' "$k" "$(grep -c -- "$k" "$LOG" 2>/dev/null || echo 0)"; done
+  echo "    GPU crashes: $(awk -v m='=== cell main' 'index($0,m){s=1} s && /GPU process has crashed/{n++} END{print n+0}' "$S/logs/cef_log.txt")"
+  down
+fi
+if [ "$MUTANTS" = 1 ]; then
+  echo "########## mutants — each applied to real source, rebuilt, observed, restored"
+  mutate() {  # mutate <name> <python-edit> ; leaves the tree modified
+    (cd "$SRC" && python3 -c "$2") && echo "    $1: applied"
+  }
+  echo "=== M1 remove the D1 refresh — the layer must stop following"
+  mutate M1 "
+import io; p='window.c'; s=io.open(p,encoding='utf-8').read()
+o='            if (remote_layer_children_has(data, hwnd)) update_remote_layer_frames(data);'
+n='            if (remote_layer_children_has(data, hwnd)) { /* MUTANT */ }'
+assert s.count(o)==1; io.open(p,'w',encoding='utf-8').write(s.replace(o,n))"
+  build_install && cell m1 && run_t1 m1; down; (cd "$SRC" && git checkout -q -- window.c)
+  echo "=== M2 drop SWP_NOZORDER from the moved mask — T1 must stay green"
+  mutate M2 "
+import io; p='window.c'; s=io.open(p,encoding='utf-8').read()
+o='        BOOL moved = (~swp_flags & (SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER)) ||'
+n='        BOOL moved = (~swp_flags & (SWP_NOMOVE | SWP_NOSIZE)) ||   /* MUTANT */'
+assert s.count(o)==1; io.open(p,'w',encoding='utf-8').write(s.replace(o,n))"
+  build_install && cell m2 && run_t1 m2; down; (cd "$SRC" && git checkout -q -- window.c)
+  echo "=== M3 force the depth bound to 2 — the FIXME must fire"
+  mutate M3 "
+import io; p='window.c'; s=io.open(p,encoding='utf-8').read()
+o='#define PAINT_ORDER_DEPTH 32'; n='#define PAINT_ORDER_DEPTH 2   /* MUTANT */'
+assert s.count(o)==1; io.open(p,'w',encoding='utf-8').write(s.replace(o,n))"
+  build_install && cell m3 && {
+    WINEDEBUG=-all "$W" "$S/steam.exe" steam://store >/dev/null 2>&1; sleep 12
+    echo "    'paint order incomplete': $(grep -c 'paint order incomplete' /tmp/steam-cell-m3/stdout.txt 2>/dev/null || echo 0)  (>=1 = red)"; }
+  down; (cd "$SRC" && git checkout -q -- window.c)
+  echo "=== restore green"; build_install && cell green && run_t1 green; down
+fi
+echo "########## done $(date '+%T')   tree modified: $( (cd "$SRC" && git status --porcelain | wc -l) | tr -d ' ')"
