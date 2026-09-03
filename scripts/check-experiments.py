@@ -302,6 +302,22 @@ def main():
     print("  ledger rows    : %d index, %d claims" % (len(index), len(claims)))
     for n in notes:
         print("  note   %s" % n)
+    # The published winemac patches are generated from the nested git history; a hand-maintained
+    # copy drifts from the binary it claims to describe. --check regenerates to a temp dir, cmps
+    # against scripts/*.patch, and exercises the split's structural invariants. Exit 64 means the
+    # nested repo is not on this machine (a collaborator's clone) — a note, not drift.
+    import subprocess
+    r = subprocess.run(["bash", "scripts/regen-winemac-patches.sh", "--check"],
+                       capture_output=True, text=True)
+    if r.returncode == 64:
+        notes.append("winemac patch gate skipped: %s" % (r.stderr.strip().splitlines() or ["nested repo absent"])[-1])
+    elif r.returncode != 0:
+        tail = [l.strip() for l in (r.stdout + r.stderr).splitlines() if l.strip()][-4:]
+        problems.append("published winemac patches drift from git or break the split's invariants: %s"
+                        % " | ".join(tail))
+    else:
+        notes.append("winemac patches: committed copies match git, split invariants hold")
+
     for p in problems:
         print("  DRIFT  %s" % p)
     print("  -> %s" % ("OK" if not problems else "%d drift item(s)" % len(problems)))

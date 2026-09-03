@@ -9,7 +9,7 @@
 # or dxmt maintainer who intends to write your own implementation, reading this file is a choice
 # with a consequence: the reports carry the whole diagnosis with none of the code.
 #
-# LICENSING. The five files this touches are LGPL-2.1-or-later with CodeWeavers copyright lines,
+# LICENSING. The four files this touches are LGPL-2.1-or-later with CodeWeavers copyright lines,
 # and a unified diff of them reproduces LGPL context and removed lines. The modifications are
 # (c) 2026 the author and are offered under LGPL-2.1-or-later, the license of the files they
 # modify; context lines are Wine's and are not relicensed. This repository's own scripts and docs
@@ -306,10 +306,10 @@ index 9a91edb..0405099 100644
  extern bool macdrv_get_view_backing_size(macdrv_view v, int backing_size[2]);
  extern void macdrv_set_view_backing_size(macdrv_view v, const int backing_size[2]);
 diff --git a/dlls/winemac.drv/window.c b/dlls/winemac.drv/window.c
-index c23142d..bea1ef5 100644
+index c23142d..33f5229 100644
 --- a/dlls/winemac.drv/window.c
 +++ b/dlls/winemac.drv/window.c
-@@ -39,6 +39,88 @@
+@@ -39,6 +39,103 @@
  
  WINE_DEFAULT_DEBUG_CHANNEL(macdrv);
  
@@ -317,18 +317,17 @@ index c23142d..bea1ef5 100644
 + * Siblings are walked bottom to top (GW_HWNDNEXT runs top to bottom) and a window is recorded
 + * before its own children, so a child sits above its parent and an upper sibling above the whole
 + * subtree of a lower one. Built once per update, not once per layer: this runs during a drag. */
-+#define PAINT_ORDER_MAX 64
-+#define PAINT_ORDER_DEPTH 8
++#define PAINT_ORDER_DEPTH 32
 +
 +struct paint_order
 +{
-+    HWND hwnds[PAINT_ORDER_MAX];   /* index 0 = furthest back */
-+    int  count;
-+    BOOL truncated;                /* a bound was hit; z-order below is incomplete */
++    HWND *hwnds;                   /* index 0 = furthest back; grown by doubling */
++    int   count, capacity;
++    BOOL  truncated;               /* a bound was hit; z-order below is incomplete */
 +};
 +
-+/* An unlogged cap reads as "we ordered everything" when we did not; once per process, though,
-+ * since this runs on the drag path. Layers past the cap keep their previous z. */
++/* An unlogged bound reads as "we ordered everything" when we did not; once per process, though,
++ * since this runs on the drag path. Layers past it keep their previous z. */
 +static void paint_order_truncated(struct paint_order *po, const char *why, HWND at)
 +{
 +    static BOOL warned;
@@ -342,11 +341,32 @@ index c23142d..bea1ef5 100644
 +    po->truncated = TRUE;
 +}
 +
++static BOOL paint_order_add(struct paint_order *po, HWND hwnd)
++{
++    if (po->count == po->capacity)
++    {
++        int capacity = po->capacity ? po->capacity * 2 : 32;
++        HWND *hwnds = realloc(po->hwnds, capacity * sizeof(*hwnds));
++
++        if (!hwnds)
++        {
++            paint_order_truncated(po, "out of memory", hwnd);
++            return FALSE;
++        }
++        po->hwnds = hwnds;
++        po->capacity = capacity;
++    }
++    po->hwnds[po->count++] = hwnd;
++    return TRUE;
++}
++
++/* GW_CHILD gives the topmost child and GW_HWNDLAST the bottommost sibling, so GW_HWNDPREV from
++ * there walks bottom to top. Recording a window before descending into it puts a child above its
++ * parent and an upper sibling above the whole subtree of a lower one, which is Win32 paint order
++ * -- in one pass, with no per-level array and no bound on breadth. */
 +static void paint_order_walk(HWND parent, struct paint_order *po, int depth)
 +{
-+    HWND kids[PAINT_ORDER_MAX];
 +    HWND k;
-+    int n = 0, i;
 +
 +    if (depth >= PAINT_ORDER_DEPTH)
 +    {
@@ -354,34 +374,29 @@ index c23142d..bea1ef5 100644
 +        return;
 +    }
 +
-+    for (k = NtUserGetWindowRelative(parent, GW_CHILD); k;
-+         k = NtUserGetWindowRelative(k, GW_HWNDNEXT))
-+    {
-+        if (n == PAINT_ORDER_MAX)
-+        {
-+            paint_order_truncated(po, "too many siblings", parent);
-+            break;
-+        }
-+        kids[n++] = k;
-+    }
++    if (!(k = NtUserGetWindowRelative(parent, GW_CHILD))) return;
 +
-+    for (i = n - 1; i >= 0; i--)
++    for (k = NtUserGetWindowRelative(k, GW_HWNDLAST); k;
++         k = NtUserGetWindowRelative(k, GW_HWNDPREV))
 +    {
-+        if (po->count == PAINT_ORDER_MAX)
-+        {
-+            paint_order_truncated(po, "too many windows in the tree", parent);
-+            return;
-+        }
-+        po->hwnds[po->count++] = kids[i];
-+        paint_order_walk(kids[i], po, depth + 1);
++        if (!paint_order_add(po, k)) return;
++        paint_order_walk(k, po, depth + 1);
 +    }
 +}
 +
 +static void build_paint_order(HWND root, struct paint_order *po)
 +{
-+    po->count = 0;
++    po->hwnds = NULL;
++    po->count = po->capacity = 0;
 +    po->truncated = FALSE;
 +    if (root) paint_order_walk(root, po, 0);
++}
++
++static void paint_order_free(struct paint_order *po)
++{
++    free(po->hwnds);
++    po->hwnds = NULL;
++    po->count = po->capacity = 0;
 +}
 +
 +/* TRUE + *zpos on success; on failure the caller must leave zPosition alone. Returning 0.0 for
@@ -398,7 +413,7 @@ index c23142d..bea1ef5 100644
  
  static pthread_mutex_t win_data_mutex;
  static CFMutableDictionaryRef win_datas;
-@@ -843,6 +925,35 @@ static HMONITOR monitor_from_point(POINT pt, UINT flags)
+@@ -843,6 +940,35 @@ static HMONITOR monitor_from_point(POINT pt, UINT flags)
  }
  
  
@@ -434,7 +449,7 @@ index c23142d..bea1ef5 100644
  /***********************************************************************
   *              move_window
   *
-@@ -1178,14 +1289,34 @@ BOOL macdrv_client_surface_acquire_metal_swapchain(struct macdrv_client_surface
+@@ -1178,14 +1304,34 @@ BOOL macdrv_client_surface_acquire_metal_swapchain(struct macdrv_client_surface
      {
          RECT rect;
  
@@ -475,7 +490,7 @@ index c23142d..bea1ef5 100644
      }
  
      return surface->metal_swapchain != NULL;
-@@ -1269,6 +1400,9 @@ void macdrv_DestroyWindow(HWND hwnd)
+@@ -1269,6 +1415,9 @@ void macdrv_DestroyWindow(HWND hwnd)
  
      if (!(data = get_win_data(hwnd))) return;
  
@@ -485,7 +500,7 @@ index c23142d..bea1ef5 100644
      if (data->drag_event) NtSetEvent(data->drag_event, NULL);
  
      destroy_cocoa_window(data);
-@@ -1557,8 +1691,56 @@ LRESULT macdrv_WindowMessage(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
+@@ -1557,8 +1706,57 @@ LRESULT macdrv_WindowMessage(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
      case WM_MACDRV_CREATE_REMOTE_LAYER:
          if ((data = get_win_data(hwnd)))
          {
@@ -526,6 +541,7 @@ index c23142d..bea1ef5 100644
 +
 +                build_paint_order(hwnd, &po);
 +                have_z = child && paint_order_zpos(&po, child, &zpos);
++                paint_order_free(&po);
 +                macdrv_window_create_ca_layer_host_view(data->cocoa_window, (unsigned int)lp, frame,
 +                                                       zpos, have_z);
 +                /* Track every hosted layer: a child's so it can be repositioned on resize, and
@@ -544,7 +560,7 @@ index c23142d..bea1ef5 100644
              release_win_data(data);
          }
          return 0;
-@@ -1566,7 +1748,18 @@ LRESULT macdrv_WindowMessage(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
+@@ -1566,7 +1764,18 @@ LRESULT macdrv_WindowMessage(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
          if ((data = get_win_data(hwnd)))
          {
              TRACE("WM_MACDRV_RELEASE_REMOTE_LAYER context_id %u\n", (unsigned int)lp);
@@ -564,7 +580,7 @@ index c23142d..bea1ef5 100644
              release_win_data(data);
          }
          return 0;
-@@ -1577,9 +1770,11 @@ LRESULT macdrv_WindowMessage(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
+@@ -1577,9 +1786,11 @@ LRESULT macdrv_WindowMessage(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
  }
  
  
@@ -578,13 +594,67 @@ index c23142d..bea1ef5 100644
  }
  
  
-@@ -1635,6 +1830,64 @@ BOOL macdrv_GetWindowStyleMasks(HWND hwnd, UINT style, UINT ex_style, UINT *styl
+@@ -1635,6 +1846,119 @@ BOOL macdrv_GetWindowStyleMasks(HWND hwnd, UINT style, UINT ex_style, UINT *styl
  /***********************************************************************
   *              WindowPosChanged   (MACDRV.@)
   */
 +
 +/* Re-place the cross-process layers hosted on this window: they mirror children owned by another
 + * process, which are not managed windows, so no WindowPosChanged of their own ever arrives. */
++/* The context id of this root's hosted layer for this child, or 0. Same value scan
++ * update_remote_layer_frames does, without doing the work when the answer is no. */
++static unsigned int remote_layer_context_for(struct macdrv_win_data *data, HWND child)
++{
++    CFIndex count, i;
++    const void **keys, **vals;
++    unsigned int context_id = 0;
++
++    if (!data->remote_layer_children || !child) return 0;
++    if (!(count = CFDictionaryGetCount(data->remote_layer_children))) return 0;
++
++    keys = calloc(count, sizeof(*keys));
++    vals = calloc(count, sizeof(*vals));
++    if (keys && vals)
++    {
++        CFDictionaryGetKeysAndValues(data->remote_layer_children, keys, vals);
++        for (i = 0; i < count && !context_id; i++)
++            if ((HWND)vals[i] == child) context_id = (unsigned int)(UINT_PTR)keys[i];
++    }
++    free(keys);
++    free(vals);
++    return context_id;
++}
++
++/* Reposition ONE hosted layer. A child's own move only moves that child, and refreshing every
++ * layer on the root instead costs O(n) per child: during a resize the root moves, all n children
++ * move with it, and n full passes run where one pass would do. Measured on Steam's store page,
++ * that multiplier produced 9 near-black frames in 400 during churn where the same build without
++ * this path produced 0 in 320. The root's own WindowPosChanged still does the full pass. */
++static void update_remote_layer_frame_for(struct macdrv_win_data *data, HWND child,
++                                          unsigned int context_id)
++{
++    struct paint_order order;
++    RECT root_rect, cr;
++    double zpos = 0.0;
++    BOOL have_z;
++    UINT dpi;
++
++    if (!data->cocoa_window || !child || !context_id) return;
++    dpi = NtUserGetWinMonitorDpi(data->hwnd, MDT_RAW_DPI);
++    if (!NtUserGetWindowRect(data->hwnd, &root_rect, dpi)) return;
++    if (!NtUserGetWindowRect(child, &cr, dpi)) return;
++    OffsetRect(&cr, -root_rect.left, -root_rect.top);
++
++    build_paint_order(data->hwnd, &order);
++    have_z = paint_order_zpos(&order, child, &zpos);
++    paint_order_free(&order);
++
++    TRACE("child %p context %u frame %s zpos %.0f%s\n", child, context_id,
++          wine_dbgstr_rect(&cr), zpos, have_z ? "" : " (not in paint order)");
++    macdrv_window_update_ca_layer_host_frame(data->cocoa_window, context_id,
++        CGRectMake(cr.left, cr.top, cr.right - cr.left, cr.bottom - cr.top), zpos, have_z);
++}
++
 +static void update_remote_layer_frames(struct macdrv_win_data *data)
 +{
 +    CFIndex count, i;
@@ -604,7 +674,7 @@ index c23142d..bea1ef5 100644
 +
 +    keys = calloc(count, sizeof(*keys));
 +    vals = calloc(count, sizeof(*vals));
-+    if (!keys || !vals) { free(keys); free(vals); return; }
++    if (!keys || !vals) { free(keys); free(vals); paint_order_free(&order); return; }
 +    CFDictionaryGetKeysAndValues(data->remote_layer_children, keys, vals);
 +
 +    for (i = 0; i < count; i++)
@@ -638,12 +708,45 @@ index c23142d..bea1ef5 100644
 +    }
 +    free(keys);
 +    free(vals);
++    paint_order_free(&order);
 +}
 +
  void macdrv_WindowPosChanged(HWND hwnd, HWND insert_after, HWND owner_hint, UINT swp_flags,
                               const struct window_rects *new_rects, struct window_surface *surface)
  {
-@@ -1687,6 +1940,10 @@ void macdrv_WindowPosChanged(HWND hwnd, HWND insert_after, HWND owner_hint, UINT
+@@ -1654,7 +1978,30 @@ void macdrv_WindowPosChanged(HWND hwnd, HWND insert_after, HWND owner_hint, UINT
+     TRACE("win %p/%p new_rects %s style %08x flags %08x surface %p\n", hwnd, data->cocoa_window,
+           debugstr_window_rects(new_rects), new_style, swp_flags, surface);
+ 
+-    if (!data->cocoa_window) goto done;
++    if (!data->cocoa_window)
++    {
++        /* A cross-process child has win_data but no cocoa_window of its own, and this hook runs in
++         * the thread that owns it -- the same thread that owns its root and hosts its layer, since
++         * a foreign SetWindowPos is marshalled here via WM_WINE_SETWINDOWPOS. So the owner already
++         * sees every child move and, before this branch, discarded it: a move or a z change with
++         * the root stationary left the hosted layer at its old rect until the root next moved. It
++         * only went unnoticed because the client re-creates its swapchain on every resize.
++         * swp_flags here are the effective flags after fixup_swp_flags, so a no-op call already
++         * carries NOMOVE|NOSIZE|NOZORDER and costs nothing. */
++        HWND root = NtUserGetAncestor(hwnd, GA_ROOT);
++        BOOL moved = (~swp_flags & (SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER)) ||
++                     (swp_flags & (SWP_SHOWWINDOW | SWP_HIDEWINDOW));
++
++        release_win_data(data);   /* release the child before taking the root: win_data_mutex is
++                                   * recursive, so single-level lock scopes are a preference here,
++                                   * not a requirement */
++        if (moved && root && root != hwnd && (data = get_win_data(root)))
++        {
++            update_remote_layer_frame_for(data, hwnd, remote_layer_context_for(data, hwnd));
++            release_win_data(data);
++        }
++        return;
++    }
+ 
+     if (data->on_screen)
+     {
+@@ -1687,6 +2034,10 @@ void macdrv_WindowPosChanged(HWND hwnd, HWND insert_after, HWND owner_hint, UINT
          }
      }
  
@@ -654,3 +757,11 @@ index c23142d..bea1ef5 100644
      if (fullscreen || fullscreen != data->fullscreen)
      {
          CGRect rect = (fullscreen && !EqualRect(&data->rects.window, &data->rects.visible)) ? cgrect_from_rect(data->rects.window) : CGRectZero;
+@@ -1694,7 +2045,6 @@ void macdrv_WindowPosChanged(HWND hwnd, HWND insert_after, HWND owner_hint, UINT
+         data->fullscreen = fullscreen;
+     }
+ 
+-done:
+     release_win_data(data);
+ }
+ 

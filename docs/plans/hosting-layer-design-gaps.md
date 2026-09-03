@@ -40,6 +40,13 @@
 > seven harness defects, each yielding a plausible wrong answer; they are now one committed
 > instrument, `scripts/hosting-layer-tests.sh`.
 >
+> **Deviation found after the fact (2026-09-03).** This build did not regenerate the published
+> patches: D1/D2 landed on the nested repo's `main` only, so the committed core patch lacked them and
+> the glue patch drifted, for ~14 h, until `regen-winemac-patches.sh --check` was run by hand.
+> Fixed by rebuilding `main` as aquadran → core(+D1/D2) → glue with the tree proven byte-identical;
+> the generator now pins glue by subject and `--check` runs inside `check-experiments.py`. GOTCHAS
+> 2026-09-03, ledger C31 addendum.
+>
 > **Verify against:** `scripts/hosting-layer-tests.sh` · the winemac history at `4c8b050`+ ·
 > `EXPERIMENTS.md` C32 · `~/cs2-patch/hosting-layer-tests/20260903-012103`.
 

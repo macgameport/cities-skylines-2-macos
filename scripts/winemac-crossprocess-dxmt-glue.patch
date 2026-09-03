@@ -9,7 +9,7 @@
 # or dxmt maintainer who intends to write your own implementation, reading this file is a choice
 # with a consequence: the reports carry the whole diagnosis with none of the code.
 #
-# LICENSING. The five files this touches are LGPL-2.1-or-later with CodeWeavers copyright lines,
+# LICENSING. The two files this touches are LGPL-2.1-or-later with CodeWeavers copyright lines,
 # and a unified diff of them reproduces LGPL context and removed lines. The modifications are
 # (c) 2026 the author and are offered under LGPL-2.1-or-later, the license of the files they
 # modify; context lines are Wine's and are not relicensed. This repository's own scripts and docs

@@ -1711,3 +1711,31 @@ also waits 20 s between runs so a control is taken on a settled window.
 void" into "the next run is wrong". Any probe that backgrounds a stimulus needs the stimulus killed
 on every exit path, not just the successful one — and a control that does not look like a control
 should be disbelieved before it is reported.
+
+## A generator with a relative range drifts the day the branch grows — pin by commit, gate by invariant (2026-09-03)
+
+**What happened.** The three published winemac patches are generated from a nested git history
+whose shape was `stock → aquadran → cherry-pick(core) → glue`, and the generator encoded that shape
+as *positions*: glue was `main~1..main`, "always the last commit on main". The design-gaps build
+(C32) then landed D1 and D2 on `main` only. Nothing failed. The combined patch grew to include them,
+the "glue" patch silently became the D1 scoping fix's diff, and the committed **core** patch —
+the one destined for wine bug 60263 as the stock-applicable reference — quietly lacked both fixes
+that the installed module carried. The published reference disagreed with the running binary for
+about fourteen hours, and it was found only because `--check` was run by hand while preparing the
+attachment. The core header also said *"the five files this touches"* over a four-file diff — the
+count had been typed, not measured, and is exactly the comment-accuracy defect issue #6 exists for.
+
+**Three fixes.** (1) Glue is pinned by its commit **subject**, and the generator refuses to run
+unless `main`'s tip *is* that commit — so the failure mode is loud the moment anything lands on
+`main` after glue, with the remedy in the message (cherry-pick onto `core`, rebuild `main`, prove
+the tree unchanged). (2) `--check` now exercises the split's structural invariants with
+`git apply` instead of only `cmp`-ing files: core applies to pristine stock; aquadran + core equals
+glue's parent byte for byte; glue's parent + glue equals `main`. (3) `--check` is wired into
+`check-experiments.py`, so it runs at every `button up` instead of when someone remembers. The
+file count in the header is now computed from the diff.
+
+**The general shape.** "The latest commit" is an assumption about history shape that nothing
+enforces; a generator that reads it will produce a plausible wrong artifact rather than an error.
+State the invariant, check it mechanically, and make the check part of a gate that already runs —
+a `--check` that exists but is not wired in is a gate that was not run.
+

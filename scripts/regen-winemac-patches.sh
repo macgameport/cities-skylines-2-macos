@@ -38,7 +38,10 @@ done
 [ -n "$OUT" ] || OUT="$(mktemp -d /tmp/winemac-patches.XXXXXX)"
 mkdir -p "$OUT"
 
-# The header every published patch carries. $1 = title line, $2 = the APPLY paragraph.
+# The header every published patch carries. $1 = title line, $2 = the APPLY paragraph, $3 = the
+# number of files the diff touches (counted, not typed: the core header said "five" for a
+# four-file diff until 2026-09-03).
+words() { case "$1" in 1) echo one;; 2) echo two;; 3) echo three;; 4) echo four;; 5) echo five;; 6) echo six;; *) echo "$1";; esac; }
 common_header() {
 cat <<HDR
 # $1
@@ -52,7 +55,7 @@ cat <<HDR
 # or dxmt maintainer who intends to write your own implementation, reading this file is a choice
 # with a consequence: the reports carry the whole diagnosis with none of the code.
 #
-# LICENSING. The five files this touches are LGPL-2.1-or-later with CodeWeavers copyright lines,
+# LICENSING. The $(words "$3") files this touches are LGPL-2.1-or-later with CodeWeavers copyright lines,
 # and a unified diff of them reproduces LGPL context and removed lines. The modifications are
 # (c) 2026 the author and are offered under LGPL-2.1-or-later, the license of the files they
 # modify; context lines are Wine's and are not relicensed. This repository's own scripts and docs
@@ -64,8 +67,9 @@ HDR
 }
 
 gen() { # gen <file> <git-diff-range> <title> <apply-paragraph>
-  local f="$OUT/$1" range="$2"
-  common_header "$3" "$4" > "$f"
+  local f="$OUT/$1" range="$2" n
+  n="$(git -C "$REPO" diff --name-only "$range" | wc -l | tr -d ' ')"
+  common_header "$3" "$4" "$n" > "$f"
   git -C "$REPO" diff "$range" >> "$f"
   printf '  %-46s %6s lines\n' "$1" "$(wc -l < "$f" | tr -d ' ')"
 }
@@ -94,6 +98,15 @@ APPLY_GLUE='# APPLY: on top of core + scripts/wineandaqua-dxmt.patch, from the t
 # scripts/dxmt-remote-layer-fallback.patch; NEITHER half works alone.
 '
 
+# Glue is pinned by its commit SUBJECT, not by position, and main's tip must BE that commit.
+# `main~1..main` silently produced the wrong diff the day two more commits landed on main
+# (2026-09-03): the combined patch grew, the "glue" became the newest commit's diff, and the
+# committed core patch quietly lacked the fixes in the installed module. Commits that belong on
+# main after glue do not exist: stock-applicable work goes on core, main is rebuilt on top.
+GLUE="$(git -C "$REPO" log --format=%H --grep='^winemac: DXMT glue over' main)"
+[ "$(printf '%s\n' "$GLUE" | grep -c .)" = 1 ] || { echo "ERROR: expected exactly one glue commit on main, found: $GLUE" >&2; exit 65; }
+[ "$(git -C "$REPO" rev-parse main)" = "$GLUE" ] || { echo "ERROR: main's tip is not the glue commit — something landed on main after glue. Cherry-pick it onto core, rebuild main as aquadran -> core -> glue, confirm the tree is unchanged (GOTCHAS 2026-09-03)" >&2; exit 65; }
+
 echo "regenerating from $REPO"
 gen winemac-crossprocess-remote-layer.patch  aquadran..main \
     'winemac-crossprocess-remote-layer.patch — the wine half of the cross-process Steam fix (combined).' \
@@ -101,8 +114,7 @@ gen winemac-crossprocess-remote-layer.patch  aquadran..main \
 gen winemac-crossprocess-child-core.patch    stock..core \
     'winemac-crossprocess-child-core.patch — cross-process child window Metal swapchains (stock wine).' \
     "$APPLY_CORE"
-# glue is always the last commit on main: stock -> aquadran -> cherry-pick(core) -> glue
-gen winemac-crossprocess-dxmt-glue.patch     main~1..main \
+gen winemac-crossprocess-dxmt-glue.patch     "$GLUE~1..$GLUE" \
     'winemac-crossprocess-dxmt-glue.patch — the DXMT-specific layer over the core patch.' \
     "$APPLY_GLUE"
 
@@ -112,6 +124,18 @@ if [ "$MODE" = check ]; then
     if cmp -s "$OUT/$f" "$HERE/$f"; then echo "  ok    $f"
     else echo "  DRIFT $f — the committed copy differs from git; regenerate with --install"; rc=1; fi
   done
+  # Structural invariants — the split is only real while these hold. Exercised with `git apply`,
+  # which allows offsets but no fuzz and never leaves .orig files behind.
+  #   1. core applies to PRISTINE stock                    (the stock-applicable claim)
+  #   2. aquadran + core == glue's parent, byte for byte   (core lands exactly where main's history says)
+  #   3. glue's parent + glue == main                      (so combined == core + glue)
+  T=$(mktemp -d /tmp/winemac-inv.XXXXXX)
+  tree() { mkdir -p "$T/$1/dlls/winemac.drv"; git -C "$REPO" archive "$2" | tar -x -C "$T/$1/dlls/winemac.drv"; }
+  tree stock stock; tree aq aquadran; tree pre "$GLUE~1"; tree main main
+  if git -C "$T/stock" apply -p1 "$OUT/winemac-crossprocess-child-core.patch" 2>/dev/null; then echo "  ok    core applies to pristine stock"; else echo "  FAIL  core does not apply to pristine stock"; rc=1; fi
+  if git -C "$T/aq" apply -p1 "$OUT/winemac-crossprocess-child-core.patch" 2>/dev/null && diff -r "$T/aq" "$T/pre" >/dev/null; then echo "  ok    aquadran + core == glue's parent"; else echo "  FAIL  aquadran + core != glue's parent"; rc=1; fi
+  if git -C "$T/pre" apply -p1 "$OUT/winemac-crossprocess-dxmt-glue.patch" 2>/dev/null && diff -r "$T/pre" "$T/main" >/dev/null; then echo "  ok    glue's parent + glue == main"; else echo "  FAIL  glue's parent + glue != main"; rc=1; fi
+  rm -rf "$T"
   exit $rc
 fi
 echo "written to $OUT"
