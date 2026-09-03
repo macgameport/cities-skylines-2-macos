@@ -4,6 +4,8 @@
 #   bash scripts/stage1-tests.sh                 # T2a (churn x3) + T4 seam + T6 trace
 #   CHURNS=1 bash scripts/stage1-tests.sh        # one churn, for a quick read
 #   T7=1 bash scripts/stage1-tests.sh            # T7 instead: width churn then height churn, x1 each
+#   DIAG=1 MODULE=~/cs2-patch/winemac.so.diagfix bash scripts/stage1-tests.sh
+#                                              # T2a proper: a colour build, scored per SOURCE
 #
 # Steam is brought up ONCE through the cell harness (so every run is fingerprinted and a run with no
 # font library is refused, EXPERIMENTS.md) and left up for every row; shimmer-probe.sh does not
@@ -77,6 +79,15 @@ run_probe() {   # run_probe <label> [env assignments...]
   [ "$n" = 0 ] && { echo "    VOID: the probe wrote no frames to $OUT/$label"; return 1; }
   /tmp/darkboxes 6 "$OUT/$label"/f*.png > "$OUT/$label-bands.txt" 2>/dev/null
   python3 "$REPO/scripts/band-counts.py" "$OUT/$label-bands.txt" | sed 's/^/    /'
+  # T2a's criteria are per COLOUR, not just per band: green = S1 (an existing host placed larger
+  # than its content), magenta = S2 (create path), blue = S3 (the child's own layer). Only a DIAG
+  # build paints them -- on a prod module every black frame scores S4 by construction, so asking
+  # for the split there would read as a result when it is an artefact. Hence opt-in.
+  if [ "${DIAG:-0}" = 1 ]; then
+    python3 "$REPO/scripts/darkboxes-attrib.py" 6 "$OUT/$label"/f*.png \
+        > "$OUT/$label-attrib.txt" 2>&1
+    tail -1 "$OUT/$label-attrib.txt" | sed 's/^/    /'
+  fi
 }
 
 if [ "${T7:-0}" = 1 ]; then
