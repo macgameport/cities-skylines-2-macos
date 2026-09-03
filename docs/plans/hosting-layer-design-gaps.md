@@ -1,9 +1,47 @@
 # Cross-process hosting layer — the two design gaps and the three heuristics
 
-**Status: check-it'd 2026-09-03 — build-ready-with-fixes (pass 3, fitted re-check after the instruments build at `cc62ff8`; prose corrections folded, nothing in D1/D2/D3 or the test rows invalidated). Pass 2: check-it'd 2026-09-02 — build-ready-with-fixes (D1 was rewritten from a measurement after a needs-rework pass 1, then re-checked).** Umbrella:
+**Status: BUILT 2026-09-03 · check-it'd 2026-09-03 — build-ready-with-fixes (pass 3, fitted re-check after the instruments build at `cc62ff8`; prose corrections folded, nothing in D1/D2/D3 or the test rows invalidated). Pass 2: check-it'd 2026-09-02 — build-ready-with-fixes (D1 was rewritten from a measurement after a needs-rework pass 1, then re-checked).** Umbrella:
 [issue #1](https://github.com/macgameport/cities-skylines-2-macos/issues/1). Baseline: winemac tree as of commit
 `c94d9e9`; instruments at `cc62ff8`; installed module `310f13d03e27732d` (hash re-verified 2026-09-03); source tree
 `~/cs2-patch/build-1116/wine-11.16-dxmt/dlls/winemac.drv/` (line numbers below are against it).
+
+> **🔧 As-built (2026-09-03): BUILT.** Commits `4c8b050` (D1 + D2) and the D1 scoping fix that
+> followed; instrument `c07f2fe`/`scripts/hosting-layer-tests.sh`. Ledger **C32**. Verified on module
+> `cd79fc463795939f`: suite run `~/cs2-patch/hosting-layer-tests/20260903-012103`, boot-verify
+> `20260903-012453`.
+>
+> **Measured.** T0 premise holds on this build (CREATE tid `0130` vs acquiring tid `01dc`, disjoint).
+> T1 green — content shifts by exactly +120 and the old column vacates, negative control 60. T2
+> restacks by 103/channel and restores. T3 blackout 87/92/113 with 0 bright edges. T4 churn and
+> static 0 gaps. T5 depth mutant observed RED (`paint order incomplete` fires once at
+> `PAINT_ORDER_DEPTH 2`). T7 `VERDICT: PASS`, `GRACEFUL: yes`. T8 0 acquire failures, 0 GPU crashes,
+> 0 `paint order incomplete` across ~250 layer creations. D3 (`set_bounds`) was deleted in the
+> upstream-form build.
+>
+> **The regression, and why it matters more than the rest.** D1's first form called
+> `update_remote_layer_frames`, repositioning EVERY hosted layer on the root. A child's own move
+> moves one child; during a resize the root moves, all n children move with it, and n full passes ran
+> where one would do. Store-page churn: **0 gaps / 320 frames** before D1/D2, **9 / 400** with the
+> full pass (p < 0.001), **0 / 160** with that branch disabled and D2 active — which pinned it to D1
+> — and **1 / 480** once D1 updates only the moved child (p = 1.0 vs baseline). ⚠ **Every individual
+> test passed on the regressing build.** It was visible only by A/B against the previous module at a
+> sample size able to resolve a sub-1% rate. A green suite is not evidence of no regression.
+>
+> **T1's mutant is the plan's pre-registered case, not a pass.** Removing D1's refresh leaves T1
+> green, because this client re-creates its swapchain on every move (417 CREATE firings against 417
+> acquires in one session) and the create path positions the layer itself. D1 is therefore
+> **defensive on CEF** and load-bearing only for a client that moves a child without re-creating its
+> swapchain. Recorded as a finding, exactly as § T1 pre-registered; it is not a mutant observed red.
+>
+> **Deviations.** (1) T2 needs the store page (two non-zero overlapping siblings) and T1 must NOT use
+> it — the autoplaying video changes the capture between shots and every column reads "changed". The
+> plan said library for T1 and was right. (2) T9 (show/hide) was not exercised; it documents a known
+> pre-existing gap and no crash or ERR appeared in any run. (3) The ad-hoc test scripts produced
+> seven harness defects, each yielding a plausible wrong answer; they are now one committed
+> instrument, `scripts/hosting-layer-tests.sh`.
+>
+> **Verify against:** `scripts/hosting-layer-tests.sh` · the winemac history at `4c8b050`+ ·
+> `EXPERIMENTS.md` C32 · `~/cs2-patch/hosting-layer-tests/20260903-012103`.
 
 **Scope:** the three things the 2026-09-02 review left open *in the mechanism itself*: (D1) a
 child that moves or re-orders without a swapchain re-create is never re-placed; (D2) the paint-order
