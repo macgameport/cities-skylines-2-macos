@@ -1687,10 +1687,19 @@ sampled during it.
 
 **What that looked like.** In the C29 re-run for the core/glue split, run 2 aborted and the
 **static control** — the run whose entire job is to show what a quiescent window measures — came
-back with **39 distinct frames of 40** and one near-black frame, scored as a GAP. Both numbers are
-what a real regression looks like. A genuine static control on this window measures **1 distinct
-frame and 0 near-black** (ledger C17). The tell was the distinct-frame count, not the gap: a
-control showing 39 distinct frames is not a control, whatever its gap number says.
+back with an interior-luminance **minimum of 0** and one near-black frame scored as a GAP. That is
+what a real regression looks like.
+
+⚠ **The evidence is the before/after, not the distinct-frame count.** The first write-up of this
+entry claimed a control showing 39 distinct frames of 40 could not be a control, comparing against
+C17's "1 distinct frame". That reasoning is **wrong and was corrected the same day**: re-running the
+control after the fix gave **40 distinct frames** and a clean result (min luminance 79, 0 gaps),
+because Steam's page animates on its own — the distinct count is high either way and discriminates
+nothing. What actually establishes the contamination is three things together: the abort path
+demonstrably does not kill the driver (read the code), the arithmetic overlaps (a 14 s churn against
+a ~4 s wait plus 40 captures), and the same control on the same window goes from min 0 / 1 gap to
+min 79 / 0 gaps once the driver is killed. **Minimum interior luminance is the discriminator here;
+frame diversity is not.**
 
 **Two fixes, both in the probe.** (1) Kill the driver on the abort path. (2) Stop sampling for the
 size change at a fixed instant: it read at t=1.00 s and t=1.09 s, but wine needs about a second to
