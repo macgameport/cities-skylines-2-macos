@@ -1,3 +1,9 @@
+#!/usr/bin/env python3
+# darkboxes-attrib.py — per-frame attribution table for the issue-#7 diagnostic colours:
+# S1 = green (an existing host reframed larger than its content), S3 = blue (the child's own
+# layer before its first drawable), S4 = black with no diagnostic colour (nothing covers the
+# strip). Parses darkboxes output by LABEL, never by position.
+#   usage: python3 scripts/darkboxes-attrib.py <lum-threshold> <png>...   (needs /tmp/darkboxes)
 import re, sys, subprocess, glob
 # label-based parser for darkboxes lines; usage: attrib.py <thr> <png>...
 thr=sys.argv[1]; files=sorted(sys.argv[2:], key=lambda x:int(re.search(r'f(\d+)\.png',x).group(1)))
