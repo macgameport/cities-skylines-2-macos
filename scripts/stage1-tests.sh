@@ -1,0 +1,95 @@
+#!/bin/bash
+# stage1-tests.sh — the stage-1 rows of docs/plans/exposed-edge-live-resize.md, in one command.
+#
+#   bash scripts/stage1-tests.sh                 # T2a (churn x3) + T4 seam + T6 trace
+#   CHURNS=1 bash scripts/stage1-tests.sh        # one churn, for a quick read
+#   T7=1 bash scripts/stage1-tests.sh            # T7 instead: width churn then height churn, x1 each
+#
+# Steam is brought up ONCE through the cell harness (so every run is fingerprinted and a run with no
+# font library is refused, EXPERIMENTS.md) and left up for every row; shimmer-probe.sh does not
+# launch Steam itself, and pointing it at a dead prefix aborts with "no SDL_app top-level window".
+#
+# The STORE page is the fixture: two hosted CefBrowserWindow siblings and black artwork in the lower
+# tiles, which is what C35/C36 measured. The library has one host and cannot show S4.
+#
+# Run it DETACHED with a log — a tool timeout kills the process group and takes Steam with it.
+# (macgameport, 2026-09-03)
+set -u
+REPO="$(cd "$(dirname "$0")/.." && pwd)"
+SS="${CS2_WRAPPER:-$HOME/Applications/CS2dxmt11.app}/Contents/SharedSupport"
+W="$SS/wine/bin/wine64"; S="$SS/prefix/drive_c/Program Files (x86)/Steam"
+DRV="${CS2_DRIVER:-$HOME/cs2-patch/win-resize-driver.exe}"
+INST="$SS/wine/lib/wine/x86_64-unix/winemac.so"
+OUT="${OUT_DIR:-$HOME/cs2-patch/stage1-tests/$(date +%Y%m%d-%H%M%S)}"
+CHURNS="${CHURNS:-3}"
+MODULE="${MODULE:-}"        # optional: install this .so first (A/B against a saved build)
+mkdir -p "$OUT"
+export WINEPREFIX="$SS/prefix"
+export DYLD_FALLBACK_LIBRARY_PATH="${CS2_WRAPPER:-$HOME/Applications/CS2dxmt11.app}/Contents/Frameworks:$SS/wine/lib:/usr/lib:/usr/local/lib"
+
+_owns() { lsof -p "$1" 2>/dev/null | grep -q "$WINEPREFIX"; }
+steam_up() { for p in $(pgrep -f "steam.exe" 2>/dev/null); do _owns "$p" && return 0; done; return 1; }
+steam_family() { for p in $(pgrep -f "steam" 2>/dev/null); do _owns "$p" && echo "$p"; done; }
+down() {   # never kill -9 steam.exe: a 0-byte .crash makes the next launch exit 1
+  steam_up && WINEDEBUG=-all "$W" "$S/steam.exe" -shutdown >/dev/null 2>&1
+  for _ in $(seq 30); do steam_up || break; sleep 1; done
+  steam_up && { "$SS/wine/bin/wineserver" -k >/dev/null 2>&1; sleep 3; }
+  local left; left=$(steam_family | tr '\n' ' ')
+  [ -n "$left" ] && { "$SS/wine/bin/wineserver" -k >/dev/null 2>&1; sleep 2
+                      left=$(steam_family | tr '\n' ' '); [ -n "$left" ] && kill $left 2>/dev/null; }
+  return 0
+}
+CAF=""
+cleanup() { [ -n "$CAF" ] && kill "$CAF" 2>/dev/null; down; }
+trap cleanup EXIT
+caffeinate -d -i -u -t 5400 & CAF=$!
+drv() { WINEDEBUG=-all "$W" "$DRV" "$@" 2>/dev/null | tr -d '\r'; }
+
+down                        # a module swap needs Steam down: down() first, install second
+[ -n "$MODULE" ] && { cp "$MODULE" "$INST" || exit 1; }
+echo "########## stage 1 tests $(date '+%F %T')  module $(shasum -a 256 "$INST" | cut -c1-16)"
+echo "  run dir: $OUT"
+WINEDEBUG=+err,+macdrv bash "$REPO/scripts/steam-render-cell.sh" \
+    --label stage1 --keep-running >"$OUT/cell.txt" 2>&1
+steam_up || { echo "  VOID: $(grep -m1 FATAL "$OUT/cell.txt" | cut -c1-120)"; exit 1; }
+WINEDEBUG=-all "$W" "$S/steam.exe" steam://store >/dev/null 2>&1; sleep 15
+H=$(drv list | grep 'class=SDL_app' | grep 'title=Steam$' | awk '{print $1}' | head -1)
+[ -z "$H" ] && { echo "  VOID: no Steam SDL_app window after navigating to the store"; exit 1; }
+drv tree "$H" > "$OUT/tree.txt"; echo "  hosted children:"; sed 's/^/    /' "$OUT/tree.txt"
+
+[ -x /tmp/darkboxes ] || swiftc -O "$REPO/scripts/darkboxes.swift" -o /tmp/darkboxes || exit 1
+run_probe() {   # run_probe <label> [env assignments...]
+  local label="$1"; shift
+  echo "=== $label"
+  ( eval "$@" bash "$REPO/scripts/shimmer-probe.sh" churn ) >"$OUT/$label.txt" 2>&1
+  grep -E "EXPOSED-EDGE|gaps|frames|ABORT|VOID" "$OUT/$label.txt" | sed 's/^/    /'
+  # The probe's own EXPOSED-EDGE line ORs all four bands, and its B band over-flags on the store
+  # page's own black artwork. C35/C36 scored the RIGHT band; so does this -- per band, frames kept.
+  mkdir -p "$OUT/$label-frames"; cp /tmp/shimmer-churn/f*.png "$OUT/$label-frames/" 2>/dev/null
+  /tmp/darkboxes 6 "$OUT/$label-frames"/f*.png > "$OUT/$label-bands.txt" 2>/dev/null
+  python3 "$REPO/scripts/band-counts.py" "$OUT/$label-bands.txt" | sed 's/^/    /'
+}
+
+if [ "${T7:-0}" = 1 ]; then
+  run_probe t7-width  "CHURN_A=2200x1500 CHURN_B=2400x1500 CHURN_N=240"
+  run_probe t7-height "CHURN_A=2400x1360 CHURN_B=2400x1500 CHURN_N=240"
+else
+  i=1; while [ "$i" -le "$CHURNS" ]; do run_probe "t2a-churn-$i"; i=$((i+1)); done
+  echo "=== T4 seam — the blackout sizes, at rest and while scaled"
+  for sz in 2400x1500 2399x1499 2400x1500; do
+    drv drive "$H" "$sz" >/dev/null; sleep 2
+    id=$(/tmp/winlist 2>/dev/null | grep 'title=Steam$' | head -1 | sed -E 's/^id=([0-9]+).*/\1/')
+    [ -n "$id" ] && { screencapture -x -o -l "$id" "$OUT/t4-$sz.png" 2>/dev/null
+                      echo "    $sz  $(/tmp/pixel-probe "$OUT/t4-$sz.png" 2>/dev/null | tr '\n' ' ' | cut -c1-160)"; }
+  done
+  echo "=== static control"
+  ( bash "$REPO/scripts/shimmer-probe.sh" static ) >"$OUT/static.txt" 2>&1
+  grep -E "gaps|frames|ABORT|VOID" "$OUT/static.txt" | sed 's/^/    /'
+fi
+# The cell's log keeps growing while Steam stays up, so it is copied LAST -- copying it right
+# after the cell captured only the boot and made every T6 trace invisible (2026-09-03).
+cp /tmp/steam-cell-stage1/stdout.txt "$OUT/stdout.txt" 2>/dev/null
+echo "=== T6 trace — scale, last 12 lines"
+grep -E "context [0-9]+ frame .* scale" "$OUT/stdout.txt" 2>/dev/null | tail -12 | sed 's/^/    /'
+echo "  distinct scales seen: $(grep -oE 'scale [0-9.]+,[0-9.]+' "$OUT/stdout.txt" 2>/dev/null | sort | uniq -c | tr '\n' ' ')"
+echo "########## done $(date '+%F %T')"
