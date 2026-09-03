@@ -1765,3 +1765,32 @@ not eyeballed.
 report something the numbers deny, assume the numbers are wrong first, and go and look at the
 pictures — the frames were sitting in the evidence store the whole time.
 
+
+## Two scripts sharing `OUT_DIR` — the callee wipes the caller's run directory (2026-09-03)
+
+**What happened.** `stage1-tests.sh` was written to hold a run directory in `OUT_DIR` and call
+`shimmer-probe.sh` for each churn. The probe's line 29 is
+`out="${OUT_DIR:-/tmp/shimmer-$mode}"; rm -rf "$out"; mkdir -p "$out"` — so on every churn it
+**deleted the caller's run directory**, took it over, and wrote its own frames there. The caller's
+probe log vanished (a `grep: … No such file` that scrolled past), its frame copy found nothing in
+`/tmp/shimmer-churn`, and the scorer therefore read **frames left in `/tmp` by a run half an hour
+earlier**. Four churns across two different modules returned byte-identical band counts — `R 8/40
+(worst 86%) B 8/40 (worst 94%)`, four times — which is exactly what an untouched stale directory
+looks like, and reads exactly like "the change had no effect."
+
+**Why it is worth a heading.** `OUT_DIR`, `OUT`, `TMPDIR`, `LOG` and `DEBUG` are the names every
+script in a repo reaches for, and an exported one is inherited by everything downstream. The failure
+is silent in both directions: the callee is doing precisely what it documents, and the caller has no
+way to notice its own directory was replaced.
+
+**Three rules.**
+1. **A script that consumes an env var owns that name.** A runner that calls it must not use the
+   same name for its own state — `stage1-tests.sh` now uses `STAGE1_OUT` and passes the callee its
+   own `OUT_DIR="$OUT/<label>"` per invocation, which also stops two churns overwriting each other.
+2. **`rm -rf $VAR` on a caller-supplied path is a contract**; say so in the callee's header, because
+   the caller cannot see line 29.
+3. **Count the artifacts before scoring them.** The runner now refuses with `VOID` when the probe
+   wrote no frames, instead of scoring whatever it finds. Identical numbers across runs that should
+   differ is the tell — treat a repeat as a harness failure until proven otherwise.
+
+> **Ledger:** the four voided cells are not in `EXPERIMENTS.md`; the A/B was re-run after the fix.

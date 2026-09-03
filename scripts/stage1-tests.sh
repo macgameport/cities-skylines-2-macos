@@ -20,7 +20,12 @@ SS="${CS2_WRAPPER:-$HOME/Applications/CS2dxmt11.app}/Contents/SharedSupport"
 W="$SS/wine/bin/wine64"; S="$SS/prefix/drive_c/Program Files (x86)/Steam"
 DRV="${CS2_DRIVER:-$HOME/cs2-patch/win-resize-driver.exe}"
 INST="$SS/wine/lib/wine/x86_64-unix/winemac.so"
-OUT="${OUT_DIR:-$HOME/cs2-patch/stage1-tests/$(date +%Y%m%d-%H%M%S)}"
+# ⚠ NOT named OUT_DIR. shimmer-probe.sh reads OUT_DIR and `rm -rf`s it (its line 29), so a runner
+# that exports OUT_DIR has its own run directory deleted at the start of every churn -- the probe
+# log vanishes, the frame copy finds nothing, and the scorer silently reads whatever was left in
+# /tmp/shimmer-churn from an EARLIER run. Measured 2026-09-03: four churns across two modules all
+# returned byte-identical band counts, which is what an unchanged stale directory looks like.
+OUT="${STAGE1_OUT:-$HOME/cs2-patch/stage1-tests/$(date +%Y%m%d-%H%M%S)}"
 CHURNS="${CHURNS:-3}"
 MODULE="${MODULE:-}"        # optional: install this .so first (A/B against a saved build)
 mkdir -p "$OUT"
@@ -61,12 +66,16 @@ drv tree "$H" > "$OUT/tree.txt"; echo "  hosted children:"; sed 's/^/    /' "$OU
 run_probe() {   # run_probe <label> [env assignments...]
   local label="$1"; shift
   echo "=== $label"
-  ( eval "$@" bash "$REPO/scripts/shimmer-probe.sh" churn ) >"$OUT/$label.txt" 2>&1
-  grep -E "EXPOSED-EDGE|gaps|frames|ABORT|VOID" "$OUT/$label.txt" | sed 's/^/    /'
+  # Each churn gets its own OUT_DIR: the probe wipes whatever it is pointed at, and two churns
+  # sharing one directory means the second silently overwrites the first's frames.
+  ( eval "$@" OUT_DIR="$OUT/$label" bash "$REPO/scripts/shimmer-probe.sh" churn ) \
+      >"$OUT/$label.log" 2>&1
+  grep -E "EXPOSED-EDGE|gaps|frames|ABORT|VOID" "$OUT/$label.log" | sed 's/^/    /'
   # The probe's own EXPOSED-EDGE line ORs all four bands, and its B band over-flags on the store
   # page's own black artwork. C35/C36 scored the RIGHT band; so does this -- per band, frames kept.
-  mkdir -p "$OUT/$label-frames"; cp /tmp/shimmer-churn/f*.png "$OUT/$label-frames/" 2>/dev/null
-  /tmp/darkboxes 6 "$OUT/$label-frames"/f*.png > "$OUT/$label-bands.txt" 2>/dev/null
+  local n; n=$(ls "$OUT/$label"/f*.png 2>/dev/null | wc -l | tr -d ' ')
+  [ "$n" = 0 ] && { echo "    VOID: the probe wrote no frames to $OUT/$label"; return 1; }
+  /tmp/darkboxes 6 "$OUT/$label"/f*.png > "$OUT/$label-bands.txt" 2>/dev/null
   python3 "$REPO/scripts/band-counts.py" "$OUT/$label-bands.txt" | sed 's/^/    /'
 }
 
@@ -83,8 +92,8 @@ else
                       echo "    $sz  $(/tmp/pixel-probe "$OUT/t4-$sz.png" 2>/dev/null | tr '\n' ' ' | cut -c1-160)"; }
   done
   echo "=== static control"
-  ( bash "$REPO/scripts/shimmer-probe.sh" static ) >"$OUT/static.txt" 2>&1
-  grep -E "gaps|frames|ABORT|VOID" "$OUT/static.txt" | sed 's/^/    /'
+  ( OUT_DIR="$OUT/static" bash "$REPO/scripts/shimmer-probe.sh" static ) >"$OUT/static.log" 2>&1
+  grep -E "gaps|frames|ABORT|VOID" "$OUT/static.log" | sed 's/^/    /'
 fi
 # The cell's log keeps growing while Steam stays up, so it is copied LAST -- copying it right
 # after the cell captured only the boot and made every T6 trace invisible (2026-09-03).
