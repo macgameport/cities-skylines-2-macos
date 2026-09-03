@@ -1739,3 +1739,22 @@ enforces; a generator that reads it will produce a plausible wrong artifact rath
 State the invariant, check it mechanically, and make the check part of a gate that already runs —
 a `--check` that exists but is not wired in is a gate that was not run.
 
+## A probe that averages the perimeter cannot see a black side — score bands, keep the frames (2026-09-03)
+
+**What happened.** The live-drag probe scored each frame as `min(mean luminance over the whole
+perimeter, interior luminance)` and reported min 76 / 0 gaps for a sixty-frame human drag. James,
+at the mouse, saw black boxes on the open edge. Re-scoring the same frames per outer band: the right
+tenth of the window was **93% pure black** in the worst frame and **56 of 60** frames had a band at
+least 20% black (C35, issue #7). The interior was lit the whole time, and a mean over four edges
+diluted one fully black side to a rounding error. The number was true and the conclusion drawn from
+it was false.
+
+**Two rules.** (1) A score is a compression; before calling a run clean, look at the worst frame by
+a metric that can *localise* — `scripts/darkboxes.swift` now reports each band, and both resize
+probes print an EXPOSED-EDGE line. (2) **Keep the frames.** C28's eighty were discarded after
+scoring, so there is no earlier live-drag baseline and the regression question needed a fresh A/B.
+
+**The general shape.** A human watching the screen is a sensor the harness does not have. When they
+report something the numbers deny, assume the numbers are wrong first, and go and look at the
+pictures — the frames were sitting in the evidence store the whole time.
+
