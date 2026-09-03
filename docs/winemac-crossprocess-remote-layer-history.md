@@ -1,4 +1,4 @@
-# winemac cross-process remote-layer patch — working history (2026-08-29 to 2026-08-31)
+# winemac cross-process remote-layer patch — working history (2026-08-29 to 2026-09-02)
 
 > This is the narrative that used to live at the top of `scripts/winemac-crossprocess-remote-layer.patch`
 > — six dated addenda describing each fix as it was measured. It was moved here on 2026-09-02 because
@@ -415,3 +415,109 @@ Still knowingly divergent from wine's house style, and stated so it is a choice 
 oversight: the comments are far longer than wine's. That is deliberate here — this project
 requires measurements to live next to the code they justify — and it is the first thing that
 would have to be cut in half for upstream.
+
+=====================================================================================
+ADDENDUM 7 — 2026-09-02: the comment/provenance form pass, and the measurements it evicted.
+
+Pass (a) of docs/plans/winemac-reference-upstream-form.md § 2: strip handle tags, dates and the
+one EXPERIMENT banner from the five winemac.drv files, and cut comment volume toward wine's own
+rate by moving EVIDENCE here and leaving REASONS in the code. Comments only — no code byte was
+touched. Counts on the project's own added lines (git diff aquadran..form, five files):
+
+  macgameport handle tags   9 -> 0
+  EXPERIMENT headers        1 -> 0
+  dated lines              22 -> 0
+  comment-only added lines 241 -> 96   (28.7% -> 13.8% of added lines; 24.0% -> 11.6% vs stock)
+
+BYTE-IDENTITY: THE PLAN'S T1 PREMISE IS FALSE FOR window.c, AND HERE IS WHY.
+
+The pass was supposed to rebuild to the same sha256 as the pre-pass module (acbf3156..., the
+unsigned build-dir artifact). It does not: the rebuilt module is 4f4cafae..., same 503,800 bytes.
+No code changed. The cause is window.c:1328 (pre-pass), wine's own
+
+    assert(client->funcs == &macdrv_client_surface_funcs);
+
+in impl_from_client_surface(). macOS `assert` expands to __assert_rtn(__func__, __FILE__,
+__LINE__, ...), so the line number is baked into the object as an immediate. Removing 32 comment
+lines above it moved the assert from line 1328 to 1296, and the immediate moved with it.
+
+Measured, not argued -- four independent checks:
+  * cocoa_window.o and macdrv_main.o rebuild BYTE-IDENTICAL (bf9db14e..., 61ebc8fd...). Those two
+    files contain no assert(); the only assert() in the three edited files is the one above.
+  * window.o differs in EXACTLY 5 bytes -- cmp -l positions 27987, 28035, 28083, 28131, 28179,
+    each 0x30 -> 0x10, the low byte of 1328 (0x530) becoming 1296 (0x510). Five copies because
+    impl_from_client_surface() is inlined at five call sites, each carrying its own immediate.
+  * Compiled with -DNDEBUG (assert removed, same flags otherwise), the pre-pass and post-pass
+    window.c produce a BYTE-IDENTICAL window.o (7d019631...). Nothing but the assert differs.
+  * Warning set unchanged: 36 warnings, identical text, before and after.
+
+So the behaviour is provably unchanged, and the changed bytes are the line number an assertion
+failure would print -- which SHOULD move, because the line moved. T1's gate for a comment pass
+needs restating as "byte-identical under -DNDEBUG" (or "identical except the assert __LINE__
+immediate") for any file containing an assert(). Freezing the line number instead would mean
+padding the file to preserve a count, which is a worse artefact than the difference it hides.
+
+MEASUREMENTS EVICTED FROM COMMENTS, kept here so the reasons stay checkable. Only the ones not
+already recorded above; anything already in Addenda 1-6 was dropped as duplication.
+
+(1) retire_superseded_layers() -- the gap measurement in full. T1 of
+    docs/plans/hosting-layer-hardening.md drove 240 scripted resize steps and took 40 captures
+    DURING the churn: 35 distinct frames, 2 of them with a black content area (chrome -- menu bar,
+    nav, URL bar, bottom bar -- rendering perfectly with nothing in the middle). A 40-capture
+    static control on the same window produced ONE distinct frame and zero black ones. The rate
+    table in Addendum 5 is the summary of this; the step count, the distinct-frame count and the
+    static control were only in the code.
+
+(2) The deferred black background -- WHY IT IS STILL THERE. Removing it outright was tried and
+    re-measured, and the white seam comes straight back, exactly on the odd axis:
+        2400x1500 -> 0 bright edges    2401x1500 -> 1
+        2400x1501 -> 1                 2401x1501 -> 2
+    So it is load-bearing and dxmt_fill_view_edges() alone is NOT enough. (Addendum 4/D4 records
+    the retina threshold fix; it does not record that the background survives it.)
+
+(3) The deferred black background -- WHY IT IS DEFERRED, and by how much. 120 ms, on
+    dispatch_get_main_queue(). backgroundColor paints the WHOLE layer and a hosted layer is
+    visible from the moment it is added, before the remote CAContext has presented anything, so
+    setting it at creation flashed a full black rectangle on every newly hosted layer. Reported
+    live as "black box lag as I mouse back and forth over the menus" -- each menu is its own popup
+    window, so each one hosts a fresh layer.
+
+(4) The three-case frame test -- the first measurement, before the 0x0 case was known: with every
+    host stretched to the whole content view, inserting a second host at the bottom of the stack
+    measured BLACK. That is what motivated positioning and clipping hosts to a real child rect.
+
+(5) macdrv_swapchain_set_bounds() -- the five instrumented sessions named. Addendum 3(B) says
+    "five instrumented sessions"; they were resize-diag, -fix, -final, -ship, and the popup runs.
+
+(6) Surface keying -- why by VIEW and not by HWND: the client re-acquires the same HWND several
+    times. Measured 16 distinct windows, 4 acquires each.
+
+(7) pending_by_child -- the dead-child leak, found by the 2026-09-02 review pass rather than by a
+    failure: every closed popup menu parked one swapchain forever, because a destroyed child never
+    releases again and nothing swept its slot.
+
+(8) The WINPOS instrument's original question, now that its comment no longer states it: a black
+    band persisted between Steam's chrome and its page content after creation geometry had been
+    ruled out (children sit at the root origin), so the update path was instrumented to find which
+    layer was misplaced or missing. Answer was the Win32-pixels -> Cocoa-points conversion,
+    Addendum 1.
+
+(9) The CONTENT/SCALE instrument line: with kCAFilterNearest a STRETCHED layer makes photographic
+    background art shimmer while flat UI and text stay crisp, which is the reported symptom in
+    Addendum 3(C) exactly -- which is why that instrument prints the drawable-to-bounds ratio.
+    It logged 0 stretch events, so it eliminated rather than confirmed.
+
+(10) The deferred-by-one release -- the symptom that motivated it, before T1 measured anything.
+     An immediate release deallocs the CAContextSwapChain and posts WM_MACDRV_RELEASE_REMOTE_LAYER,
+     un-hosting the layer at once, and a client that resizes by destroying a swapchain and creating
+     a new one then has nothing hosted between the two. Observed live as flicker on resize, and as
+     a permanently black child when the ordering was unlucky. Addendum 5 records the rate table
+     that followed; this was the observation the deferral was built from.
+
+WHAT DELIBERATELY STAYED IN THE CODE: the reason for every non-obvious branch -- why a child's
+rect is converted to the root's space, why a zero-area layer is hidden rather than stretched, why
+visibility and geometry are tested separately, why layers are stacked by Win32 paint order, why
+the superseded layer is retired only after its replacement is in the tree, why the surface table
+is keyed by view, and why the release is deferred by one. The incidents behind them are here; the
+reasons are there. The DXMT_RSZ instrument blocks are untouched apart from their tags and dates --
+pass (b) removes them wholesale.
