@@ -34,12 +34,11 @@
 > harness's `caffeinate` covers only its own 215 s, and captures were taken without raising the
 > window first. Both fixed in the harness, then re-run.
 >
-> **Not done.** Exit criterion 5 — offering the core patch to bug 60263 as a second attachment —
-> needs James's go-ahead and has not been requested.
->
-> **Verify against:** `scripts/winemac-crossprocess-child-core.patch` ·
-> `scripts/winemac-crossprocess-dxmt-glue.patch` · `scripts/winemac-crossprocess-remote-layer.patch` ·
-> `scripts/regen-winemac-patches.sh` · `scripts/strip-comments.py` · the nested git history.
+> **Done 2026-09-03.** Exit criterion 5 — the core patch is attachment **82030** on wine bug 60263
+> (35,531 B, `is_patch`, comment #2), and attachment 82021 is marked obsolete. Posted after James
+> approved the draft, via the Bugzilla REST API. ⚠ Found while preparing it: the committed core
+> patch had drifted (D1/D2 on `main` only) — fixed in 643dd6c, see GOTCHAS 2026-09-03 and ledger
+> C31 addendum. The vulkan.c path is stated in the comment as compiled but never exercised.
 
 **Standing decision this plan does not change:** the project files *reports, not patches* (dxmt
 forbids AI-authored PRs; wine got bug 60263 with the implementation offered as a reference). The
