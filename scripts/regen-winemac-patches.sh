@@ -101,7 +101,8 @@ gen winemac-crossprocess-remote-layer.patch  aquadran..main \
 gen winemac-crossprocess-child-core.patch    stock..core \
     'winemac-crossprocess-child-core.patch — cross-process child window Metal swapchains (stock wine).' \
     "$APPLY_CORE"
-gen winemac-crossprocess-dxmt-glue.patch     core-merge..main \
+# glue is always the last commit on main: stock -> aquadran -> cherry-pick(core) -> glue
+gen winemac-crossprocess-dxmt-glue.patch     main~1..main \
     'winemac-crossprocess-dxmt-glue.patch — the DXMT-specific layer over the core patch.' \
     "$APPLY_GLUE"
 
