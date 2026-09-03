@@ -43,14 +43,14 @@ for d in /tmp/steam-cell-*/; do
   # Evidence-store ONLY, exactly like win-*.png -- never commit one, never paste one
   # into an issue. Checked 2026-08-30 after a first pass wrongly called it clean; the
   # sweep that missed it omitted the SteamID64 pattern.
-  for f in stdout.txt windows.txt config.json shim.log; do
+  for f in stdout.txt windows.txt config.json shim.log drag-sizes.txt; do
     [ -f "$d$f" ] && { [ "$DRY" = 1 ] || cp -p "$d$f" "$out/"; }
   done
   # Steam-window captures a cell made for itself: the resize work names them rsz-/b-/churn*, and
   # the first salvage after that run silently dropped ALL of them -- the primary evidence for the
   # measurement -- because only win-*.png was whitelisted. Same privacy class as win-*.png:
   # evidence store only, never committed. (2026-08-31)
-  for p in "$d"win-*.png "$d"rsz-*.png "$d"b-*.png "$d"churn*.png; do
+  for p in "$d"win-*.png "$d"rsz-*.png "$d"b-*.png "$d"churn*.png "$d"drag-*.png; do
     [ -e "$p" ] || continue
     [ "$DRY" = 1 ] || cp -p "$p" "$out/"
     kept=$((kept+1))

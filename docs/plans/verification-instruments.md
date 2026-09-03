@@ -1,10 +1,10 @@
 # Verification instruments — a committed boot-verify, probe hygiene, and the live-drag re-run
 
-**Status: BUILT 2026-09-03 except I3 (needs James at the mouse) · check-it'd 2026-09-02 — build-ready-with-fixes (pass 2; I1 was rewritten after a needs-rework pass 1, then re-checked).** Umbrella:
+**Status: BUILT 2026-09-03 — I3 done 16:36 (ledger C34) · check-it'd 2026-09-02 — build-ready-with-fixes (pass 2; I1 was rewritten after a needs-rework pass 1, then re-checked).** Umbrella:
 [issue #1](https://github.com/macgameport/cities-skylines-2-macos/issues/1). Baseline: commit
 `c94d9e9`.
 
-> **🔧 As-built (2026-09-03):** **built, except I3** (the human live-drag step, T8). Shipped in one
+> **🔧 As-built (2026-09-03):** **built** — I3, the human live-drag step (T8), done 2026-09-03 16:36, ledger C34. Shipped in one
 > commit: `scripts/boot-verify.sh` (I1, plus a `--selftest` that runs every judge branch with no
 > launch); the whole I2 table — winlist auto-build in both probes, `kg.png` deleted right after its
 > size test, `pixel-probe` size guard (exit 4) + margin/depth clamps + `strip <x> <w>`, the driver's
@@ -27,7 +27,7 @@
 > wrong-path polling; the judge's branches are unchanged. (4) A failed `close` goes straight to
 > SIGTERM — the 120 s wait applies only after a posted WM_CLOSE. (5) `GRACEFUL: unknown` on a VOID
 > run with no override, rather than reporting a stale log's exit as this run's. **Exit criteria:**
-> 1 ✓ · 2 ✓ · 3 ✗ (I3 open) · 4 ✓. **Verify against:** `scripts/boot-verify.sh` (header TESTS block),
+> 1 ✓ · 2 ✓ · 3 ✓ (I3 done, C34) · 4 ✓. **Verify against:** `scripts/boot-verify.sh` (header TESTS block),
 > `scripts/win-resize-driver.c`, `scripts/pixel-probe.swift`, `scripts/shimmer-probe.sh`,
 > `scripts/livedrag-probe.sh`, `docs/agent-brief.md`, `CLAUDE.md` § Where things live.
 
@@ -104,6 +104,8 @@ and the driver source).**
 | `win-resize-driver.c` | `list` output is consumed by shell scripts: `_setmode(_fileno(stdout), _O_BINARY)` (+ `<io.h>`, `<fcntl.h>`) as the first statement of `main` (`:100`), before the usage `fprintf` (`:102`); stderr too, since scripts may grep the `STAMP` stream (`:31`). No `printf`→`fputs` change needed. **Keep `tr -d '\r'` in callers permanently**: the `.exe` is gitignored (`.gitignore:34`), so a caller can always be running a binary older than the source |
 
 ## I3 — live-drag re-run on the hardened module (human step)
+
+> **Done 2026-09-03 16:36 — C34.** Module `cd79fc463795939f`: 60 frames with 60 distinct window sizes, interior luminance min 76 / median 90 / max 113, 0 gaps. Evidence: cell `livedrag-setup3` (`drag-*.png`, `drag-sizes.txt`).
 
 `bash scripts/livedrag-probe.sh` with James dragging a Steam window edge for ≈ 15 s. Acceptance:
 0 near-black frames in ≥ 60, ≥ 10 distinct sizes, and the sampling-rate limit restated (one frame

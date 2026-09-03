@@ -14,6 +14,9 @@
 set -u
 SS=$HOME/Applications/CS2dxmt11.app/Contents/SharedSupport
 out="${OUT_DIR:-/tmp/livedrag}"; rm -rf "$out"; mkdir -p "$out"
+# WAIT is the drag window. 90 s suits a human at the keyboard; an agent running this FOR a human
+# who reads messages intermittently should set WAIT=1800 — the 2026-09-03 run voided at 240 s and
+# passed at 1800 s, with the drag itself taking fifteen seconds.
 FRAMES="${FRAMES:-60}"; WAIT="${WAIT:-90}"
 
 [ -x /tmp/pixel-probe ] || swiftc -O "$(dirname "$0")/pixel-probe.swift" -o /tmp/pixel-probe || exit 1
