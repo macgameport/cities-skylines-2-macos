@@ -84,5 +84,7 @@ PY
 # for captures in which the right tenth of the window was 93% pure black: the interior stayed lit
 # and a mean over the whole perimeter diluted one black side to nothing. The human at the mouse
 # saw what the number hid. Frames stay in "$out" — a score without frames cannot be re-read.
+# Over-flags on purpose: the bottom band can be crossed by the page's own black artwork (the
+# store's tiles), so treat a RIGHT/TOP hit as exposure and a bottom-only hit as "go and look".
 [ -x /tmp/darkboxes ] || swiftc -O "$(dirname "$0")/darkboxes.swift" -o /tmp/darkboxes || exit 1
 /tmp/darkboxes 6 "$out"/f*.png | awk '{split($4,l,"=");split($5,r,"=");split($6,t,"=");split($7,b,"="); m=l[2]+0; if(r[2]+0>m)m=r[2]+0; if(t[2]+0>m)m=t[2]+0; if(b[2]+0>m)m=b[2]+0; if(m>=20)n++; if(m>mx)mx=m} END{printf "  EXPOSED-EDGE frames (an outer-10%% band >=20%% true black, lum<6): %d of %d, worst band %.0f%%\n", n+0, NR, mx+0; if(n>0) print "  -> the hosted child lagged the resize and the host background showed; a clean interior does NOT clear the run (issue #7)"}'
