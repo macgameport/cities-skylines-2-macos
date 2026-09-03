@@ -1,6 +1,6 @@
 #!/bin/bash
 # boot-verify.sh — boot the game through the canonical launcher, dwell, close it gracefully, judge
-# the run from the logs it flushes on exit, and say PASS / FAIL / VOID in one line.
+# the run from the logs it wrote, and say PASS / FAIL / VOID in one line.
 #
 #   bash scripts/boot-verify.sh [--dwell N] [--hwnd HEX] [--out DIR]     # a full boot cycle
 #   bash scripts/boot-verify.sh --judge-only DIR --t0 EPOCH|now          # the judge alone
