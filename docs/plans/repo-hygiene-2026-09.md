@@ -5,7 +5,7 @@
 `c94d9e9`. All items are mechanical; the plan exists so the two that carry a decision (H1, H2) are
 decided once and the rest are done in one commit.
 
-> **🔧 As-built (2026-09-03): BUILT — H1–H5 all applied.** Commit: `70ab56d` (built in the working
+> **🔧 As-built (2026-09-03): BUILT — H1–H5 all applied.** Commit: `4874ef1` (built in the working
 > tree; the session that commits should fill the SHA here). Deviations from the plan, all recorded
 > in the same pass:
 > 1. **`PLAN.md` "Queued: mod keybinding alerts" was compressed, not kept verbatim** (148 → 19
