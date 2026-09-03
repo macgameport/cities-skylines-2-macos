@@ -31,8 +31,17 @@
 # And two test-design facts, each of which cost a run:
 #   * Pick the child from the CREATE trace, NOT by size from the tree. A Chrome_RenderWidgetHostHWND
 #     is large and never hosted, so moving it correctly changes nothing and proves nothing.
-#   * A hosted child parked at 0x0 is the inactive browser (ledger C14); skip it. The store page is
-#     where two non-zero overlapping CefBrowserWindow siblings exist, which T2 needs.
+#   * Among hosted children, moving one whose layer sits BEHIND another is equally invisible, and
+#     produces the same reading as a layer that failed to follow. So T1 does not trust one child:
+#     it tries each in turn and accepts only a DECISIVE answer — content shifted by exactly the
+#     delta (green), or the capture unchanged at both strips (red). Anything else is that child
+#     being invisible, and it moves on. Reporting an ambiguous child as red is how a void run got
+#     recorded as a failure and a red mutant as green.
+#   * A hosted child parked at 0x0 is the inactive browser (ledger C14); skip it.
+#   * T1 runs on the LIBRARY and T2 on the STORE, and the pages are not interchangeable. T2 needs
+#     the store's two non-zero overlapping CefBrowserWindow siblings; T1 cannot use the store,
+#     because its autoplaying video changes the capture between shots and every column then reads
+#     "changed", which is indistinguishable from the layer having moved.
 set -u
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 SS="${CS2_WRAPPER:-$HOME/Applications/CS2dxmt11.app}/Contents/SharedSupport"
@@ -104,30 +113,59 @@ cell() {   # cell <label> ; brings Steam up and leaves it running, or reports th
   fi
   return 0
 }
-# hosted_child <label> — echo a hosted child that currently has area, per the CREATE trace
-hosted_child() {
+# hosted_candidates <label> <root> — every hosted child that currently has area, per the CREATE trace
+hosted_candidates() {
   local log=/tmp/steam-cell-$1/stdout.txt tree="$OUT/$1-tree.txt" h hx line
   drv tree "$2" > "$tree"
   for h in $(grep -oE 'cross-process child 0x[0-9a-f]+' "$log" 2>/dev/null | awk '{print $3}' | sort -u); do
     hx=$(printf '%016X' $((h)))
     line=$(grep -i "child $hx" "$tree" | head -1); [ -z "$line" ] && continue
     case "$(echo "$line" | awk '{print $4}')" in 0x0|"") continue;; esac
-    echo "$hx"; return 0
+    echo "$hx"
   done
-  return 1
 }
-run_t1() {   # run_t1 <label> -> "movedin leftold"
-  local H C b a s40
+# T1: try each hosted child until one gives a DECISIVE answer. A child whose layer is behind
+# another is invisible, and reads exactly like a layer that failed to follow — so ambiguity is
+# reported as ambiguity, never as a result.
+run_t1() {
+  local H b a s40 s160 nc mi lo verdict=NONE C X x
   H=$(dlist | grep 'class=SDL_app' | grep 'title=Steam$' | awk '{print $1}' | head -1)
-  WINEDEBUG=-all "$W" "$S/steam.exe" steam://store >/dev/null 2>&1; sleep 12
-  C=$(hosted_child "$1" "$H") || { echo "    VOID: no hosted child with area in the tree"; return 1; }
-  b=$(shot "$1-before") || return 1
-  s40=$(strip_at "$b" 40)
-  local nc; nc=$(dchan "$s40" "$(strip_at "$b" 160)")
-  [ "$nc" -le 8 ] && { echo "    VOID: negative control $nc <= 8 — content is uniform, a move could not show"; return 1; }
-  drv move "$C" +120,+0 >/dev/null; sleep 1
-  a=$(shot "$1-after") || return 1
-  echo "    child $C  control $nc  moved-in $(dchan "$(strip_at "$a" 160)" "$s40") (<=8 green)  left-old $(dchan "$(strip_at "$a" 40)" "$s40") (>8 green)"
+  # LIBRARY, not the store. The plan says so and it is right: the store's autoplaying video changes
+  # the capture between the before and after shots, so every column reads "changed" and the test
+  # cannot separate "the layer moved" from "the page moved". Measured 2026-09-03: on the store every
+  # candidate came back ambiguous with both unchanged-checks at 16-65; on the library the same test
+  # is a clean 0/60. T2 still needs the store, and navigates there itself.
+  WINEDEBUG=-all "$W" "$S/steam.exe" steam://open/games >/dev/null 2>&1; sleep 12
+  for C in $(hosted_candidates "$1" "$H"); do
+    b=$(shot "$1-$C-before") || continue
+    # Find a column pair 120 apart with real contrast instead of assuming x=40/160 has it. Steam's
+    # pages are frequently flat at any one place, and a flat control voided the mutant runs twice.
+    X=0; nc=0
+    for x in 40 120 200 300 420 560 700 860 1020 1200 1400; do
+      local c; c=$(dchan "$(strip_at "$b" $x)" "$(strip_at "$b" $((x+120)))")
+      [ "$c" -gt "$nc" ] && { nc=$c; X=$x; }
+      [ "$nc" -gt 25 ] && break
+    done
+    [ "$nc" -le 8 ] && { echo "    $C: skipped, best control $nc over 11 column pairs (content is flat)"; continue; }
+    s40=$(strip_at "$b" $X); s160=$(strip_at "$b" $((X+120)))
+    echo "    $C: measuring at x=$X vs x=$((X+120)), control $nc"
+    drv move "$C" +120,+0 >/dev/null; sleep 1
+    a=$(shot "$1-$C-after") || { drv move "$C" -120,+0 >/dev/null; continue; }
+    mi=$(dchan "$(strip_at "$a" $((X+120)))" "$s40")      # did before@40 arrive at 160?
+    lo=$(dchan "$(strip_at "$a" $X)" "$s40")       # did 40 stop showing it?
+    local same40 same160
+    same40=$(dchan "$(strip_at "$a" $X)" "$s40"); same160=$(dchan "$(strip_at "$a" $((X+120)))" "$s160")
+    drv move "$C" -120,+0 >/dev/null; sleep 1
+    if [ "$mi" -le 8 ] && [ "$lo" -gt 8 ]; then
+      echo "    $C: GREEN — content shifted +120 (moved-in $mi, left-old $lo, control $nc)"; verdict=GREEN; break
+    elif [ "$same40" -le 2 ] && [ "$same160" -le 2 ]; then
+      echo "    $C: RED — capture unchanged at both strips, the layer did not follow (control $nc)"; verdict=RED; break
+    else
+      echo "    $C: ambiguous (moved-in $mi, left-old $lo, unchanged40 $same40, unchanged160 $same160) — layer likely behind another; next"
+    fi
+  done
+  [ "$verdict" = NONE ] && echo "    VOID: no hosted child gave a decisive answer"
+  echo "    T1 verdict: $verdict"
 }
 echo "########## hosting-layer tests $(date '+%F %T')  module $(shasum -a 256 "$INST" | cut -c1-16)"
 echo "  run dir: $OUT"
@@ -145,13 +183,18 @@ PY
   echo "=== T1 child-only move"; run_t1 main
   echo "=== T2 z restack (needs two non-zero CefBrowserWindow siblings; the store page has them)"
   H=$(dlist | grep 'class=SDL_app' | grep 'title=Steam$' | awk '{print $1}' | head -1)
+  WINEDEBUG=-all "$W" "$S/steam.exe" steam://store >/dev/null 2>&1; sleep 12
   drv tree "$H" > "$OUT/t2-tree.txt"
   SIB=$(awk '$1=="child" && $NF ~ /CefBrowserWindow/ && $4 !~ /^0x0$/ {print $2}' "$OUT/t2-tree.txt" | tr '\n' ' ')
   set -- $SIB
   if [ $# -ge 2 ]; then
     b=$(shot t2-base) && { s=$(strip_at "$b" 400)
       drv front "$1" >/dev/null; sleep 2; m=$(shot t2-f0) && echo "    front $1 delta $(dchan "$(strip_at "$m" 400)" "$s")"
-      drv front "$2" >/dev/null; sleep 2; m=$(shot t2-f1) && echo "    front $2 delta $(dchan "$(strip_at "$m" 400)" "$s")  (>8 = restacked)"; }
+      drv front "$2" >/dev/null; sleep 2; m=$(shot t2-f1) && echo "    front $2 delta $(dchan "$(strip_at "$m" 400)" "$s")  (>8 = restacked)"
+      # ⚠ restore the original order. Leaving the lower sibling on top puts a full-window layer over
+      # the content and the client stays black (ledger C13) — every later row then measures 0.
+      drv front "$1" >/dev/null; sleep 2
+      r=$(shot t2-restored) && echo "    restored, delta vs base $(dchan "$(strip_at "$r" 400)" "$s")  (<=8 = back)"; }
   else echo "    VOID: only $# non-zero CefBrowserWindow sibling(s); the inactive browser is parked at 0x0 (C14)"; fi
   echo "=== T3/T4 regression rows"
   for sz in 2400x1500 2399x1499 2400x1500; do drv drive "$H" "$sz" >/dev/null; sleep 2
