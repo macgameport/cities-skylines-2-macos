@@ -40,7 +40,7 @@ signature defect upstream ([the measurement](docs/wine-bugs/FINDING-wine11-fixes
 |---|---|---|---|
 | Wrapper | the Porting Kit bundle, engine swapped | Porting Kit app bundle | Kegworks / WineskinNavy bundle |
 | Wine | **stock 11.16**, built by [`scripts/build-engine-1116.sh`](scripts/build-engine-1116.sh) | **Wine 11.0** (`WS12Wine11.0_DXMT-v0.80`) | **Wine 10.0 Sikarugir** |
-| Graphics | **DXMT v0.80** (reused from the base engine) | **DXMT v0.80** — reports the real GPU | **D3DMetal v2.1** — reports `AMD Compatibility Mode` |
+| Graphics | **DXMT v0.80** — PE side is Porting Kit's build (`v0.80-17-g79f6279`, a commit not in 3Shain/dxmt), `winemetal.so` rebuilt here from tag `v0.80` + [the remote-layer patch](scripts/dxmt-remote-layer-fallback.patch); [mixed vintage, deliberately](INSTALL.md#the-dxmt-halves-are-different-vintages-deliberately) | **DXMT v0.80** — reports the real GPU | **D3DMetal v2.1** — reports `AMD Compatibility Mode` |
 | Patches | **10** | **10** — the 6 errno patches AND the licence bypass are unnecessary | **17** |
 | Alt-tab in exclusive fullscreen | **works** | freezes ([dxmt#206](https://github.com/3Shain/dxmt/issues/206)) — use borderless | mild misbehaviour |
 | Steam's **visible storefront** | **renders** with patched wine+DXMT (2026-08-31); **black** on the stock stack — shop via **CS2 Steam Store.app** | **renders** | renders |

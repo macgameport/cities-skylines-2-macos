@@ -40,7 +40,21 @@ fi
 H=$("$W" "$DRV" list 2>/dev/null | grep "class=SDL_app" | grep -i "title=Steam" | awk '{print $1}' | head -1)
 [ -z "$H" ] && { echo "  ABORT: no SDL_app top-level Steam window"; exit 1; }
 ID=$(/tmp/winlist 2>/dev/null | grep "title=Steam$" | sed -E 's/^id=([0-9]+).*/\1/')
-[ -z "$ID" ] && { echo "  ABORT: no 'Steam' window (sign-in still up?) — refusing to score 0 frames"; exit 1; }
+if [ -z "$ID" ]; then
+  # Distinguish "no Steam window" from "Steam's window is not on the visible space". winlist uses
+  # CGWindowListCopyWindowInfo with .optionOnScreenOnly, so a fullscreen app on another Space hides
+  # every window behind it — including this one — while the Win32 side still lists it perfectly.
+  # Reported as "no Steam window (sign-in still up?)" on 2026-09-03 while a fullscreen game was
+  # running, which sent the diagnosis in entirely the wrong direction.
+  if [ -n "$H" ]; then
+    echo "  ABORT: Win32 sees the Steam window ($H) but macOS does not list it on screen."
+    echo "         Something fullscreen is covering it, or it is on another Space. Not a Steam"
+    echo "         problem and not a render problem — the capture layer cannot see it."
+  else
+    echo "  ABORT: no 'Steam' window (sign-in still up?) — refusing to score 0 frames"
+  fi
+  exit 1
+fi
 before=$(/tmp/winlist 2>/dev/null | grep "title=Steam$" | grep -oE 'size=[0-9]+x[0-9]+')
 
 if [ "$mode" = churn ]; then

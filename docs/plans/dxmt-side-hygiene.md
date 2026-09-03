@@ -1,8 +1,43 @@
 # DXMT side — record the mixed vintage, close the review nits, generate the patch from git
 
-**Status: check-it'd 2026-09-03 — build-ready-with-fixes (pass 3, fitted re-check after the instruments build at `cc62ff8`; four facts corrected — the unixlib table is 132 entries, T5 in boot-verify's contract, §4's codesign step removed, boot-verify exists — no design change). Pass 2: check-it'd 2026-09-02 — build-ready-with-fixes (corrections folded, re-checked).** Umbrella:
+**Status: BUILT 2026-09-03 · check-it'd 2026-09-03 — build-ready-with-fixes (pass 3, fitted re-check after the instruments build at `cc62ff8`; four facts corrected — the unixlib table is 132 entries, T5 in boot-verify's contract, §4's codesign step removed, boot-verify exists — no design change). Pass 2: check-it'd 2026-09-02 — build-ready-with-fixes (corrections folded, re-checked).** Umbrella:
 [issue #1](https://github.com/macgameport/cities-skylines-2-macos/issues/1). Baseline: commit
 `c94d9e9`; scratch tree `~/cs2-patch/dxmt-v080` (git, tag `v0.80` checked out, uncommitted diff).
+
+> **🔧 As-built (2026-09-03): BUILT.** Ledger **C33**. Rebuilt `winemetal.so` `81b94bbf1e6fe598`
+> installed byte-identical to the build artifact, unsigned like the file it replaced, dated backup
+> beside it. Patch regenerated from branch `cs2/remote-layer` in the scratch tree (two commits — the
+> mingw `<iomanip>` fix is its own). Suite run `20260903-062937`, boot `20260903-063316`.
+>
+> **Measured.** §1 vintage rows re-run and recorded in `INSTALL.md` §6 and the README stack row.
+> Pre-build gate: only the `.o` + link, **0** `metal` invocations. **Unixlib table 132 entries,
+> `nm` delta `0x420`** — the plan's original 131/`0x418` would have failed its own T2 gate, corrected
+> in the pass-3 re-check and confirmed here. Export set identical to the previously installed `.so`.
+> T1: the patch reproduces the working tree byte for byte from a pristine `v0.80`. §2's swapchain
+> outcome test passed both sides — the live diff matched the preserved patch hunk-for-hunk before the
+> checkout, and `git apply --check` succeeds after. T3 battery: T0 disjoint, T1 green, T2 restacks
+> 86/channel and restores, blackout 85/84/85 with 0 bright edges, churn and static 0 gaps, 0 acquire
+> failures, 0 GPU crashes. T5 boot `VERDICT: PASS`, `GRACEFUL: yes`.
+>
+> **Mutants, all observed red and restored.** Ignoring the release hook's TRUE → blank client
+> (40,903 B against a 2,594,598 B baseline, instrument healthy at 1.1 MB) — red, though via a blank
+> client rather than the crash the plan predicted. Disabling the acquire hook → **6 GPU crashes**,
+> black window, exactly as predicted. The wine side handing back a NULL view → **6 crashes and the
+> new defensive line fires 6 times**, which is the only way to reach a branch that is dead by
+> construction.
+>
+> **Deviations.** (1) The `<stdio.h>` include is kept, per the pass-2 correction — the file already
+> has a real `fprintf` that compiles only through a transitive Cocoa include, and the new defensive
+> line adds another. (2) The DXMT comment still carries a `(macgameport, 2026-08-31)` provenance tag,
+> which the wine side had stripped in the upstream-form pass. Left alone deliberately: this plan's §2
+> table is explicit about what changes, and widening it mid-build is how scope creeps. Worth a
+> one-line follow-up since that patch is published too. (3) The first attempt at the wine-side mutant
+> used an anchor missing a guard clause, did not apply, and the cell then ran on the unmutated build
+> and looked healthy — a failed mutation that reads as "the mutant did nothing". Re-run with the
+> correct anchor.
+>
+> **Verify against:** `scripts/dxmt-remote-layer-fallback.patch` · `INSTALL.md` §6 · `README.md`
+> stack row · branch `cs2/remote-layer` in `~/cs2-patch/dxmt-v080` · `EXPERIMENTS.md` C33.
 
 **Scope.** Everything the review found on the DXMT half that needs a `winemetal.so` rebuild, plus
 two bookkeeping facts nobody had written down. Not in scope: any change to the PE side

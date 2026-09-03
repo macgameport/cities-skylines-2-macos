@@ -108,6 +108,38 @@ and the next game launch takes the session back. Built the engine before this ex
 list of attempted workarounds: [GOTCHAS.md](GOTCHAS.md) and
 [dxmt#141](https://github.com/3Shain/dxmt/issues/141).
 
+
+### The DXMT halves are different vintages, deliberately
+
+The cross-process fix needs a patched `winemetal.so`, but nothing else on the DXMT side is rebuilt,
+so the installed stack pairs two vintages:
+
+| piece | where it comes from |
+|---|---|
+| `d3d11.dll`, `dxgi.dll`, `winemetal.dll` (PE) | **Porting Kit's build.** `d3d11.dll` carries the version string `v0.80-17-g79f6279`, a commit that is not in 3Shain/dxmt — a fork or a rewritten branch. Its `winemetal.so` embeds AIR metadata naming a Gcenx checkout of dxmt, per the build paths compiled into it |
+| `winemetal.so` (unix) | **built here** from tag `v0.80` plus [`scripts/dxmt-remote-layer-fallback.patch`](scripts/dxmt-remote-layer-fallback.patch) |
+
+The `.so` and the PE side are different DXMT vintages; they agree on the two unix calls this patch
+touches, and the pairing has been exercised on every render cell since 2026-08-31. Neither the
+installed `.so` nor Porting Kit's embeds a version string, so the `.so`'s vintage is provable only
+by provenance: it `cmp`s identical to the build artifact (27,924,120 B), the scratch tree
+`git describe`s as `v0.80`, and the patch regenerates it byte for byte.
+
+**Why the pairing is safe, and how it could silently stop being.** The PE reaches the unix library
+through a bare pointer array with no count and no identity, indexed by an immediate compiled into
+each thunk. Measured with pefile and capstone: the table holds **132 entries** (index 83 is a `NULL`
+slot), the PE exports 131 names of which 129 are index-loading thunks, and every one lands on the
+same-named table entry — the only naming difference being PE `WMTCopyAllDevices` against table
+`_MTLCopyAllDevices` at index 4. Slots 83, 121 and 122 have no PE thunk and the PE's highest index
+is 131, so it never calls a slot the `.so` lacks. The two calls this patch touches are 72
+(`_CreateMetalViewFromHWND`) and 73 (`_ReleaseMetalView`). **Any DXMT-side edit that inserts an
+entry before 131, or fills slot 83, re-pairs Porting Kit's PE with no diagnostic at all** — so if
+you rebuild the `.so` from a newer DXMT, re-check the table length before trusting it.
+
+Install the `.so` only, with a dated backup beside it. It is unsigned, like the file it replaces;
+x86-64 code under Rosetta needs no signature, and signing it would break the `cmp` that proves its
+provenance.
+
 Roughly an hour, mostly unattended compile. It redistributes nothing: the Wine source comes
 sha256-verified from winehq.org, the winemac DXMT patch is in this repo (aquadran's, with
 attribution), and the DXMT binaries + x86_64 support dylibs are reused from *your own* wrapper.

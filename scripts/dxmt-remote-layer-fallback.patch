@@ -1,5 +1,26 @@
+# dxmt-remote-layer-fallback.patch — the DXMT half of the cross-process Steam fix.
+#
+# WARNING: AI-AUTHORED. Read this before you read the code.
+#
+# Written with heavy AI assistance. 3Shain/dxmt's CONTRIBUTING.md cannot accept AI-authored
+# contributions, so this was never offered as a PR; the findings went upstream as reports instead:
+# https://github.com/3Shain/dxmt/issues/141#issuecomment-5477055980
+#
+# WHAT IT DOES: _CreateMetalViewFromHWND dereferences a NULL from get_win_data() for a child window
+# owned by another process (win_datas is process-local), which is how CEF's GPU process asks. This
+# looks for the patched winemac's dxmt_acquire_remote_layer / dxmt_release_remote_layer via dlsym
+# and uses them when present. On an unpatched winemac dlsym returns NULL and the PE aborts with a
+# misleading message -- still an improvement on unpatched v0.80, which crashed in this library.
+#
+# APPLY: to a DXMT checkout at tag v0.80, from the tree root:
+#   patch -p1 < dxmt-remote-layer-fallback.patch
+# Rebuild only the unix library:  ninja -C build src/winemetal/unix/winemetal.so
+# Install the .so ONLY; the PE side stays Porting Kit's build (see INSTALL.md § 6).
+# Pairs with scripts/winemac-crossprocess-remote-layer.patch; NEITHER half works alone.
+#
+# Generated from git (branch cs2/remote-layer in the scratch tree) — do not hand-edit.
 diff --git a/src/winemetal/unix/winemetal_unix.c b/src/winemetal/unix/winemetal_unix.c
-index 4744692..e18e02c 100644
+index 4744692..9bfbdc2 100644
 --- a/src/winemetal/unix/winemetal_unix.c
 +++ b/src/winemetal/unix/winemetal_unix.c
 @@ -1,5 +1,6 @@
@@ -9,7 +30,7 @@ index 4744692..e18e02c 100644
  #import <Cocoa/Cocoa.h>
  #import <ColorSync/ColorSync.h>
  #import <CoreFoundation/CFRunLoop.h>
-@@ -1597,13 +1598,42 @@ _CreateMetalViewFromHWND(void *obj) {
+@@ -1597,13 +1598,50 @@ _CreateMetalViewFromHWND(void *obj) {
    if (pfn_get_win_data && pfn_release_win_data && pfn_macdrv_view_create_metal_view &&
        pfn_macdrv_view_get_metal_layer) {
      struct macdrv_win_data *win_data = pfn_get_win_data((HWND)params->hwnd);
@@ -27,7 +48,10 @@ index 4744692..e18e02c 100644
 +     * dlsym rather than a macdrv_functions_t member ON PURPOSE: that struct is C_ASSERT-ed at a
 +     * fixed size, so adding to it is a breaking ABI change and a DXMT built against the larger
 +     * struct would read past the end of an older winemac's and call garbage. A standalone symbol
-+     * simply resolves to NULL on any winemac without the patch, and we fall through unchanged.
++     * simply resolves to NULL on any winemac without the patch: the block below is skipped,
++     * ret_view stays 0 and the PE aborts with a misleading "no exported symbols" message.
++     * That is an improvement, not preserved behaviour -- unpatched v0.80 dereferenced
++     * win_data->client_cocoa_view unconditionally, a NULL deref inside this library.
 +     * (macgameport, 2026-08-31) */
 +    if (!win_data) {
 +      macdrv_metal_layer (*pfn_remote)(HWND, macdrv_view *) =
@@ -35,12 +59,17 @@ index 4744692..e18e02c 100644
 +      if (pfn_remote) {
 +        macdrv_view remote_view = NULL;
 +        macdrv_metal_layer remote_layer = pfn_remote((HWND)params->hwnd, &remote_view);
-+        if (remote_layer) {
++        if (remote_layer && remote_view) {
 +          /* ret_view only has to be non-NULL: d3d11_swapchain.cpp aborts without one, but never
 +             renders through it -- everything real goes via the layer. */
 +          params->ret_view = (obj_handle_t)remote_view;
 +          params->ret_layer = (obj_handle_t)remote_layer;
 +          return STATUS_SUCCESS;
++        } else if (remote_layer) {
++          /* Unreachable on this winemac: macdrv_CreateClientSurface assigns cocoa_view
++             unconditionally and a nil view makes the acquire itself fail, so a layer without a
++             view cannot occur. Defensive -- fall through rather than hand back a view of 0. */
++          fprintf(stderr, "dxmt: remote layer without a view -- unreachable on this winemac\n");
 +        }
 +      }
 +    }
@@ -58,7 +87,7 @@ index 4744692..e18e02c 100644
    }
  
    return STATUS_SUCCESS;
-@@ -1622,6 +1652,15 @@ _ReleaseMetalView(void *obj) {
+@@ -1622,6 +1660,17 @@ _ReleaseMetalView(void *obj) {
      pfn_macdrv_view_release_metal_view = dlsym(RTLD_DEFAULT, "macdrv_view_release_metal_view");
    }
  
@@ -67,7 +96,9 @@ index 4744692..e18e02c 100644
 +   * of its client surfaces and it retired it, FALSE otherwise -- so no tagging or bookkeeping is
 +   * needed here, and on a winemac without the patch the symbol is simply absent and we behave
 +   * exactly as before. (macgameport, 2026-08-31) */
-+  BOOL (*pfn_release_remote)(macdrv_view) = dlsym(RTLD_DEFAULT, "dxmt_release_remote_layer");
++  /* wine's BOOL is int; ObjC's is signed char. Benign in this direction, but declare what the
++     exported symbol actually returns rather than what this file's headers happen to define. */
++  int (*pfn_release_remote)(macdrv_view) = dlsym(RTLD_DEFAULT, "dxmt_release_remote_layer");
 +  if (pfn_release_remote && pfn_release_remote((macdrv_view)params->handle))
 +    return STATUS_SUCCESS;
 +
