@@ -1744,8 +1744,8 @@ a `--check` that exists but is not wired in is a gate that was not run.
 **What happened.** The live-drag probe scored each frame as `min(mean luminance over the whole
 perimeter, interior luminance)` and reported min 76 / 0 gaps for a sixty-frame human drag. James,
 at the mouse, saw black boxes on the open edge. Re-scoring the same frames per outer band: the right
-tenth of the window was **93% pure black** in the worst frame and **56 of 60** frames had a band at
-least 20% black (C35, issue #7). The interior was lit the whole time, and a mean over four edges
+tenth of the window was **93% pure black** in the worst frame and **19 of 60** frames had the right
+band at least 20% black (C35, issue #7). The interior was lit the whole time, and a mean over four edges
 diluted one fully black side to a rounding error. The number was true and the conclusion drawn from
 it was false.
 
@@ -1753,6 +1753,13 @@ it was false.
 a metric that can *localise* — `scripts/darkboxes.swift` now reports each band, and both resize
 probes print an EXPOSED-EDGE line. (2) **Keep the frames.** C28's eighty were discarded after
 scoring, so there is no earlier live-drag baseline and the regression question needed a fresh A/B.
+
+⚠ **And the first version of this entry said 56 of 60.** The summary awk read the analyser's
+block-width field as the bottom band, so any frame with a dark block 20 px wide counted, and the
+analyser itself had top and bottom swapped. It surfaced as a churn summary reading *"worst band
+2400%"* — a number that cannot exist — and was fixed by checking the field mapping against one
+frame I had actually looked at. The same rule as for plan folds: never publish a count you have
+not eyeballed.
 
 **The general shape.** A human watching the screen is a sensor the harness does not have. When they
 report something the numbers deny, assume the numbers are wrong first, and go and look at the

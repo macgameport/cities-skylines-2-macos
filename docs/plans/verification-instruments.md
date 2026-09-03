@@ -105,7 +105,7 @@ and the driver source).**
 
 ## I3 — live-drag re-run on the hardened module (human step)
 
-> **Done 2026-09-03 16:36 — C34.** Module `cd79fc463795939f`: 60 frames with 60 distinct window sizes, interior luminance min 76 / median 90 / max 113, 0 gaps. Evidence: cell `livedrag-setup3` (`drag-*.png`, `drag-sizes.txt`). ⚠ **Re-scoped the same evening:** those frames carry a black strip at the growing edge in 56/60 (C35, issue #7); the probe's scoring was blind to it and now scores bands.
+> **Done 2026-09-03 16:36 — C34.** Module `cd79fc463795939f`: 60 frames with 60 distinct window sizes, interior luminance min 76 / median 90 / max 113, 0 gaps. Evidence: cell `livedrag-setup3` (`drag-*.png`, `drag-sizes.txt`). ⚠ **Re-scoped the same evening:** those frames carry a black strip at the growing edge — right band ≥20% black in 19/60, up to 93% (C35, issue #7); the probe's scoring was blind to it and now scores bands.
 
 `bash scripts/livedrag-probe.sh` with James dragging a Steam window edge for ≈ 15 s. Acceptance:
 0 near-black frames in ≥ 60, ≥ 10 distinct sizes, and the sampling-rate limit restated (one frame

@@ -16,7 +16,8 @@ import Foundation
 import CoreGraphics
 import ImageIO
 // Per-frame: fraction of near-black pixels in each outer 10% band, plus the bounding box of the
-// largest dark blob found by row/column projection. CG contexts put row 0 at the BOTTOM.
+// largest dark blob found by row projection. The bitmap's row 0 is the image's TOP row (checked
+// against a frame whose top chrome row was black, 2026-09-03 -- the first version had T/B swapped).
 func load(_ p: String) -> CGImage? {
   guard let s = CGImageSourceCreateWithURL(URL(fileURLWithPath: p) as CFURL, nil) else { return nil }
   return CGImageSourceCreateImageAtIndex(s, 0, nil)
@@ -33,7 +34,7 @@ for path in CommandLine.arguments.dropFirst(2) {
   for i in 0..<(w*h) { let j = i*4; let lum = (Int(buf[j])*299 + Int(buf[j+1])*587 + Int(buf[j+2])*114)/1000; if lum < thr { dark[i] = true; total += 1 } }
   func frac(_ x0: Int, _ x1: Int, _ y0: Int, _ y1: Int) -> Double { var d = 0; for y in y0..<y1 { for x in x0..<x1 where dark[y*w+x] { d += 1 } }; return 100*Double(d)/Double((x1-x0)*(y1-y0)) }
   let bw = w/10, bh = h/10
-  let L = frac(0,bw,0,h), R = frac(w-bw,w,0,h), Bot = frac(0,w,0,bh), Top = frac(0,w,h-bh,h)
+  let L = frac(0,bw,0,h), R = frac(w-bw,w,0,h), Top = frac(0,w,0,bh), Bot = frac(0,w,h-bh,h)
   // largest dark rectangle by projection: rows with >=200 dark px that are contiguous, then column extent
   var best = (0,0,0,0,0)  // area, x0,y0(top-origin),x1,y1
   var y = 0
@@ -42,7 +43,7 @@ for path in CommandLine.arguments.dropFirst(2) {
     if cnt >= 200 {
       var y2 = y; while y2+1 < h { var c2 = 0; for x in 0..<w where dark[(y2+1)*w+x] { c2 += 1 }; if c2 < 200 { break }; y2 += 1 }
       var x0 = w, x1 = 0; for yy in y...y2 { for x in 0..<w where dark[yy*w+x] { if x < x0 { x0 = x }; if x > x1 { x1 = x } } }
-      let area = (x1-x0+1)*(y2-y+1); if area > best.0 { best = (area, x0, h-1-y2, x1, h-1-y) }
+      let area = (x1-x0+1)*(y2-y+1); if area > best.0 { best = (area, x0, y, x1, y2) }
       y = y2 + 1
     } else { y += 1 }
   }
