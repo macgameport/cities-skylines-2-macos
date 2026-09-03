@@ -176,6 +176,8 @@ comment accuracy in the published winemac reference, where `strip-comments.py`, 
 comparison and the whole C29 battery all pass while saying nothing about whether the surviving
 comments are TRUE.
 
+**Second instance, same repo (2026-09-03).** The `check it` on `exposed-edge-live-resize.md` ran six lenses at Fable 5.1, then one fitted Opus 5 agent over the *fold*. The fitted pass found a blocker no gate could reach: a test's pass condition named the wrong band and the wrong black-threshold for a signature measured two sections earlier, so **its mutant could never be observed red** while the exit criteria demanded it red. Pure cross-referencing — the plan against itself. Consistent with the rule; still one repo, so still provisional.
+
 ⚠ **Provisional — one session's evidence.** The mechanism is plausible (cross-referencing is
 attention-heavy, execution is not) but it is not yet a cross-repo rule. Promote it to
 `~/.claude/rules/` only if it holds in other repos; per the cross-repo sweep rule a convention
