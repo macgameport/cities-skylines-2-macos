@@ -7,6 +7,12 @@
 // outer 10% band (L/R/T/B), plus the largest dark block found by row projection. Use threshold 6
 // for true black (Steam's own dark chrome sits near lum 20-40) and 15 to match pixel-probe's "gap".
 //
+// Every field is a flat key=value so callers parse by LABEL. Positional awk on this line has
+// produced two wrong published counts (2026-09-03); the fields will grow again.
+// Diagnostic colours: pure red/green/blue pixel fractions, whole frame and the right (R*) and top
+// (T*) 10% bands. ⚠ Choose diagnostic colours the page cannot contain: Steam's store banner is
+// RED, so a red host background is indistinguishable from art; magenta and green are safe.
+//
 // WHY THIS EXISTS (2026-09-03): livedrag-probe scored min(mean edge, interior) and reported 76
 // for a run in which the right 10% of the window was 93% pure black -- the hosted child had not
 // caught up with the drag and the exposed strip showed the host layer's black background. A
@@ -31,7 +37,14 @@ for path in CommandLine.arguments.dropFirst(2) {
         space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { continue }
   ctx.draw(img, in: CGRect(x: 0, y: 0, width: w, height: h))
   var dark = [Bool](repeating: false, count: w*h); var total = 0
-  for i in 0..<(w*h) { let j = i*4; let lum = (Int(buf[j])*299 + Int(buf[j+1])*587 + Int(buf[j+2])*114)/1000; if lum < thr { dark[i] = true; total += 1 } }
+  // Diagnostic colours (issue #7 M0): a host background painted pure red or pure green.
+  var red = [Bool](repeating: false, count: w*h), green = [Bool](repeating: false, count: w*h), blue = [Bool](repeating: false, count: w*h)
+  for i in 0..<(w*h) { let j = i*4; let r = Int(buf[j]), g = Int(buf[j+1]), b = Int(buf[j+2]); let lum = (r*299 + g*587 + b*114)/1000
+    if lum < thr { dark[i] = true; total += 1 }
+    if r >= 200 && g <= 60 && b <= 60 { red[i] = true }
+    if g >= 200 && r <= 60 && b <= 60 { green[i] = true }
+    if b >= 200 && r <= 60 && g <= 60 { blue[i] = true } }
+  func cfrac(_ m: [Bool], _ x0: Int, _ x1: Int, _ y0: Int, _ y1: Int) -> Double { var d = 0; for y in y0..<y1 { for x in x0..<x1 where m[y*w+x] { d += 1 } }; return 100*Double(d)/Double((x1-x0)*(y1-y0)) }
   func frac(_ x0: Int, _ x1: Int, _ y0: Int, _ y1: Int) -> Double { var d = 0; for y in y0..<y1 { for x in x0..<x1 where dark[y*w+x] { d += 1 } }; return 100*Double(d)/Double((x1-x0)*(y1-y0)) }
   let bw = w/10, bh = h/10
   let L = frac(0,bw,0,h), R = frac(w-bw,w,0,h), Top = frac(0,w,0,bh), Bot = frac(0,w,h-bh,h)
@@ -48,6 +61,8 @@ for path in CommandLine.arguments.dropFirst(2) {
     } else { y += 1 }
   }
   let name = (path as NSString).lastPathComponent
-  print(String(format: "%@ %dx%d dark=%.2f%% L=%.1f R=%.1f T=%.1f B=%.1f  biggest-dark-block=%dx%d at x=%d y=%d (top-origin)",
-        name, w, h, 100*Double(total)/Double(w*h), L, R, Top, Bot, best.3-best.1+1, best.4-best.2+1, best.1, best.2))
+  let bw2 = w/10, bh2 = h/10
+  print(String(format: "%@ %dx%d dark=%.2f%% L=%.1f R=%.1f T=%.1f B=%.1f  biggest-dark-block=%dx%d at x=%d y=%d (top-origin)  red=%.2f green=%.2f blue=%.2f Rred=%.1f Rgreen=%.1f Rblue=%.1f Tred=%.1f Tgreen=%.1f Tblue=%.1f",
+        name, w, h, 100*Double(total)/Double(w*h), L, R, Top, Bot, best.3-best.1+1, best.4-best.2+1, best.1, best.2,
+        cfrac(red,0,w,0,h), cfrac(green,0,w,0,h), cfrac(blue,0,w,0,h), cfrac(red,w-bw2,w,0,h), cfrac(green,w-bw2,w,0,h), cfrac(blue,w-bw2,w,0,h), cfrac(red,0,w,0,bh2), cfrac(green,0,w,0,bh2), cfrac(blue,0,w,0,bh2)))
 }

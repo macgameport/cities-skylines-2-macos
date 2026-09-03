@@ -104,6 +104,60 @@ static void become_dpi_aware(void)
     if (pSetAware) pSetAware();
 }
 
+
+/* classbg: what would Windows paint into a newly exposed client area? The class background brush
+ * (issue #7). NULL means "no erase": the exposed area keeps whatever was there; a small integer is
+ * (HBRUSH)(COLOR_xxx + 1), a system colour; anything else is a real brush, read back with
+ * GetObject. Colours print as COLORREF, i.e. 0x00BBGGRR. Walks every visible top-level >= 200px
+ * and its children to depth 3, so no hwnd argument is needed. */
+static void classbg_line(HWND h, int depth)
+{
+    wchar_t cls[128] = {0};
+    ULONG_PTR raw = GetClassLongPtrW(h, GCLP_HBRBACKGROUND);
+    RECT r = {0};
+    DWORD pid = 0;
+
+    GetClassNameW(h, cls, 127);
+    GetWindowRect(h, &r);
+    GetWindowThreadProcessId(h, &pid);
+    printf("%*s%p pid=%-6lu %5ldx%-5ld class=%-28ls hbrBackground=", depth * 2, "", h,
+           (unsigned long)pid, r.right - r.left, r.bottom - r.top, cls);
+    if (!raw)
+        printf("NULL (no erase)\n");
+    else if (raw <= 40)
+        printf("COLOR_%d+1 -> GetSysColor %06lX\n", (int)raw - 1, (unsigned long)GetSysColor((int)raw - 1));
+    else
+    {
+        LOGBRUSH lb;
+        if (GetObjectW((HGDIOBJ)raw, sizeof(lb), &lb))
+            printf("%p style=%u color=%06lX\n", (void *)raw, (unsigned)lb.lbStyle, (unsigned long)lb.lbColor);
+        else
+            printf("%p (GetObject failed)\n", (void *)raw);
+    }
+}
+
+static void classbg_children(HWND root, int depth)
+{
+    HWND c = GetWindow(root, GW_CHILD);
+    while (c)
+    {
+        classbg_line(c, depth);
+        if (depth < 3) classbg_children(c, depth + 1);
+        c = GetWindow(c, GW_HWNDNEXT);
+    }
+}
+
+static BOOL CALLBACK classbg_cb(HWND h, LPARAM lp)
+{
+    RECT r;
+    if (!IsWindowVisible(h) || !GetWindowRect(h, &r)) return TRUE;
+    if ((r.right - r.left) < 200 || (r.bottom - r.top) < 200) return TRUE;
+    classbg_line(h, 0);
+    classbg_children(h, 1);
+    (void)lp;
+    return TRUE;
+}
+
 int main(int argc, char **argv)
 {
     /* Scripts consume this output through grep and awk. In the CRT's default text mode every "\n"
@@ -113,6 +167,7 @@ int main(int argc, char **argv)
      * grepped as well. */
     _setmode(_fileno(stdout), _O_BINARY);
     _setmode(_fileno(stderr), _O_BINARY);
+    if (argc > 1 && !strcmp(argv[1], "classbg")) { EnumWindows(classbg_cb, 0); return 0; }
     if (argc < 2)
     {
         fprintf(stderr, "usage: list | cursor | drive <hwnd> <WxH>... | churn <hwnd> <WxH> <WxH> <n> | "
