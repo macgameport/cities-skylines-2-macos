@@ -45,15 +45,27 @@ before=$(/tmp/winlist 2>/dev/null | grep "title=Steam$" | grep -oE 'size=[0-9]+x
 
 if [ "$mode" = churn ]; then
   "$W" "$DRV" churn "$H" 2400x1500 2200x1360 240 >/dev/null 2>&1 &
-  sleep 1
-  mid=$(/tmp/winlist 2>/dev/null | grep "title=Steam$" | grep -oE 'size=[0-9]+x[0-9]+')
-  sleep 0.09
-  mid2=$(/tmp/winlist 2>/dev/null | grep "title=Steam$" | grep -oE 'size=[0-9]+x[0-9]+')
-  # guard 2 — if nothing moved, this measures nothing. TWO samples 90 ms apart (2026-09-02): the
-  # churn alternates every 60 ms, so a single sample taken while the window happens to sit at its
-  # starting size read as "did not take" and aborted a valid run half the time when the window
-  # started at one of the two churn sizes.
-  [ "$mid" = "$before" ] && [ "$mid2" = "$before" ] && { echo "  ABORT: window never changed size ($before) — churn did not take"; exit 1; }
+  CHURN=$!
+  # guard 2 — if nothing moved, this measures nothing. POLL for the change rather than sampling at
+  # a fixed instant (2026-09-03): wine needs about a second to start, so two samples at t=1.00 s
+  # and t=1.09 s can both land before the first resize and abort a run that was about to be valid.
+  # Earlier still it was a single sample, which aborted half the time when the window happened to
+  # start at one of the two churn sizes.
+  mid=""; mid2=""
+  for _ in $(seq 40); do
+    sleep 0.15
+    now=$(/tmp/winlist 2>/dev/null | grep "title=Steam$" | grep -oE 'size=[0-9]+x[0-9]+')
+    [ -n "$now" ] && [ "$now" != "$before" ] && { mid="$now"; sleep 0.09
+      mid2=$(/tmp/winlist 2>/dev/null | grep "title=Steam$" | grep -oE 'size=[0-9]+x[0-9]+'); break; }
+  done
+  if [ -z "$mid" ]; then
+    # ⚠ kill the churn before leaving. It runs 240 alternations at 60 ms = ~14 s, and an abort that
+    # left it running poisoned the NEXT probe in the same session: a "static control" measured
+    # during an orphaned churn reported 39 distinct frames of 40 and a near-black frame, which
+    # reads exactly like a real gap (2026-09-03, the C29 re-run for the core/glue split).
+    kill "$CHURN" 2>/dev/null; wait "$CHURN" 2>/dev/null
+    echo "  ABORT: window never changed size ($before) — churn did not take; churn killed"; exit 1
+  fi
   echo "  churn live: $before -> $mid -> $mid2"
 fi
 

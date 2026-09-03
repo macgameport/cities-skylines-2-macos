@@ -1675,3 +1675,30 @@ restore, not after. The recovery lever that did survive was the build output: `.
 from the destroyed sources were still on disk, so the redo could be byte-compared against them and
 proved functionally identical to the lost work. Keep intermediate build artifacts until the source
 they came from is committed.
+
+## An aborted churn keeps churning, and the next probe measures during it (2026-09-03)
+
+**Root cause.** `scripts/shimmer-probe.sh churn` launches the resize driver in the background — 240
+alternations at 60 ms, about **14 seconds** of continuous resizing — then checks that the window
+actually changed size before it scores anything (guard 2, which exists so a churn that never took
+cannot be reported as "no gaps"). The abort path printed its message and `exit 1`'d **without
+killing the driver**. The churn therefore kept running, and the next probe in the same session
+sampled during it.
+
+**What that looked like.** In the C29 re-run for the core/glue split, run 2 aborted and the
+**static control** — the run whose entire job is to show what a quiescent window measures — came
+back with **39 distinct frames of 40** and one near-black frame, scored as a GAP. Both numbers are
+what a real regression looks like. A genuine static control on this window measures **1 distinct
+frame and 0 near-black** (ledger C17). The tell was the distinct-frame count, not the gap: a
+control showing 39 distinct frames is not a control, whatever its gap number says.
+
+**Two fixes, both in the probe.** (1) Kill the driver on the abort path. (2) Stop sampling for the
+size change at a fixed instant: it read at t=1.00 s and t=1.09 s, but wine needs about a second to
+start, so both samples could land *before the first resize* and abort a run that was about to be
+valid — which is what triggered the abort here. It now polls up to 6 s for the change. The battery
+also waits 20 s between runs so a control is taken on a settled window.
+
+**The general shape.** A guard that aborts must undo what it started, or it converts "this run is
+void" into "the next run is wrong". Any probe that backgrounds a stimulus needs the stimulus killed
+on every exit path, not just the successful one — and a control that does not look like a control
+should be disbelieved before it is reported.
