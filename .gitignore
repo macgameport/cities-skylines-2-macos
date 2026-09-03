@@ -2,6 +2,11 @@
 # Personal play guide (which mods James runs + how he uses them) — local-only by request
 # (2026-08-24); the public repo documents the port, not the playstyle.
 MODS-GUIDE.md
+# GitHub-identity detail — which accounts this project separates, and how — moved out of the
+# public `CLAUDE.md` (2026-09-03). This is Claude Code's documented local-instructions file: it
+# loads right after the project `CLAUDE.md`, and the upstream docs say to gitignore it.
+# `CLAUDE.md` keeps a one-line pointer, so a clone or worktree without it knows why.
+CLAUDE.local.md
 # Personal Claude Code workflow rules, auto-synced into every repo from ~/.claude on session
 # start. Deliberately NOT published here (decided 2026-08-24): this repo is public, and these are
 # private working conventions, not project documentation. They regenerate automatically, so

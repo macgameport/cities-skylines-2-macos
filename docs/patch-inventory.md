@@ -1,17 +1,31 @@
 # CS2 macOS patch inventory
 
 **Game:** Cities: Skylines II `1.6.0f1 (419.d6c6)`
-**Stack:** Kegworks/WineskinNavy wrapper (`~/Applications/S734M.app`) — Wine 10.0 Sikarugir + D3DMetal v2.1
-**Applied by:** `~/cs2-patch/repatch.sh [free]` — idempotent, pattern-matched, each writes a `.bak`
-**Last verified:** 2026-08-22
+**Stack (default):** self-built stock Wine 11.16 + DXMT (`~/Applications/CS2dxmt11.app`) — needs
+**10** of these patches and **no licence bypass**; every one of the 10 is published here
+**Stack (fallback):** Kegworks/WineskinNavy wrapper (`~/Applications/S734M.app`) — Wine 10.0
+Sikarugir + D3DMetal v2.1 — runs all **16** published patches, and still needs the unpublished
+licence bypass (#5), so it cannot reach a main menu from this repo alone
+**Applied by:** `~/cs2-patch/repatch.sh dxmt11` (default) · `~/cs2-patch/repatch.sh free`
+(fallback) — idempotent, pattern-matched, each writes a `.bak`
+**Last verified:** 2026-09-03 — targets and patch counts re-measured against `repatch.sh`; the
+in-game verification behind §1 is 2026-08-22
 
 > **These are not bugs in this project's code.** Every entry is a workaround for a defect in
 > something else. ⚠️ **The §1 root-cause analysis below was partly disproven on 2026-08-22** — see
 > [`wine-bugs/FINDING-wine11-fixes-it.md`](wine-bugs/FINDING-wine11-fixes-it.md). Measured result:
-> **moving to Wine 11 retires 7 of the 17** — the six errno-tolerance patches plus the Coherent
-> Gameface licence bypass, since Wine 11 also fixed the bcrypt defect (R3). Both verified in-game:
-> a fresh mod download, and the main menu reached with the licence bypass fully removed.
-> `patch_fshandle` is still needed there; R1 and R2 as originally stated are false.
+> **moving to Wine 11 drops the applied set from 16 to 10** — the six errno-tolerance patches go —
+> and the seventh retirement, the Coherent Gameface licence bypass (#5, §4), becomes unnecessary
+> too, since Wine 11 also fixed the bcrypt defect (R3). Both verified in-game: a fresh mod
+> download, and the main menu reached with the licence bypass fully removed. `patch_fshandle` is
+> still needed there; R1 and R2 as originally stated are false.
+>
+> ⚠ **Two counts, both correct — do not average them.** This document numbers **17** patch
+> entries, but only **16** exist as scripts: #5 is described here and deliberately not published,
+> so `repatch.sh` can only *warn* about it. Measured 2026-09-03 against `repatch.sh`: **16**
+> `python3 … patch_*.py` invocations, **6** of them behind `ERRNO_PATCHES`, which the `dxmt11`
+> target sets to 0 — hence **10** on the default stack. A loose `patch.*\.py` grep returns 17
+> because one line is a comment about `patch_pdxsdk_io.py` being deliberately not run.
 
 ## The three upstream root causes
 

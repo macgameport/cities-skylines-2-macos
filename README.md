@@ -154,7 +154,7 @@ and `docs/dxmt-bugs/`.
 | Path | What |
 |---|---|
 | `INSTALL.md` | **Start here to play.** Step-by-step from nothing to a working game |
-| `docs/patch-inventory.md` | All 17 binary patches, the bug each works around, and which upstream owns it |
+| `docs/patch-inventory.md` | All 17 patch entries — the 16 published scripts plus the one licence bypass this repo withholds — the bug each works around, and which upstream owns it |
 | `GOTCHAS.md` | Every trap hit, with root cause. Sections carrying a `> **Ledger:` banner have been audited — read it, some conclusions are withdrawn |
 | [`docs/steam-ui-findings.md`](docs/steam-ui-findings.md) | **Start here for the Steam-UI thread** — the two bugs as one causal story, what is eliminated, what is open |
 | `EXPERIMENTS.md` | **What we tested, under what config, and how much to trust it.** Conclusions register + run index. Read this before designing a test or citing a result |
@@ -193,8 +193,9 @@ upstream. Measured 2026-08-22, same probe under Unity's Mono with a **pristine**
 | `Directory.Delete(recursive)` | throws `IOException 0x5af040a0` | OK |
 | `File.Delete(nonexistent)` | throws | OK |
 
-**On Wine 11, 7 of the 17 patches become unnecessary** — the six errno-tolerance ones plus the
-licence bypass — each verified by running the game with them removed: it boots, mods load, a
+**On Wine 11 the applied set drops from 16 to 10** — the six errno-tolerance patches — and the
+withheld licence bypass becomes unnecessary as well; each verified by running the game with them
+removed: it boots, mods load, a
 **fresh mod download completes** with zero IO errors, and the main menu is reached with zero
 licence errors.
 

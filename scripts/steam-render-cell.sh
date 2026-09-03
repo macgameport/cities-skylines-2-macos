@@ -2,7 +2,7 @@
 # steam-render-cell.sh — run ONE measured "does Steam's visible UI render?" cell and judge it
 # by per-window capture, not by logs.
 #
-# WHY: every revisit of the Steam-UI thread (PLAN.md § "Steam's visible UI") re-derives the same
+# WHY: every revisit of the Steam-UI thread (docs/steam-ui-findings.md) re-derives the same
 # scaffolding — shut Steam down cleanly, clear the traps, launch visibly, find the window, capture
 # it, revert. Three traps make an ad-hoc run give a WRONG answer rather than no answer:
 #

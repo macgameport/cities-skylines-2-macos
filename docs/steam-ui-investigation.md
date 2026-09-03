@@ -10,6 +10,13 @@
 > still believed. The authority on trust is [`../EXPERIMENTS.md`](../EXPERIMENTS.md); this is the
 > narrative that register was derived from.
 >
+> **ARCHIVE (2026-09-03).** This is the raw chronology — read
+> [`steam-ui-findings.md`](steam-ui-findings.md) first; it is the same material as one causal
+> story, and this file is only for checking a claim against the run it came from. It is kept
+> **in place** rather than moved to an archive directory because `scripts/check-experiments.py`
+> scans this exact path for the `> **Ledger:` status banners; the "archive" is a label, not a
+> path.
+>
 > ⚠ **Most headings below are wrong on their own terms.** They say "ELIMINATED", "SOLVED",
 > "FINAL" — and many carry a `> **Ledger:`** banner immediately underneath retracting exactly that
 > word. **The banner wins.** Headings were deliberately left as written so the history stays

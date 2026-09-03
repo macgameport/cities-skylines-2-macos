@@ -36,7 +36,7 @@ so treat "it's impossible" posts as *outdated*, but they're accurate about the d
   stock one keeps losing the device. https://community.pcgamingwiki.com/files/file/2417-moltenvk-modified-with-dxvk-patches-for-macos-libmoltenvkdylib/
 - **WineHQ Forums — Building Wine / MoltenVK on macOS arm64.** https://forum.winehq.org/viewtopic.php?t=41375
 
-## GPTK 3 / D3DMetal path (P4 in PLAN.md — the "real fix" for reliable play)
+## GPTK 3 / D3DMetal path (the old "real fix for reliable play" route — historical)
 - **Apple Game Porting Toolkit** (official) — Wine + Apple's **D3DMetal** (DX11 *and* DX12 → Metal directly).
   https://developer.apple.com/games/game-porting-toolkit/ · repo: https://github.com/apple/game-porting-toolkit
 - ⭐ **Gcenx/game-porting-toolkit** — the Homebrew cask we'd install (`brew install gcenx/wine/game-porting-toolkit`).

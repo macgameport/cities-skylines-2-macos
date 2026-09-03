@@ -5,6 +5,44 @@
 `c94d9e9`. All items are mechanical; the plan exists so the two that carry a decision (H1, H2) are
 decided once and the rest are done in one commit.
 
+> **🔧 As-built (2026-09-03): BUILT — H1–H5 all applied.** Commit: `70ab56d` (built in the working
+> tree; the session that commits should fill the SHA here). Deviations from the plan, all recorded
+> in the same pass:
+> 1. **`PLAN.md` "Queued: mod keybinding alerts" was compressed, not kept verbatim** (148 → 19
+>    lines). H3's table says "keep; refresh status lines", but keeping 148 lines of a closed
+>    chronology makes exit criterion 3 (`PLAN.md` < 250 lines) arithmetically impossible — the
+>    faithful-verbatim build measured ~260. Every superseded entry is superseded *by a later entry
+>    in the same section*; the durable content (mechanism, the two-patch IL set, the remaining
+>    visual check, the deliberately-open Anarchy binding) is kept, and the detail is pointed at
+>    GOTCHAS § "IL opcode surgery", GOTCHAS § "Mod keybinding defaults are extractable offline",
+>    `CLAUDE.md` § Where things live and the change ledger. Result: **179 lines**.
+> 2. **The `CLAUDE.md` pointer sits under a `## GitHub identity` heading**, not as a bare line — an
+>    orphan line after the "Rules specific to this project" bullets reads as one of those bullets.
+>    The heading carries no account name, so T2 (=1) and T6 (=0) are unaffected.
+> 3. **T3 fixed two more inbound references than it named as broken:**
+>    `docs/plans/retina-swapchain-experiment.md:22-25` (it cited a `§ "Retina / native-swapchain
+>    experiment"` that never existed) and `REFERENCES.md:39` ("P4 in PLAN.md"). A third,
+>    `scripts/steam-render-cell.sh:5`, cited `PLAN.md § "Steam's visible UI"` and was repointed at
+>    `docs/steam-ui-findings.md` once the concurrent build released `scripts/`. `docs/plans/perf-pass.md:14`
+>    was checked and still resolves — `PLAN.md:58` keeps that heading.
+> 4. **H3's `scripts/README.md` count was re-measured and is worse than the plan's**: 25 of **63**
+>    tracked source files documented, **38** unmentioned (the plan carried 25-of-40 / 15
+>    unmentioned, measured 2026-08-28 before the instruments landed).
+> 5. **`docs/patch-inventory.md`'s `Last verified` bump is qualified**, not a blanket re-date: the
+>    targets and counts were re-measured 2026-09-03, the in-game verification behind §1 is still
+>    2026-08-22, and the header now says both.
+> 6. **The four still-real items are filed as [#2](https://github.com/macgameport/cities-skylines-2-macos/issues/2)
+>    (home-hidpi profile), [#3](https://github.com/macgameport/cities-skylines-2-macos/issues/3)
+>    (`scripts/README.md` drift), [#4](https://github.com/macgameport/cities-skylines-2-macos/issues/4)
+>    (fullscreen-toggle cursor desync) and [#5](https://github.com/macgameport/cities-skylines-2-macos/issues/5)
+>    (Rosetta horizon)**, linked from `PLAN.md` § Known-unresolved. The build session drafted them
+>    without GitHub write scope; the session that filed them ran T7 first and each issue's
+>    `author.login` is **`iosoceans`**.
+>
+> **Verify against:** `CLAUDE.md:56-60` · `CLAUDE.local.md` (untracked) · `.gitignore:5-9` ·
+> `docs/agent-brief.md:62-65` · `docs/steam-ui-investigation.md:13-19` · `PLAN.md` (179 lines) ·
+> `docs/patch-inventory.md:1-30` · `README.md:157,196` · `EXPERIMENTS.md:833`.
+
 ---
 
 ## H1 — the GitHub-identity section is in a public file

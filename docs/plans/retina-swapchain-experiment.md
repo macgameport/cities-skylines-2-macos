@@ -19,10 +19,12 @@
 > ratchet to native with `Use Native=1`. No launcher change. Live-city native cost measured
 > 25.4 → 45.9 ms GPU (GPU-bound scene ≫ the sim-bound bench's +13%), so the r1 config was applied
 > from disk at his request: **DRS Constant 0.5 + CAS at the native swapchain** — the plan's
-> headline cell, reached via the user path. See PLAN.md § "ADOPTED: retina / native swapchain"
-> and the GOTCHAS addendum.
-> Tracking: PLAN.md § "Retina / native-swapchain experiment" (section created at build time;
-> personal-tier repo; GitHub issues were not in use when this shipped — enabled 2026-09-02). Raw run artifacts stay in `~/cs2-patch/perf-runs/` per the
+> headline cell, reached via the user path. See the GOTCHAS addendum, and
+> `docs/plans/launcher-display-profiles.md` for the per-display profile that ships it.
+> Tracking: this as-built header is the record. PLAN.md carried a `✅ ADOPTED: retina / native
+> swapchain` section until 2026-09-03, when it was pruned to a pointer under PLAN.md § "Closed
+> — kept as pointers only" (personal-tier repo; GitHub issues were not in use when this
+> shipped — enabled 2026-09-02). Raw run artifacts stay in `~/cs2-patch/perf-runs/` per the
 > publishability rule; only reduced numbers and decisions land here.
 
 James, 2026-08-26: playing on the built-in panel (no external display), *"resolution has changed on

@@ -53,36 +53,11 @@ Durable record = this repo + its issues + `~/cs2-patch/change-ledger.txt`.
 - **Check disk, not the UI**, for anything mod-related.
 - Boot-verify after touching `mscorlib` — it's on the boot path.
 
-## GitHub identity — this project is deliberately separated (2026-08-30)
+## GitHub identity
 
-`macgameport` is an **organization**; `iosoceans` and `jvspearman` are both owners, and **both
-memberships are private** (the org's public member list is empty), so nothing publicly links them.
-The separation is forward-looking only — the 169 existing commits keep their `macgameport`
-authorship on purpose, and the already-posted dxmt#141 comments stay under `jvspearman`.
-
-| layer | mechanism | effect |
-|---|---|---|
-| git commits | `includeIf gitdir:~/Documents/github/cs2/` → `~/.gitconfig-cs2` | this project commits as `iosoceans <iosoceans@pm.me>`; everything else stays `jvspearman`. Survives a fresh clone. |
-| `gh` CLI | separate config dir `~/.config/gh-cs2` | keeps `~/.config/gh` (jvspearman) untouched |
-| git push/fetch | `credential.https://github.com.helper` in `~/.gitconfig-cs2` → `gh auth git-credential` with the project config dir | **pushes** as `iosoceans` too, not just commit authorship. Without it git uses the default keychain credential and pushes to this PUBLIC repo appear in the personal account's activity feed. Other repos keep `osxkeychain`. |
-| interactive shell | `gh()` wrapper in `~/.zshrc` | any `gh` run from inside the project tree uses the project config dir automatically |
-
-⚠ **Agents: the zsh wrapper does NOT apply to you.** Claude's Bash tool runs **bash** and does not
-source `~/.zshrc`, so `gh` from a tool call will use the DEFAULT config — i.e. **post as
-`jvspearman`**. When running `gh` for this project, set it explicitly:
-
-```bash
-GH_CONFIG_DIR="$HOME/.config/gh-cs2" gh issue comment ...
-```
-
-⚠ **Before posting anything publicly, verify who you are**: `GH_CONFIG_DIR="$HOME/.config/gh-cs2"
-gh auth status`. The four dxmt#141 comments went out as `jvspearman` because nothing enforced this
-at the time.
-
-⚠ `iosoceans@pm.me` is written into every future commit and is **publicly visible** in this public
-repo — a deliberate choice (project address, not a personal one). The private alternative is
-`322706496+iosoceans@users.noreply.github.com`. For GitHub to attribute commits to the account, the
-address must be **verified** on it.
+Identity detail lives in the untracked `CLAUDE.local.md` — if that file is absent you are on a
+clone or a git worktree: do not push or post until identity is set up; the `gh` invocation rule is
+`docs/agent-brief.md` § If you run `gh`.
 
 ## Experiments — read the ledger before designing a test (2026-08-30)
 
@@ -100,9 +75,9 @@ them*. They are different jobs — do not merge them.
   banner that disagrees with the register. **Conventions are enforced there, not by memory** — see
   `EXPERIMENTS.md` § Conventions before inventing a format.
 - **Spawning a subagent?** Point it at **`docs/agent-brief.md`** first — one screen carrying the
-  evidence rules, the process-attribution and `kill -9` traps, the exit-code trap, the privacy
-  rules and the `GH_CONFIG_DIR` requirement. A subagent inherits none of this file, so without the
-  brief it re-derives the project by grep and re-raises settled findings.
+  evidence rules, the process-attribution and `kill -9` traps, the exit-code trap and the privacy
+  rules. A subagent gets this file and the memory index but not the conversation, the memory
+  bodies or the shortcuts — hand it the brief anyway, or it re-raises settled findings.
 - **Every render cell runs `scripts/cell-fingerprint.sh --strict` first.** It records the config
   beside the result and refuses the run on a precondition that would void it. A cell without a
   `config.json` is `UNREVIEWED`, not a result.
