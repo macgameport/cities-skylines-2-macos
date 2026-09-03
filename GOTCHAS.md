@@ -1633,3 +1633,45 @@ when an instrument is fixed — here, the path — re-measure every fact that wa
 was broken; the plan's own "facts it encodes" list is the checklist. The judge was designed with a
 "fresh but truncated → FAIL" branch anyway, which is why the wrong belief cost nothing but the
 expectation in one test row.
+
+## `assert()` bakes `__LINE__` into the object — a comment-only edit is not byte-identical (2026-09-03)
+
+**Root cause.** The upstream-form plan gates its comment/tag passes on rebuilding a
+**byte-identical** `winemac.so`, on the project's own 2026-08-31 precedent that a pure style pass
+produces an identical binary. Removing 32 comment lines from `window.c` changed the module hash.
+The pass was innocent: macOS `assert(x)` expands to `__assert_rtn(__func__, __FILE__, __LINE__, …)`,
+so the line number is an **immediate in the object**. `window.c` carries one assert, which moved
+from line 1328 to 1296, and `impl_from_client_surface()` inlines at five call sites — so
+`window.o` differed in exactly **five bytes, every one `0x30 → 0x10`** (`1328 & 0xff = 0x30`,
+`1296 & 0xff = 0x10`).
+
+**Measured four ways**, because "it's only comments" is an argument, not evidence: a
+comment-stripped source comparison is identical for all five files; the five differing bytes are
+the line-number immediate and nothing else; recompiling both revisions with `-DNDEBUG` (assert
+compiled out, every other flag identical) yields a **byte-identical** `window.o`; and
+`cocoa_window.o` / `macdrv_main.o`, which contain no `assert`, are byte-identical across the same
+pass.
+
+**Prevention.** Byte-identity is the right gate but it is not universal — it holds only for
+translation units with no `__LINE__`-bearing macro (`assert`, and anything else expanding to
+`__FILE__`/`__LINE__`). State the gate as **"byte-identical, or byte-identical under `-DNDEBUG`
+for a file containing `assert()`"**, and pair it with a comment-stripped source comparison, which
+is the check that actually proves no code moved. Find the exposure before the pass:
+`grep -nE '(^|[^_[:alnum:]])assert[[:space:]]*\(' <files>`.
+
+## Restoring a file to test it destroys the edit you were testing (2026-09-03)
+
+**Root cause.** Verifying the assert finding above meant compiling the *pre-pass* source and
+diffing the object. For `window.c` the post-pass copy was saved first and restored after. For
+`cocoa_window.m` and `macdrv_main.c` the same restore ran inside a loop with **no save**, silently
+overwriting a completed pass on both — roughly fifteen minutes of work, unrecoverable, because the
+edits had not been committed and the only other copies were the pre-pass snapshots.
+
+**Prevention.** Two rules, either of which would have prevented it. (1) **Commit before you
+measure.** Work that exists only in a working tree is one `cp` from gone; a branch commit costs
+nothing and is the durable store. (2) **A restore-for-measurement is a save/restore pair, and the
+save is written first** — if a loop restores N files it must snapshot all N before the first
+restore, not after. The recovery lever that did survive was the build output: `.o` files compiled
+from the destroyed sources were still on disk, so the redo could be byte-compared against them and
+proved functionally identical to the lost work. Keep intermediate build artifacts until the source
+they came from is committed.
