@@ -140,6 +140,13 @@ instrument answers "what is actually happening, and can I trust the number?".
 | `build-winemac-visibility.sh` | Rebuild only `winemac.so` against a visibility-instrumented tree |
 | `build-dxmt-fork.sh` | Build notpop's DXMT fork (the `_CreateMetalViewFromHWND` rewrite) |
 | `regen-winemac-patches.sh` | Generate the three published `winemac.drv` patches from git. `--check` verifies them against the tree **and** asserts three structural invariants about the `stock`/`aquadran`/`core`/`main` branch model |
+
+
+> The ten `*.patch` files in this directory are **generated artifacts, not sources** — the
+> `winemac-*` set by `regen-winemac-patches.sh` (gated by its `--check`), the `dxmt-*` and
+> `wineandaqua-*` set carried from upstream/vendor. They are indexed by their generator rather than
+> row by row, so an audit that lists "files not named in this README" will always return exactly
+> those ten; that is expected, not drift.
 | `strip-comments.py` | Compare two revisions of a C/ObjC file for **code** equality, ignoring comments — how a comment-only edit is proven to be comment-only |
 | `make-shortcut.sh` · `make-steam-shortcut.sh` · `make-vanilla-wrapper.sh` | Build the double-clickable launchers in `~/Applications`, and a throwaway wrapper carrying vanilla wined3d |
 | `install-webhelper-shim.sh` | documented in the reproducers table above |
