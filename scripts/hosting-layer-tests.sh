@@ -85,7 +85,19 @@ down() {
                       left=$(steam_family | tr '\n' ' '); [ -n "$left" ] && kill $left 2>/dev/null; }
   return 0
 }
-cleanup() { kill $CAF 2>/dev/null; down; (cd "$SRC" && git checkout -q -- . 2>/dev/null); }
+# The module installed when this run STARTED. `restore green` restores the SOURCE tree and
+# rebuilds, which installs whatever the nested repo currently is -- not what was there before. On
+# 2026-09-04 that silently promoted the stage-2 build to daily driver behind a battery run whose
+# only job was to check a mutant. The machine must end on the module it began on.
+PRE_MOD=$(mktemp -t winemac-pre); cp "$INST" "$PRE_MOD" 2>/dev/null
+cleanup() {
+  kill $CAF 2>/dev/null; down; (cd "$SRC" && git checkout -q -- . 2>/dev/null)
+  if [ -s "$PRE_MOD" ] && ! cmp -s "$PRE_MOD" "$INST"; then
+    cp "$PRE_MOD" "$INST" &&
+      echo "  module restored to the pre-run build: $(shasum -a 256 "$INST" | cut -c1-12)"
+  fi
+  rm -f "$PRE_MOD"
+}
 trap cleanup EXIT
 drv() { WINEDEBUG=-all "$W" "$DRV" "$@" 2>/dev/null | tr -d '\r'; }
 dlist() { drv list | grep 'class='; }
