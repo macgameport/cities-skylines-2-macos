@@ -1898,3 +1898,44 @@ which for a mutant whose expected result is *red* reads as a test that merely fa
 > asserted it; the only reference is the #7 plan's T5 row, which is a criterion being run for the
 > first time. Caught 2026-09-03 while running that criterion, and only because the traceback
 > happened to be read.
+
+## An audit that reports the MATCHES must not name the non-matches by eye (2026-09-04)
+
+**What happened.** The as-built rule ships with an audit: `grep -ril 'as-built' docs/plans/` — files
+with no header are the smell. On a `button up` sweep that produced a finding, an issue, and a
+confident table:
+
+> `grep -ril 'as-built' docs/plans/` on `button up` 2026-09-03: 11 plan docs, **9 carry a header,
+> 2 do not** … `launcher-display-profiles.md`, `retina-swapchain-experiment.md`
+
+Every part of that is false. **All 11 carried a header**, and both named files had carried one since
+the commit that shipped their work — `866f4fd` (2026-08-27) and `54431bf` (2026-08-26). Neither had
+been touched in between. The issue sat open overnight before anyone opened either file.
+
+**The mechanism.** `grep -l` returns the set that **has** the property. The audit wants the
+**complement**, and the complement was never computed — two plausible candidates were picked by
+inspection (both old, both shipped, neither recently touched) and written up as findings. A guess
+in the shape of a measurement reads exactly like a measurement once it is in a table with a count
+beside it, and the count made it worse: "9 of 11" sounds derived even when nothing derived it.
+
+**Why it is worth a heading.** This is the *inverse* of the usual `grep -L` trap already recorded
+here (macOS BSD `grep -L` inverting its exit status). That one produces a wrong answer from a
+correct instinct — reaching for the right flag and being betrayed by the platform. This one skips
+the instrument entirely and reports intuition in its voice, which no amount of getting `grep -L`
+right would have caught. The issue body even contained a warning against reconstructing as-built
+headers from memory, sitting directly beneath a premise reconstructed from memory.
+
+**Three rules.**
+1. **Compute the complement, never eyeball it.** The one-liner is not longer than the guess:
+   `for f in docs/plans/*.md; do grep -qil 'as-built' "$f" || echo "$f"; done`. Anything reported as
+   *absent* must come out of a command whose output IS the absences.
+2. **A count is a measurement or it is not in the report.** "9 of 11" must be two numbers something
+   printed. If you cannot say which command produced a figure, delete the figure.
+3. **Naming files raises the bar, it does not lower it.** A vague "some plans may lack headers" is a
+   prompt to go and look. A table with two filenames is a finding, and a finding about a specific
+   file requires opening that file — the repo's first engineering rule, which explicitly covers a
+   claim inherited from a summary or a previous session.
+
+> **Ledger:** no experiment or conclusion rested on it — the damage was one wrong public issue,
+> [#8](https://github.com/macgameport/cities-skylines-2-macos/issues/8), open for ~17 hours and
+> closed as invalid with the correction in it.
