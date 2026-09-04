@@ -1851,3 +1851,50 @@ not fail — it succeeds, with the numbers a working fix would produce.
 > predates the per-run cell label and shares the old `stage1` cell. **No conclusion rests on
 > either.** C38's A/B is unaffected: those four rounds ran the `main`-built module
 > (`2a251a4b2510fb84`), with lit interiors and a clean static control in every session.
+
+## A mutant that never applied reports as a mutant result (2026-09-03)
+
+**What happened.** `hosting-layer-tests.sh --mutants` has three mutants. M1's anchor string —
+`if (remote_layer_children_has(data, hwnd)) update_remote_layer_frames(data);` — exists on **no
+branch**: not `main`, not `main-old`, not `main-raw`. D1 was rewritten to reposition only the moved
+child rather than every layer on the root, and the mutant was never updated, so it still names the
+full-pass version it replaced. It has been stale since the script was committed at `cab54e6`,
+meaning **M1 has never once been applied**.
+
+The patch threw an `AssertionError` and `mutate` returned non-zero. That should have ended the row.
+It did not, because the caller was written as two statements on two lines:
+
+```sh
+mutate M1 "…"
+build_install && cell m1 && run_t1 m1     # ← runs regardless
+```
+
+So the battery built the clean module, installed it, ran the test against it, and printed
+`T1 verdict: GREEN` — for a mutant whose *pass condition is red*. A false negative, rendered
+identically to a real result.
+
+**The tell was in its own output, one line above the verdict:** `module 2a251a4b2510` — the
+baseline hash. Nothing compared them.
+
+**Why it is worth a heading.** This is the blind spot inside the project's own mutant rule. The rule
+says *every mutant is applied to real source, built, observed red, then restored — "argued red" is
+not red*. It closes the gap between reasoning and running. It does **not** close the gap between
+running and **running the thing you think you are running**, and that gap fails silently in the
+direction that looks like success: a mutant that does nothing produces the unmutated behaviour,
+which for a mutant whose expected result is *red* reads as a test that merely failed to fire.
+
+**Three rules.**
+1. **Chain a mutant's row to its patch**, never merely follow it. `mutate X && build_install &&
+   cell && run` — a non-zero patch must abort the row, not precede it.
+2. **Prove the binary changed.** `build_install` now refuses a module byte-identical to the clean
+   one. This catches the other half, which no exit status can see: a patch that applies cleanly and
+   changes nothing. Record the clean hash before the first mutant and compare every build to it.
+3. **A mutant's anchor is code that rots.** It names an exact source line in a file under active
+   development, and nothing recompiles it. When a mechanism is rewritten, its mutants are part of
+   the rewrite — grep the anchors, do not assume. The strong version: the mutant's *expected result*
+   should differ from the unmutated build's, so a run where they match is itself the alarm.
+
+> **Ledger:** nothing rests on it — no claim in `EXPERIMENTS.md` cites "M1 red", and C32 never
+> asserted it; the only reference is the #7 plan's T5 row, which is a criterion being run for the
+> first time. Caught 2026-09-03 while running that criterion, and only because the traceback
+> happened to be read.
