@@ -299,9 +299,18 @@ assert s.count(o)==1; io.open(p,'w',encoding='utf-8').write(s.replace(o,n))" \
     WINEDEBUG=-all "$W" "$S/steam.exe" steam://store >/dev/null 2>&1; sleep 12
     echo "    'paint order incomplete': $(grep -c 'paint order incomplete' /tmp/steam-cell-m3/stdout.txt 2>/dev/null || echo 0)  (>=1 = red)"; }
   down; (cd "$SRC" && git checkout -q -- window.c)
-  echo "=== D1 call shape on the CLEAN build - the mutant flip is unreadable without it"
-  GH=$(dlist | grep 'class=SDL_app' | grep 'title=Steam$' | awk '{print $1}' | head -1)
-  [ -n "${GH:-}" ] && echo "    clean: $(d1_call_shape green "$GH")   (want for>=1 frames=0)"
-  echo "=== restore green"; build_install && cell green && run_t1 green; down
+  # The clean baseline must be taken while the GREEN cell is UP. Placing it before this block
+  # measured nothing: the M3 row ends with `down`, so there was no Steam window to move a child
+  # in, dlist returned empty, and the guard silently skipped the line (2026-09-04, first run).
+  echo "=== restore green"
+  build_install && cell green && {
+    run_t1 green
+    GH=$(dlist | grep 'class=SDL_app' | grep 'title=Steam$' | awk '{print $1}' | head -1)
+    if [ -n "${GH:-}" ]; then
+      echo "    D1 call shape, CLEAN: $(d1_call_shape green "$GH")   (want for>=1 frames=0)"
+    else
+      echo "    D1 call shape, CLEAN: VOID — no Steam window, the mutant flip is unreadable"
+    fi; }
+  down
 fi
 echo "########## done $(date '+%T')   tree modified: $( (cd "$SRC" && git status --porcelain | wc -l) | tr -d ' ')"
