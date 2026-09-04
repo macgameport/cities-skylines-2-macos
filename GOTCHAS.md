@@ -1845,9 +1845,9 @@ not fail — it succeeds, with the numbers a working fix would produce.
    the patched module's name — twice, in the middle of diagnosing this. Same family as
    `<cmd> | tail` announcing a failing suite as exit 0.
 
-> **Ledger:** the two void cells are **not** in `EXPERIMENTS.md` — same disposition as the four
-> `OUT_DIR` casualties above, and for the same reason: they were re-run once the cause was known,
-> and the index's status vocabulary is machine-derived from the evidence store (`--regen`), so a
-> hand-written `VOID-NOGLUE` would be overwritten on the next `button up`. No conclusion rests on
-> them. C38's A/B is unaffected — those four rounds ran the `main`-built module
+> **Ledger:** the second void run is indexed as **exp_aa3654** (`stage1-t2a-diagfix2-…`), and the
+> generated `capture` column reads **`black`** for it without anyone saying so — that column is the
+> cheapest existing tell for this whole failure, and it sits beside every run. The first void run
+> predates the per-run cell label and shares the old `stage1` cell. **No conclusion rests on
+> either.** C38's A/B is unaffected: those four rounds ran the `main`-built module
 > (`2a251a4b2510fb84`), with lit interiors and a clean static control in every session.
