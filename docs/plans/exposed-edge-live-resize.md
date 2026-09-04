@@ -116,12 +116,12 @@ names as well as a probe's live `f*.png`).
 
 ### 2.1 The child side has no resize path
 
-`CAContextSwapChain` (`:4191-4278`) is an offscreen `CAMetalLayer` whose bounds are fixed at
-creation (`:4234`) with `anchorPoint (0,0)` (`:4235`) and the default position, so the remote root's
-frame is `(0,0,w,h)` in the host's space — which is why stale content pins to the host's origin.
-Its background is black (`:4232`) and it is exported through a `CAContext` (`:4239-4244`). The class
-has only `init`, `layer` and `dealloc`; "no resize path" is a winemac statement — DXMT receives the
-`CAMetalLayer` through `layer` (`:4256`), and the evidence that it recreates rather than resizes is
+`CAContextSwapChain` (`:4297-4309`, implementation `:4311-4380`) is an offscreen `CAMetalLayer`
+whose bounds are fixed at creation (`:4340`) with `anchorPoint (0,0)` (`:4341`) and the default
+position, so the remote root's frame is `(0,0,w,h)` in the host's space — which is why stale content
+pins to the host's origin. Its background is black (`:4338`) and it is exported through a
+`CAContext` (`:4346-4348`). The class has only `init`, `layer` and `dealloc`; "no resize path" is a
+winemac statement — DXMT receives the `CAMetalLayer` through `layer` (`:4362`), and the evidence that it recreates rather than resizes is
 the count: 417 `CREATE` firings against 417 acquires in one session
 (`docs/plans/hosting-layer-design-gaps.md` § T1; C30 records the same client's 20 hosted children on
 one thread, not this count). Chromium's own host does the same (`display_ca_layer_tree.mm`: anchor
@@ -134,8 +134,8 @@ host's bounds reach the remote tree only through `masksToBounds`.
    (`window.c:1984-2007`, D1) → `update_remote_layer_frame_for` (`window.c:1884`) →
    `macdrv_window_update_ca_layer_host_frame` (`:4328`) → `updateCALayerHostFrame` (`:813-838`),
    which sets `host.frame` to the **new** rect at once (`:835`, actions disabled `:834`). The root's
-   own `WindowPosChanged` runs the full pass `update_remote_layer_frames` (`window.c:1909-1963`,
-   called at `window.c:2042`) with the same effect — which is why the pre-D1/D2 module shows the same strip.
+   own `WindowPosChanged` runs the full pass `update_remote_layer_frames` (`window.c:1912-1966`,
+   called at `window.c:2049`) with the same effect — which is why the pre-D1/D2 module shows the same strip.
 2. The host's remote content is still the **old** swapchain at its creation bounds. A `CALayerHost`
    shows the remote tree 1:1; `masksToBounds` (`:804`) clips, nothing stretches. The uncovered
    remainder of the host's frame shows **`host.backgroundColor`** — black, set 120 ms after
@@ -175,7 +175,7 @@ every host together. T7 attributes this before any shrink handling is written (�
 |---|---|---|---|
 | **S1** | the *reframed old* host's black background, uncovered where the stale content ends (step 2) | **9 / 10** (green) | keep content and frame in lock-step: scale the stale content (§4 stage 1) |
 | **S2** | a *new* host older than 120 ms whose first frame has not arrived (step 3) | not cleanly measurable yet — the diagnostic red is also the store banner's colour; T0 re-runs with magenta | the deferred-black timing (§4 stage 3, conditional) |
-| **S3** | the child's own offscreen `CAMetalLayer` background (`:4232`, black) before its first drawable | **0 / 0** — painted blue in M0b, and no blue appeared in any frame | none needed |
+| **S3** | the child's own offscreen `CAMetalLayer` background (`:4338`, black) before its first drawable | **0 / 0** — painted blue in M0b, and no blue appeared in any frame | none needed |
 | **S4** | **beneath every host**: no host covers the strip yet, so the content view's own backing layer shows — its `contents` is the window-surface image cropped to `layer.bounds` (`updateLayer`, `:569-597`) | **6 / 8** (black with no diagnostic colour) | stretch the full-client hosts with the root during live resize (§4 stage 2) |
 
 Two inferences ride on S4 and T0 measures both. *Why nothing covers the strip:* the root's
@@ -192,7 +192,7 @@ client area; what Windows shows there is not established (§2.4).
 Rather than argue which source dominates, colour them: a diagnostic module with the create-path
 background **red** (`:781`), the reframe-grow path **green** (a line before `:835` that paints the
 background when the new frame is larger) and, in M0b, the child's offscreen layer **blue**
-(`:4232`), churned with frames kept and scored per band and per colour.
+(`:4338`), churned with frames kept and scored per band and per colour.
 
 **Result (cells `m0-colour`, `m0b-colour`, 40 churn frames each, ledger C36):** green (S1) in 9 and
 10 frames at 78–86 % of the right band; black with **no** diagnostic colour (S4) in 6 and 8 frames
@@ -345,9 +345,9 @@ becomes the dominant residual; expect T3's leftovers to carry that signature.
 ### 4.2b Stage 2 — B′: stretch full-client hosts with the root during live resize (S4)
 
 The live-resize signal already exists in stock and needs no new observation, delegate or query:
-every `WINDOW_FRAME_CHANGED` carries `in_resize = [self inLiveResize]` (`:3246` → `:2373`,
-`macdrv_cocoa.h:400`, consumed at `window.c:2109-2139`), and `windowDidEndLiveResize:` (`:3150-3157`)
-posts `WINDOW_RESIZE_ENDED` → `macdrv_window_resize_ended` (`window.c:2313-2317`), which today only
+every `WINDOW_FRAME_CHANGED` carries `in_resize = [self inLiveResize]` (`:3352` → `:2479`,
+`macdrv_cocoa.h:400`, consumed at `window.c:2116-2149`), and `windowDidEndLiveResize:` (`:3256-3264`)
+posts `WINDOW_RESIZE_ENDED` → `macdrv_window_resize_ended` (`window.c:2320-2324`), which today only
 sends `WM_EXITSIZEMOVE` — **nothing re-derives the hosts at the end of a drag**. Both handlers run
 on the window's own wine thread (`event.c:375, :524`), the thread that owns `win_data`. An
 `OnMainThread` query of `-[NSWindow inLiveResize]` would block the app thread mid-resize and is not
@@ -357,13 +357,13 @@ used. Five edits, plus the shared helper below (a sixth change):
    placed **beside core's own `remote_layer_children` field**, not beside `fullscreen : 1` where
    aquadran's hunk lands (`scripts/wineandaqua-dxmt.patch:239-241`), so the generator's invariant 2
    keeps applying.
-2. `window.c:1909`: `static void update_remote_layer_frames(struct macdrv_win_data *data, const struct window_rects *old_rects)`
+2. `window.c:1912`: `static void update_remote_layer_frames(struct macdrv_win_data *data, const struct window_rects *old_rects)`
    (the pattern `sync_window_position` uses, `window.c:850`). The pass works in **window-rect
-   space** (`root_rect` from `NtUserGetWindowRect(data->hwnd)`, `window.c:1921`; child frames offset by
-   `root_rect.left/top`, `window.c:1947`), and by the time it runs the new rects are installed
-   (`data->rects = *new_rects` at `window.c:1979`, `sync_window_position` at `window.c:2021`), so the "before this
+   space** (`root_rect` from `NtUserGetWindowRect(data->hwnd)`, `window.c:1924`; child frames offset by
+   `root_rect.left/top`, `window.c:1950`), and by the time it runs the new rects are installed
+   (`data->rects = *new_rects` at `window.c:1986`, `sync_window_position` at `window.c:2028`), so the "before this
    move" rect **must** be passed in — the function has no memory of its own. After the
-   `OffsetRect(&cr, …)` at `window.c:1947`:
+   `OffsetRect(&cr, …)` at `window.c:1950`:
 
    ```c
    if (old_rects && data->in_live_resize)
@@ -385,15 +385,15 @@ used. Five edits, plus the shared helper below (a sixth change):
    1920x1050 @0,30) equals the root client rect, while frame 09 shows the *page* (the inset sibling)
    lagging — so stage 2 covers S4 only if the full-window browser sits below the page in z; T0
    records the match and the z-order before T2b's threshold means anything.
-3. `window.c:2042`: `update_remote_layer_frames(data, &old_rects);` (`old_rects` is the local at
-   `window.c:1972`, snapshotted at `window.c:1978` before the new rects are installed).
-4. `window.c:2132`, before `release_win_data(data)`: `data->in_live_resize =
+3. `window.c:2049`: `update_remote_layer_frames(data, &old_rects);` (`old_rects` is the local at
+   `window.c:1979`, snapshotted at `window.c:1985` before the new rects are installed).
+4. `window.c:2139`, before `release_win_data(data)` at `window.c:2140`: `data->in_live_resize =
    event->window_frame_changed.in_resize;` — written on **every** event, so the bit self-heals; it
-   must precede `NtUserSetRawWindowPos` (`window.c:2142`), which is what triggers the full pass. This is why a
-   maximized window, whose `windowDidEndLiveResize` posts nothing (`:3152`), cannot leave the
+   must precede `NtUserSetRawWindowPos` (`window.c:2149`), which is what triggers the full pass. This is why a
+   maximized window, whose `windowDidEndLiveResize` posts nothing — it is wrapped in `if (!maximized)` (`:3258`), cannot leave the
    heuristic armed: each frame-changed event rewrites the bit and `windowWillResize` pins the size
-   (`:3325-3328`).
-5. `window.c:2313-2317`:
+   (`:3429-3435`).
+5. `window.c:2320-2324`:
 
    ```c
    void macdrv_window_resize_ended(HWND hwnd)
@@ -664,7 +664,7 @@ fold itself introduced**, all fixed here:
   confounding T0's race count. The CREATE handler now keeps the unsubstituted `window.c:1723` rect.
 - **[SHOULD-FIX] Unqualified `window.c` cites.** The plan's own convention (header) makes a bare
   `:N` mean `cocoa_window.m`, so eleven `window.c` line cites in §1, §4.2b, §4.5, T0 and T6 resolved
-  to unrelated lines. All qualified; `:1946` → `window.c:1947` (1946 is the closing brace).
+  to unrelated lines. All qualified; `:1946` → `window.c:1947` (1946 was the closing brace). ⚠ Those numbers are as of that pass; stage 1 shifted `window.c` by +3 and `cocoa_window.m` by ~+71, and every stage-2 cite was re-resolved 2026-09-03 against nested `main` `20ffd58` — this line records what the pass found, not where the code is now.
 - **[MINOR] The brush index was wrong in both the plan and C36** — the evidence prints `COLOR_0+1`
   (index 0), not `COLOR_WINDOW+1` (index 5). The printed colour `FFFFFF` and the white conclusion
   stand; both corrected.
@@ -683,9 +683,9 @@ fold itself introduced**, all fixed here:
 | 2026-09-03 | 1 (triple-check + fitted extras) | architecture · correctness · builder-simulation · platform-facts · security · test-plan audit | manual agents, ≤ 4 concurrent, ≤ 15 calls each, read-only; builder ran the gates | Claude Fable 5.1 (`claude-fable-5-1`) | cs2 `563130a` · nested `main` `5d28d7b`, `core` `eddf167` | five × build-ready-with-fixes, one needs-rework (test plan); all folded → **build-ready-with-fixes**, superseded by pass 1b |
 
 Key paths: `dlls/winemac.drv/cocoa_window.m` (`WineContentView` host methods `:758-861`, `updateLayer`
-`:569-597`, `CAContextSwapChain :4191-4278`, entry points `:4302-4364`, live-resize delegates `:3150`,
-`:3246`, `:3362`), `dlls/winemac.drv/window.c` (`:946`, `:1304-1334`, `:1709-1785`, `:1884-1963`,
-`:1965-2042`, `:2097-2146`, `:2313-2317`), `dlls/winemac.drv/macdrv.h`, `dlls/winemac.drv/macdrv_cocoa.h:400`,
+`:586-614`, `CAContextSwapChain :4297-4309`, entry points `:4408-4470`, live-resize delegates `:3256`,
+`:3352`, `:3429`), `dlls/winemac.drv/window.c` (`:946`, `:1304-1334`, `:1709-1785`, `:1884-1966`,
+`:1972-2049`, `:2104-2153`, `:2320-2324`), `dlls/winemac.drv/macdrv.h`, `dlls/winemac.drv/macdrv_cocoa.h:400`,
 `scripts/darkboxes.swift`, `scripts/darkboxes-attrib.py`, `scripts/shimmer-probe.sh`,
 `scripts/livedrag-probe.sh`, `scripts/hosting-layer-tests.sh`, `scripts/regen-winemac-patches.sh`,
 `scripts/win-resize-driver.c` (`classbg`).
