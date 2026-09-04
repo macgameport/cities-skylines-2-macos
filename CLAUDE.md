@@ -178,13 +178,24 @@ comments are TRUE.
 
 **Second instance, same repo (2026-09-03).** The `check it` on `exposed-edge-live-resize.md` ran six lenses at Fable 5.1, then one fitted Opus 5 agent over the *fold*. The fitted pass found a blocker no gate could reach: a test's pass condition named the wrong band and the wrong black-threshold for a signature measured two sections earlier, so **its mutant could never be observed red** while the exit criteria demanded it red. Pure cross-referencing — the plan against itself. Consistent with the rule; one repo *at that point*, so still provisional.
 
-**First sibling adoption (homeOne, 2026-09-03) — repo 2 of the three promotion needs.** homeOne took the rule and the `needs-high-tier-review` label for its Metal↔LLM upstream-contribution umbrella ([jvspearman/homeOne#66](https://github.com/jvspearman/homeOne/issues/66)). It is a useful second data point because the split there is unusually clean and runs *both* ways: the benchmark sweep (#68) is gated hard by Lily's 64-token-digest contract — no model talks past a digest mismatch — while the baseRT track (#69) has **no gate anywhere**, being prose argued on a third party's tracker. The label went on the surfaces, not the tickets, which is the part that most needs restating: two of the three issues carry both halves at once. Not yet evidence *for* the rule (nothing has been reviewed under it there yet) — evidence that it transfers to a repo with no build, no tests and no compiler.
+**First sibling adoption (homeOne, 2026-09-03) — repo 2.** homeOne took the rule and the `needs-high-tier-review` label for its Metal↔LLM upstream-contribution umbrella ([jvspearman/homeOne#66](https://github.com/jvspearman/homeOne/issues/66)). It is a useful second data point because the split there is unusually clean and runs *both* ways: the benchmark sweep (#68) is gated hard by Lily's 64-token-digest contract — no model talks past a digest mismatch — while the baseRT track (#69) has **no gate anywhere**, being prose argued on a third party's tracker. The label went on the surfaces, not the tickets, which is the part that most needs restating: two of the three issues carry both halves at once. Not yet evidence *for* the rule (nothing has been reviewed under it there yet) — evidence that it transfers to a repo with no build, no tests and no compiler.
 
-⚠ **Still provisional — repo 2 of 3.** The mechanism is plausible (cross-referencing is
-attention-heavy, execution is not) and it has now transferred once, but the evidence is still this
-repo's single session. Promote it to `~/.claude/rules/` at the **third** repo, per the cross-repo
-sweep rule — and only on evidence that it held there, not merely that it was adopted there.
-**Adoption is not confirmation.**
+**Second sibling adoption (isnotus, 2026-09-03) — repo 3.** Fitted, not copy-pasted: its sharpest
+ungated surface is **Metis/Notus prompt and tool-description text** — a test proves a prompt does
+not crash and a tool is reachable, nothing proves the wording steers the agent correctly over real
+family data — plus anything the kids read, the news feed having been live since 2026-08-10. It
+also drew the line this rule most needs drawn twice: privacy *policy* reasoning is judgment
+surface, while the `visible_to_metis` filter that enforces it is gated.
+
+⚠ **Three adoptions, zero confirmations — NOT promoted, and the distinction is the point.**
+The count that the cross-repo sweep rule gates on is repos where a convention *fits*, and on that
+reading the bar is met. But this rule's own text asks for evidence it **held**, and nothing has
+been reviewed under it in either sibling yet. So the honest state is: the rule has proven it
+**transfers** — to a repo with no build, no tests and no compiler (homeOne), and to one whose
+riskiest output is prose aimed at an LLM and at children (isnotus) — and has proven nothing about
+whether it **works** outside this repo. Promotion to `~/.claude/rules/` is James's call; the
+mechanical bar is met and the evidentiary one is not. **Do not let a third copy be mistaken for a
+third data point.**
 
 ## Deliberate deviations from sibling-repo practice
 
