@@ -143,6 +143,29 @@ hosted_candidates() {
 # T1: try each hosted child until one gives a DECISIVE answer. A child whose layer is behind
 # another is invisible, and reads exactly like a layer that failed to follow — so ambiguity is
 # reported as ambiguity, never as a result.
+# D1's claim, measured. A child's own move must reposition THAT child -- one
+# `update_remote_layer_frame_for` -- and must NOT run the full `update_remote_layer_frames` pass
+# over every layer on the root. That is exactly what D1's commit changed (eddf167: the child path
+# called the full pass, D1 made it targeted), so it is what a mutant of D1 has to move.
+#
+# The OLD M1 deleted the call and asserted "the layer must stop following" -- a claim D1 never made,
+# and one that cannot go red: the root's own WindowPosChanged still runs the full pass and
+# repositions the moved child anyway. Measured 2026-09-04 (issue #10): T1 GREEN with
+# `update_remote_layer_frame_for` firing 0 times and `update_remote_layer_frames` firing 126. A
+# pixel test cannot separate the two mechanisms, because both put the layer in the right place.
+# The call SHAPE can.
+d1_call_shape() {   # d1_call_shape <cell> <root-hwnd> ; echoes "for=<n> frames=<n>"
+  local log=/tmp/steam-cell-$1/stdout.txt C mark f fr
+  C=$(hosted_candidates "$1" "$2" | head -1)
+  [ -z "$C" ] && { echo "for=- frames=- (no hosted candidate)"; return 1; }
+  mark=$(wc -l < "$log")
+  drv move "$C" +120,+0 >/dev/null; sleep 2
+  f=$(tail -n +$((mark+1)) "$log" | grep -c 'update_remote_layer_frame_for')
+  fr=$(tail -n +$((mark+1)) "$log" | grep -c 'update_remote_layer_frames')
+  drv move "$C" -120,+0 >/dev/null; sleep 1
+  echo "for=$f frames=$fr"
+}
+
 run_t1() {
   local H b a s40 s160 nc mi lo verdict=NONE C X x
   H=$(dlist | grep 'class=SDL_app' | grep 'title=Steam$' | awk '{print $1}' | head -1)
@@ -249,13 +272,15 @@ if [ "$MUTANTS" = 1 ]; then
     if (cd "$SRC" && python3 -c "$2"); then echo "    $1: applied"; return 0
     else echo "    $1: SKIPPED — the mutant did not apply, so this row measures nothing"; return 1; fi
   }
-  echo "=== M1 remove the D1 refresh — the layer must stop following"
+  echo "=== M1 revert D1 to the full pass — the call SHAPE must flip (#10)"
   mutate M1 "
 import io; p='window.c'; s=io.open(p,encoding='utf-8').read()
 o='            update_remote_layer_frame_for(data, hwnd, remote_layer_context_for(data, hwnd));'
-n='            /* MUTANT M1: the D1 refresh is removed */'
+n='            update_remote_layer_frames(data, NULL);   /* MUTANT M1: D1 pre-rewrite */'
 assert s.count(o)==1; io.open(p,'w',encoding='utf-8').write(s.replace(o,n))" \
-    && EXPECT_DIFFERENT=1 build_install && cell m1 && run_t1 m1
+    && EXPECT_DIFFERENT=1 build_install && cell m1 && {
+      MH=$(dlist | grep 'class=SDL_app' | grep 'title=Steam$' | awk '{print $1}' | head -1)
+      echo "    call shape under M1: $(d1_call_shape m1 "$MH")   (want for=0 frames>=1 = red)"; }
   down; (cd "$SRC" && git checkout -q -- window.c)
   echo "=== M2 drop SWP_NOZORDER from the moved mask — T1 must stay green"
   mutate M2 "
@@ -274,6 +299,9 @@ assert s.count(o)==1; io.open(p,'w',encoding='utf-8').write(s.replace(o,n))" \
     WINEDEBUG=-all "$W" "$S/steam.exe" steam://store >/dev/null 2>&1; sleep 12
     echo "    'paint order incomplete': $(grep -c 'paint order incomplete' /tmp/steam-cell-m3/stdout.txt 2>/dev/null || echo 0)  (>=1 = red)"; }
   down; (cd "$SRC" && git checkout -q -- window.c)
+  echo "=== D1 call shape on the CLEAN build - the mutant flip is unreadable without it"
+  GH=$(dlist | grep 'class=SDL_app' | grep 'title=Steam$' | awk '{print $1}' | head -1)
+  [ -n "${GH:-}" ] && echo "    clean: $(d1_call_shape green "$GH")   (want for>=1 frames=0)"
   echo "=== restore green"; build_install && cell green && run_t1 green; down
 fi
 echo "########## done $(date '+%T')   tree modified: $( (cd "$SRC" && git status --porcelain | wc -l) | tr -d ' ')"
