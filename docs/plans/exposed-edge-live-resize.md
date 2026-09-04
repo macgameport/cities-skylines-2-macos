@@ -14,8 +14,26 @@ fixed — see § Review log).** Tracker:
 > Nested winemac `core` +3 commits (`af4b6d8` scale-a-stale-host · `717d431` the scale TRACE ·
 > `23c5404` the degenerate-size floor), `main` rebuilt as aquadran → core → glue; reference patches
 > regenerated, `regen-winemac-patches.sh --check` three `ok` + three invariants (T9's first half).
-> Modules: baseline `cd79fc463795939f` · stage 1 `2a251a4b2510fb84`. Ledger **C37** (T1 gate) and
-> **C38** (the A/B).
+> Modules: baseline `cd79fc463795939f` · stage 1 `2a251a4b2510fb84` · diag-fix `50fdfe79898dac36`
+> · diag+E1 `f7b2ad5d54455689` · E2 `e84ef3b09b066b6e` · E3 `9b6993e62ca091b4` · E5
+> `f309e74dfd74c77b`, all built through `scripts/build-winemac.sh`. Ledger **C37** (T1 gate),
+> **C38** (the A/B), **C39** (T2a + E1), **C40** (T7, E5, E2, E3).
+>
+> **Stage-1 rows as measured 2026-09-03 (exit criterion 2):**
+>
+> | row | result |
+> |---|---|
+> | T2a | **PASS** — `Rgreen ≥ 20 %` 0/120 (right-band green 78–86 % → max 0.80 %), magenta 0, blue 0, S4 8·9·12 per 40, static 0/40 |
+> | T4 | **PASS** — 0 BRIGHT at 2399×1499 at rest, interior lum 88 |
+> | T6 | **PASS** on two independent sessions, `scripts/t6-scale-at-rest.py` |
+> | T7 grow | **PASS** both axes — `Rgreen` 0/40 (width), `Bgreen` max 0.10 %, 0/40 (height) |
+> | T7 shrink | **NOT EVALUABLE** — criterion satisfied by a window that is not resized ([#9](https://github.com/macgameport/cities-skylines-2-macos/issues/9)) |
+> | T9 | **PASS** — three `ok` + three invariants |
+> | E1 · E3 · E5 | **RED** — E1 green 8/8/9 per 40 and `3021 scale 1.000,1.000`; E3 trace `1.999,2.000`; E5 every band black with 2050 placements |
+> | E2 | **engaged, not observable** — 172 placements at `scale 0.999,1.000`, 0 BRIGHT ([#9](https://github.com/macgameport/cities-skylines-2-macos/issues/9)) |
+>
+> **Exit criterion 2 is therefore NOT met as written**, and the gap is in the criteria, not the
+> code: T7's shrink clause and E2's mutant signal both need restating before stage 1 can close.
 >
 > **Deviations from this plan, in the order they were forced:**
 > 1. **The two per-host tables are NOT ivars beside `_caLayerHosts` (§4.1).** They are a
