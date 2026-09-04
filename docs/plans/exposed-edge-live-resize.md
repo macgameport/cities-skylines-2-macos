@@ -10,7 +10,26 @@ fixed — see § Review log).** Tracker:
 `winemac.so.bak-preD12-20260902-221649` = `53c9443db3145f58`. Line numbers are against the nested
 `main` and name their file; unqualified `:N` is `cocoa_window.m`.
 
-> **🔧 As-built (2026-09-03): stage 1 BUILT and measured; stages 2 and 3 not started.**
+> **🔧 As-built (2026-09-03): stage 1 BUILT and CLOSED; stage 2 BUILT and contained, its three
+> live drags pending; stage 3 not started.**
+>
+> **Stage 2** — nested `core` +2 (`55f0805` the stretch · `c96547f` the decline trace), `main`
+> rebuilt as aquadran → core → glue (`a5e0d03`), invariants green, patches regenerated. Modules:
+> prod `ef82ef17f4ef5516` (T3) · diag-fix `86efd83b755de109` (T2b) · diag-pre `50fdfe79898dac36`
+> (T0, = stage 1 + colours). **T10 GREEN** (ledger **C43**): 0 stretch traces and 0 decline
+> traces across 3021 placements in 120 churn frames, so the guard holds — a `SetWindowPos`
+> resize never sets `in_live_resize`. Boot `VERDICT: PASS`. Churn is unchanged from stage 1,
+> which is the expected result and **not** evidence about stage 2: a churn is not a live resize,
+> so stage 2's effect exists only under a real drag. Run one with `scripts/drag-session.sh`.
+>
+> **One deviation, added after the first build:** the plan asks for a TRACE asserting that `cr`
+> (raw-DPI queries) and `data->rects` (monitor DPI, `macdrv.h:185`) share a space before
+> trusting `EqualRect`. It is implemented as a trace of BOTH rects whenever the substitution
+> **declines**, rather than a one-shot equality assert — same information, in situ, and it makes
+> the failure legible at the moment it matters. Without it "no full-client child" and "wrong DPI
+> space" are the same silence, and either would read as the fix not working after a drag.
+>
+> **Stage 1 (below) is closed:** exit criteria 2 and 5 met.
 > Nested winemac `core` +3 commits (`af4b6d8` scale-a-stale-host · `717d431` the scale TRACE ·
 > `23c5404` the degenerate-size floor), `main` rebuilt as aquadran → core → glue; reference patches
 > regenerated, `regen-winemac-patches.sh --check` three `ok` + three invariants (T9's first half).
