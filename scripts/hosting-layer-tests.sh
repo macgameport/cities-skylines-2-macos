@@ -110,8 +110,13 @@ a=[int(x) for x in sys.argv[1].split(',')]; b=[int(x) for x in sys.argv[2].split
 print(max(abs(p-q) for p,q in zip(a,b)))" "$1" "$2" 2>/dev/null || echo 999; }
 build_install() { (cd "$BD" && gmake dlls/winemac.drv/winemac.so >"$OUT/build.log" 2>&1 \
     && cp dlls/winemac.drv/winemac.so "$INST") \
-  && echo "    module $(shasum -a 256 "$INST" | cut -c1-12)" \
-  || { echo "    BUILD FAILED"; grep -m2 'error:' "$OUT/build.log"; return 1; }; }
+  || { echo "    BUILD FAILED"; grep -m2 'error:' "$OUT/build.log"; return 1; }
+  local h; h=$(shasum -a 256 "$INST" | cut -c1-12)
+  if [ -n "${CLEAN_SHA:-}" ] && [ "$h" = "$CLEAN_SHA" ]; then
+    echo "    module $h — REFUSED: byte-identical to the clean build, this mutant changed nothing"
+    return 1
+  fi
+  echo "    module $h"; }
 cell() {   # cell <label> ; brings Steam up and leaves it running, or reports the harness's refusal
   WINEDEBUG=+err,+macdrv bash "$REPO/scripts/steam-render-cell.sh" --label "$1" --keep-running >"$OUT/$1.txt" 2>&1
   if ! steam_up; then
@@ -214,34 +219,55 @@ PY
   echo "=== T8 traces"
   for k in 'paint order incomplete' 'acquire_metal_swapchain FAILED' 'gone -- releasing hosted layer'; do
     printf '    %-36s %s\n' "$k" "$(grep -c -- "$k" "$LOG" 2>/dev/null || echo 0)"; done
-  echo "    GPU crashes: $(awk -v m='=== cell main' 'index($0,m){s=1} s && /GPU process has crashed/{n++} END{print n+0}' "$S/logs/cef_log.txt")"
+  # cef_log.txt accumulates across every launch the prefix has ever had, and this marker appears
+  # once per battery run — so anchoring on the FIRST match counts every crash since the first run
+  # this prefix ever did. Measured 2026-09-03: 7 markers, 274 crashes in the file, "24" reported,
+  # and 0 actually in this session. Reset the count at each marker so the last one wins.
+  echo "    GPU crashes: $(awk -v m='=== cell main' 'index($0,m){n=0} /GPU process has crashed/{n++} END{print n+0}' "$S/logs/cef_log.txt")"
   down
 fi
 if [ "$MUTANTS" = 1 ]; then
+  # The clean module's hash, so every mutant row can prove it is measuring a DIFFERENT binary.
+  # M1's false-negative row printed `module 2a251a4b2510` -- the baseline hash -- right above its
+  # verdict, and nothing compared them. A mutation can also apply and change nothing; the exit
+  # status cannot see that, the hash can.
+  CLEAN_SHA=$(shasum -a 256 "$INST" | cut -c1-12)
   echo "########## mutants — each applied to real source, rebuilt, observed, restored"
-  mutate() {  # mutate <name> <python-edit> ; leaves the tree modified
-    (cd "$SRC" && python3 -c "$2") && echo "    $1: applied"
+  echo "  clean module $CLEAN_SHA — a mutant row showing this hash measured nothing"
+  # ⚠ A mutant that fails to apply must ABORT its row. It used to print a traceback and return
+  # non-zero, and the caller ignored that and ran `build_install && cell && run_t1` anyway — so the
+  # row was measured against an UNMUTATED module and reported as a mutant result. M1's anchor had
+  # been stale since this script was committed (cab54e6): the string it looks for exists on no
+  # branch — not main, not main-old, not main-raw — because D1 was rewritten to reposition only the
+  # moved child, and the mutant still names the full-pass version it replaced. Every run since has
+  # produced an M1 row from an unmutated build. Nothing in the ledger rested on it; caught
+  # 2026-09-03 only because the traceback happened to be read.
+  mutate() {  # mutate <name> <python-edit> ; leaves the tree modified. Non-zero = do not proceed.
+    if (cd "$SRC" && python3 -c "$2"); then echo "    $1: applied"; return 0
+    else echo "    $1: SKIPPED — the mutant did not apply, so this row measures nothing"; return 1; fi
   }
   echo "=== M1 remove the D1 refresh — the layer must stop following"
   mutate M1 "
 import io; p='window.c'; s=io.open(p,encoding='utf-8').read()
-o='            if (remote_layer_children_has(data, hwnd)) update_remote_layer_frames(data);'
-n='            if (remote_layer_children_has(data, hwnd)) { /* MUTANT */ }'
-assert s.count(o)==1; io.open(p,'w',encoding='utf-8').write(s.replace(o,n))"
-  build_install && cell m1 && run_t1 m1; down; (cd "$SRC" && git checkout -q -- window.c)
+o='            update_remote_layer_frame_for(data, hwnd, remote_layer_context_for(data, hwnd));'
+n='            /* MUTANT M1: the D1 refresh is removed */'
+assert s.count(o)==1; io.open(p,'w',encoding='utf-8').write(s.replace(o,n))" \
+    && build_install && cell m1 && run_t1 m1
+  down; (cd "$SRC" && git checkout -q -- window.c)
   echo "=== M2 drop SWP_NOZORDER from the moved mask — T1 must stay green"
   mutate M2 "
 import io; p='window.c'; s=io.open(p,encoding='utf-8').read()
 o='        BOOL moved = (~swp_flags & (SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER)) ||'
 n='        BOOL moved = (~swp_flags & (SWP_NOMOVE | SWP_NOSIZE)) ||   /* MUTANT */'
-assert s.count(o)==1; io.open(p,'w',encoding='utf-8').write(s.replace(o,n))"
-  build_install && cell m2 && run_t1 m2; down; (cd "$SRC" && git checkout -q -- window.c)
+assert s.count(o)==1; io.open(p,'w',encoding='utf-8').write(s.replace(o,n))" \
+    && build_install && cell m2 && run_t1 m2
+  down; (cd "$SRC" && git checkout -q -- window.c)
   echo "=== M3 force the depth bound to 2 — the FIXME must fire"
   mutate M3 "
 import io; p='window.c'; s=io.open(p,encoding='utf-8').read()
 o='#define PAINT_ORDER_DEPTH 32'; n='#define PAINT_ORDER_DEPTH 2   /* MUTANT */'
-assert s.count(o)==1; io.open(p,'w',encoding='utf-8').write(s.replace(o,n))"
-  build_install && cell m3 && {
+assert s.count(o)==1; io.open(p,'w',encoding='utf-8').write(s.replace(o,n))" \
+    && build_install && cell m3 && {
     WINEDEBUG=-all "$W" "$S/steam.exe" steam://store >/dev/null 2>&1; sleep 12
     echo "    'paint order incomplete': $(grep -c 'paint order incomplete' /tmp/steam-cell-m3/stdout.txt 2>/dev/null || echo 0)  (>=1 = red)"; }
   down; (cd "$SRC" && git checkout -q -- window.c)
