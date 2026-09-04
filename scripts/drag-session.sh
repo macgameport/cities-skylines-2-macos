@@ -41,6 +41,9 @@ TRACE="${TRACE:-+err,+macdrv}"     # +cursor shows macdrv_SetCapture, both ends 
 # first run (2 px every 60 ms, a quarter of that rate) gave the pipeline time to catch up per step
 # and showed no strip at all on stage 1 (0/60), so a slow synthetic drag is not the defect's drag.
 SYNTH_MS="${SYNTH_MS:-16}"; SYNTH_PX="${SYNTH_PX:-1}"
+# Distances. A coarse cadence needs a longer pull to keep the probe sampling during motion, and
+# a longer pull needs a narrower start (PRESIZE) so the screen has the room.
+SYNTH_DX="${SYNTH_DX:-300}"; SYNTH_DY="${SYNTH_DY:-150}"
 
 case "$ROLE" in
   t0)  MOD="$HOME/cs2-patch/winemac.so.s1-diag"; WHAT="diag-pre — stage 1 + colours" ;;
@@ -114,7 +117,7 @@ fi
 
 if [ "${DRAG:-human}" = synth ]; then
   [ -n "${DH:-}" ] || { echo "  VOID: a synthetic drag needs the window handle"; exit 1; }
-  echo "  synthetic drag: right edge +300 px, then top edge -150 px, ${SYNTH_PX} px every ${SYNTH_MS} ms"
+  echo "  synthetic drag: right edge +${SYNTH_DX} px, then top edge -${SYNTH_DY} px, ${SYNTH_PX} px every ${SYNTH_MS} ms"
   ( OUT_DIR="$OUT/frames" WAIT=120 FRAMES=60 bash "$REPO/scripts/livedrag-probe.sh" >"$OUT/probe.txt" 2>&1 ) &
   PROBE=$!
   # the probe arms after the window settles; drag only once it says so (or once it has given up)
@@ -124,9 +127,9 @@ if [ "${DRAG:-human}" = synth ]; then
     sleep 1
   done
   sleep 1
-  WINEDEBUG=-all "$W" "$DRV" sizedrag "$DH" right +300,+0 $((300 / SYNTH_PX)) "$SYNTH_MS" 2>&1 | tr -d '\r' | tee "$OUT/sizedrag-right.txt"
+  WINEDEBUG=-all "$W" "$DRV" sizedrag "$DH" right "+${SYNTH_DX},+0" $((SYNTH_DX / SYNTH_PX)) "$SYNTH_MS" 2>&1 | tr -d '\r' | tee "$OUT/sizedrag-right.txt"
   sleep 1
-  WINEDEBUG=-all "$W" "$DRV" sizedrag "$DH" top +0,-150 $((150 / SYNTH_PX)) "$SYNTH_MS" 2>&1 | tr -d '\r' | tee "$OUT/sizedrag-top.txt"
+  WINEDEBUG=-all "$W" "$DRV" sizedrag "$DH" top "+0,-${SYNTH_DY}" $((SYNTH_DY / SYNTH_PX)) "$SYNTH_MS" 2>&1 | tr -d '\r' | tee "$OUT/sizedrag-top.txt"
   wait "$PROBE"
   cat "$OUT/probe.txt"
 else

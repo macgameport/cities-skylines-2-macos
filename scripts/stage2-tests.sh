@@ -8,14 +8,25 @@
 #   S-A  prod s2b, synthetic drag   — the mechanism: root passes read the loop, stretches fire, the
 #                                     end-of-loop re-derive runs once per segment; T6; bands
 #   S-B  diag s2b, synthetic drag   — the same drag with the colours, so any black left is attributed
-#   S-C  MUTANT sig-off, synthetic  — the loop is never seen: 0 stretches, every pass reads loop 0.
+#   S-C  MUTANT E4' sig-off, synth  — the loop is never seen: 0 stretches, every pass reads loop 0.
 #                                     Must come out RED, or S-A's stretches are not the signal's.
 #   S-D  prod s2b, churn (T10)      — a SetWindowPos churn never enters the loop: 0 stretches,
 #                                     loop 0 on every pass. The containment guard, now a real control.
-#   S-E  MUTANT sig-on, churn       — always "in the loop": the churn must stretch (T10 RED), or the
-#                                     guard in S-D is an accident of the fixture.
+#   S-E  MUTANT E4 sig-on, churn    — the arming guard DROPPED: the churn must stretch (T10 RED), or
+#                                     the guard in S-D is an accident of the fixture.
+#                                     ⚠ E4 drops the guard rather than forcing the flag TRUE. A
+#                                     forced flag is correctly REFUSED by the hwndMoveSize pairing
+#                                     (`07cd84d`) -- measured 2026-09-04, `return TRUE` left the
+#                                     churn at 0 stretches, which would have read as T10 green from
+#                                     a mutant that never bound. See signal-mutants.py.
 #
 # Every row leaves its full run dir behind; the summary here is a digest, not the evidence.
+#
+# ⚠ WHILE THIS RUNS, TOUCH NOTHING IT READS. It re-reads drag-session.sh per row and re-reads the
+# four ~/cs2-patch/winemac.so.s2b* modules as it installs them, and bash reads a script
+# incrementally. On 2026-09-04 an edit to drag-session.sh landed in the instant row S-C launched
+# and the row died on "unexpected EOF" (exit 2, no evidence); the same run had its modules rebuilt
+# underneath it, so S-D/S-E could not say which build they measured. Finish the run, then edit.
 # stage1-tests.sh does NOT restore the daily driver on exit (drag-session.sh does), so the runner
 # restores it itself, last -- a mutant left installed is the failure class GOTCHAS 2026-09-03 names.
 # Run it DETACHED with a log: a tool timeout kills the process group and Steam with it.
