@@ -112,7 +112,10 @@ build_install() { (cd "$BD" && gmake dlls/winemac.drv/winemac.so >"$OUT/build.lo
     && cp dlls/winemac.drv/winemac.so "$INST") \
   || { echo "    BUILD FAILED"; grep -m2 'error:' "$OUT/build.log"; return 1; }
   local h; h=$(shasum -a 256 "$INST" | cut -c1-12)
-  if [ -n "${CLEAN_SHA:-}" ] && [ "$h" = "$CLEAN_SHA" ]; then
+  # Only a MUTANT build must differ from the clean one. The restore-green step at the end rebuilds
+  # the unmutated source and is SUPPOSED to come out byte-identical — refusing it there turned a
+  # correct restore into a REFUSED row on this guard's first run.
+  if [ "${EXPECT_DIFFERENT:-0}" = 1 ] && [ -n "${CLEAN_SHA:-}" ] && [ "$h" = "$CLEAN_SHA" ]; then
     echo "    module $h — REFUSED: byte-identical to the clean build, this mutant changed nothing"
     return 1
   fi
@@ -252,7 +255,7 @@ import io; p='window.c'; s=io.open(p,encoding='utf-8').read()
 o='            update_remote_layer_frame_for(data, hwnd, remote_layer_context_for(data, hwnd));'
 n='            /* MUTANT M1: the D1 refresh is removed */'
 assert s.count(o)==1; io.open(p,'w',encoding='utf-8').write(s.replace(o,n))" \
-    && build_install && cell m1 && run_t1 m1
+    && EXPECT_DIFFERENT=1 build_install && cell m1 && run_t1 m1
   down; (cd "$SRC" && git checkout -q -- window.c)
   echo "=== M2 drop SWP_NOZORDER from the moved mask — T1 must stay green"
   mutate M2 "
@@ -260,14 +263,14 @@ import io; p='window.c'; s=io.open(p,encoding='utf-8').read()
 o='        BOOL moved = (~swp_flags & (SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER)) ||'
 n='        BOOL moved = (~swp_flags & (SWP_NOMOVE | SWP_NOSIZE)) ||   /* MUTANT */'
 assert s.count(o)==1; io.open(p,'w',encoding='utf-8').write(s.replace(o,n))" \
-    && build_install && cell m2 && run_t1 m2
+    && EXPECT_DIFFERENT=1 build_install && cell m2 && run_t1 m2
   down; (cd "$SRC" && git checkout -q -- window.c)
   echo "=== M3 force the depth bound to 2 — the FIXME must fire"
   mutate M3 "
 import io; p='window.c'; s=io.open(p,encoding='utf-8').read()
 o='#define PAINT_ORDER_DEPTH 32'; n='#define PAINT_ORDER_DEPTH 2   /* MUTANT */'
 assert s.count(o)==1; io.open(p,'w',encoding='utf-8').write(s.replace(o,n))" \
-    && build_install && cell m3 && {
+    && EXPECT_DIFFERENT=1 build_install && cell m3 && {
     WINEDEBUG=-all "$W" "$S/steam.exe" steam://store >/dev/null 2>&1; sleep 12
     echo "    'paint order incomplete': $(grep -c 'paint order incomplete' /tmp/steam-cell-m3/stdout.txt 2>/dev/null || echo 0)  (>=1 = red)"; }
   down; (cd "$SRC" && git checkout -q -- window.c)
