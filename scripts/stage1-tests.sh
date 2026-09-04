@@ -87,10 +87,19 @@ run_probe() {   # run_probe <label> [env assignments...]
   # 2026-09-03: a Steam boot whose GPU process never posted a remote layer produced
   # `GREEN 0 | MAGENTA 0 | BLUE 0 | BLACK 35/40` and looked like a pass. The interior is the
   # discriminator -- a real store page has lit pixels in the middle whatever the edges do.
+  # ⚠ On a MUTANT run a black window can be the RESULT, not a void: mutant E5 (anchor at the
+  # opposite corner) places every layer off-screen, so the window is black with ~2050 placement
+  # traces behind it. Set MUTANT=1 and the guard reports without failing the row -- the trace count
+  # below is what separates "nothing rendered" from "rendered somewhere invisible".
   local imax; imax=$(sed -nE 's/.*interior-lum .*max ([0-9]+).*/\1/p' "$OUT/$label.log" | tail -1)
-  [ -n "$imax" ] && [ "$imax" -eq 0 ] 2>/dev/null && {
+  if [ -n "$imax" ] && [ "$imax" -eq 0 ] 2>/dev/null; then
+    if [ "${MUTANT:-0}" = 1 ]; then
+      echo "    interior max luminance 0 -- expected for a mutant that hides content; not void"
+    else
       echo "    VOID: interior max luminance 0 -- the whole window is black, nothing rendered"
-      return 1; }
+      return 1
+    fi
+  fi
   /tmp/darkboxes 6 "$OUT/$label"/f*.png > "$OUT/$label-bands.txt" 2>/dev/null
   python3 "$REPO/scripts/band-counts.py" "$OUT/$label-bands.txt" | sed 's/^/    /'
   # T2a's criteria are per COLOUR, not just per band: green = S1 (an existing host placed larger
@@ -123,7 +132,7 @@ else
   # finding about the resize path -- it means this session never rendered, and the churns above
   # are void with it.
   grep -qE "EXPOSED-EDGE frames .*: 0 of" "$OUT/static.log" ||
-      echo "    VOID: the STATIC control shows an exposed edge -- this session did not render"
+      echo "    ${MUTANT:+(mutant) }VOID: the STATIC control shows an exposed edge -- this session did not render"
 fi
 # The cell's log keeps growing while Steam stays up, so it is copied LAST -- copying it right
 # after the cell captured only the boot and made every T6 trace invisible (2026-09-03).
