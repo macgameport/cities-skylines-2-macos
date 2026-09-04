@@ -95,3 +95,70 @@ screenshot rather than from a number that may be measuring nothing.
 
 ⚠ Note the link line: `-ldxguid -luuid` are required (for `IID_ID3D11Texture2D`) and were missing
 from this file's build commands until 2026-08-22.
+
+---
+
+# Instruments, harnesses and helpers
+
+The table above is **reproducers** — small programs that demonstrate a bug without launching the
+game. This section is everything else in `scripts/`: the things that *measure*, *build*, *record*
+and *launch*. They were undocumented until 2026-09-04 (issue #3, which found 43 of 67 source files
+unmentioned), and the split is the point — a reproducer answers "does this bug exist?", an
+instrument answers "what is actually happening, and can I trust the number?".
+
+## Measurement — the render/resize instruments
+
+| Source | Purpose |
+|---|---|
+| `steam-render-cell.sh` | documented in the reproducers table above — the cell harness every render measurement runs through |
+| `cell-fingerprint.sh` | Records **the config a result was measured under**, and refuses the run on a precondition that would void it. A cell with no `config.json` is `UNREVIEWED`, not a result. This exists because 41 of 43 render cells once ran with no font library and nothing recorded it |
+| `shimmer-probe.sh` | Hosted-layer **gaps during resize churn**, against a static control. `churn` drives `SetWindowPos`; `static` is the do-nothing baseline any churn number must beat. ⚠ Wipes `$OUT_DIR` on entry — pass it a subdirectory, never your run root |
+| `livedrag-probe.sh` | The same measurement during a **real mouse drag**. Churn is not a live resize (macOS live-resize is a different path), so anything gated on `inLiveResize` is invisible to `shimmer-probe` and only this can see it. Waits, samples hard while you drag, and returns VOID rather than a clean bill if the window never actually changed size |
+| `drag-session.sh` | One live drag set up end to end — installs the right module, brings Steam up on the store page, waits, scores, and restores the daily driver on exit. `t0` \| `t2b` \| `t3` per issue #7's three drags |
+| `pixel-probe.swift` | Measures the **edges** of a captured window against its interior, because a 1-device-pixel seam does not survive being eyeballed. `strip <x> <w>` gives the mean RGB of a column band |
+| `darkboxes.swift` | Per-**edge** true-black scoring (L/R/T/B), plus the diagnostic colour classifiers (green/magenta/blue/cyan). Scores bands, never a perimeter mean — a mean over four edges diluted a 280 px black column to nothing |
+| `band-counts.py` | Counts frames whose outer 10 % band is ≥ 20 % true black, **per edge**. Parses by label, never by position |
+| `darkboxes-attrib.py` | The per-frame attribution table for issue #7's diagnostic colours — which *source* the black came from (S1/S2/S3/S4) |
+| `churn-grow-shrink.py` | Splits a churn into GROW and SHRINK frames and scores each band **beside the static control at the same threshold**. Exists because a band criterion without its baseline can be satisfied by a window that is not being resized |
+| `t6-scale-at-rest.py` | Issue #7 T6 — no *surviving* hosted layer is left scaled once the resize is over. The surviving filter is the whole test: a churn retires hundreds of contexts and a retired host's last placement is frequently non-identity, which is the fix working, not failing |
+| `placement-invariants.py` | Two trace invariants no pixel test can reach: no host placed at a sub-pixel scale (the snap ran), and no host ever changes its frame origin |
+| `hosting-layer-tests.sh` | The cross-process hosting-layer battery in one command — ownership, child-only move, z-restack, blackout/churn/static, traces. `--mutants` rebuilds and installs each mutant, observes it, and restores. `--list` prints the plan without touching Steam |
+| `stage1-tests.sh` | The stage-1 rows of `docs/plans/exposed-edge-live-resize.md` in one command. `DIAG=1` scores by source as well as by band; `T7=1` runs the anchor churns instead |
+| `t1-spike.sh` | The T1 **gate** for the same plan — does a hosted, out-of-process layer tree honour the hosting layer's `transform` at all? A throwaway module, three phases, and a RED condition that would have killed the whole approach |
+| `boot-verify.sh` | **The** way to prove the game still boots: launcher → dwell → `WM_CLOSE` → judge `SceneFlow.log`. One `VERDICT:` line, exit code follows (2 = refused, the prefix is busy). `--selftest` exercises every judge branch without launching |
+| `capture-freeze.sh` | Forensics for the alt-tab presentation freeze — the state capture that ran while that bug was live |
+| `perf-bench.sh` · `perf-run.sh` | One autonomous benchmark cycle, and the measurement-cell wrapper around it (`docs/plans/perf-pass.md` §2) |
+
+## Building modules and wrappers
+
+| Source | Purpose |
+|---|---|
+| `build-winemac.sh` | Build a `winemac.so` for a Steam test **with the branch and glue asserted**. Refuses a `core` build: it installs and loads fine, then Steam's GPU process dies and nothing renders, which reads as a clean measurement |
+| `build-winemac-visibility.sh` | Rebuild only `winemac.so` against a visibility-instrumented tree |
+| `build-dxmt-fork.sh` | Build notpop's DXMT fork (the `_CreateMetalViewFromHWND` rewrite) |
+| `regen-winemac-patches.sh` | Generate the three published `winemac.drv` patches from git. `--check` verifies them against the tree **and** asserts three structural invariants about the `stock`/`aquadran`/`core`/`main` branch model |
+| `strip-comments.py` | Compare two revisions of a C/ObjC file for **code** equality, ignoring comments — how a comment-only edit is proven to be comment-only |
+| `make-shortcut.sh` · `make-steam-shortcut.sh` · `make-vanilla-wrapper.sh` | Build the double-clickable launchers in `~/Applications`, and a throwaway wrapper carrying vanilla wined3d |
+| `install-webhelper-shim.sh` | documented in the reproducers table above |
+| `pe-icon.py` | Pull the largest `RT_ICON` out of a PE binary — used to give the shortcuts real icons |
+| `diag-launch-dxmt11.sh` | The canonical dxmt11 launcher plus diagnostic instrumentation |
+
+## Evidence and the ledger
+
+| Source | Purpose |
+|---|---|
+| `check-experiments.py` | Keeps `EXPERIMENTS.md` honest against the evidence store — unrecorded cells, evaporated evidence, any `SUPPORTED`/`PARTIAL` claim resting on a VOID run, unaudited committed images. Run at `button up`; exits non-zero on drift. `--regen` rewrites the run index from the store |
+| `salvage-cells.sh` | Moves render-cell evidence out of volatile `/tmp` into the durable store, dropping `known-good.png` (a capture of whatever window was frontmost — the harness's largest accidental-disclosure surface, whose only datum is "the capture worked") |
+
+## Win32-side drivers and probes
+
+| Source | Purpose |
+|---|---|
+| `win-resize-driver.c` | Exact `SetWindowPos` sizes, per-monitor DPI aware so odd raw sizes are reachable. Interactive dragging cannot answer a resize question — you cannot tell a transient race from a persistent one by hand. Also `tree`, a signal-free `close`, and `move <hwnd> <dx,dy>` in the parent's client space |
+| `frameless-window-repro.c` | Minimal reproducer for the winemac frameless-window decoration bug (wine 60262) |
+| `dlprobe.c` | Does a given dylib actually resolve, **under the env a cell will run with**? Wine dlopens its optional deps by bare SONAME, so a library that exists can still be invisible |
+| `dwritetest.c` | Does DirectWrite actually **rasterise** glyphs on this stack? Separates "no fonts" from "fonts enumerate but nothing draws" |
+| `r8test.c` | Whether the R8 texture path renders — the glyph-atlas format question |
+| `dxgiprobe.c` | Calls the exact DXGI query ANGLE's D3D11 renderer fails on, and prints the HRESULT |
+| `whwrapper_ipgpu.c` | Webhelper wrapper forcing in-process GPU, so CEF stops requesting a cross-process swapchain |
+| `minrepro.c` · `minrepro2.c` · `minrepro3.c` | The three-stage narrowing of the alt-tab freeze: v1 showed create-while-minimized alone does **not** reproduce; v2 added fullscreen; v3 stripped it to the essential defect — a second swapchain on the same HWND. Run them with `run-minrepro.sh`, `run-minrepro2.sh` and `run-minrepro3.sh`, which capture screenshots per phase |
