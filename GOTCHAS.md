@@ -1826,6 +1826,13 @@ not fail — it succeeds, with the numbers a working fix would produce.
 1. **A branch that is not what you run is a loaded gun.** `scripts/build-winemac.sh` now refuses
    unless the nested repo is on `main` and clean, and refuses again if the built module carries no
    `dxmt_client_surface` (5 hits on `main`/`aquadran`, 0 on `core`).
+   **The same confusion also produces false claims about the code, not just bad builds.** Within
+   the hour it nearly landed a "correction" to the #7 plan: `:781` was read on `core`'s history,
+   where it is `host.hidden = YES`, and written off as a bad cite. On `main-old` — the branch the
+   plan actually describes — line 781 is `deferred.backgroundColor = CGColorGetConstantColor(
+   kCGColorBlack)`, exactly the deferred create-path background the cite claims. **Resolve a
+   `file:line` against the branch the document was written against**, and say which branch that
+   was; in a repo with a deliberate core/main split, a bare line number is ambiguous.
 2. **Establish that the instrument registers, before reading what it says.** The three guards added
    to `stage1-tests.sh` — interior luminance 0, the static control showing gaps, zero placement
    traces — each catch this at a different layer, and any one of them would have caught it on the
