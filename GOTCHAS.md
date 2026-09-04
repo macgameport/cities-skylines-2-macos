@@ -1939,3 +1939,53 @@ headers from memory, sitting directly beneath a premise reconstructed from memor
 > **Ledger:** no experiment or conclusion rested on it — the damage was one wrong public issue,
 > [#8](https://github.com/macgameport/cities-skylines-2-macos/issues/8), open for ~17 hours and
 > closed as invalid with the correction in it.
+
+## A signal verified at the declaration is not a signal — measure the value on the path that runs (2026-09-04)
+
+**What happened.** Stage 2 of the growing-edge fix (issue #7) was armed on AppKit's live-resize
+signal: `windowDidResize:` really does post `WINDOW_FRAME_CHANGED` with `in_resize =
+[self inLiveResize]`, and `windowDidEndLiveResize:` really does post `WINDOW_RESIZE_ENDED`. The
+plan said so with line cites, a `check it` pass confirmed the wiring, the build compiled, T10
+proved the guard never leaked into a churn — and a real drag fired **zero** stretches. Counted
+afterwards across every trace ever captured: `in_resize 1` **0**, `in_resize 0` **8838**,
+`WINDOW_RESIZE_ENDED` **0**. The drags never went through AppKit. Steam's SDL window hit-tests its
+own border, `DefWindowProc` turns the press into `SC_SIZE`, and win32u's `sys_command_size_move`
+issues one `SetWindowPos` per mouse move — wine sets the Cocoa frame programmatically each step, so
+`inLiveResize` is NO for the whole drag. The same traces had said so all along:
+`macdrv_SysCommand … f002` on every right-edge drag.
+
+**Three things this cost, and the rule for each.**
+
+1. **Every check verified the declaration.** Reading the code, citing the line, confirming the
+   field is on the event — all true, all irrelevant. The only thing that could falsify "this
+   signal fires here" is the *value* on the *path this app takes*, and nothing measured it until a
+   human dragged. **When a fix is gated on a signal, the first test is a count of that signal on a
+   recorded run of the real path, before anything is built on it.** Here it would have been one
+   grep of a trace that already existed.
+2. **The path was inferred from the platform, not read from the app.** "A drag is a macOS live
+   resize" is true for a titled AppKit window and false for a frameless app that does its own
+   hit-testing — and which one this window is was never asked. **Name the path by its trace**
+   (`SysCommand f002` = win32u's loop; `in_resize 1` = AppKit's) rather than by what the platform
+   would do to a generic window.
+3. **The pass condition was the absence of a signal.** `stage-2 stretches fired: 0` on a
+   programmatic churn was reported as containment (T10 green). It was also exactly what a dead
+   signal produces. **A test whose pass condition is silence needs a positive control in the same
+   session** — here, a drag through the real path showing stretches > 0. That control now exists
+   (`win-resize-driver.exe sizedrag` runs win32u's loop with nobody at the mouse), and the row
+   that proves the signal arms the stretch is the mutant that silences it (`signal-mutants.py
+   --off`) observed red.
+
+**The signal that does exist**, for the record: win32u's loop brackets itself with
+`set_capture_window(hwnd, GUI_INMOVESIZE)` … `(0, GUI_INMOVESIZE)`; the server publishes it per
+thread (`NtUserGetGUIThreadInfo` → `GUI_INMOVESIZE` / `hwndMoveSize`, a shared-memory read), and
+hands the driver both ends as `macdrv_SetCapture(root, GUI_INMOVESIZE, previous)`. Measured
+2026-09-04: set on 150 of 150 polls during a synthetic drag, trace bracket `SysCommand f002` →
+`SetCapture 0x30122 flags 0x2` … `SetCapture 0x0 flags 0x2 previous 0x30122`. Ledger C46, C47.
+
+**Two smaller traps found on the way.** A top-edge drag on a window flush with the menu bar cannot
+grow it: the loop clamps the cursor to the work area, so the loop runs (`GUI_INMOVESIZE` on 100 of
+100 polls) and the height never changes — both human runs lost their top-edge segment that way,
+and the drag recipe now moves the window down first. And the colour patcher that built every
+ledger-cited diagnostic module lived in `/tmp` as a "throwaway"; it was gone when stage 2 needed
+rebuilding and had to be recovered from a session transcript. A build input that produced evidence
+is not throwaway — it is `scripts/diag-colours-patch.py` now.

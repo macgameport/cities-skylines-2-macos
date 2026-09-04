@@ -12,10 +12,13 @@
  *         wine win-resize-driver.exe drive <hwnd-hex> <WxH> [WxH ...]   (settle 1500ms each)
  *         wine win-resize-driver.exe churn <hwnd-hex> <WxH> <WxH> <n>   (alternate, 60ms apart)
  *         wine win-resize-driver.exe move  <hwnd-hex> <dx,dy> [async]   (a DELTA, parent-client space)
+ *         wine win-resize-driver.exe sizedrag <hwnd-hex> right|bottom|left|top|corner <dx,dy> [steps] [ms]
+ *                                          (a REAL size loop: press in the resize border, move, release;
+ *                                           polls GUI_INMOVESIZE on the window's thread while it runs)
  *         wine win-resize-driver.exe front|close|rects|tree|cursor <hwnd-hex>
  * Output is LF-terminated (binary-mode stdio) so `title=Steam$` matches; earlier builds were CRLF.
  *
- * (macgameport, 2026-08-31; move verb + LF output 2026-09-03)
+ * (macgameport, 2026-08-31; move verb + LF output 2026-09-03; sizedrag 2026-09-04)
  */
 #include <windows.h>
 #include <stdio.h>
@@ -171,7 +174,8 @@ int main(int argc, char **argv)
     if (argc < 2)
     {
         fprintf(stderr, "usage: list | cursor | drive <hwnd> <WxH>... | churn <hwnd> <WxH> <WxH> <n> | "
-                        "move <hwnd> <dx,dy> [async] | front|close|rects|tree|cursor <hwnd>\n");
+                        "move <hwnd> <dx,dy> [async] | sizedrag <hwnd> <edge> <dx,dy> [steps] [ms] | "
+                        "front|close|rects|tree|cursor <hwnd>\n");
         return 2;
     }
     become_dpi_aware();
@@ -327,6 +331,101 @@ if (argc < 3) { fprintf(stderr, "need an hwnd for %s\n", argv[1]); return 2; }
                    : (after.left - before.left == dx && after.top - before.top == dy) ? "ok"
                    : "DID NOT TAKE (readback differs from the request)");
         return ok ? 0 : 1;
+    }
+
+    if (!strcmp(argv[1], "sizedrag"))
+    {
+        /* A resize the way a HUMAN does it on this stack: press inside the window's own resize
+         * border, move, release. Steam's SDL window hit-tests that border itself (WM_NCHITTEST ->
+         * HTRIGHT), DefWindowProc turns the press into SC_SIZE, and win32u's sys_command_size_move
+         * runs the drag: a modal loop that brackets itself with set_capture_window(hwnd,
+         * GUI_INMOVESIZE) and issues one SetWindowPos per mouse move. Both live drags of issue #7
+         * went that way (SysCommand f002/f003 in their traces, ledger C46/C47); AppKit's live
+         * resize never engaged. `drive` and `churn` call SetWindowPos directly and never enter the
+         * loop, so nothing gated on it can be measured by them -- this can.
+         *
+         * SetCursorPos is enough for the moves: wineserver queues a WM_MOUSEMOVE for every cursor
+         * placement (server/queue.c set_cursor_pos), and under the loop's capture it reaches the
+         * sized window. Between steps, GetGUIThreadInfo on the window's thread reads the shared
+         * input state win32u publishes, so the output MEASURES the signal (GUI_INMOVESIZE = 0x2,
+         * hwndMoveSize) instead of assuming the loop ran. Readback at the end: a drag that did
+         * not resize prints as one. Keep hands off the mouse while it runs -- a physical move
+         * snaps the server cursor back to the real pointer. */
+        const char *edge = argc >= 4 ? argv[3] : "right";
+        int dx = 0, dy = 0, steps = 120, ms = 60, i, set = 0, polls = 0, took;
+        RECT r0, r1, r;
+        POINT p;
+        INPUT in;
+        DWORD tid;
+        GUITHREADINFO gti;
+        HWND move_size = NULL;
+
+        if (argc >= 5 && sscanf(argv[4], "%d,%d", &dx, &dy) != 2)
+        {
+            fprintf(stderr, "sizedrag: want <dx,dy>, e.g. +300,+0\n");
+            return 2;
+        }
+        if (argc >= 6) steps = atoi(argv[5]);
+        if (argc >= 7) ms = atoi(argv[6]);
+        if (steps < 1) steps = 1;
+        GetWindowRect(h, &r0);
+        /* 2 px inside the edge: the recorded human presses landed 1-4 px inside the root rect */
+        if (!strcmp(edge, "right"))       { p.x = r0.right - 2;  p.y = (r0.top + r0.bottom) / 2; }
+        else if (!strcmp(edge, "bottom")) { p.x = (r0.left + r0.right) / 2; p.y = r0.bottom - 2; }
+        else if (!strcmp(edge, "left"))   { p.x = r0.left + 2;   p.y = (r0.top + r0.bottom) / 2; }
+        else if (!strcmp(edge, "top"))    { p.x = (r0.left + r0.right) / 2; p.y = r0.top + 2; }
+        else if (!strcmp(edge, "corner")) { p.x = r0.right - 2;  p.y = r0.bottom - 2; }
+        else { fprintf(stderr, "sizedrag: edge must be right|bottom|left|top|corner\n"); return 2; }
+        tid = GetWindowThreadProcessId(h, NULL);
+        STAMP("SIZEDRAG %p %s by %+d,%+d in %d steps of %dms, press at %ld,%ld (rect %ldx%ld, thread %lu)\n",
+              h, edge, dx, dy, steps, ms, p.x, p.y, r0.right - r0.left, r0.bottom - r0.top,
+              (unsigned long)tid);
+        SetCursorPos(p.x, p.y);
+        Sleep(150);
+        memset(&in, 0, sizeof(in));
+        in.type = INPUT_MOUSE;
+        in.mi.dwFlags = MOUSEEVENTF_LEFTDOWN;
+        if (!SendInput(1, &in, sizeof(in)))
+        {
+            fprintf(stderr, "sizedrag: SendInput(down) failed, error %lu\n", (unsigned long)GetLastError());
+            return 1;
+        }
+        Sleep(ms);
+        for (i = 1; i <= steps; i++)
+        {
+            SetCursorPos(p.x + dx * i / steps, p.y + dy * i / steps);
+            Sleep(ms);
+            memset(&gti, 0, sizeof(gti));
+            gti.cbSize = sizeof(gti);
+            if (GetGUIThreadInfo(tid, &gti))
+            {
+                polls++;
+                if (gti.flags & GUI_INMOVESIZE) { set++; move_size = gti.hwndMoveSize; }
+            }
+            if (i == 1 || i == steps || i % 20 == 0)
+            {
+                GetWindowRect(h, &r);
+                printf("step %3d  cursor %ld,%ld  size %ldx%ld  gui flags 0x%lx moveSize %p\n", i,
+                       p.x + dx * i / steps, p.y + dy * i / steps, r.right - r.left, r.bottom - r.top,
+                       (unsigned long)gti.flags, gti.hwndMoveSize);
+                fflush(stdout);
+            }
+        }
+        in.mi.dwFlags = MOUSEEVENTF_LEFTUP;
+        if (!SendInput(1, &in, sizeof(in)))
+            fprintf(stderr, "sizedrag: SendInput(up) failed, error %lu\n", (unsigned long)GetLastError());
+        Sleep(300);
+        memset(&gti, 0, sizeof(gti));
+        gti.cbSize = sizeof(gti);
+        GetGUIThreadInfo(tid, &gti);
+        GetWindowRect(h, &r1);
+        took = (r1.right - r1.left != r0.right - r0.left) || (r1.bottom - r1.top != r0.bottom - r0.top);
+        printf("sizedrag %p %s by %+d,%+d: %ldx%ld -> %ldx%ld  GUI_INMOVESIZE set on %d of %d polls"
+               " (hwndMoveSize %p)  after release flags 0x%lx  %s\n", h, edge, dx, dy,
+               r0.right - r0.left, r0.bottom - r0.top, r1.right - r1.left, r1.bottom - r1.top,
+               set, polls, move_size, (unsigned long)gti.flags,
+               took ? "ok" : "DID NOT TAKE (size unchanged)");
+        return took ? 0 : 1;
     }
 
     if (argc < 4) return 2;

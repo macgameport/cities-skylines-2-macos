@@ -9,7 +9,7 @@
 # or dxmt maintainer who intends to write your own implementation, reading this file is a choice
 # with a consequence: the reports carry the whole diagnosis with none of the code.
 #
-# LICENSING. The five files this touches are LGPL-2.1-or-later with CodeWeavers copyright lines,
+# LICENSING. The six files this touches are LGPL-2.1-or-later with CodeWeavers copyright lines,
 # and a unified diff of them reproduces LGPL context and removed lines. The modifications are
 # (c) 2026 the author and are offered under LGPL-2.1-or-later, the license of the files they
 # modify; context lines are Wine's and are not relicensed. This repository's own scripts and docs
@@ -417,19 +417,28 @@ index f8a1285..3ccae6f 100644
  }
  }
 diff --git a/dlls/winemac.drv/macdrv.h b/dlls/winemac.drv/macdrv.h
-index 13f71f3..b1c0c75 100644
+index 13f71f3..ed93282 100644
 --- a/dlls/winemac.drv/macdrv.h
 +++ b/dlls/winemac.drv/macdrv.h
-@@ -185,6 +185,9 @@ extern BOOL macdrv_SystemParametersInfo(UINT action, UINT int_param, void *ptr_p
+@@ -185,6 +185,10 @@ extern BOOL macdrv_SystemParametersInfo(UINT action, UINT int_param, void *ptr_p
      struct window_rects rects;                  /* window rects in monitor DPI, relative to parent client area */
      int                 pixel_format;           /* pixel format for GL */
      HANDLE              drag_event;             /* event to signal that Cocoa-driven window dragging has ended */
 +    CFMutableDictionaryRef remote_layer_children; /* CAContextID -> child HWND, for repositioning
 +                                                   * hosted cross-process layers on resize */
-+    unsigned int        in_live_resize : 1;     /* WINDOW_FRAME_CHANGED.in_resize; cleared by WINDOW_RESIZE_ENDED */
++    unsigned int        in_live_resize : 1;     /* WINDOW_FRAME_CHANGED.in_resize (AppKit); the
++                                                 * win32u size loop is read live, not stored */
      unsigned int        on_screen : 1;          /* is window ordered in? (minimized or not) */
      unsigned int        shaped : 1;             /* is window using a custom region shape? */
      unsigned int        layered : 1;            /* is window layered and with valid attributes? */
+@@ -228,6 +232,7 @@ extern BOOL macdrv_SystemParametersInfo(UINT action, UINT int_param, void *ptr_p
+ extern void macdrv_window_did_unminimize(HWND hwnd);
+ extern void macdrv_window_brought_forward(HWND hwnd);
+ extern void macdrv_window_resize_ended(HWND hwnd);
++extern void macdrv_size_move_ended(HWND hwnd);
+ extern void macdrv_window_restore_requested(HWND hwnd, const macdrv_event *event);
+ extern void macdrv_window_drag_begin(HWND hwnd, const macdrv_event *event);
+ extern void macdrv_window_drag_end(HWND hwnd);
 diff --git a/dlls/winemac.drv/macdrv_cocoa.h b/dlls/winemac.drv/macdrv_cocoa.h
 index dedb152..a9fe697 100644
 --- a/dlls/winemac.drv/macdrv_cocoa.h
@@ -594,8 +603,23 @@ index ae87cf8..0dbeafe 100644
  DECLSPEC_EXPORT struct macdrv_functions_t macdrv_functions =
  {
      &my_macdrv_init_display_devices,
+diff --git a/dlls/winemac.drv/mouse.c b/dlls/winemac.drv/mouse.c
+index 51ae29a..0fd262a 100644
+--- a/dlls/winemac.drv/mouse.c
++++ b/dlls/winemac.drv/mouse.c
+@@ -694,6 +694,10 @@ BOOL macdrv_GetCursorPos(LPPOINT pos)
+ 
+     thread_data->capture_window = cocoa_window;
+     macdrv_set_mouse_capture_window(cocoa_window);
++
++    /* win32u hands the driver both ends of its size/move loop: the capture is taken with
++     * GUI_INMOVESIZE and released with the same flag, the sized window arriving as `previous`. */
++    if (!hwnd && (flags & GUI_INMOVESIZE) && previous) macdrv_size_move_ended(previous);
+ }
+ 
+ 
 diff --git a/dlls/winemac.drv/window.c b/dlls/winemac.drv/window.c
-index 0d2de29..4b7c84d 100644
+index 0d2de29..f3792ba 100644
 --- a/dlls/winemac.drv/window.c
 +++ b/dlls/winemac.drv/window.c
 @@ -39,6 +39,103 @@
@@ -883,7 +907,7 @@ index 0d2de29..4b7c84d 100644
  }
  
  
-@@ -1638,6 +1849,176 @@ BOOL macdrv_GetWindowStyleMasks(HWND hwnd, UINT style, UINT ex_style, UINT *styl
+@@ -1638,6 +1849,214 @@ BOOL macdrv_GetWindowStyleMasks(HWND hwnd, UINT style, UINT ex_style, UINT *styl
  /***********************************************************************
   *              WindowPosChanged   (MACDRV.@)
   */
@@ -914,8 +938,30 @@ index 0d2de29..4b7c84d 100644
 +    return context_id;
 +}
 +
++/* TRUE while this thread is inside win32u's SC_SIZE/SC_MOVE loop (defwnd.c, sys_command_size_move).
++ * That loop brackets itself with set_capture_window(hwnd, GUI_INMOVESIZE) ... (0, GUI_INMOVESIZE),
++ * and the server publishes the state as the thread's move-size window: one shared-memory read,
++ * no server call. This is the resize signal that actually fires here. A frameless app that
++ * hit-tests its own border (Steam's SDL window: WM_NCHITTEST -> HTRIGHT -> SC_SIZE) resizes
++ * through that loop, one SetWindowPos per mouse move, and wine sets the Cocoa frame
++ * programmatically each step -- so -[NSWindow inLiveResize] is NO for the whole drag and
++ * WINDOW_FRAME_CHANGED.in_resize never arrives set: 0 of 8838 events across every captured
++ * session, both real drags included (ledger C46), against SysCommand f002/f003 in the same
++ * traces. */
++static BOOL in_size_move_loop(HWND *move_size)
++{
++    GUITHREADINFO info;
++
++    info.cbSize = sizeof(info);
++    *move_size = 0;
++    if (!NtUserGetGUIThreadInfo(GetCurrentThreadId(), &info)) return FALSE;
++    *move_size = info.hwndMoveSize;
++    return (info.flags & GUI_INMOVESIZE) != 0;
++}
++
 +/* The frame a hosted layer should take, in the root's window-relative space: the child's own rect
-+ * offset into the root, and -- during a live resize only -- the full-client substitution below.
++ * offset into the root, and -- while a resize is in progress, which the caller signals by passing
++ * `old_rects` -- the full-client substitution below.
 + *
 + * Both update passes go through here because the swapchain-creation comment above demands that
 + * creation and every later move compute one frame. `old_rects` is the root's rects as they were
@@ -932,7 +978,7 @@ index 0d2de29..4b7c84d 100644
 +    if (!NtUserGetWindowRect(child, &cr, dpi)) return FALSE;
 +    OffsetRect(&cr, -root_rect->left, -root_rect->top);
 +
-+    if (old_rects && data->in_live_resize)
++    if (old_rects)
 +    {
 +        /* B': a child that filled the client area before this move is stretched with the root now,
 +         * before the app resizes it; its own WindowPosChanged (D1) re-frames it after. Compared
@@ -1009,6 +1055,22 @@ index 0d2de29..4b7c84d 100644
 +    if (!data->remote_layer_children || !data->cocoa_window) return;
 +    if (!(count = CFDictionaryGetCount(data->remote_layer_children))) return;
 +
++    if (old_rects)
++    {
++        HWND move_size;
++        BOOL loop = in_size_move_loop(&move_size);
++
++        /* Either source arms the stretch. Both are read fresh on every root pass, so neither can
++         * latch; on this stack only the loop ever reads 1. The loop is THREAD state, so it is
++         * paired with the window it is sizing: every other root on the thread -- Steam's popups
++         * take a full no-op pass each per step -- keeps its plain offset. Traced every time, so a
++         * drag that produced no stretch says whether the signal was seen at all. */
++        TRACE("root %p resize source: size/move loop %d (window %p) cocoa live-resize %d\n",
++              data->hwnd, loop, move_size, data->in_live_resize);
++        if (loop) loop = NtUserGetAncestor(move_size, GA_ROOT) == NtUserGetAncestor(data->hwnd, GA_ROOT);
++        if (!loop && !data->in_live_resize) old_rects = NULL;
++    }
++
 +    dpi = NtUserGetWinMonitorDpi(data->hwnd, MDT_RAW_DPI);
 +    if (!NtUserGetWindowRect(data->hwnd, &root_rect, dpi)) return;
 +
@@ -1060,7 +1122,7 @@ index 0d2de29..4b7c84d 100644
  void macdrv_WindowPosChanged(HWND hwnd, HWND insert_after, HWND owner_hint, UINT swp_flags,
                               const struct window_rects *new_rects, struct window_surface *surface)
  {
-@@ -1657,7 +2038,30 @@ void macdrv_WindowPosChanged(HWND hwnd, HWND insert_after, HWND owner_hint, UINT
+@@ -1657,7 +2076,30 @@ void macdrv_WindowPosChanged(HWND hwnd, HWND insert_after, HWND owner_hint, UINT
      TRACE("win %p/%p new_rects %s style %08x flags %08x surface %p\n", hwnd, data->cocoa_window,
            debugstr_window_rects(new_rects), new_style, swp_flags, surface);
  
@@ -1092,7 +1154,7 @@ index 0d2de29..4b7c84d 100644
  
      if (data->on_screen)
      {
-@@ -1690,6 +2094,10 @@ void macdrv_WindowPosChanged(HWND hwnd, HWND insert_after, HWND owner_hint, UINT
+@@ -1690,6 +2132,10 @@ void macdrv_WindowPosChanged(HWND hwnd, HWND insert_after, HWND owner_hint, UINT
          }
      }
  
@@ -1103,7 +1165,7 @@ index 0d2de29..4b7c84d 100644
      if (fullscreen || fullscreen != data->fullscreen)
      {
          CGRect rect = (fullscreen && !EqualRect(&data->rects.window, &data->rects.visible)) ? cgrect_from_rect(data->rects.window) : CGRectZero;
-@@ -1697,7 +2105,6 @@ void macdrv_WindowPosChanged(HWND hwnd, HWND insert_after, HWND owner_hint, UINT
+@@ -1697,7 +2143,6 @@ void macdrv_WindowPosChanged(HWND hwnd, HWND insert_after, HWND owner_hint, UINT
          data->fullscreen = fullscreen;
      }
  
@@ -1111,7 +1173,7 @@ index 0d2de29..4b7c84d 100644
      release_win_data(data);
  }
  
-@@ -1780,6 +2187,10 @@ void macdrv_window_frame_changed(HWND hwnd, const macdrv_event *event)
+@@ -1780,6 +2225,10 @@ void macdrv_window_frame_changed(HWND hwnd, const macdrv_event *event)
                data->rects.window.bottom - data->rects.window.top, width, height);
  
      being_dragged = data->drag_event != NULL;
@@ -1122,7 +1184,7 @@ index 0d2de29..4b7c84d 100644
      release_win_data(data);
  
      if (event->window_frame_changed.fullscreen)
-@@ -1962,7 +2373,17 @@ void macdrv_window_brought_forward(HWND hwnd)
+@@ -1962,11 +2411,39 @@ void macdrv_window_brought_forward(HWND hwnd)
   */
  void macdrv_window_resize_ended(HWND hwnd)
  {
@@ -1140,3 +1202,25 @@ index 0d2de29..4b7c84d 100644
      send_message(hwnd, WM_EXITSIZEMOVE, 0, 0);
  }
  
+ 
++/***********************************************************************
++ *              macdrv_size_move_ended
++ *
++ * win32u released its GUI_INMOVESIZE capture: the SC_SIZE/SC_MOVE loop is over. Its last step
++ * placed every full-client host from the client rect the root was growing into; re-derive them
++ * from the children's real rects, as WINDOW_RESIZE_ENDED does after an AppKit-driven resize.
++ */
++void macdrv_size_move_ended(HWND hwnd)
++{
++    struct macdrv_win_data *data;
++
++    TRACE("hwnd %p\n", hwnd);
++    if (!(data = get_win_data(hwnd))) return;
++    update_remote_layer_frames(data, NULL);
++    release_win_data(data);
++}
++
++
+ /***********************************************************************
+  *              macdrv_window_restore_requested
+  *

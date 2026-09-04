@@ -1,9 +1,10 @@
 #!/bin/bash
 # build-winemac.sh — build a winemac.so for a Steam test, with the branch and glue asserted.
 #
-#   bash scripts/build-winemac.sh <out.so>                        # clean main
-#   bash scripts/build-winemac.sh <out.so> /tmp/diag-patch.py     # main + a throwaway patch
-#   bash scripts/build-winemac.sh <out.so> /tmp/diag-patch.py --e1
+#   bash scripts/build-winemac.sh <out.so>                                       # clean main
+#   bash scripts/build-winemac.sh <out.so> scripts/diag-colours-patch.py         # main + colours
+#   bash scripts/build-winemac.sh <out.so> scripts/diag-colours-patch.py --e1    # + a mutant
+#   PATCH_FILE=window.c bash scripts/build-winemac.sh <out.so> scripts/signal-mutants.py --off
 #
 # ⚠ WHY THIS EXISTS. The nested winemac repo carries `core` (the stock-applicable subset, what goes
 # upstream) and `main` (= aquadran + core + the DXMT glue commit, what actually runs here). A module
@@ -25,14 +26,17 @@ set -u
 OUT="${1:?usage: build-winemac.sh <out.so> [patcher [args...]]}"; shift || true
 NR="$HOME/cs2-patch/build-1116/wine-11.16-dxmt/dlls/winemac.drv"
 BLD="$HOME/cs2-patch/build-1116/wine-1116-vis-build"
-SRC="$NR/cocoa_window.m"
+# The patcher is handed ONE file and that file is what gets restored. cocoa_window.m for the colour
+# builds; PATCH_FILE=window.c for a mutant of the unix side (the size-loop signal, 2026-09-04).
+PATCH_FILE="${PATCH_FILE:-cocoa_window.m}"
+SRC="$NR/$PATCH_FILE"
 SO="$BLD/dlls/winemac.drv/winemac.so"
 
 br=$(git -C "$NR" rev-parse --abbrev-ref HEAD)
 [ "$br" = main ] || { echo "REFUSED: nested repo is on '$br', not main -- a core build has no DXMT glue"; exit 2; }
 [ -z "$(git -C "$NR" status --porcelain)" ] || { echo "REFUSED: nested tree is dirty before patching"; exit 2; }
 
-restore() { git -C "$NR" checkout -- cocoa_window.m 2>/dev/null; }
+restore() { git -C "$NR" checkout -- "$PATCH_FILE" 2>/dev/null; }
 trap restore EXIT
 
 if [ $# -gt 0 ]; then

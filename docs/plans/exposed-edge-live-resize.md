@@ -361,31 +361,51 @@ attribution before any "shrink handling" is written.
 the *good* one, so the CREATE-time gap (replacement transparent then black, no first-frame callback)
 becomes the dominant residual; expect T3's leftovers to carry that signature.
 
-### 4.2b Stage 2 — B′: stretch full-client hosts with the root during live resize (S4)
+### 4.2b Stage 2 — B′: stretch full-client hosts with the root while a resize is in progress (S4)
 
-The live-resize signal already exists in stock and needs no new observation, delegate or query:
-every `WINDOW_FRAME_CHANGED` carries `in_resize = [self inLiveResize]` (`:3352` → `:2479`,
-`macdrv_cocoa.h:400`, consumed at `window.c:2116-2149`), and `windowDidEndLiveResize:` (`:3256-3264`)
-posts `WINDOW_RESIZE_ENDED` → `macdrv_window_resize_ended` (`window.c:2320-2324`), which today only
-sends `WM_EXITSIZEMOVE` — **nothing re-derives the hosts at the end of a drag**. Both handlers run
-on the window's own wine thread (`event.c:375, :524`), the thread that owns `win_data`. An
+> **⚠ Premise corrected 2026-09-04 (ledger C46 → C47).** The first build armed the stretch on
+> AppKit's live resize — `WINDOW_FRAME_CHANGED.in_resize` and `WINDOW_RESIZE_ENDED`. That signal is
+> real in the code and **never fires on this stack**: `in_resize` was 0 in 8838 of 8838 events
+> across every captured session, both human drags included, and `WINDOW_RESIZE_ENDED` never
+> arrived. The drags went through **win32u's own size loop**: Steam's SDL window hit-tests its
+> border (`WM_NCHITTEST` → `HTRIGHT`), `DefWindowProc` turns the press into `SC_SIZE`, and
+> `sys_command_size_move` (`win32u/defwnd.c:676`) issues one `SetWindowPos` per mouse move, so wine
+> sets the Cocoa frame programmatically each step and `-[NSWindow inLiveResize]` is NO throughout.
+> Every drag's trace says so — `macdrv_SysCommand … f002` (right edge) / `f003` (top). The signal
+> that does exist is that loop's own bracket, `set_capture_window(hwnd, GUI_INMOVESIZE)` at
+> `defwnd.c:781` … `(0, GUI_INMOVESIZE)` at `:896`, published per thread through
+> `NtUserGetGUIThreadInfo` (`win32u/message.c:2292-2316`, a shared-memory read, no server call) and
+> handed to the driver at both ends as `macdrv_SetCapture(root, GUI_INMOVESIZE, previous)`
+> (`win32u/input.c:1985-2003` → `mouse.c:686`). **Measured 2026-09-04** with
+> `win-resize-driver.exe sizedrag`, which presses inside the border and moves: `GUI_INMOVESIZE` set
+> on **150 of 150** polls with `hwndMoveSize` = the Steam root, and the trace reads
+> `SysCommand f002` → `SetCapture 0x30122 flags 0x2` … `SetCapture 0x0 flags 0x2 previous 0x30122`.
+> Stage 2 was rebuilt on it (nested `core` `aa37714`, `main` `8e81fa0`); the AppKit bit stays as a
+> second source. What follows is the design **as rebuilt**; the AppKit-only original is in git.
+
+Stage 2 reads the resize signal fresh on every root pass and stores nothing that could latch. Both
+handlers below run on the window's own wine thread, the thread that owns `win_data`; an
 `OnMainThread` query of `-[NSWindow inLiveResize]` would block the app thread mid-resize and is not
-used. Five edits, plus the shared helper below (a sixth change):
+used. Five edits, plus the shared helper (a sixth change):
 
-1. `macdrv.h`: `unsigned int in_live_resize : 1;   /* WINDOW_FRAME_CHANGED.in_resize; cleared by WINDOW_RESIZE_ENDED */`
-   placed **beside core's own `remote_layer_children` field**, not beside `fullscreen : 1` where
-   aquadran's hunk lands (`scripts/wineandaqua-dxmt.patch:239-241`), so the generator's invariant 2
-   keeps applying.
-2. `window.c:1912`: `static void update_remote_layer_frames(struct macdrv_win_data *data, const struct window_rects *old_rects)`
-   (the pattern `sync_window_position` uses, `window.c:850`). The pass works in **window-rect
-   space** (`root_rect` from `NtUserGetWindowRect(data->hwnd)`, `window.c:1924`; child frames offset by
-   `root_rect.left/top`, `window.c:1950`), and by the time it runs the new rects are installed
-   (`data->rects = *new_rects` at `window.c:1986`, `sync_window_position` at `window.c:2028`), so the "before this
-   move" rect **must** be passed in — the function has no memory of its own. After the
-   `OffsetRect(&cr, …)` at `window.c:1950`:
+1. `macdrv.h`: `unsigned int in_live_resize : 1;` — AppKit's `WINDOW_FRAME_CHANGED.in_resize`,
+   kept as the second source — placed **beside core's own `remote_layer_children` field**, not
+   beside `fullscreen : 1` where aquadran's hunk lands (`scripts/wineandaqua-dxmt.patch:239-241`),
+   so the generator's invariant 2 keeps applying. Plus the prototype of `macdrv_size_move_ended`
+   beside `macdrv_window_resize_ended`'s.
+2. `window.c`, before `remote_layer_target_rect`: `static BOOL in_size_move_loop(HWND *move_size)`
+   — `NtUserGetGUIThreadInfo(GetCurrentThreadId(), &info)`, returns `info.flags & GUI_INMOVESIZE`
+   and hands back `info.hwndMoveSize` for the trace. This is `win32u/input.c:2757`'s own idiom
+   (`is_captured_by_system`), and `window.c` already reads `GUITHREADINFO` in `show_window`.
+3. `update_remote_layer_frames(data, old_rects)`: when `old_rects` is given (the root's own
+   `WindowPosChanged`, the local snapshotted before the new rects are installed), one query per
+   pass — `loop || data->in_live_resize` arms the stretch, otherwise `old_rects` is dropped to
+   NULL. Traced every time: `root %p resize source: size/move loop %d (window %p) cocoa
+   live-resize %d`, so a drag that stretched nothing says whether the signal was seen at all.
+   `remote_layer_target_rect` stretches whenever it is handed `old_rects` — the caller decides:
 
    ```c
-   if (old_rects && data->in_live_resize)
+   if (old_rects)
    {
        /* B': a child that filled the client area before this move is stretched with the root
         * now, before the app resizes it; its own WindowPosChanged (D1) re-frames it after. */
@@ -393,42 +413,27 @@ used. Five edits, plus the shared helper below (a sixth change):
        OffsetRect(&old_client, -old_rects->window.left, -old_rects->window.top);
        OffsetRect(&new_client, -data->rects.window.left, -data->rects.window.top);
        if (EqualRect(&cr, &old_client)) cr = new_client;
+       else TRACE("child %p not full-client: %s vs client %s -- no stretch\n", ...);
    }
    ```
 
    Compared relative to the root, never in screen space — a root move shifts every child's screen
    rect while its parent-relative rect is unchanged, so a screen-space compare never matches during a
-   top- or left-edge drag. `cr` comes from raw-DPI queries and `data->rects` are "in monitor DPI":
-   assert their equality with one TRACE before trusting `EqualRect`. **Which child can match is a
-   measurement, not an assumption:** on the 2026-09-03 tree only the full-window browser (`0x2012C`,
-   1920x1050 @0,30) equals the root client rect, while frame 09 shows the *page* (the inset sibling)
-   lagging — so stage 2 covers S4 only if the full-window browser sits below the page in z; T0
-   records the match and the z-order before T2b's threshold means anything.
-3. `window.c:2049`: `update_remote_layer_frames(data, &old_rects);` (`old_rects` is the local at
-   `window.c:1979`, snapshotted at `window.c:1985` before the new rects are installed).
-4. `window.c:2139`, before `release_win_data(data)` at `window.c:2140`: `data->in_live_resize =
-   event->window_frame_changed.in_resize;` — written on **every** event, so the bit self-heals; it
-   must precede `NtUserSetRawWindowPos` (`window.c:2149`), which is what triggers the full pass. This is why a
-   maximized window, whose `windowDidEndLiveResize` posts nothing — it is wrapped in `if (!maximized)` (`:3258`), cannot leave the
-   heuristic armed: each frame-changed event rewrites the bit and `windowWillResize` pins the size
-   (`:3429-3435`).
-5. `window.c:2320-2324`:
-
-   ```c
-   void macdrv_window_resize_ended(HWND hwnd)
-   {
-       struct macdrv_win_data *data;
-
-       TRACE("hwnd %p\n", hwnd);
-       if ((data = get_win_data(hwnd)))
-       {
-           data->in_live_resize = 0;
-           update_remote_layer_frames(data, NULL);   /* re-derive every host from its child's real rect */
-           release_win_data(data);
-       }
-       send_message(hwnd, WM_EXITSIZEMOVE, 0, 0);
-   }
-   ```
+   top- or left-edge drag. `cr` comes from raw-DPI queries and `data->rects` are "in monitor DPI";
+   the decline trace prints both rects so a DPI mismatch cannot hide as "no full-client child".
+   **Which child can match is a measurement, not an assumption:** on the 2026-09-03 tree only the
+   full-window browser equals the root client rect, and T0 measured it **below** the page in z
+   (zpos 2 against 5, C45) — so stretching it cannot smear over the page.
+4. `macdrv_window_frame_changed` still writes the AppKit bit on **every** event, before
+   `NtUserSetRawWindowPos`, so it self-heals; `macdrv_window_resize_ended` still clears it and
+   re-derives. Neither fires here; both are kept for a stack where AppKit drives the resize.
+5. The end of the loop: `macdrv_size_move_ended(HWND)` in `window.c`, called from
+   `macdrv_SetCapture` (`mouse.c`) on `!hwnd && (flags & GUI_INMOVESIZE) && previous` — the exact
+   call win32u makes when `sys_command_size_move` releases its capture (`defwnd.c:896` →
+   `input.c:2003`, `previous` = the sized window's root). It re-derives every host from its child's
+   real rect. Note that for a top-level with `drag_full_windows` the loop issues **no** final
+   `SetWindowPos` after the release (`defwnd.c:905-916`, the branch is `!drag_full_windows`), so
+   without this hook the last placement of a drag is D1's per-child one.
 
 **One shared helper.** D1's child path (`update_remote_layer_frame_for`, `window.c:1884`) reframes
 to the child's *actual* rect; a z-only move mid-drag would un-stretch a stage-2 host until the next
@@ -449,9 +454,11 @@ at `:793` — was rejected because springs-and-struts adjust the *frame* (`CALay
 compose with stage 1's bounds/transform model. T2b/T3 are the only measurements of whether the round
 trip is short enough. An app that lays out on `WM_EXITSIZEMOVE` (not Steam — frame 09 shows children
 following mid-drag) sees the end-of-resize re-derive snap hosts back to actual rects; T3's verdict
-includes the drag-end frame. **Programmatic resizes (`SetWindowPos`, the churn probe) are not live
-resizes**, so churn measures stage 1 only and never stage 2; stage 2's only measurement is a live
-drag (§5 T2b; T10 is the churn-side guard). This is a heuristic and is listed with D3's three (exit criterion 6).
+includes the drag-end frame. **Programmatic resizes from outside (`SetWindowPos` by the churn
+probe) never enter the size loop**, so churn measures stage 1 only and T10 is the churn-side guard;
+`win-resize-driver.exe sizedrag` presses in the window's own resize border and *does* enter it, so
+stage 2 is measurable with nobody at the mouse (`scripts/stage2-tests.sh`), a human drag remaining
+the acceptance test (T3). This is a heuristic and is listed with D3's three (exit criterion 6).
 
 ### 4.3 Stage 3 — C: re-arm the deferred black on reframe (only if T0's magenta count says S2)
 
@@ -521,25 +528,28 @@ first 0/40); live drags are 60 frames, normalised **per grow step** because traj
 | T0 | **attribution** — churn half done (§2.3); owed: (a) one churn on **diag-pre** with `WINEDEBUG=+timestamp,+macdrv`, frame mtimes (`stat -f %Fm`), and the root pass tracing the root *client* rect and every hosted child's rect; (b) one churn with the content view's `contents` nil-ed and `layer.backgroundColor` coloured; (c) one live drag by James on diag-pre, scored on the probe's `f*.png` | per-frame S1/S2/S3/S4 split for churn and drag; every S4 frame's mtime falls (± 180 ms) inside a window where the root rect changed and a child rect had not; the S4 strip takes the content view's colour in (b); the trace records which hosted child equals the root client rect and its z-order relative to the page (§4.2b); the count of `window.c:1327`-vs-`window.c:1727` size mismatches per context under the drag (0, or a recorded bound) | none — measurement |
 | T1 | **spike, gate** — fixed `CATransform3DMakeScale(1.5, 1.5, 1)` applied in `addCALayerHostViewWithContextId` (after `:803`, so it holds at rest) with `anchorPoint (0,0)` set first, on a throwaway branch off `main`; Library page, no churn, each hosted child in turn as `run_t1` in `hosting-layer-tests.sh` does; TRACE `self.layer.geometryFlipped` once; record the display profile; the module is **not pointer-operable** (visual ≠ HWND rects), reverted before any interactive use, its hash in `config.json` | with `strip_at`/`dchan` from `hosting-layer-tests.sh`: choose X with control contrast > 8 (**X is measured from the host's own origin**, so `1.5X` lands inside the scaled child only for the full-window browser @0,30, not the inset page); after the spike `dchan(strip(after, 1.5X), strip(before, X)) ≤ 8` and `dchan(strip(after, X), strip(before, X)) > 8` for at least one decisive child; the right/bottom third of the page is clipped (`masksToBounds`); the flip TRACE says YES | **gate, not a test** — both strips unchanged (≤ 2) = the host ignores `transform`; B is dead, §3 falls back to C/D, plan re-checked |
 | T2a | **churn, stage 1** — diag-fix module, `shimmer-probe.sh churn` ×3 = 120 frames | `Rgreen ≥ 20 %` frames 9–10/40 → **0/120**; black-no-colour **3–13 per 40** as a positive control (churn is not a live resize; this is not a criterion); blue 0; `static` 0 gaps | **E1:** content-size lookup returns `frame.size` (never stored) → green ≥ 5/40 in every run |
-| T2b | **live drag, stage 2** — diag-fix module, James, the fixed drag script | among grow-step frames: `Rgreen ≥ 20 %` ≤ 1, black-no-colour ≥ 20 % ≤ 1, worst right band < 20 %; top band black-no-colour 0 in the top-edge segment | E4 (T10) and E1 |
-| T3 | **live drag, production module** — same script, James's verdict | right band ≥ 20 % true black in **≤ 2 grow-step frames** (baseline 19/60 on a mixed drag); worst < 20 %; verdict verbatim, including the drag-end frame (rubbery ≤ ~100 ms = the native look; persistent distortion or a snap-back flash = fail) | none beyond T2b's — a human drag is not repeated per mutant |
+| T2b | **drag, stage 2** — diag-fix module (`s2b-diag`), the fixed drag script: synthetic first (`scripts/stage2-tests.sh` S-B, `sizedrag` through win32u's loop), then James | among grow-step frames: `Rgreen ≥ 20 %` ≤ 1, black-no-colour ≥ 20 % ≤ 1, worst right band < 20 %; top band black-no-colour 0 in the top-edge segment; **mechanism (S-A, prod):** every root pass during the drag traces `size/move loop 1`, `stretched … (live resize)` > 0, `macdrv_size_move_ended` once per segment | **E4′ (sig-off, `signal-mutants.py --off`, S-C):** the helper never sees the loop → the same synthetic drag fires 0 stretches with every root pass reading `loop 0`; and E1 |
+| T3 | **live drag, production module** (`s2b`) — same script, James's verdict; S-A is the unattended half | right band ≥ 20 % true black in **≤ 2 grow-step frames** (baseline 19/60 on a mixed drag); worst < 20 %; verdict verbatim, including the drag-end frame (rubbery ≤ ~100 ms = the native look; persistent distortion or a snap-back flash = fail) | none beyond T2b's — a human drag is not repeated per mutant |
 | T4 | **seam** — the battery's blackout rows, plus one capture *while scaled* (mid-churn) for a hairline at the window edge | interior lum > 40 at each step and **0 BRIGHT edges at 2399x1499** (C29 83/84/112, C32 87/92/113 — the interior varies with the page, the bright count is the invariant), at rest and while scaled | **E2 (restated 2026-09-03, C40):** skip `snap_host_frame_to_view_edges` at `:816` → **≥ 1 host placed at a sub-pixel scale** (a factor in (0.990, 1.000)), `scripts/placement-invariants.py`. ⚠ The original signal — ≥ 1 BRIGHT at 2399x1499 — **cannot discriminate on this build**: the seam the snap covers is also covered by the create path's deferred background, so removing either mechanism still leaves no white. Measured: E2 engaged (172 placements at `scale 0.999,1.000`) with **0 BRIGHT**. The replacement is non-tautological both ways — fixed module **0** sub-pixel placements over **4133** across two independent sessions, E2 **230 of 1104** |
 | T5 | **battery + boot** — `hosting-layer-tests.sh` (all its rows) **and `--mutants`** (stage 2 touches `update_remote_layer_frames`), `boot-verify.sh` detached | as C32 (**the battery's own row names**, not this plan's T-numbers): battery T0 disjoint, battery T1 GREEN, battery T2 restack + restore, churn/static 0 gaps, 0 acquire failures, 0 GPU crashes, **M1 — cannot bind ([#10](https://github.com/macgameport/cities-skylines-2-macos/issues/10), C41)**: it applied (hash differs, `update_remote_layer_frame_for` fires 0) and T1 stayed GREEN, because the root's full pass fired 126 times and placed the moved child anyway. D1 is an optimisation avoiding an O(n) pass, not the only path a moved child's layer follows — and it was justified by a gap-rate A/B (C32), never by a mutant. ⚠ This was M1's **first ever run**: its anchor had been stale since `cab54e6` and the ungated `mutate` reported the row from an unmutated module. / M2 green / M3 ≥ 1 `paint order incomplete`, `VERDICT: PASS` | the battery's own |
 | T6 | **no residual scale at rest, and the base is right** — the §4.5 trace; run after T2b's drag and after T7's churns | 3 s after the last size change the last line per surviving context id reads `1.000,1.000`; each surviving host's creation size equals the GPU-process `cross-process child … frame` rect (`window.c:1327`) for the same context id — **not** the host's bounds, which are set from the stored size; no `child NULL` context appears in the reframe trace (`window.c:1937`) | **E3:** store half the creation size → `2.000,2.000` at rest and the page renders doubled |
 | T7 | **anchor, both axes, both directions, and frame 14 attributed** — diag-fix module, `CHURN_A=2200x1500 CHURN_B=2400x1500` and `CHURN_A=2400x1360 CHURN_B=2400x1500`, ×1 each (a churn alternates, so each run holds grow and shrink steps), frames classified grow/shrink by PNG size vs the previous frame, the §4.5 trace on; plus T2b's top-edge segment | grow frames: `Rgreen` (width) and `Bgreen` (height) ≥ 20 % → 0; shrink frames: **the trace branch, taken 2026-09-03 (C40)** — ⚠ the band form of this clause is **unfalsifiable**: at lum < 40 the **static control**, a window that is never resized, scores `B ≥ 20 %` in **40 of 40** frames (worst 79.4 %) because the store page is full of dark artwork, so the criterion is satisfied without any resize at all (`scripts/churn-grow-shrink.py` now prints the baseline beside any such count). The plan's own alternative is used instead: **the trace says which layer moved, and none do** — 0 of 906 large hosts changed frame origin across 1930 placements in the height churn, shrink placements being pure scale about a fixed top-left corner (`scripts/placement-invariants.py`). The displacement is therefore not a host-position effect; it was measured **pre-stage-1** (C36) and gets its own attribution before any code; T-band 0 in the top-edge segment | **E5:** anchor at the opposite corner → L- or T-band black ≥ 20 % in ≥ 5 frames of the width churn; **E6: NOT APPLICABLE (2026-09-03)** — it was conditional on T7 attributing the displacement to the host, and T7's trace says no host moves. Recorded per exit criterion 2's own escape clause, with the trace as the reason |
 | T8 | **C alone** (only if built) — diag build with stage 1 removed by the named switch (`core` minus the stage-1 commit), churn ×3 | **magenta** (S2) right-band frames → 0 against T0's magenta count | **E7:** no re-arm on reframe → magenta returns to T0's count |
 | T9 | **the reference regenerates** — `regen-winemac-patches.sh --check`; the pristine-11.16 compile gate (§4.5) | three `ok` + three invariants; warning set unchanged by message text | — |
-| T10 | **stage-2 guard** — T2a's churn on the stage-2 build | the T6 trace shows no scale ≠ 1 emitted by the root pass; the S4 control frames persist (3–13/40); after T2b every host at identity within 3 s (the `windowDidEndLiveResize` re-derive) | **E4:** force `in_live_resize` true (or drop the guard) → churn black-no-colour → ≤ 1/40 and the root pass emits scale ≠ 1 |
+| T10 | **stage-2 guard** — T2a's churn on the stage-2 build (S-D) | the T6 trace shows no scale ≠ 1 emitted by the root pass; the S4 control frames persist (3–13/40); **every root pass of the churn traces `size/move loop 0` and `stretched` is 0** — a `SetWindowPos` from outside never enters the loop; after a drag the end-of-loop re-derive (`macdrv_size_move_ended`) has run once per segment | **E4 (sig-on, `signal-mutants.py --on`, S-E):** the helper always reports the loop → the churn stretches (`stretched` > 0) and the root pass emits scale ≠ 1. Both E4 and E4′ are built through `PATCH_FILE=window.c scripts/build-winemac.sh`, observed, restored |
 | T11 | **root hosts and popups** — open/close a Steam popup on prod during and after a drag, `+macdrv` cell | popup capture non-black; ≥ 1 dead-child prune / drained slot on close as C29; no `child NULL` context in the reframe trace; the game's boot and 1 %-low unchanged (`MetalViewSwapChain` is disjoint: `window.c:1301`, `:4145-4190`) | none — structural (`window.c:1937`, `:790-795`) |
 
 **Fixtures.** The Steam store page for churn (two hosted `CefBrowserWindow` siblings, black artwork
 in the lower tiles; `tree` at T0 records which child equals the root client rect); the Library page
 for T1; the `edge-post`/`edge-pre` cells as the before-baseline and `m0-colour`/`m0b-colour` as the
 attribution baseline; module backups for A/B. **James drags three times minimum** (T0 diag-pre ·
-T2b diag-fix · T3 prod including the top edge), across ≥ 2 sessions. If he cannot: T0's live half
-is deferred and **stage 2 does not ship** — its only measurement is a live resize; the fallback is a
-CGEvent-posted edge drag instrument (new; needs Accessibility permission; validated by
-`livedrag-probe.sh` detecting the drag) built before use.
+T2b diag-fix · T3 prod including the top edge), across ≥ 2 sessions — T0's live half and T3's
+verdict are his. **The mechanism rows no longer wait for him** (2026-09-04): `win-resize-driver.exe
+sizedrag` presses in the window's own resize border and runs the same win32u size loop a hand does
+(C47), with no Accessibility permission because the input is wine-internal, and
+`livedrag-probe.sh` detects the drag exactly as it detects a hand's. ⚠ At 1–2 px per 16–60 ms it
+reproduces the loop and **not the strip** (stage 1: R 0/60 twice), so a synthetic "0 exposed
+frames" on stage 2 is only evidence once a synthetic cadence has shown the strip on stage 1.
 
 ## 6. Exit criteria
 
@@ -550,8 +560,8 @@ CGEvent-posted edge drag instrument (new; needs Accessibility permission; valida
    restored, E6 likewise **if T7 attributed frame 14 to the host** — else recorded as not
    applicable with T7's trace as the reason — nested tree clean (`git status --porcelain` empty),
    `--check` green.
-3. Stage 2: T2b and T10 at threshold; E4 red; T3 with James's verdict verbatim in the ledger; T11
-   clean.
+3. Stage 2: T2b and T10 at threshold, the synthetic rows S-A/S-B/S-D as specified; E4 and E4′
+   observed red; T3 with James's verdict verbatim in the ledger; T11 clean.
 4. Stage 3 decision recorded either way: built (T8 green, E7 red) or declined with T0's magenta
    count as the reason.
 5. T5 battery + its `--mutants` + boot `VERDICT: PASS`; T9.

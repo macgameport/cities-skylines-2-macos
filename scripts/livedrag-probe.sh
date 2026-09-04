@@ -1,10 +1,13 @@
 #!/bin/bash
 # livedrag-probe.sh — measure hosted-layer gaps during a REAL mouse drag.
 #
-# scripts/shimmer-probe.sh drives SetWindowPos. A human dragging a window edge goes through macOS
-# live-resize instead, which the harness cannot reach — so "live-drag flicker" could only ever be
-# assessed by eye. This closes that: it waits for you to start dragging, samples hard while you do,
-# and scores each frame the same way (near-black interior while the chrome still renders = a gap).
+# scripts/shimmer-probe.sh drives SetWindowPos. A human dragging a window edge goes through a
+# different path -- on this stack win32u's own SC_SIZE loop, not macOS live-resize (ledger C46/C47)
+# -- which the churn harness cannot reach, so "live-drag flicker" could only ever be assessed by
+# eye. This closes that: it waits for the window to start changing size, samples hard while it
+# does, and scores each frame the same way (near-black interior while the chrome still renders =
+# a gap). It does not care who is dragging: a hand, or `win-resize-driver.exe sizedrag`
+# (drag-session.sh DRAG=synth).
 #
 #   bash scripts/livedrag-probe.sh
 #   -> it waits, you drag a window edge for ~15s, it reports.
