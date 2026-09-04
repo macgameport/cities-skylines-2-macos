@@ -38,13 +38,16 @@ for path in CommandLine.arguments.dropFirst(2) {
   ctx.draw(img, in: CGRect(x: 0, y: 0, width: w, height: h))
   var dark = [Bool](repeating: false, count: w*h); var total = 0
   // Diagnostic colours (issue #7 M0): a host background painted pure red or pure green.
-  var red = [Bool](repeating: false, count: w*h), green = [Bool](repeating: false, count: w*h), blue = [Bool](repeating: false, count: w*h), magenta = [Bool](repeating: false, count: w*h)
+  var red = [Bool](repeating: false, count: w*h), green = [Bool](repeating: false, count: w*h), blue = [Bool](repeating: false, count: w*h), magenta = [Bool](repeating: false, count: w*h), cyan = [Bool](repeating: false, count: w*h)
   for i in 0..<(w*h) { let j = i*4; let r = Int(buf[j]), g = Int(buf[j+1]), b = Int(buf[j+2]); let lum = (r*299 + g*587 + b*114)/1000
     if lum < thr { dark[i] = true; total += 1 }
     if r >= 200 && g <= 60 && b <= 60 { red[i] = true }
     if g >= 200 && r <= 60 && b <= 60 { green[i] = true }
     if b >= 200 && r <= 60 && g <= 60 { blue[i] = true }
-    if r >= 200 && b >= 200 && g <= 60 { magenta[i] = true } }
+    if r >= 200 && b >= 200 && g <= 60 { magenta[i] = true }
+    // cyan = the CONTENT VIEW's own layer (issue #7 T0(b)): its GDI surface blit suppressed and the
+    // layer painted instead, so a strip that takes this colour is the surface beneath every host.
+    if g >= 200 && b >= 200 && r <= 60 { cyan[i] = true } }
   func cfrac(_ m: [Bool], _ x0: Int, _ x1: Int, _ y0: Int, _ y1: Int) -> Double { var d = 0; for y in y0..<y1 { for x in x0..<x1 where m[y*w+x] { d += 1 } }; return 100*Double(d)/Double((x1-x0)*(y1-y0)) }
   func frac(_ x0: Int, _ x1: Int, _ y0: Int, _ y1: Int) -> Double { var d = 0; for y in y0..<y1 { for x in x0..<x1 where dark[y*w+x] { d += 1 } }; return 100*Double(d)/Double((x1-x0)*(y1-y0)) }
   let bw = w/10, bh = h/10
@@ -63,10 +66,11 @@ for path in CommandLine.arguments.dropFirst(2) {
   }
   let name = (path as NSString).lastPathComponent
   let bw2 = w/10, bh2 = h/10
-  print(String(format: "%@ %dx%d dark=%.2f%% L=%.1f R=%.1f T=%.1f B=%.1f  biggest-dark-block=%dx%d at x=%d y=%d (top-origin)  red=%.2f green=%.2f blue=%.2f magenta=%.2f Rred=%.1f Rgreen=%.1f Rblue=%.1f Rmagenta=%.1f Tred=%.1f Tgreen=%.1f Tblue=%.1f Tmagenta=%.1f Lgreen=%.1f Lblack=%.1f Bgreen=%.1f Bmagenta=%.1f",
+  print(String(format: "%@ %dx%d dark=%.2f%% L=%.1f R=%.1f T=%.1f B=%.1f  biggest-dark-block=%dx%d at x=%d y=%d (top-origin)  red=%.2f green=%.2f blue=%.2f magenta=%.2f Rred=%.1f Rgreen=%.1f Rblue=%.1f Rmagenta=%.1f Tred=%.1f Tgreen=%.1f Tblue=%.1f Tmagenta=%.1f Lgreen=%.1f Lblack=%.1f Bgreen=%.1f Bmagenta=%.1f cyan=%.2f Rcyan=%.1f Tcyan=%.1f Bcyan=%.1f",
         name, w, h, 100*Double(total)/Double(w*h), L, R, Top, Bot, best.3-best.1+1, best.4-best.2+1, best.1, best.2,
         cfrac(red,0,w,0,h), cfrac(green,0,w,0,h), cfrac(blue,0,w,0,h), cfrac(magenta,0,w,0,h),
         cfrac(red,w-bw2,w,0,h), cfrac(green,w-bw2,w,0,h), cfrac(blue,w-bw2,w,0,h), cfrac(magenta,w-bw2,w,0,h),
         cfrac(red,0,w,0,bh2), cfrac(green,0,w,0,bh2), cfrac(blue,0,w,0,bh2), cfrac(magenta,0,w,0,bh2),
-        cfrac(green,0,bw2,0,h), cfrac(dark,0,bw2,0,h), cfrac(green,0,w,h-bh2,h), cfrac(magenta,0,w,h-bh2,h)))
+        cfrac(green,0,bw2,0,h), cfrac(dark,0,bw2,0,h), cfrac(green,0,w,h-bh2,h), cfrac(magenta,0,w,h-bh2,h),
+        cfrac(cyan,0,w,0,h), cfrac(cyan,w-bw2,w,0,h), cfrac(cyan,0,w,0,bh2), cfrac(cyan,0,w,h-bh2,h)))
 }
