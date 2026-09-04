@@ -51,17 +51,31 @@ fixed — see § Review log).** Tracker:
 >    … accepted"). The trace caught two frames at `scale 1920.000,907.000` from a 1x1 Chromium
 >    widget: costless in compute, but it paints one pixel's colour over the whole window, which is
 >    worse than the gap. Below 8 px on a side, place at identity.
-> 4. **T2a as specified is UNRUN.** It needs the diag-fix module (green/magenta/blue) to separate
->    S1 from S4; what was run is a colourless interleaved A/B (C38): right band −33 %, bottom band
->    −48 %, worst band unchanged at 86–94 %. No claim is made that S1 went to zero.
+> 4. **T2a was run the same evening and passes (C39).** The colourless interleaved A/B (C38: right
+>    band −33 %, bottom −48 %, worst unchanged at 86–94 %) came first and could not attribute the
+>    residual; the diag-fix module then did. ⚠ **Magenta marks the create path's DEFERRED
+>    background (`main-old:781`), not a second background of its own** — `main` already paints a new
+>    host black 120 ms after creation, and "a new host past its deferred black" is precisely S2, so
+>    recolouring it is the faithful reading rather than a deviation from §2.3. A `!backgroundColor`
+>    guard keeps it from repainting a host that `placeCALayerHost:` already marked green inside that
+>    120 ms window, which would score S1 as S2.
 > 5. The glue hunk moved from `:766-786` to **`:837-857`** — stage 1 inserts ~71 lines above it.
 > 6. New instruments, all committed: `scripts/t1-spike.sh` (the T1 gate, both phases + analysis),
->    `scripts/stage1-tests.sh`, `scripts/band-counts.py`. One harness defect found and fixed en
->    route (GOTCHAS 2026-09-03, "Two scripts sharing `OUT_DIR`").
+>    `scripts/stage1-tests.sh`, `scripts/band-counts.py`, `scripts/t6-scale-at-rest.py` (T6 with the
+>    surviving-context filter), `scripts/build-winemac.sh` (branch + glue gate),
+>    `scripts/churn-grow-shrink.py` (grow/shrink split beside its static baseline). **Four** harness
+>    defects found and fixed en route, each of which produced a plausible wrong answer rather than an
+>    error — GOTCHAS 2026-09-03: "Two scripts sharing `OUT_DIR`"; "A module built off the wrong
+>    branch renders black"; the VOID guards firing on a mutant whose effect *is* a black window; and
+>    a band criterion stated without its control.
 >
 > **Verify against:** `scripts/winemac-crossprocess-child-core.patch` (the `placeCALayerHost:`
 > method, the class extension, `getCALayerHostPlacement:`), `scripts/stage1-tests.sh`,
-> `scripts/t1-spike.sh`, `EXPERIMENTS.md` C37/C38, `~/cs2-patch/stage1-ab2/`.
+> `scripts/build-winemac.sh`, `scripts/t6-scale-at-rest.py`, `scripts/churn-grow-shrink.py`,
+> `scripts/t1-spike.sh`, `EXPERIMENTS.md` C37–C40, `~/cs2-patch/stage1-ab2/`,
+> `~/cs2-patch/stage1-tests/`, and issue
+> [#9](https://github.com/macgameport/cities-skylines-2-macos/issues/9) for the two criteria that
+> do not bind.
 
 **Scope.** One user-visible artifact: while a Steam window is being dragged larger, the newly
 exposed strip along the growing edge is solid black until the hosted browser catches up. Not in
