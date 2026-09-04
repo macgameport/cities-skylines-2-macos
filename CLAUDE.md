@@ -148,54 +148,41 @@ absolute `/Users/<name>` paths **out of committed files** — use `$HOME`, `$WIN
   something generic while doing capture work and new captures are clean at source. A mask you got
   wrong is worse than no mask, because it looks safe.
 
-## Escalate the model tier by SURFACE, not by task (2026-09-03, provisional)
+## Model tier — this repo is where the rule was earned
 
-**Where a gate can decide it, the tier barely matters. Where prose is the deliverable and no gate
-can check it, use the most capable model.**
+> The rule is now global (`.claude/rules/engineering.md` § *Escalate the model tier by SURFACE, not
+> by task*), promoted 2026-09-03 after cs2 → homeOne → isnotus. The condensed evidence lives there.
+> Kept here: the two in-repo instances in full, because this is where they happened, and cs2's own
+> ungated surfaces.
 
-Measured on 2026-09-03, one session, both directions:
+**Instance 1 (2026-09-03).** Execution found the behavioural defects at any tier — three hunks
+carrying vendor context rather than the predicted two, `assert()` baking `__LINE__` into the object
+so a comment-only edit is not byte-identical, a probe leaking a running churn on its abort path,
+the exact anchor a relocated hunk needs. Every one surfaced from a build, a mutant or a
+byte-compare. **The gate was the reviewer.** The top tier found what no gate can reach: a plan
+asserting a 131-entry unixlib table that is really 132 — its own test gate would have failed red
+for the wrong reason; an install step whose `codesign` contradicted the same plan's `cmp` outcome
+test; a test stating a pass condition absent from the tool's vocabulary; cites off by one after a
+table grew; five nested items missed in a census. First label use:
+[#6](https://github.com/macgameport/cities-skylines-2-macos/issues/6) — comment accuracy in the
+published winemac reference, where `strip-comments.py`, the object comparison and the whole C29
+battery all pass while saying nothing about whether the surviving comments are TRUE.
 
-- **Execution found the behavioural defects, at any tier.** Three hunks carrying vendor context
-  rather than the predicted two, `assert()` baking `__LINE__` into the object so a comment-only
-  edit is not byte-identical, a probe leaking a running churn on its abort path, the exact anchor
-  a relocated hunk needs. Every one surfaced from a build, a mutant or a byte-compare. The gate was
-  the reviewer.
-- **The top tier found the latent inconsistencies, which no gate can reach.** A plan asserting a
-  131-entry unixlib table that is really 132 — its own test gate would have failed red for the
-  wrong reason; an install step whose `codesign` contradicted the same plan's `cmp` outcome test; a
-  test stating a pass condition absent from the tool's vocabulary; cites off by one after a table
-  grew; five nested items missed in a census. All are cross-referencing work: hold a lot of material
-  in mind, check it against the code and against itself.
+**Instance 2 (2026-09-03).** `check it` on `exposed-edge-live-resize.md` ran six lenses at Fable
+5.1, then one fitted Opus 5 agent over the *fold*. The fitted pass found a blocker no gate could
+reach: a test's pass condition named the wrong band and the wrong black-threshold for a signature
+measured two sections earlier, so **its mutant could never be observed red** while the exit
+criteria demanded it red. Pure cross-referencing — the plan against itself.
 
-**So:** `check it` lenses, and any audit of prose a human will act on that no test verifies, get the
-top tier. Execution-gated work gets whatever is cheapest — the mutant is the reviewer, not the model.
+**cs2's own ungated surfaces:** anything published upstream (wine/DXMT patches and their commit
+messages — a maintainer acts on prose, and `git apply --check` says nothing about whether a comment
+is true); `check it` folds; claims about Apple/wine platform behaviour drawn from a trace rather
+than from docs. **Gated — cheapest tier:** ninja builds, mutants, `cmp`/byte-compares, the C29
+battery, `boot-verify.sh`.
 
-**The label:** GitHub label `needs-high-tier-review` marks the judgment surface; `blocker` marks
-what it holds up. First use: [#6](https://github.com/macgameport/cities-skylines-2-macos/issues/6),
-comment accuracy in the published winemac reference, where `strip-comments.py`, the object
-comparison and the whole C29 battery all pass while saying nothing about whether the surviving
-comments are TRUE.
-
-**Second instance, same repo (2026-09-03).** The `check it` on `exposed-edge-live-resize.md` ran six lenses at Fable 5.1, then one fitted Opus 5 agent over the *fold*. The fitted pass found a blocker no gate could reach: a test's pass condition named the wrong band and the wrong black-threshold for a signature measured two sections earlier, so **its mutant could never be observed red** while the exit criteria demanded it red. Pure cross-referencing — the plan against itself. Consistent with the rule; one repo *at that point*, so still provisional.
-
-**First sibling adoption (homeOne, 2026-09-03) — repo 2.** homeOne took the rule and the `needs-high-tier-review` label for its Metal↔LLM upstream-contribution umbrella ([jvspearman/homeOne#66](https://github.com/jvspearman/homeOne/issues/66)). It is a useful second data point because the split there is unusually clean and runs *both* ways: the benchmark sweep (#68) is gated hard by Lily's 64-token-digest contract — no model talks past a digest mismatch — while the baseRT track (#69) has **no gate anywhere**, being prose argued on a third party's tracker. The label went on the surfaces, not the tickets, which is the part that most needs restating: two of the three issues carry both halves at once. Not yet evidence *for* the rule (nothing has been reviewed under it there yet) — evidence that it transfers to a repo with no build, no tests and no compiler.
-
-**Second sibling adoption (isnotus, 2026-09-03) — repo 3.** Fitted, not copy-pasted: its sharpest
-ungated surface is **Metis/Notus prompt and tool-description text** — a test proves a prompt does
-not crash and a tool is reachable, nothing proves the wording steers the agent correctly over real
-family data — plus anything the kids read, the news feed having been live since 2026-08-10. It
-also drew the line this rule most needs drawn twice: privacy *policy* reasoning is judgment
-surface, while the `visible_to_metis` filter that enforces it is gated.
-
-⚠ **Three adoptions, zero confirmations — NOT promoted, and the distinction is the point.**
-The count that the cross-repo sweep rule gates on is repos where a convention *fits*, and on that
-reading the bar is met. But this rule's own text asks for evidence it **held**, and nothing has
-been reviewed under it in either sibling yet. So the honest state is: the rule has proven it
-**transfers** — to a repo with no build, no tests and no compiler (homeOne), and to one whose
-riskiest output is prose aimed at an LLM and at children (isnotus) — and has proven nothing about
-whether it **works** outside this repo. Promotion to `~/.claude/rules/` is James's call; the
-mechanical bar is met and the evidentiary one is not. **Do not let a third copy be mistaken for a
-third data point.**
+⚠ **Promoted on FIT, not on confirmation.** At promotion nothing had been reviewed under the rule
+outside this repo, so its whole evidence base is the two instances above. **Do not cite the
+three-repo count as three data points.** If it fails to earn its cost somewhere, demote it.
 
 ## Deliberate deviations from sibling-repo practice
 
