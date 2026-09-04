@@ -27,13 +27,17 @@ fixed — see § Review log).** Tracker:
 > | T4 | **PASS** — 0 BRIGHT at 2399×1499 at rest, interior lum 88 |
 > | T6 | **PASS** on two independent sessions, `scripts/t6-scale-at-rest.py` |
 > | T7 grow | **PASS** both axes — `Rgreen` 0/40 (width), `Bgreen` max 0.10 %, 0/40 (height) |
-> | T7 shrink | **NOT EVALUABLE** — criterion satisfied by a window that is not resized ([#9](https://github.com/macgameport/cities-skylines-2-macos/issues/9)) |
+> | T7 shrink | **PASS via the plan's trace branch** — 0 of 906 large hosts changed origin across 1930 placements; the band form is unfalsifiable (static control `B ≥ 20 %` 40/40 at lum<40) |
 > | T9 | **PASS** — three `ok` + three invariants |
 > | E1 · E3 · E5 | **RED** — E1 green 8/8/9 per 40 and `3021 scale 1.000,1.000`; E3 trace `1.999,2.000`; E5 every band black with 2050 placements |
-> | E2 | **engaged, not observable** — 172 placements at `scale 0.999,1.000`, 0 BRIGHT ([#9](https://github.com/macgameport/cities-skylines-2-macos/issues/9)) |
+> | E6 | **not applicable** — conditional on T7 attributing the displacement to a host; the trace says none moved |
+> | E2 | **RED, restated** — 230 sub-pixel placements of 1104 against **0 of 4133** on the fixed module; the BRIGHT form cannot discriminate here |
 >
-> **Exit criterion 2 is therefore NOT met as written**, and the gap is in the criteria, not the
-> code: T7's shrink clause and E2's mutant signal both need restating before stage 1 can close.
+> **Exit criterion 2 is MET.** Two of its criteria had to be restated first — both were tests that
+> could not fail, which is worse than a missing test because they read as passes
+> ([#9](https://github.com/macgameport/cities-skylines-2-macos/issues/9), C40). Neither restatement
+> weakened anything: each moved the signal from a pixel effect to the mechanism itself, and each is
+> non-tautological in both directions on data already collected.
 >
 > **Deviations from this plan, in the order they were forced:**
 > 1. **The two per-host tables are NOT ivars beside `_caLayerHosts` (§4.1).** They are a
