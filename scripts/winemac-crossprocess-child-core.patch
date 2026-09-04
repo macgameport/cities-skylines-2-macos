@@ -443,7 +443,7 @@ index 9a91edb..0c54423 100644
  extern bool macdrv_get_view_backing_size(macdrv_view v, int backing_size[2]);
  extern void macdrv_set_view_backing_size(macdrv_view v, const int backing_size[2]);
 diff --git a/dlls/winemac.drv/window.c b/dlls/winemac.drv/window.c
-index c23142d..1e6314f 100644
+index c23142d..b605b87 100644
 --- a/dlls/winemac.drv/window.c
 +++ b/dlls/winemac.drv/window.c
 @@ -39,6 +39,103 @@
@@ -731,7 +731,7 @@ index c23142d..1e6314f 100644
  }
  
  
-@@ -1635,6 +1846,166 @@ BOOL macdrv_GetWindowStyleMasks(HWND hwnd, UINT style, UINT ex_style, UINT *styl
+@@ -1635,6 +1846,176 @@ BOOL macdrv_GetWindowStyleMasks(HWND hwnd, UINT style, UINT ex_style, UINT *styl
  /***********************************************************************
   *              WindowPosChanged   (MACDRV.@)
   */
@@ -796,6 +796,16 @@ index c23142d..1e6314f 100644
 +            TRACE("child %p stretched %s -> %s (live resize)\n", child,
 +                  wine_dbgstr_rect(&cr), wine_dbgstr_rect(&new_client));
 +            cr = new_client;
++        }
++        else
++        {
++            /* Both rects, every time the substitution declines, because "no full-client child" and
++             * "the two rects are in different DPI spaces" are otherwise the same silence -- and
++             * these rects come from different queries: cr from MDT_RAW_DPI window rects, client
++             * from data->rects, documented as monitor DPI. A drag that produces no stretch must
++             * say which of the two it was. */
++            TRACE("child %p not full-client: %s vs client %s -- no stretch\n", child,
++                  wine_dbgstr_rect(&cr), wine_dbgstr_rect(&old_client));
 +        }
 +    }
 +
@@ -898,7 +908,7 @@ index c23142d..1e6314f 100644
  void macdrv_WindowPosChanged(HWND hwnd, HWND insert_after, HWND owner_hint, UINT swp_flags,
                               const struct window_rects *new_rects, struct window_surface *surface)
  {
-@@ -1654,7 +2025,30 @@ void macdrv_WindowPosChanged(HWND hwnd, HWND insert_after, HWND owner_hint, UINT
+@@ -1654,7 +2035,30 @@ void macdrv_WindowPosChanged(HWND hwnd, HWND insert_after, HWND owner_hint, UINT
      TRACE("win %p/%p new_rects %s style %08x flags %08x surface %p\n", hwnd, data->cocoa_window,
            debugstr_window_rects(new_rects), new_style, swp_flags, surface);
  
@@ -930,7 +940,7 @@ index c23142d..1e6314f 100644
  
      if (data->on_screen)
      {
-@@ -1687,6 +2081,10 @@ void macdrv_WindowPosChanged(HWND hwnd, HWND insert_after, HWND owner_hint, UINT
+@@ -1687,6 +2091,10 @@ void macdrv_WindowPosChanged(HWND hwnd, HWND insert_after, HWND owner_hint, UINT
          }
      }
  
@@ -941,7 +951,7 @@ index c23142d..1e6314f 100644
      if (fullscreen || fullscreen != data->fullscreen)
      {
          CGRect rect = (fullscreen && !EqualRect(&data->rects.window, &data->rects.visible)) ? cgrect_from_rect(data->rects.window) : CGRectZero;
-@@ -1694,7 +2092,6 @@ void macdrv_WindowPosChanged(HWND hwnd, HWND insert_after, HWND owner_hint, UINT
+@@ -1694,7 +2102,6 @@ void macdrv_WindowPosChanged(HWND hwnd, HWND insert_after, HWND owner_hint, UINT
          data->fullscreen = fullscreen;
      }
  
@@ -949,7 +959,7 @@ index c23142d..1e6314f 100644
      release_win_data(data);
  }
  
-@@ -1777,6 +2174,10 @@ void macdrv_window_frame_changed(HWND hwnd, const macdrv_event *event)
+@@ -1777,6 +2184,10 @@ void macdrv_window_frame_changed(HWND hwnd, const macdrv_event *event)
                data->rects.window.bottom - data->rects.window.top, width, height);
  
      being_dragged = data->drag_event != NULL;
@@ -960,7 +970,7 @@ index c23142d..1e6314f 100644
      release_win_data(data);
  
      if (event->window_frame_changed.fullscreen)
-@@ -1959,7 +2360,17 @@ void macdrv_window_brought_forward(HWND hwnd)
+@@ -1959,7 +2370,17 @@ void macdrv_window_brought_forward(HWND hwnd)
   */
  void macdrv_window_resize_ended(HWND hwnd)
  {
