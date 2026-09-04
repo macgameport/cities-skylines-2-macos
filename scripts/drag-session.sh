@@ -73,6 +73,18 @@ WINEDEBUG=+err,+macdrv bash "$REPO/scripts/steam-render-cell.sh" \
 steam_up || { echo "  VOID: $(grep -m1 FATAL "$OUT/cell.txt" | cut -c1-120)"; exit 1; }
 WINEDEBUG=-all "$W" "$S/steam.exe" steam://store >/dev/null 2>&1; sleep 15
 
+# Shrink the window first, so the drag has somewhere to GROW. The defect is on the growing edge, and
+# the first run (2026-09-04, t0) opened at 1853x994 with little headroom: the drag oscillated
+# between 1561 and 1852 and ended near where it started, producing 1 exposed frame in 60 against a
+# 19/60 baseline. A drag that cannot grow measures the wrong half of the problem.
+DH=$(WINEDEBUG=-all "$W" "$DRV" list 2>/dev/null | tr -d '\r' \
+     | grep 'class=SDL_app' | grep 'title=Steam$' | awk '{print $1}' | head -1)
+if [ -n "${DH:-}" ]; then
+  WINEDEBUG=-all "$W" "$DRV" drive "$DH" "${PRESIZE:-1400x900}" >/dev/null 2>&1
+  sleep 3
+  echo "  pre-sized to ${PRESIZE:-1400x900} — room to pull outward"
+fi
+
 cat <<'MSG'
 
   ---------------------------------------------------------------
