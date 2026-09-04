@@ -1838,6 +1838,9 @@ not fail — it succeeds, with the numbers a working fix would produce.
    the patched module's name — twice, in the middle of diagnosing this. Same family as
    `<cmd> | tail` announcing a failing suite as exit 0.
 
-> **Ledger:** the two void cells are recorded in `EXPERIMENTS.md` with status `VOID-NOGLUE`; no
-> conclusion rests on them. C38's A/B is unaffected — those four rounds ran the `main`-built module
+> **Ledger:** the two void cells are **not** in `EXPERIMENTS.md` — same disposition as the four
+> `OUT_DIR` casualties above, and for the same reason: they were re-run once the cause was known,
+> and the index's status vocabulary is machine-derived from the evidence store (`--regen`), so a
+> hand-written `VOID-NOGLUE` would be overwritten on the next `button up`. No conclusion rests on
+> them. C38's A/B is unaffected — those four rounds ran the `main`-built module
 > (`2a251a4b2510fb84`), with lit interiors and a clean static control in every session.
