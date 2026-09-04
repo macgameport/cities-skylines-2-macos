@@ -51,6 +51,14 @@ SRC="${WINEMAC_SRC:-$HOME/cs2-patch/build-1116/wine-11.16-dxmt/dlls/winemac.drv}
 BD="${WINEMAC_BUILD:-$HOME/cs2-patch/build-1116/wine-1116-vis-build}"
 INST="$SS/wine/lib/wine/x86_64-unix/winemac.so"
 OUT="${OUT_DIR:-$HOME/cs2-patch/hosting-layer-tests/$(date +%Y%m%d-%H%M%S)}"
+# Every build here comes from whatever branch $SRC happens to have checked out, and the nested repo
+# keeps `core` (the stock-applicable subset) beside `main` (= aquadran + core + the DXMT glue). A
+# core build installs and loads, then Steam's GPU process dies with c0000409 and nothing renders --
+# and a battery of tests against a black window reports plausible numbers, not an error. Cost two
+# sessions on 2026-09-03; GOTCHAS, "A module built off the wrong branch renders black".
+_br=$(git -C "$SRC" rev-parse --abbrev-ref HEAD 2>/dev/null)
+[ "$_br" = main ] || { echo "REFUSED: $SRC is on '$_br', not main -- a core build has no DXMT glue"
+                       exit 2; }
 MUTANTS=0
 case "${1:-}" in
   --list) sed -n '/^# Plan:/,/^set -u/p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
