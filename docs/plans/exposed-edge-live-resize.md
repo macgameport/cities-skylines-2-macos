@@ -10,24 +10,38 @@ fixed — see § Review log).** Tracker:
 `winemac.so.bak-preD12-20260902-221649` = `53c9443db3145f58`. Line numbers are against the nested
 `main` and name their file; unqualified `:N` is `cocoa_window.m`.
 
-> **🔧 As-built (2026-09-03): stage 1 BUILT and CLOSED; stage 2 BUILT and contained, its three
-> live drags pending; stage 3 not started.**
+> **🔧 As-built (2026-09-04): stage 1 BUILT and CLOSED; stage 2 BUILT, RE-ARMED on the resize
+> signal that actually fires here, and now measurable without a human; stage 3 not started.**
 >
-> **Stage 2** — nested `core` +2 (`55f0805` the stretch · `c96547f` the decline trace), `main`
-> rebuilt as aquadran → core → glue (`a5e0d03`), invariants green, patches regenerated. Modules:
-> prod `ef82ef17f4ef5516` (T3) · diag-fix `86efd83b755de109` (T2b) · diag-pre `50fdfe79898dac36`
-> (T0, = stage 1 + colours). **T10 GREEN** (ledger **C43**): 0 stretch traces and 0 decline
-> traces across 3021 placements in 120 churn frames, so the guard holds — a `SetWindowPos`
-> resize never sets `in_live_resize`. Boot `VERDICT: PASS`. Churn is unchanged from stage 1,
-> which is the expected result and **not** evidence about stage 2: a churn is not a live resize,
-> so stage 2's effect exists only under a real drag. Run one with `scripts/drag-session.sh`.
+> **Stage 2 was rebuilt 2026-09-04 (ledger C46 → C47).** The first build (2026-09-03) armed the
+> stretch on AppKit's live resize; that signal is real in the code and **never fires on this
+> stack** — `in_resize` 0 in 8838/8838 events, `WINDOW_RESIZE_ENDED` never, across every captured
+> session and both human drags (C46). The drags run **win32u's own SC_SIZE loop** instead
+> (`SysCommand f002`/`f003` in every trace), so the stretch is now armed on that loop's
+> `GUI_INMOVESIZE` capture, read live per root pass and paired with `hwndMoveSize`, and the
+> end-of-drag re-derive hangs off the capture release (`macdrv_size_move_ended`). The AppKit bit
+> stays as a second source. Nested `core` `aa37714` (arm on the loop) + `07cd84d` (pair with the
+> sized window), `main` rebuilt as aquadran → core → glue (`1b5ac95`), invariants green, patches
+> regenerated. Modules: prod `s2b` `00ac32aa3115b455` (T3) · diag `s2b-diag` `7bdfcd9c1746f483`
+> (T2b) · signal mutants `s2b-sigoff` `0ee4dd26d4e1f0c3` / `s2b-sigon` `7b462aa9344e49fa` (E4′/E4).
 >
-> **One deviation, added after the first build:** the plan asks for a TRACE asserting that `cr`
-> (raw-DPI queries) and `data->rects` (monitor DPI, `macdrv.h:185`) share a space before
-> trusting `EqualRect`. It is implemented as a trace of BOTH rects whenever the substitution
-> **declines**, rather than a one-shot equality assert — same information, in situ, and it makes
-> the failure legible at the moment it matters. Without it "no full-client child" and "wrong DPI
-> space" are the same silence, and either would read as the fix not working after a drag.
+> **The drags no longer need a hand (C47).** `win-resize-driver.exe sizedrag` presses inside the
+> window's own resize border and runs the same win32u loop, polling `GUI_INMOVESIZE` on the
+> window's thread (set on 150/150). First synthetic drag on prod: **2148 root passes read the
+> loop, stretches fire, `macdrv_size_move_ended` runs once per segment, T6 PASS** — the mechanism
+> works. ⚠ At 1–2 px per 16–60 ms the synthetic drag reproduces the *loop* but **not the strip**
+> (stage 1 scores R 0/60 at these cadences), so a synthetic "0 exposed frames" is only evidence
+> once a coarser cadence has shown the strip on stage 1; a human drag (T3) remains the acceptance
+> test. Run the unattended rows with `scripts/stage2-tests.sh`.
+>
+> **The DPI-mismatch deviation (still true):** the plan asks for a one-shot assert that `cr`
+> (raw-DPI queries) and `data->rects` (monitor DPI, `macdrv.h:185`) share a space; implemented as
+> a trace of BOTH rects whenever the substitution **declines**, same information in situ. Without
+> it "no full-client child" and "wrong DPI space" are the same silence.
+>
+> **T10 GREEN** (ledger **C43**, still valid): a `SetWindowPos` churn never enters the size loop,
+> so 0 stretch and 0 decline traces across 3021 placements — the containment guard holds, now with
+> a positive control (`s2b-sigon`: force the loop seen → the churn must stretch).
 >
 > **Stage 1 (below) is closed:** exit criteria 2 and 5 met.
 > Nested winemac `core` +3 commits (`af4b6d8` scale-a-stale-host · `717d431` the scale TRACE ·
