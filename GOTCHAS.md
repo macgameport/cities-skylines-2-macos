@@ -1794,3 +1794,50 @@ way to notice its own directory was replaced.
    differ is the tell — treat a repeat as a harness failure until proven otherwise.
 
 > **Ledger:** the four voided cells are not in `EXPERIMENTS.md`; the A/B was re-run after the fix.
+
+## A module built off the wrong branch renders black — and a black window scores as a clean pass (2026-09-03)
+
+**What happened.** The nested winemac repo keeps two branches on purpose: `core`, the
+stock-applicable subset that goes upstream, and `main` = aquadran + core + the DXMT glue commit,
+which is what actually runs here. A session that had just committed stage 1 to `core` left the tree
+checked out there, and the next three diagnostic modules were built from it. Each one **installed
+and loaded without complaint**. Steam came up, its GPU process died six times with `c0000409`
+(Chromium's `CHECK`/`IMMEDIATE_CRASH` code), no remote layer was ever posted, and the window
+rendered pure black.
+
+Then the second failure landed on top of the first. With no hosted layer anywhere, every outer band
+scores 100 % black and every diagnostic colour scores **0** — which the attribution table prints as
+`GREEN 0 | MAGENTA 0 | BLUE 0 | BLACK 35/40`. `Rgreen → 0` is *exactly* the pass condition the test
+was written to look for. A run that measured nothing at all was one glance away from being recorded
+as stage 1 working.
+
+Two sessions went into attributing the crash to the diagnostic colours — first to the one hunk that
+runs in the GPU process, then, when removing it changed nothing, to the other two — before anyone
+compared the module against the one that had been measuring correctly all day. `core` builds
+**502560 B**, `main` builds **508544 B**, and a clean `main` rebuild is **byte-identical** to the
+installed module. The colours were never implicated.
+
+**Why it is worth a heading.** Every layer of this is silent in the direction that hides it. The
+loader does not care that a DLL is missing a vendor feature. The crash is in a *child* process and
+is counted by a log line nobody reads unless they are already suspicious. And the measurement does
+not fail — it succeeds, with the numbers a working fix would produce.
+
+**Four rules.**
+1. **A branch that is not what you run is a loaded gun.** `scripts/build-winemac.sh` now refuses
+   unless the nested repo is on `main` and clean, and refuses again if the built module carries no
+   `dxmt_client_surface` (5 hits on `main`/`aquadran`, 0 on `core`).
+2. **Establish that the instrument registers, before reading what it says.** The three guards added
+   to `stage1-tests.sh` — interior luminance 0, the static control showing gaps, zero placement
+   traces — each catch this at a different layer, and any one of them would have caught it on the
+   first run.
+3. **An absence is not a result.** "No green" and "nothing rendered" are the same reading. Any test
+   whose pass condition is *the absence of a signal* needs a positive control in the same frame;
+   here the interior is it — a real store page has lit pixels in the middle whatever the edges do.
+4. **Read a command's own exit status, not the pipe's.** `python3 patch.py | sed` reported `sed`'s
+   status, so a `FAIL: 0 matches (want 1)` scrolled past and an unpatched module was saved under
+   the patched module's name — twice, in the middle of diagnosing this. Same family as
+   `<cmd> | tail` announcing a failing suite as exit 0.
+
+> **Ledger:** the two void cells are recorded in `EXPERIMENTS.md` with status `VOID-NOGLUE`; no
+> conclusion rests on them. C38's A/B is unaffected — those four rounds ran the `main`-built module
+> (`2a251a4b2510fb84`), with lit interiors and a clean static control in every session.
