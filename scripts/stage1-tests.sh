@@ -56,8 +56,13 @@ down                        # a module swap needs Steam down: down() first, inst
 [ -n "$MODULE" ] && { cp "$MODULE" "$INST" || exit 1; }
 echo "########## stage 1 tests $(date '+%F %T')  module $(shasum -a 256 "$INST" | cut -c1-16)"
 echo "  run dir: $OUT"
+# One cell label per RUN. The label alone names the cell directory, so a fixed label means every
+# run overwrites the previous run's config.json -- and a fingerprint that does not belong to the
+# result it sits beside is worse than none. EXPERIMENTS.md carries the caveat this repairs: four
+# A/B sessions on 2026-09-03 all recorded under the single label `stage1`.
+CELL="stage1-$(basename "$OUT")"
 WINEDEBUG=+err,+macdrv bash "$REPO/scripts/steam-render-cell.sh" \
-    --label stage1 --keep-running >"$OUT/cell.txt" 2>&1
+    --label "$CELL" --keep-running >"$OUT/cell.txt" 2>&1
 steam_up || { echo "  VOID: $(grep -m1 FATAL "$OUT/cell.txt" | cut -c1-120)"; exit 1; }
 WINEDEBUG=-all "$W" "$S/steam.exe" steam://store >/dev/null 2>&1; sleep 15
 H=$(drv list | grep 'class=SDL_app' | grep 'title=Steam$' | awk '{print $1}' | head -1)
@@ -77,6 +82,15 @@ run_probe() {   # run_probe <label> [env assignments...]
   # page's own black artwork. C35/C36 scored the RIGHT band; so does this -- per band, frames kept.
   local n; n=$(ls "$OUT/$label"/f*.png 2>/dev/null | wc -l | tr -d ' ')
   [ "$n" = 0 ] && { echo "    VOID: the probe wrote no frames to $OUT/$label"; return 1; }
+  # A window that renders NOTHING scores every band 100% black and every diagnostic colour 0 --
+  # which reads as "no S1, no S2, no S3", i.e. exactly like a fix that worked. Measured
+  # 2026-09-03: a Steam boot whose GPU process never posted a remote layer produced
+  # `GREEN 0 | MAGENTA 0 | BLUE 0 | BLACK 35/40` and looked like a pass. The interior is the
+  # discriminator -- a real store page has lit pixels in the middle whatever the edges do.
+  local imax; imax=$(sed -nE 's/.*interior-lum .*max ([0-9]+).*/\1/p' "$OUT/$label.log" | tail -1)
+  [ -n "$imax" ] && [ "$imax" -eq 0 ] 2>/dev/null && {
+      echo "    VOID: interior max luminance 0 -- the whole window is black, nothing rendered"
+      return 1; }
   /tmp/darkboxes 6 "$OUT/$label"/f*.png > "$OUT/$label-bands.txt" 2>/dev/null
   python3 "$REPO/scripts/band-counts.py" "$OUT/$label-bands.txt" | sed 's/^/    /'
   # T2a's criteria are per COLOUR, not just per band: green = S1 (an existing host placed larger
@@ -105,11 +119,20 @@ else
   echo "=== static control"
   ( OUT_DIR="$OUT/static" bash "$REPO/scripts/shimmer-probe.sh" static ) >"$OUT/static.log" 2>&1
   grep -E "gaps|frames|ABORT|VOID" "$OUT/static.log" | sed 's/^/    /'
+  # T2a's own criterion is "static 0 gaps". A static window showing an exposed edge is not a
+  # finding about the resize path -- it means this session never rendered, and the churns above
+  # are void with it.
+  grep -qE "EXPOSED-EDGE frames .*: 0 of" "$OUT/static.log" ||
+      echo "    VOID: the STATIC control shows an exposed edge -- this session did not render"
 fi
 # The cell's log keeps growing while Steam stays up, so it is copied LAST -- copying it right
 # after the cell captured only the boot and made every T6 trace invisible (2026-09-03).
-cp /tmp/steam-cell-stage1/stdout.txt "$OUT/stdout.txt" 2>/dev/null
+cp "/tmp/steam-cell-$CELL/stdout.txt" "$OUT/stdout.txt" 2>/dev/null
 echo "=== T6 trace — scale, last 12 lines"
 grep -E "context [0-9]+ frame .* scale" "$OUT/stdout.txt" 2>/dev/null | tail -12 | sed 's/^/    /'
 echo "  distinct scales seen: $(grep -oE 'scale [0-9.]+,[0-9.]+' "$OUT/stdout.txt" 2>/dev/null | sort | uniq -c | tr '\n' ' ')"
+# No placement trace at all means no hosted layer was ever placed, so nothing above measured the
+# hosting path. Stated last because it condemns the whole run, not one row.
+NSCALE=$(grep -c 'scale [0-9]' "$OUT/stdout.txt" 2>/dev/null || echo 0)
+[ "$NSCALE" -eq 0 ] && echo "  VOID: 0 placement traces -- no remote layer was created this session"
 echo "########## done $(date '+%F %T')"
