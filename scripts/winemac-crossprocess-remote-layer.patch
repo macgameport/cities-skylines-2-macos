@@ -417,15 +417,16 @@ index f8a1285..3ccae6f 100644
  }
  }
 diff --git a/dlls/winemac.drv/macdrv.h b/dlls/winemac.drv/macdrv.h
-index 13f71f3..ec10d3b 100644
+index 13f71f3..b1c0c75 100644
 --- a/dlls/winemac.drv/macdrv.h
 +++ b/dlls/winemac.drv/macdrv.h
-@@ -185,6 +185,8 @@ extern BOOL macdrv_SystemParametersInfo(UINT action, UINT int_param, void *ptr_p
+@@ -185,6 +185,9 @@ extern BOOL macdrv_SystemParametersInfo(UINT action, UINT int_param, void *ptr_p
      struct window_rects rects;                  /* window rects in monitor DPI, relative to parent client area */
      int                 pixel_format;           /* pixel format for GL */
      HANDLE              drag_event;             /* event to signal that Cocoa-driven window dragging has ended */
 +    CFMutableDictionaryRef remote_layer_children; /* CAContextID -> child HWND, for repositioning
 +                                                   * hosted cross-process layers on resize */
++    unsigned int        in_live_resize : 1;     /* WINDOW_FRAME_CHANGED.in_resize; cleared by WINDOW_RESIZE_ENDED */
      unsigned int        on_screen : 1;          /* is window ordered in? (minimized or not) */
      unsigned int        shaped : 1;             /* is window using a custom region shape? */
      unsigned int        layered : 1;            /* is window layered and with valid attributes? */
@@ -594,7 +595,7 @@ index ae87cf8..0dbeafe 100644
  {
      &my_macdrv_init_display_devices,
 diff --git a/dlls/winemac.drv/window.c b/dlls/winemac.drv/window.c
-index 0d2de29..a5b253f 100644
+index 0d2de29..61e7e7b 100644
 --- a/dlls/winemac.drv/window.c
 +++ b/dlls/winemac.drv/window.c
 @@ -39,6 +39,103 @@
@@ -882,7 +883,7 @@ index 0d2de29..a5b253f 100644
  }
  
  
-@@ -1638,6 +1849,126 @@ BOOL macdrv_GetWindowStyleMasks(HWND hwnd, UINT style, UINT ex_style, UINT *styl
+@@ -1638,6 +1849,166 @@ BOOL macdrv_GetWindowStyleMasks(HWND hwnd, UINT style, UINT ex_style, UINT *styl
  /***********************************************************************
   *              WindowPosChanged   (MACDRV.@)
   */
@@ -913,6 +914,47 @@ index 0d2de29..a5b253f 100644
 +    return context_id;
 +}
 +
++/* The frame a hosted layer should take, in the root's window-relative space: the child's own rect
++ * offset into the root, and -- during a live resize only -- the full-client substitution below.
++ *
++ * Both update passes go through here because the swapchain-creation comment above demands that
++ * creation and every later move compute one frame. `old_rects` is the root's rects as they were
++ * BEFORE the move being processed; the pass has no memory of its own, so it must be handed in, and
++ * a caller with nothing to compare against passes NULL and gets the plain offset.
++ *
++ * Returns FALSE when the child is gone, which the callers treat as "retire this layer". */
++static BOOL remote_layer_target_rect(struct macdrv_win_data *data, HWND child, UINT dpi,
++                                     const RECT *root_rect, const struct window_rects *old_rects,
++                                     RECT *target)
++{
++    RECT cr;
++
++    if (!NtUserGetWindowRect(child, &cr, dpi)) return FALSE;
++    OffsetRect(&cr, -root_rect->left, -root_rect->top);
++
++    if (old_rects && data->in_live_resize)
++    {
++        /* B': a child that filled the client area before this move is stretched with the root now,
++         * before the app resizes it; its own WindowPosChanged (D1) re-frames it after. Compared
++         * relative to the root, never in screen space -- a root move shifts every child's screen
++         * rect while its parent-relative rect is unchanged, so a screen-space compare would never
++         * match during a top- or left-edge drag. */
++        RECT old_client = old_rects->client, new_client = data->rects.client;
++
++        OffsetRect(&old_client, -old_rects->window.left, -old_rects->window.top);
++        OffsetRect(&new_client, -data->rects.window.left, -data->rects.window.top);
++        if (EqualRect(&cr, &old_client))
++        {
++            TRACE("child %p stretched %s -> %s (live resize)\n", child,
++                  wine_dbgstr_rect(&cr), wine_dbgstr_rect(&new_client));
++            cr = new_client;
++        }
++    }
++
++    *target = cr;
++    return TRUE;
++}
++
 +/* Reposition ONE hosted layer. A child's own move only moves that child, and refreshing every
 + * layer on the root instead costs O(n) per child: during a resize the root moves, all n children
 + * move with it, and n full passes run where one pass would do. Measured on Steam's store page,
@@ -931,8 +973,7 @@ index 0d2de29..a5b253f 100644
 +    if (!data->cocoa_window || !child || !context_id) return;
 +    dpi = NtUserGetWinMonitorDpi(data->hwnd, MDT_RAW_DPI);
 +    if (!NtUserGetWindowRect(data->hwnd, &root_rect, dpi)) return;
-+    if (!NtUserGetWindowRect(child, &cr, dpi)) return;
-+    OffsetRect(&cr, -root_rect.left, -root_rect.top);
++    if (!remote_layer_target_rect(data, child, dpi, &root_rect, NULL, &cr)) return;
 +
 +    build_paint_order(data->hwnd, &order);
 +    have_z = paint_order_zpos(&order, child, &zpos);
@@ -946,7 +987,8 @@ index 0d2de29..a5b253f 100644
 +          content.width, content.height, scale[0], scale[1]);
 +}
 +
-+static void update_remote_layer_frames(struct macdrv_win_data *data)
++static void update_remote_layer_frames(struct macdrv_win_data *data,
++                                       const struct window_rects *old_rects)
 +{
 +    CFIndex count, i;
 +    const void **keys, **vals;
@@ -975,7 +1017,7 @@ index 0d2de29..a5b253f 100644
 +        RECT cr;
 +
 +        if (!child) continue;   /* a top-level's own layer fills the content view and autoresizes */
-+        if (!NtUserGetWindowRect(child, &cr, dpi))
++        if (!remote_layer_target_rect(data, child, dpi, &root_rect, old_rects, &cr))
 +        {
 +            /* the child is gone; left alone its layer would stay painted at its last frame */
 +            TRACE("child %p gone -- releasing hosted layer %u\n", child, context_id);
@@ -984,7 +1026,6 @@ index 0d2de29..a5b253f 100644
 +                                    (const void *)(UINT_PTR)context_id);
 +            continue;
 +        }
-+        OffsetRect(&cr, -root_rect.left, -root_rect.top);
 +        {
 +            double zpos = 0.0;
 +            BOOL have_z = paint_order_zpos(&order, child, &zpos);
@@ -1009,7 +1050,7 @@ index 0d2de29..a5b253f 100644
  void macdrv_WindowPosChanged(HWND hwnd, HWND insert_after, HWND owner_hint, UINT swp_flags,
                               const struct window_rects *new_rects, struct window_surface *surface)
  {
-@@ -1657,7 +1988,30 @@ void macdrv_WindowPosChanged(HWND hwnd, HWND insert_after, HWND owner_hint, UINT
+@@ -1657,7 +2028,30 @@ void macdrv_WindowPosChanged(HWND hwnd, HWND insert_after, HWND owner_hint, UINT
      TRACE("win %p/%p new_rects %s style %08x flags %08x surface %p\n", hwnd, data->cocoa_window,
            debugstr_window_rects(new_rects), new_style, swp_flags, surface);
  
@@ -1041,22 +1082,51 @@ index 0d2de29..a5b253f 100644
  
      if (data->on_screen)
      {
-@@ -1690,6 +2044,10 @@ void macdrv_WindowPosChanged(HWND hwnd, HWND insert_after, HWND owner_hint, UINT
+@@ -1690,6 +2084,10 @@ void macdrv_WindowPosChanged(HWND hwnd, HWND insert_after, HWND owner_hint, UINT
          }
      }
  
 +    /* after the Cocoa frame is current, so hosted cross-process layers are placed against the
 +     * content view's new bounds rather than the ones it is about to leave */
-+    update_remote_layer_frames(data);
++    update_remote_layer_frames(data, &old_rects);
 +
      if (fullscreen || fullscreen != data->fullscreen)
      {
          CGRect rect = (fullscreen && !EqualRect(&data->rects.window, &data->rects.visible)) ? cgrect_from_rect(data->rects.window) : CGRectZero;
-@@ -1697,7 +2055,6 @@ void macdrv_WindowPosChanged(HWND hwnd, HWND insert_after, HWND owner_hint, UINT
+@@ -1697,7 +2095,6 @@ void macdrv_WindowPosChanged(HWND hwnd, HWND insert_after, HWND owner_hint, UINT
          data->fullscreen = fullscreen;
      }
  
 -done:
      release_win_data(data);
+ }
+ 
+@@ -1780,6 +2177,10 @@ void macdrv_window_frame_changed(HWND hwnd, const macdrv_event *event)
+               data->rects.window.bottom - data->rects.window.top, width, height);
+ 
+     being_dragged = data->drag_event != NULL;
++    /* Written on EVERY frame-changed event, so the bit self-heals rather than latching, and before
++     * NtUserSetRawWindowPos below -- that is what drives WindowPosChanged and therefore the root
++     * pass that reads it. */
++    data->in_live_resize = event->window_frame_changed.in_resize;
+     release_win_data(data);
+ 
+     if (event->window_frame_changed.fullscreen)
+@@ -1962,7 +2363,17 @@ void macdrv_window_brought_forward(HWND hwnd)
+  */
+ void macdrv_window_resize_ended(HWND hwnd)
+ {
++    struct macdrv_win_data *data;
++
+     TRACE("hwnd %p\n", hwnd);
++    if ((data = get_win_data(hwnd)))
++    {
++        /* Clear the heuristic and re-derive every host from its child's real rect, so a stretched
++         * layer does not outlive the drag that justified it. */
++        data->in_live_resize = 0;
++        update_remote_layer_frames(data, NULL);
++        release_win_data(data);
++    }
+     send_message(hwnd, WM_EXITSIZEMOVE, 0, 0);
  }
  
