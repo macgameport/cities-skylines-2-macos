@@ -176,12 +176,15 @@ comment accuracy in the published winemac reference, where `strip-comments.py`, 
 comparison and the whole C29 battery all pass while saying nothing about whether the surviving
 comments are TRUE.
 
-**Second instance, same repo (2026-09-03).** The `check it` on `exposed-edge-live-resize.md` ran six lenses at Fable 5.1, then one fitted Opus 5 agent over the *fold*. The fitted pass found a blocker no gate could reach: a test's pass condition named the wrong band and the wrong black-threshold for a signature measured two sections earlier, so **its mutant could never be observed red** while the exit criteria demanded it red. Pure cross-referencing — the plan against itself. Consistent with the rule; still one repo, so still provisional.
+**Second instance, same repo (2026-09-03).** The `check it` on `exposed-edge-live-resize.md` ran six lenses at Fable 5.1, then one fitted Opus 5 agent over the *fold*. The fitted pass found a blocker no gate could reach: a test's pass condition named the wrong band and the wrong black-threshold for a signature measured two sections earlier, so **its mutant could never be observed red** while the exit criteria demanded it red. Pure cross-referencing — the plan against itself. Consistent with the rule; one repo *at that point*, so still provisional.
 
-⚠ **Provisional — one session's evidence.** The mechanism is plausible (cross-referencing is
-attention-heavy, execution is not) but it is not yet a cross-repo rule. Promote it to
-`~/.claude/rules/` only if it holds in other repos; per the cross-repo sweep rule a convention
-earns promotion at three, not one.
+**First sibling adoption (homeOne, 2026-09-03) — repo 2 of the three promotion needs.** homeOne took the rule and the `needs-high-tier-review` label for its Metal↔LLM upstream-contribution umbrella ([jvspearman/homeOne#66](https://github.com/jvspearman/homeOne/issues/66)). It is a useful second data point because the split there is unusually clean and runs *both* ways: the benchmark sweep (#68) is gated hard by Lily's 64-token-digest contract — no model talks past a digest mismatch — while the baseRT track (#69) has **no gate anywhere**, being prose argued on a third party's tracker. The label went on the surfaces, not the tickets, which is the part that most needs restating: two of the three issues carry both halves at once. Not yet evidence *for* the rule (nothing has been reviewed under it there yet) — evidence that it transfers to a repo with no build, no tests and no compiler.
+
+⚠ **Still provisional — repo 2 of 3.** The mechanism is plausible (cross-referencing is
+attention-heavy, execution is not) and it has now transferred once, but the evidence is still this
+repo's single session. Promote it to `~/.claude/rules/` at the **third** repo, per the cross-repo
+sweep rule — and only on evidence that it held there, not merely that it was adopted there.
+**Adoption is not confirmation.**
 
 ## Deliberate deviations from sibling-repo practice
 
