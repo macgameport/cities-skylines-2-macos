@@ -768,6 +768,55 @@ so a queue started after the sleep meets a locked session; and in zsh `GID` is a
 because it runs under bash.
 
 
+## Two batteries, the same row names, one merged evidence dir (2026-09-05)
+
+`drag-session.sh` labels its cell `drag-<role>-$(basename "$DRAG_OUT")`. A battery that names its
+rows `p1-window` … `p3-screen` therefore produces cells called `drag-t3-p1-window`, and the NEXT
+battery that uses the same row names produces the same cell names. `salvage-cells.sh` copies into
+the evidence store by name, so the two runs land in one directory: a `config.json` from 19:01 beside
+window captures from 16:24, and the minted `exp_` ids silently repoint at the newer run.
+
+**What saved it:** the measurements never lived in the cell. Frames, `bands.txt`, `probe.txt`,
+`stdout.txt` and the per-run `cell.txt` fingerprint are all in the run dir, which carries the
+battery's timestamp and never collided. Only the cell-store copy was overwritten — so the older row
+is cited by RUN DIR and the loss is a duplicate, not a result.
+
+**Rule:** an evidence name must be unique for all time, not just within one run. Carry the battery's
+own timestamp into every row name (`20260905-180125-p1-window`), not just into the parent directory.
+A name that is only unique within its parent is a name that merges the moment someone re-runs.
+
+
+## The probe sampled 8 s of a 35 s drag, and four ledger rows were scored on its first quarter (2026-09-05)
+
+> **Ledger: `PARTIAL` (C53).**
+
+`livedrag-probe.sh` takes `FRAMES` captures as fast as it can and stops. At 0.13–0.15 s each,
+`FRAMES=60` is **8–9 seconds**. The synthetic drag it was built to measure runs for **35.4 s** — six
+`SC_SIZE` segments, measured from the first and last `macdrv_SysCommand f002/f003` stamps — because
+`SYNTH_REPEAT=3` grows and shrinks the window three times before the top-edge pull.
+
+So the instrument saw **roughly the first quarter of every drag**, and the repeats added for C50 were
+never sampled at all. Nothing in the output said so: 60 frames of a real drag look exactly like 60
+frames of a whole drag.
+
+**What it cost.** At `FRAMES=300` the same battery on the same module found the black full-client
+frame at **frames 130 and 180** — positions a 60-frame run cannot reach. Four hours earlier the
+identical battery at 60 frames had scored **0 of 4** and the natural reading was "it stopped
+happening." It had not; the window had closed before it happened. Two of three hits were invisible
+by construction.
+
+**The tell to look for:** a probe whose sampling window is set by a COUNT while the phenomenon's
+duration is set by something else entirely — a cadence, a repeat count, an animation. Those two
+numbers drift apart silently every time either is tuned. Derive the count from the measured duration
+of the thing, or sample by wall-clock, and print the coverage so a reader sees `8 s of 35 s` rather
+than a bare `60 frames`.
+
+**Blast radius:** every drag row through C52 is a first-quarter measurement. They are internally
+consistent — all arms were sampled the same way — so an A/B between them still compares like with
+like. What they cannot support is any claim about the whole drag, including C50's stage-1 vs stage-2
+separation, which has no `FRAMES=300` baseline to stand on yet.
+
+
 ## A region capture that tracks a moving window crops off exactly the edge you are measuring (2026-09-05)
 
 > **Ledger: `PARTIAL` (C52).**

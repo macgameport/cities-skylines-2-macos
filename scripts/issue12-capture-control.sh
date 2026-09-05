@@ -69,7 +69,11 @@ digest() {   # digest <rundir> <label> <rowlog>
 
 for r in $(seq 1 "$N"); do
   for mode in window screen; do
-    id="p${r}-${mode}"; rd="$OUT/$id"
+    # ⚠ The cell label drag-session derives is `drag-<role>-$(basename "$DRAG_OUT")`, so a bare
+    # `p1-window` COLLIDES across batteries and salvage-cells.sh merges the two into one evidence
+    # dir (2026-09-05: a 19:01 config.json beside 16:24 window captures). Carry the battery's own
+    # timestamp in every row name so a cell is unique for all time.
+    id="p${r}-${mode}"; rd="$OUT/$(basename "$OUT")-$id"
     echo "=== $id  $(date '+%T')"
     DRAG=synth CAPTURE="$mode" TRACE=+err,+macdrv,+cursor,+timestamp DRAG_OUT="$rd" \
       bash "$REPO/scripts/drag-session.sh" t3 > "$OUT/$id.log" 2>&1
@@ -82,9 +86,9 @@ echo "########## tally $(date '+%F %T')"
 for mode in window screen; do
   tot=0; hit=0; void=0
   for r in $(seq 1 "$N"); do
-    b="$OUT/p${r}-${mode}/bands.txt"; [ -s "$b" ] || continue
+    b="$OUT/$(basename "$OUT")-p${r}-${mode}/bands.txt"; [ -s "$b" ] || continue
     tot=$((tot+1))
-    grep -q "VOID (screen mode)" "$OUT/p${r}-${mode}/probe.txt" 2>/dev/null && void=$((void+1))
+    grep -q "VOID (screen mode)" "$OUT/$(basename "$OUT")-p${r}-${mode}/probe.txt" 2>/dev/null && void=$((void+1))
     awk '{for(i=1;i<=NF;i++) if($i ~ /^T=/){split($i,t,"="); if(t[2]+0>=50) f=1}} END{exit !f}' "$b" && hit=$((hit+1))
   done
   printf '  %-7s runs with a TOP band >= 50%% black: %d of %d   (VOID rows: %d)\n' "$mode" "$hit" "$tot" "$void"
