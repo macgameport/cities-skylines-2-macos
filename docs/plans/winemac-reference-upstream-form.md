@@ -39,6 +39,22 @@
 > approved the draft, via the Bugzilla REST API. ⚠ Found while preparing it: the committed core
 > patch had drifted (D1/D2 on `main` only) — fixed in 643dd6c, see GOTCHAS 2026-09-03 and ledger
 > C31 addendum. The vulkan.c path is stated in the comment as compiled but never exercised.
+>
+> **Comment pass 2026-09-04 (issue #6 review).** Nine comment-only corrections on nested `core`
+> (`63a0cec`; `main` rebuilt as aquadran → core → glue, tip `52789ff`), patches regenerated,
+> `--check` three `ok` + three invariants. Gates: `strip-comments.py` CODE IDENTICAL on both files,
+> and `cocoa_window.o`, `window.o` and `winemac.so` **byte-identical** to the pre-pass build — the
+> assert kept its line, so no `-DNDEBUG` compare was needed; the installed module
+> `00ac32aa3115b455` is unchanged. Fixed: a comment stating a design that no longer exists
+> (children "owned by another process", "no WindowPosChanged of their own"), orphaned onto
+> `remote_layer_context_for`; the z-order note orphaned onto `getCALayerHostPlacement:`; the stock
+> `WindowPosChanged` banner separated from its function by the inserted helpers; a
+> swapchain-creation comment claiming the rect positions the host (only its size reaches the
+> layer); a CALayer.h attribution the header does not make; and four misattributed measurements or
+> rationales. Bug 60263's attachment 82030 predates this and stages 1–2 — deliberately not
+> re-attached. ⚠ **§2's comment share is now 181/691 = 26 %** after stages 1–2 (14 % at build);
+> exit criterion 3 has not been re-decided for that material. Bundle
+> `winemac-drv-history-20260904-comments.bundle`; old tips tagged `pre-fable6-*`.
 
 **Standing decision this plan does not change:** the project files *reports, not patches* (dxmt
 forbids AI-authored PRs; wine got bug 60263 with the implementation offered as a reference). The

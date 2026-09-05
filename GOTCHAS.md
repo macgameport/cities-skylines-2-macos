@@ -1989,3 +1989,32 @@ and the drag recipe now moves the window down first. And the colour patcher that
 ledger-cited diagnostic module lived in `/tmp` as a "throwaway"; it was gone when stage 2 needed
 rebuilding and had to be recovered from a session transcript. A build input that produced evidence
 is not throwaway — it is `scripts/diag-colours-patch.py` now.
+
+## A comment stays where it was when a function is inserted under it (2026-09-04)
+
+**Root cause.** A block comment binds to the code below it only by adjacency. Three insertions on
+the nested `core` branch (D1's helpers, stage 1's placement getter, stage 2's signal reader) each
+went in directly under an existing comment, and no gate noticed: `strip-comments.py` proves the
+CODE is unchanged, the object compare proves the CODEGEN is unchanged, and neither reads a comment.
+The result in the published core patch: the z-order note headed the placement getter; the note that
+once introduced `update_remote_layer_frames` sat on `remote_layer_context_for`, 130 lines above its
+function — and had become false meanwhile (children are owned by the root's thread, C30, and their
+WindowPosChanged does arrive, D1; the comment still said the opposite); and the stock
+`WindowPosChanged (MACDRV.@)` banner introduced 220 lines of helpers instead of the function it
+names. The false one shipped in bug 60263's attachment 82030. Found by reading every comment
+against its code (issue #6), not by any gate.
+
+**The tell is cheap to grep.** Two consecutive comment blocks before a definition — a `*/` line
+immediately followed by a `/*` line — is the orphan's signature, and it was exactly the two cases
+here. On a patch:
+`awk '/^\+/{ if (prev ~ /\*\/[[:space:]]*$/ && $0 ~ /^\+[[:space:]]*\/\*/) print NR": "$0 } {prev=$0}' scripts/winemac-crossprocess-child-core.patch`
+— 0 hits now. A wine banner (`/**** … (MACDRV.@) */`) not directly followed by its function is
+the other form; `grep -A1` the banner.
+
+**Prevention.** When inserting a function, look at the line ABOVE the insertion point: if it is a
+comment, it belongs to the function you are pushing down — move it with that function, or insert
+above it. And a comment that names a mechanism ("no WindowPosChanged of their own ever arrives")
+is a claim a later change can falsify without touching it: when a design changes (D1), grep the
+tree for the sentence that stated the old design. The fix pass was gated like the form passes:
+CODE IDENTICAL, objects byte-identical, `--check` green (plan `winemac-reference-upstream-form.md`,
+as-built 2026-09-04).
