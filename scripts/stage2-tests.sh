@@ -64,11 +64,11 @@ row() {   # row <id> <cmd...>
   echo "=== $id  $(date '+%T')"
   "$@" > "$OUT/$id.log" 2>&1; echo "    exit $?"
 }
-row S-A env DRAG=synth TRACE=+err,+macdrv,+cursor DRAG_OUT="$OUT/S-A-$TAG" bash "$REPO/scripts/drag-session.sh" t3
+row S-A env DRAG=synth TRACE=+err,+macdrv,+cursor,+timestamp DRAG_OUT="$OUT/S-A-$TAG" bash "$REPO/scripts/drag-session.sh" t3
 digest "$OUT/S-A.log" "$OUT/S-A-$TAG/stdout.txt"
-row S-B env DRAG=synth TRACE=+err,+macdrv,+cursor DRAG_OUT="$OUT/S-B-$TAG" bash "$REPO/scripts/drag-session.sh" t2b
+row S-B env DRAG=synth TRACE=+err,+macdrv,+cursor,+timestamp DRAG_OUT="$OUT/S-B-$TAG" bash "$REPO/scripts/drag-session.sh" t2b
 digest "$OUT/S-B.log" "$OUT/S-B-$TAG/stdout.txt"
-row S-C env DRAG=synth TRACE=+err,+macdrv,+cursor MODULE="$HOME/cs2-patch/winemac.so.s2b-sigoff" DRAG_OUT="$OUT/S-C-$TAG" bash "$REPO/scripts/drag-session.sh" t3
+row S-C env DRAG=synth TRACE=+err,+macdrv,+cursor,+timestamp MODULE="$HOME/cs2-patch/winemac.so.s2b-sigoff" DRAG_OUT="$OUT/S-C-$TAG" bash "$REPO/scripts/drag-session.sh" t3
 digest "$OUT/S-C.log" "$OUT/S-C-$TAG/stdout.txt"
 row S-D env CHURNS=1 MODULE="$HOME/cs2-patch/winemac.so.s2b" STAGE1_OUT="$OUT/S-D-$TAG" bash "$REPO/scripts/stage1-tests.sh"
 digest "$OUT/S-D.log" "$OUT/S-D-$TAG/stdout.txt"

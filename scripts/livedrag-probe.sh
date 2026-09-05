@@ -27,8 +27,14 @@ FRAMES="${FRAMES:-60}"; WAIT="${WAIT:-90}"
 # blind" — a misdiagnosis, not a result (verification-instruments.md I2, 2026-09-03)
 [ -x /tmp/winlist ] || swiftc -O "$(dirname "$0")/winlist.swift" -o /tmp/winlist || exit 1
 
+# A locked SESSION is not a blind instrument: `screencapture -l` reads a window's backing store, and
+# that works under the lock screen as long as the DISPLAY is awake (measured 2026-09-05: 1.3 MB,
+# real luminance, session locked). It is display sleep that blinds it, and the 2026-08-24 entry
+# conflated the two. So: wake the display, say so, and let the known-good capture below decide.
 if python3 -c "import subprocess,sys; sys.exit(0 if 'CGSSessionScreenIsLocked' in subprocess.run(['ioreg','-n','Root','-d1','-a'],capture_output=True,text=True).stdout else 1)"; then
-  echo "  ABORT: screen locked — screencapture is blind"; exit 1; fi
+  echo "  note: session is locked — waking the display; the known-good capture decides whether the instrument sees"
+  caffeinate -u -t 3; sleep 1
+fi
 
 GID=$(/tmp/winlist 2>/dev/null | grep -iE "owner=(Ghostty|Terminal|Claude|Finder)" | head -1 | sed -E 's/^id=([0-9]+).*/\1/')
 rm -f /tmp/kg.png; [ -n "$GID" ] && screencapture -x -o -l "$GID" /tmp/kg.png 2>/dev/null

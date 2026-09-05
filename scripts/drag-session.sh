@@ -6,6 +6,7 @@
 #   bash scripts/drag-session.sh t3      # prod     : stage 2, no colours (T3 — James's verdict)
 #   bash scripts/drag-session.sh s1      # the stage-1 daily driver, no colours (a baseline)
 #   DRAG=synth bash scripts/drag-session.sh <role>   # no hands: the driver runs the size loop itself
+#   DRAG=synth SYNTH_PX=8 SYNTH_MS=16 SYNTH_REPEAT=3 ... <role>   # cadence and repeats, see below
 #
 # A drag is the only measurement that reaches stage 2, and until 2026-09-04 that meant a human:
 # shimmer-probe drives SetWindowPos, which never enters the resize path a drag takes. What a drag
@@ -36,7 +37,9 @@ DAILY="$HOME/cs2-patch/winemac.so.stage1"
 # The first two runs never pre-sized: this variable was read but never set, and under `set -u` the
 # command substitution that used it died silently, leaving DH empty and the step skipped.
 DRV="${CS2_DRIVER:-$HOME/cs2-patch/win-resize-driver.exe}"
-TRACE="${TRACE:-+err,+macdrv}"     # +cursor shows macdrv_SetCapture, both ends of the size loop
+# +cursor shows macdrv_SetCapture at both ends of the size loop; +timestamp makes T6's "3 s after
+# the last size change" a measurement (t6-scale-at-rest.py reads the stamps when they are there).
+TRACE="${TRACE:-+err,+macdrv,+cursor,+timestamp}"
 # Synthetic cadence. A hand moving ~60 px/s feeds the loop ~1 px per mouse event at 60-125 Hz; the
 # first run (2 px every 60 ms, a quarter of that rate) gave the pipeline time to catch up per step
 # and showed no strip at all on stage 1 (0/60), so a slow synthetic drag is not the defect's drag.
@@ -44,6 +47,15 @@ SYNTH_MS="${SYNTH_MS:-16}"; SYNTH_PX="${SYNTH_PX:-1}"
 # Distances. A coarse cadence needs a longer pull to keep the probe sampling during motion, and
 # a longer pull needs a narrower start (PRESIZE) so the screen has the room.
 SYNTH_DX="${SYNTH_DX:-300}"; SYNTH_DY="${SYNTH_DY:-150}"
+# Repeats. A coarse cadence finishes a pull in a second or two, before the probe has sampled much;
+# SYNTH_REPEAT=n pulls the right edge out, back, out again -- n grow segments under the sampler,
+# each its own press, the way a hand re-grabs.
+SYNTH_REPEAT="${SYNTH_REPEAT:-1}"
+# Pause between presses. At 8 px / 16 ms a press one second after a 770 px grow only half took
+# (8 px, then nothing) and the next two did not take at all (K1, 2026-09-05); the fine cadence
+# never needed more than a second. Coarse runs use 3. Keep the window clear of the screen edge
+# too: a grow from 1868 px on a 1920 px display cannot take, the loop clamps the cursor.
+SYNTH_PAUSE="${SYNTH_PAUSE:-1}"
 
 case "$ROLE" in
   t0)  MOD="$HOME/cs2-patch/winemac.so.s1-diag"; WHAT="diag-pre — stage 1 + colours" ;;
@@ -117,7 +129,7 @@ fi
 
 if [ "${DRAG:-human}" = synth ]; then
   [ -n "${DH:-}" ] || { echo "  VOID: a synthetic drag needs the window handle"; exit 1; }
-  echo "  synthetic drag: right edge +${SYNTH_DX} px, then top edge -${SYNTH_DY} px, ${SYNTH_PX} px every ${SYNTH_MS} ms"
+  echo "  synthetic drag: right edge +${SYNTH_DX} px (x${SYNTH_REPEAT}), then top edge -${SYNTH_DY} px, ${SYNTH_PX} px every ${SYNTH_MS} ms"
   ( OUT_DIR="$OUT/frames" WAIT=120 FRAMES=60 bash "$REPO/scripts/livedrag-probe.sh" >"$OUT/probe.txt" 2>&1 ) &
   PROBE=$!
   # the probe arms after the window settles; drag only once it says so (or once it has given up)
@@ -127,9 +139,26 @@ if [ "${DRAG:-human}" = synth ]; then
     sleep 1
   done
   sleep 1
-  WINEDEBUG=-all "$W" "$DRV" sizedrag "$DH" right "+${SYNTH_DX},+0" $((SYNTH_DX / SYNTH_PX)) "$SYNTH_MS" 2>&1 | tr -d '\r' | tee "$OUT/sizedrag-right.txt"
-  sleep 1
-  WINEDEBUG=-all "$W" "$DRV" sizedrag "$DH" top "+0,-${SYNTH_DY}" $((SYNTH_DY / SYNTH_PX)) "$SYNTH_MS" 2>&1 | tr -d '\r' | tee "$OUT/sizedrag-top.txt"
+  # One press, re-pressed ONCE if the loop ended before it resized. An app activation mid-loop makes
+  # SDL's focus handler call SetCapture(hwnd) then ReleaseCapture, which clears GUI_INMOVESIZE and
+  # ends win32u's loop as if the button had come up: S-A of 2026-09-04 (flag set on 66 of 300
+  # polls, size unchanged, `macdrv_app_activated` 300 trace lines into the loop), and the first
+  # press of the human t2b drag went the same way. A hand re-grabs; so does this.
+  press() {   # press <edge> <dx,dy> <steps> <file>
+    local try
+    for try in 1 2; do
+      WINEDEBUG=-all "$W" "$DRV" sizedrag "$DH" "$1" "$2" "$3" "$SYNTH_MS" 2>&1 | tr -d '\r' | tee -a "$4"
+      tail -1 "$4" | grep -q 'DID NOT TAKE' || return 0
+      [ "$try" = 1 ] && { echo "  press did not take -- re-pressing once"; sleep 2; }
+    done
+    return 1
+  }
+  for r in $(seq "$SYNTH_REPEAT"); do
+    press right "+${SYNTH_DX},+0" $((SYNTH_DX / SYNTH_PX)) "$OUT/sizedrag-right.txt"
+    [ "$r" -lt "$SYNTH_REPEAT" ] && { sleep "$SYNTH_PAUSE"; press right "-${SYNTH_DX},+0" $((SYNTH_DX / SYNTH_PX)) "$OUT/sizedrag-right.txt"; }
+    sleep "$SYNTH_PAUSE"
+  done
+  press top "+0,-${SYNTH_DY}" $((SYNTH_DY / SYNTH_PX)) "$OUT/sizedrag-top.txt"
   wait "$PROBE"
   cat "$OUT/probe.txt"
 else
@@ -170,6 +199,6 @@ if [ "$n" = 0 ]; then echo "  VOID: no frames captured"; else
   echo "  GUI_INMOVESIZE capture handed to the driver:     $(cnt 'macdrv_SetCapture.*flags 0x00000002')   (0 unless TRACE has +cursor)"
   echo "  root passes reading the loop as set / clear:     $(cnt 'size/move loop 1') / $(cnt 'size/move loop 0')"
   echo "  stage-2 stretches fired: $(cnt 'live resize')   declined: $(cnt 'not full-client')   end-of-loop re-derives: $(cnt 'macdrv_size_move_ended')"
-  python3 "$REPO/scripts/t6-scale-at-rest.py" "$OUT/stdout.txt" 2>&1 | tail -2 | sed 's/^/  /'
+  python3 "$REPO/scripts/t6-scale-at-rest.py" "$OUT/stdout.txt" 2>&1 | tail -3 | sed 's/^/  /'
 fi
 echo "########## done — $OUT"

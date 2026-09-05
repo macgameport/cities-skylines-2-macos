@@ -752,6 +752,21 @@ full screen once and eyeball it — the all-black/lock-screen frame is unmistaka
 -u -t 3` wakes the display, but a locked session stays locked (never enter credentials — park
 visual work until the user unlocks).
 
+**Addendum 2026-09-05 — it is the DISPLAY, not the lock.** The session locked mid-queue (display
+sleep ten minutes after the last keystroke, lock-on-sleep "immediate"), the drag probe's lock check
+voided two runs, and then a direct test under the same lock said otherwise: with the display woken
+by `caffeinate -u`, `screencapture -l` of a window returned 1.3 MB of real content (luminance 33 /
+23), and both voided cells had taken complete 1.8–2.5 MB Steam captures at boot while locked. With
+the display asleep the same call fails ("could not create image from window"). So the instrument is
+blind under display sleep and sees under a lock; `caffeinate -d -u` for the run's duration is what
+keeps it seeing, and the probe now wakes the display and lets its known-good capture decide instead
+of aborting on the lock key. "Park visual work until the user unlocks" still holds for anything that
+needs the screen's *contents* to be the user's; a window capture is not that. Two other traps from
+the same night: a display that sleeps at 10 min locks BEFORE a later run's caffeinate can hold it,
+so a queue started after the sleep meets a locked session; and in zsh `GID` is a magic parameter —
+`GID=$(…)` fails with "failed to change group ID", which the probe's own `GID=` line survives only
+because it runs under bash.
+
 
 ## An unbounded `until` waiter outlived its target by 6.5 hours (2026-08-29)
 
@@ -2018,3 +2033,32 @@ is a claim a later change can falsify without touching it: when a design changes
 tree for the sentence that stated the old design. The fix pass was gated like the form passes:
 CODE IDENTICAL, objects byte-identical, `--check` green (plan `winemac-reference-upstream-form.md`,
 as-built 2026-09-04).
+
+## A scorer that stops at the last placement cannot see the settle it waits for (2026-09-05)
+> **Ledger: `SUPPORTED` (C49).** Every T6 FAIL on a live drag to date (C45, C46, C48's S-A/S-B) was this; re-scored PASS, and the re-run is timed.
+
+**What happened.** T6 asks whether any hosted layer is left scaled once a resize is over.
+`t6-scale-at-rest.py` took "over" to be the last placement trace and counted deaths only up to it
+— sound against teardown (shutdown releases everything, and a stuck host must not be pardoned by
+dying at exit). But the settle it was waiting for lands *after* the last placement: the loop's last
+step, and stage 2's end-of-loop re-derive, place the full-client hosts from the child's rect while
+the swapchain behind them is still the previous size (scale 1.003–1.035), and 51–88 ms later CEF
+re-creates the swapchain at the final size, the owner retires the scaled host for its replacement,
+and the replacement is placed by the CREATE handler — which traces `layer frame in root …` and never
+a placement line. So the last placement line was always the scaled one, the retire always fell
+21–65 lines after the cut, and every live drag "failed" T6: four runs, four artifacts, one of them
+promoted to a ledger claim (C45) with a falsifiable prediction built on it (C46).
+
+**Rules.**
+
+1. **A cut that stands in for "at rest" must be checked against what the trace does at rest.** The
+   right proxy is the last *size change* plus a settle window; the drag rows now trace with
+   `+timestamp`, so T6's "3 s after the last size change" is a measurement and the scorer prints the
+   supersede delay.
+2. **Classify deaths by mechanism, not by position.** A retire-by-supersede needs a live child
+   creating a new layer, which teardown never does, so it counts whenever it occurs; a RELEASE still
+   counts only up to the cut. One rule per mechanism, not one line number for both.
+3. **When a test fails on the same signature run after run, read the trace past the point where
+   the tool stopped reading.** Each "survivor" had its replacement created three lines before its
+   retire; the answer sat 21–65 lines below the cut every time, and a prose "what would overturn
+   it" was pointing at exactly that observation.
