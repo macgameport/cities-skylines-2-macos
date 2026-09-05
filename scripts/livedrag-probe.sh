@@ -20,7 +20,13 @@
 #   screen            `screencapture -R x,y,w,h` over the window's current rect -- the composited
 #                     display, i.e. what a camera pointed at the screen would see.
 # A frame that is black in `window` and lit in `screen` is a capture artifact and no user ever saw
-# it; black in both is a real display gap. Measured 2026-09-05 on a 1054x972 window: both modes
+# it; black in both is a real display gap. ⚠ That inference is sound ONLY for a whole-host
+# signature (issue #12's 100 % black top band). It is INVALID for an EDGE signature (issue #7's
+# strip): the region is frozen at the rect read before the capture, the window grows 25-75 px under
+# it during the ~88 ms, and those are the same growing frames the strip appears on -- so screen mode
+# crops the strip out of its own right band. `rects.txt` records the before/after size per frame so
+# the affected frames are identifiable rather than silent. The anchor that settles it: the strip was
+# seen BY EYE (issue #7, 2026-09-03), so it is on the display, whatever a region capture reports. Measured 2026-09-05 on a 1054x972 window: both modes
 # return IDENTICAL pixel dimensions (so darkboxes' outer-10% bands mean the same thing in each),
 # -R costs 88 ms against -l's 113 ms.
 # ⚠ Two things only `screen` can get wrong, so it checks both before and after sampling and records
@@ -121,6 +127,15 @@ for i in $(seq 1 "$FRAMES"); do
     echo "$g" | grep -oE 'size=[0-9]+x[0-9]+' >> "$out/sizes.txt"
     r=$(echo "$g" | sed -nE 's/.*size=([0-9]+)x([0-9]+) at=(-?[0-9]+),(-?[0-9]+).*/\3,\4,\1,\2/p')
     [ -n "$r" ] && screencapture -x -o -R"$r" "$out/f$i.png" 2>/dev/null
+    # ⚠ The region is frozen at the rect read ABOVE, but the capture takes ~88 ms and the window
+    # keeps growing under it: measured 2026-09-05, 25-75 px (mean 28) on ~15 % of frames at
+    # 25 px / 120 ms. Those are exactly the GROWING frames, and the growing edge is where issue
+    # #7's strip lives -- so a screen-mode run systematically crops the strip out of its own right
+    # band and its EDGE numbers are NOT comparable with window mode's. Recording the after-rect
+    # makes that visible per frame instead of silent. A whole-host signature (issue #12's 100 %
+    # black TOP band) is unaffected: a 28 px crop off the right cannot hide it.
+    a=$(/tmp/winlist 2>/dev/null | grep "title=Steam$" | head -1 | grep -oE 'size=[0-9]+x[0-9]+')
+    printf 'f%d before=%s after=%s\n' "$i" "$(echo "$g" | grep -oE 'size=[0-9]+x[0-9]+')" "$a" >> "$out/rects.txt"
   else
     screencapture -x -o -l "$ID" "$out/f$i.png" 2>/dev/null
     /tmp/winlist 2>/dev/null | grep "title=Steam$" | grep -oE 'size=[0-9]+x[0-9]+' >> "$out/sizes.txt"

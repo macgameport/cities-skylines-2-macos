@@ -768,6 +768,37 @@ so a queue started after the sleep meets a locked session; and in zsh `GID` is a
 because it runs under bash.
 
 
+## A region capture that tracks a moving window crops off exactly the edge you are measuring (2026-09-05)
+
+> **Ledger: `PARTIAL` (C52).**
+
+To test whether issue #7's black strip is real or an artifact of `screencapture -l`, the probe grew a
+second mode: `-R x,y,w,h` over the window's own rect, i.e. the composited display instead of the
+window server's stored representation. It came back almost silent — worst right band 2 % against
+window mode's 40 % — which reads like a clean verdict and is not one.
+
+**The rect has to be read before the capture, and the capture is not instantaneous.** Measured from
+window mode's own numbers (`-l` returns the size at capture time; `sizes.txt` is read just after):
+during one ~88 ms capture the window grows **25–75 px, mean 28, on ~15 % of frames** at 25 px /
+120 ms. So the frozen region excludes the newest 28-odd pixels of the growing edge — and those are
+the same frames the strip appears on, because the strip *is* the growing edge. The instrument
+removes its own signal and reports quiet.
+
+**The anchor that settles it is a human.** Issue #7 opens *"Observed by James, 2026-09-03, while
+dragging a Steam window edge by hand: black boxes on the open edge."* The strip is on the display.
+Any instrument disagreeing with that is wrong, and the job is to find out how — not to publish the
+disagreement as a finding.
+
+**What the mode is still good for:** a WHOLE-HOST signature. Issue #12's frame has a 100 % black top
+band, and no 28 px crop off the right can hide that. Scope a capture-method control to signatures
+larger than its own tracking error.
+
+General form: **an instrument that follows a moving target samples where the target WAS.** If the
+thing you are measuring lives at the leading edge of the motion, the tracking lag and the phenomenon
+occupy the same frames, and a null result means nothing. The probe now records the before/after size
+per frame in `frames/rects.txt` so the affected frames are identifiable instead of silent.
+
+
 ## `local a=$1 b=$a` is unbound under `set -u`: bash declares the names before it assigns them (2026-09-05)
 
 ```bash
