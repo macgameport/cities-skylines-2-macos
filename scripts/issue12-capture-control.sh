@@ -20,6 +20,16 @@
 #
 #   bash scripts/issue12-capture-control.sh          # 3 pairs, ~45 min, the Steam prefix is exclusive
 #   N=1 bash scripts/issue12-capture-control.sh      # one pair — a smoke test of the instrument
+#   N=10 FRAMES=300 bash scripts/issue12-capture-control.sh   # the powered run, ~70 min
+#
+# ⚠ ALWAYS RUN BOTH ARMS. A screen-only battery cannot be read: 2026-09-05's window arm was itself
+# 0 of 4, so "no black frame in 10 screen runs" would equally mean the capture cannot see it and
+# that it did not happen that night, with nothing to tell those apart. The window arm is the
+# positive control and it is not optional.
+#
+# ⚠ FRAMES=60 (the default) samples 8-9 s of a drag that lasts 35.4 s, so every row through C52 was
+# scored on roughly its first quarter. FRAMES=300 covers the whole drag and is the bigger lever on
+# per-run sensitivity than the number of runs is.
 #
 # ⚠ WHILE THIS RUNS, TOUCH NOTHING IT READS (drag-session.sh, livedrag-probe.sh, the s2b module):
 # bash reads a script incrementally and a mid-run edit kills the row. Run it DETACHED with a log —
@@ -32,9 +42,10 @@ OUT="${I12_OUT:-$HOME/cs2-patch/issue12/$(date +%Y%m%d-%H%M%S)}"
 mkdir -p "$OUT"
 # C50's calibrated coarse cadence, unchanged — this battery may only vary the capture method.
 export SYNTH_PX=25 SYNTH_MS=120 SYNTH_REPEAT=3 SYNTH_PAUSE=3 PRESIZE=1000x650 SYNTH_DX=650 SYNTH_DY=350
+export FRAMES="${FRAMES:-60}"
 
 echo "########## issue #12 capture control  $(date '+%F %T')  run dir $OUT"
-echo "  module s2b $(shasum -a 256 "$HOME/cs2-patch/winemac.so.s2b" | cut -c1-16) · ${N} pair(s) · 25 px / 120 ms"
+echo "  module s2b $(shasum -a 256 "$HOME/cs2-patch/winemac.so.s2b" | cut -c1-16) · ${N} pair(s) · 25 px / 120 ms · FRAMES=$FRAMES"
 
 # ⚠ Each `local` on its own line. Under `set -u`, bash declares every name in a single `local`
 # BEFORE evaluating any of its assignments, so `local d="$1" b="$d/x"` dies on "d: unbound

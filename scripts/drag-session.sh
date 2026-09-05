@@ -8,6 +8,12 @@
 #   DRAG=synth bash scripts/drag-session.sh <role>   # no hands: the driver runs the size loop itself
 #   DRAG=synth SYNTH_PX=8 SYNTH_MS=16 SYNTH_REPEAT=3 ... <role>   # cadence and repeats, see below
 #   CAPTURE=screen DRAG=synth ... <role>   # the #12 control: frames off the composited display
+#   FRAMES=300 DRAG=synth ... <role>       # sample the WHOLE drag, not its first quarter
+#
+# ⚠ FRAMES=60 covers 8-9 s. The synthetic drag at 25 px / 120 ms with SYNTH_REPEAT=3 runs for
+# 35.4 s (six SC_SIZE segments, measured 2026-09-05), so the default samples ROUGHLY ITS FIRST
+# QUARTER and every ledger row through C52 was scored on that quarter. 300 frames covers 45 s in
+# window mode and 38 s in screen mode -- the whole drag either way.
 #
 # A drag is the only measurement that reaches stage 2, and until 2026-09-04 that meant a human:
 # shimmer-probe drives SetWindowPos, which never enters the resize path a drag takes. What a drag
@@ -131,7 +137,7 @@ fi
 if [ "${DRAG:-human}" = synth ]; then
   [ -n "${DH:-}" ] || { echo "  VOID: a synthetic drag needs the window handle"; exit 1; }
   echo "  synthetic drag: right edge +${SYNTH_DX} px (x${SYNTH_REPEAT}), then top edge -${SYNTH_DY} px, ${SYNTH_PX} px every ${SYNTH_MS} ms"
-  ( OUT_DIR="$OUT/frames" WAIT=120 FRAMES=60 CAPTURE="${CAPTURE:-window}" bash "$REPO/scripts/livedrag-probe.sh" >"$OUT/probe.txt" 2>&1 ) &
+  ( OUT_DIR="$OUT/frames" WAIT=120 FRAMES="${FRAMES:-60}" CAPTURE="${CAPTURE:-window}" bash "$REPO/scripts/livedrag-probe.sh" >"$OUT/probe.txt" 2>&1 ) &
   PROBE=$!
   # the probe arms after the window settles; drag only once it says so (or once it has given up)
   for _ in $(seq 120); do
@@ -178,7 +184,7 @@ cat <<'MSG'
   ---------------------------------------------------------------
 
 MSG
-OUT_DIR="$OUT/frames" WAIT=1800 FRAMES=60 CAPTURE="${CAPTURE:-window}" bash "$REPO/scripts/livedrag-probe.sh" 2>&1 | tee "$OUT/probe.txt"
+OUT_DIR="$OUT/frames" WAIT=1800 FRAMES="${FRAMES:-60}" CAPTURE="${CAPTURE:-window}" bash "$REPO/scripts/livedrag-probe.sh" 2>&1 | tee "$OUT/probe.txt"
 fi
 
 echo
