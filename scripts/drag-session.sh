@@ -7,6 +7,7 @@
 #   bash scripts/drag-session.sh s1      # the stage-1 daily driver, no colours (a baseline)
 #   DRAG=synth bash scripts/drag-session.sh <role>   # no hands: the driver runs the size loop itself
 #   DRAG=synth SYNTH_PX=8 SYNTH_MS=16 SYNTH_REPEAT=3 ... <role>   # cadence and repeats, see below
+#   CAPTURE=screen DRAG=synth ... <role>   # the #12 control: frames off the composited display
 #
 # A drag is the only measurement that reaches stage 2, and until 2026-09-04 that meant a human:
 # shimmer-probe drives SetWindowPos, which never enters the resize path a drag takes. What a drag
@@ -130,7 +131,7 @@ fi
 if [ "${DRAG:-human}" = synth ]; then
   [ -n "${DH:-}" ] || { echo "  VOID: a synthetic drag needs the window handle"; exit 1; }
   echo "  synthetic drag: right edge +${SYNTH_DX} px (x${SYNTH_REPEAT}), then top edge -${SYNTH_DY} px, ${SYNTH_PX} px every ${SYNTH_MS} ms"
-  ( OUT_DIR="$OUT/frames" WAIT=120 FRAMES=60 bash "$REPO/scripts/livedrag-probe.sh" >"$OUT/probe.txt" 2>&1 ) &
+  ( OUT_DIR="$OUT/frames" WAIT=120 FRAMES=60 CAPTURE="${CAPTURE:-window}" bash "$REPO/scripts/livedrag-probe.sh" >"$OUT/probe.txt" 2>&1 ) &
   PROBE=$!
   # the probe arms after the window settles; drag only once it says so (or once it has given up)
   for _ in $(seq 120); do
@@ -177,7 +178,7 @@ cat <<'MSG'
   ---------------------------------------------------------------
 
 MSG
-OUT_DIR="$OUT/frames" WAIT=1800 FRAMES=60 bash "$REPO/scripts/livedrag-probe.sh" 2>&1 | tee "$OUT/probe.txt"
+OUT_DIR="$OUT/frames" WAIT=1800 FRAMES=60 CAPTURE="${CAPTURE:-window}" bash "$REPO/scripts/livedrag-probe.sh" 2>&1 | tee "$OUT/probe.txt"
 fi
 
 echo
