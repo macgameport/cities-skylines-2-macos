@@ -97,6 +97,11 @@ for i, line in enumerate(lines):
         if m:
             dead.add(m.group(1))
 
+# A build without the stage-1 scale TRACE (`717d431`) -- the pre-stage-1 baseline, say -- emits no
+# placement line at all, and "no survivors" must not read as PASS there (K2/K4, 2026-09-05).
+if not last:
+    print("T6 N/A: no placement traces in this run -- a pre-stage-1 module, or a trace without +macdrv")
+    sys.exit(2)
 alive = {c: v for c, v in last.items() if c not in dead}
 off = {c: v for c, v in alive.items() if (v[1], v[2]) != ('1.000', '1.000')}
 print("placements %d · contexts %d · retired/released %d · surviving %d · last placement at line %d%s"

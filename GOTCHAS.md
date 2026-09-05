@@ -2091,3 +2091,51 @@ not known; with a hand it is the click itself.
 3. **A declined re-derive after a lost capture is the pairing working.** Nothing was stretched by a
    loop that never resized, so nothing is left scaled; the re-run's T6 (timed, 6–9 ms settle)
    says so. Do not "fix" the pairing to re-derive on `previous 0x0`.
+
+## A synthetic drag has to be calibrated on the build that has the defect, and a threshold count is not an A/B metric (2026-09-05)
+> **Ledger: `SUPPORTED` (C50).** The coarse-cadence calibration: the baseline shows the strip at three cadences and stage 1 reduces it at each; the fine cadence never showed it on anything.
+
+**What happened.** Two synthetic drags at 1 px per 16 ms scored 0/60 on stage 1 (C47), and the
+easy reading was "stage 1 works". It was the cadence: at 8 px per 16 ms and coarser the same
+instrument shows the strip on the pre-stage-1 baseline — 2, 4 and 3 frames of 60 at the three
+cadences — and only then do stage 1's zeros at the same cadences mean anything. The threshold count
+then turned out too coarse for the comparison it was built for: stage 1 scored 0/60 at every cadence
+while its growing frames still averaged 5–7 % black in the right band against 12–17 % on the
+baseline, so `band-counts.py` now prints the growing-frame mean and max beside the count. Two
+harness facts came with it: the probe's 60 captures span 8–9 s (0.13–0.15 s each), so a ×3 repeat
+falls outside the window; and `darkboxes` lists frames in filename order while `sizes.txt` is in
+capture order — a positional paste of the two misattributed every band in a first table, and the
+join is by the frame number parsed from the filename.
+
+**Rules.**
+
+1. **Calibrate an instrument on the build known to have the defect** before reading its zero on
+   the fixed build. A zero that the defect itself cannot produce is not evidence.
+2. **An A/B needs a magnitude, not a count over a threshold.** The count answers "is it there";
+   the mean over the frames that can show it answers "how much", and that is the question a fix
+   is asked.
+3. **Join per-frame files by the frame's own key, never by line position.**
+
+## The coarse synthetic drag found a black full-client frame on stage 2 that no fine drag could (2026-09-05)
+> **Ledger: `SUPPORTED` (C51).** Two of three stage-2 runs at 25 px / 120 ms, none of seven stage-1 or baseline runs; mechanism open; stage 2 is not promoted.
+
+**What happened.** On the stage-2 build, one capture per run shows the chrome, footer and margins
+solid black while the inset store page is complete at the new width — the full-client child's host
+drawing nothing. The right band of that frame reads 23 %, so a right-band-only criterion (T2b and
+T3 as written) would have logged it as a modest strip; it was the top band at 100 % that said what
+it was, and viewing the frame confirmed it. Within the ~100 ms before each capture the root pass had
+stretched the full-client child and CEF had re-created it ~22 ms later. Whether this is a display
+gap (the stretched host retired at its replacement's CREATE, before the replacement presents) or a
+capture artifact (a transformed remote layer missing from `screencapture -l` at a commit) is not
+established; stage 1 runs the same retire-on-create sequence and never showed it, which points at
+the transform either way.
+
+**Rules.**
+
+1. **Read all four bands and look at the frame.** A metric built for one edge will file a
+   different defect under that edge's name.
+2. **Run the fix's own instrument on the fix's build, at the cadence that shows the defect, before
+   promoting it.** The fine-cadence rows (S-A, S-B) were clean on stage 2 because nothing shows at
+   that cadence.
+3. **The acceptance test must ask the question the instrument cannot answer:** T3's verdict now
+   includes whether the chrome ever flashes black during a hand drag.
