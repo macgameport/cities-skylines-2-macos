@@ -2062,3 +2062,32 @@ promoted to a ledger claim (C45) with a falsifiable prediction built on it (C46)
    the tool stopped reading.** Each "survivor" had its replacement created three lines before its
    retire; the answer sat 21–65 lines below the cut every time, and a prose "what would overturn
    it" was pointing at exactly that observation.
+
+## A press that never resizes: an app activation mid-loop ends win32u's size loop as a button-up (2026-09-05)
+> **Ledger: `SUPPORTED` (C48).** The C48 battery's S-A row, read as "the probe armed late", was this; re-run clean, and the harness re-presses.
+
+**What happened.** The stage-2 battery's S-A row scored a drag of only four window sizes. The
+ledger blamed a late-arming probe. The row's own log, two screens above that number, said
+`DID NOT TAKE (size unchanged)` and `GUI_INMOVESIZE set on 66 of 300 polls`: the right-edge press
+entered win32u's size loop and never resized once — the root got a single `181f` no-op sync in
+the whole segment, against eleven size steps in the top-edge segment that worked. The one event
+inside it is `macdrv_app_activated`, about 300 trace lines in, followed by the app's own
+`SetCapture(hwnd)` with no flags and `ReleaseCapture` (visible only with `+cursor`), which replaces
+the server's capture flags and clears `GUI_INMOVESIZE`; the loop's own release then reads
+`previous 0x0`, and stage 2's `hwndMoveSize` pairing correctly declines the end-of-drag re-derive
+(1 of 2 — the right one). The human t2b drag's first press has the same signature: `app_activated`
+on the very next line, no size step, a re-grab 148 lines later. What activated the app mid-drag is
+not known; with a hand it is the click itself.
+
+**Rules.**
+
+1. **Quote the instrument's verdict before explaining its number.** The harness prints a verdict
+   per press. "Four sizes" was explained from the probe's side without reading the press's side,
+   and the explanation was wrong in a way that would have sent the re-run looking at the probe.
+2. **A one-press harness must re-press.** The thing being driven can drop a press for reasons
+   outside the harness — activation, a capture toggle, focus — exactly as a hand loses a grab and
+   re-grabs. `drag-session.sh` re-presses once on `DID NOT TAKE`; the re-run took first time on
+   both edges, 300/300 and 150/150 polls, `app_activated` 0.
+3. **A declined re-derive after a lost capture is the pairing working.** Nothing was stretched by a
+   loop that never resized, so nothing is left scaled; the re-run's T6 (timed, 6–9 ms settle)
+   says so. Do not "fix" the pairing to re-derive on `previous 0x0`.
