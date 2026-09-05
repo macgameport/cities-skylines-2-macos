@@ -36,17 +36,24 @@ export SYNTH_PX=25 SYNTH_MS=120 SYNTH_REPEAT=3 SYNTH_PAUSE=3 PRESIZE=1000x650 SY
 echo "########## issue #12 capture control  $(date '+%F %T')  run dir $OUT"
 echo "  module s2b $(shasum -a 256 "$HOME/cs2-patch/winemac.so.s2b" | cut -c1-16) · ${N} pair(s) · 25 px / 120 ms"
 
-digest() {   # digest <rundir> <label>
-  local d="$1" l="$2" b="$d/bands.txt"
+# ⚠ Each `local` on its own line. Under `set -u`, bash declares every name in a single `local`
+# BEFORE evaluating any of its assignments, so `local d="$1" b="$d/x"` dies on "d: unbound
+# variable" -- which is what killed this script's first run (2026-09-05).
+digest() {   # digest <rundir> <label> <rowlog>
+  local d="$1"
+  local l="$2"
+  local g="$3"
+  local b="$d/bands.txt"
+  local st="$d/frames/capture-state.txt"   # the probe's own out dir, not the run root
   if [ ! -s "$b" ]; then echo "   $l: NO BANDS — the row produced no frames"; return; fi
-  awk -v L="$l" -v S="$(cat "$d/capture-state.txt" 2>/dev/null)" '
+  awk -v L="$l" -v S="$(cat "$st" 2>/dev/null)" '
     { for (i=1;i<=NF;i++) {
         if ($i ~ /^T=/) { split($i,t,"="); if (t[2]+0 >= 50) tn++; if (t[2]+0 > tmx) tmx = t[2]+0 }
         if ($i ~ /^R=/) { split($i,r,"="); if (r[2]+0 >= 20) rn++; if (r[2]+0 > rmx) rmx = r[2]+0 } } }
     END { printf "   %-16s frames %2d · TOP>=50%%: %d (max %.0f%%) · right>=20%%: %d (max %.0f%%) · %s\n",
                  L, NR, tn+0, tmx+0, rn+0, rmx+0, S }' "$b"
   grep -q "VOID (screen mode)" "$d/probe.txt" 2>/dev/null && echo "      ^ VOID: locked session or a window over Steam — not evidence"
-  grep -hoE "T6 (PASS|FAIL|N/A)[^·]*" "$d"/*.log "$d/../"*.log 2>/dev/null | head -1 | sed 's/^/      /'
+  grep -hoE "T6 (PASS|FAIL|N/A)[^·]*" "$g" 2>/dev/null | head -1 | sed 's/^/      /'
 }
 
 for r in $(seq 1 "$N"); do
@@ -56,7 +63,7 @@ for r in $(seq 1 "$N"); do
     DRAG=synth CAPTURE="$mode" TRACE=+err,+macdrv,+cursor,+timestamp DRAG_OUT="$rd" \
       bash "$REPO/scripts/drag-session.sh" t3 > "$OUT/$id.log" 2>&1
     echo "    exit $?"
-    digest "$rd" "$id"
+    digest "$rd" "$id" "$OUT/$id.log"
   done
 done
 

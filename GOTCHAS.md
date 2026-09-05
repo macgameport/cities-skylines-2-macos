@@ -768,6 +768,28 @@ so a queue started after the sleep meets a locked session; and in zsh `GID` is a
 because it runs under bash.
 
 
+## `local a=$1 b=$a` is unbound under `set -u`: bash declares the names before it assigns them (2026-09-05)
+
+```bash
+bash -uc 'f(){ local d="$1" b="$d/x"; echo "$b"; }; f AA'
+bash: d: unbound variable
+```
+
+Every name in ONE `local` statement is declared — and therefore *unset* — before any of that
+statement's assignments are evaluated, so a later assignment cannot read an earlier one. Without
+`set -u` the same line silently yields `/x`, which is worse: a path that looks like a path and
+points at the filesystem root. Split the declarations, one `local` per line.
+
+Cost, and the shape of it: `issue12-capture-control.sh` died on this **after** its first row had
+completed and scored — `exit 0`, then the harness aborted inside the reporting function. The
+measurement path never ran the line, so the row's frames and `bands.txt` were intact and the row
+was re-scorable afterwards; only the digest was lost. **A crash in the reporting half of a harness
+does not invalidate the evidence half** — score the run dir before assuming the run is gone.
+
+Same family as the zsh `GID` trap above: a shell built-in that behaves differently from how the
+line reads. Neither is caught by `bash -n`, which parses and does not execute.
+
+
 ## An unbounded `until` waiter outlived its target by 6.5 hours (2026-08-29)
 
 `until grep -q <pattern> <file>; do sleep 10; done` was used to wait on a backgrounded probe. The
