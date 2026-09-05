@@ -29,7 +29,7 @@
 > context reaches the line aquadran edits. (3) T1's byte-identity premise is false for a unit
 > containing `assert()`, which bakes `__LINE__` into the object. (4) T2's first mutant fails as a
 > compile error, not the predicted string return, because that hunk also carries a call-signature
-> change. (5) Comment share landed at **14%**, not ≈10% — stopped deliberately, the remainder being
+> change. (5) Comment share landed at **15–16 %** (first recorded as 14 %; re-measured 2026-09-04), not ≈10% — stopped deliberately, the remainder being
 > reasons rather than evidence. (6) The first battery run was VOID on its capture rows: the cell
 > harness's `caffeinate` covers only its own 215 s, and captures were taken without raising the
 > window first. Both fixed in the harness, then re-run.
@@ -52,7 +52,7 @@
 > swapchain-creation comment claiming the rect positions the host (only its size reaches the
 > layer); a CALayer.h attribution the header does not make; and four misattributed measurements or
 > rationales. Bug 60263's attachment 82030 predates this and stages 1–2 — deliberately not
-> re-attached. ⚠ **§2's comment share is now 181/691 = 26 %** after stages 1–2 (14 % at build);
+> re-attached. ⚠ **§2's comment share is now 181/691 = 26 %** after stages 1–2 (15–16 % at build);
 > exit criterion 3 has not been re-decided for that material. Bundle
 > `winemac-drv-history-20260904-comments.bundle`; old tips tagged `pre-fable6-*`.
 
@@ -113,7 +113,7 @@ gate (regenerate to a temp file, `cmp` against `scripts/*.patch`).
 |---|---|---|---|
 | `macgameport` handle tags | **9** (all parenthetical); dated lines 22 (the grep returns 27 — minus the five `+++ … 2026-09-02 16:23:25` file-header lines); union 23 (28 − 5) | 0 in core; allowed in glue | `grep -c '^+.*macgameport'` · `grep -c '^+.*2026-0[0-9]-[0-9][0-9]'` (subtract the `+++` lines) |
 | `EXPERIMENT (…)` headers | **1** | 0 | `grep -c '^+.*EXPERIMENT'` |
-| comment share of added lines | **28.7%** comment-only of 839 added (31.3% of non-blank) | ≈10% in core; measurements live in `docs/winemac-crossprocess-remote-layer-history.md`. **Landed at 14% (88 of 602), not 10%** — both passes stopped there deliberately, on the ground that what remains is the reason a maintainer needs (why a child's rect is converted to the root's space, why a zero-area layer is hidden, why visibility and geometry are tested separately, why layers stack by paint order, why a superseded layer is retired late) rather than the evidence, which moved to the history doc | `grep -c '^+[[:space:]]*\(/\*\|\*\|//\)'` ÷ `grep -c '^+'` (minus `+++`) |
+| comment share of added lines | **28.7%** comment-only of 839 added (31.3% of non-blank) | ≈10% in core; measurements live in `docs/winemac-crossprocess-remote-layer-history.md`. **Landed at 15–16 %, not 10 %** (re-measured 2026-09-04 with this row's grep: core 56/374, combined 80/497 at `e32fc34`; the "88 of 602" first recorded here does not reproduce on any committed version) — both passes stopped there deliberately, on the ground that what remains is the reason a maintainer needs (why a child's rect is converted to the root's space, why a zero-area layer is hidden, why visibility and geometry are tested separately, why layers stack by paint order, why a superseded layer is retired late) rather than the evidence, which moved to the history doc | `grep -c '^+[[:space:]]*\(/\*\|\*\|//\)'` ÷ `grep -c '^+'` (minus `+++`) |
 | `DXMT_RSZ` instrument | 2 definition pairs + 2 `dxmt_rsz_ms` helpers + **3 inline `#ifdef DXMT_RSZ_DEBUG` blocks**, 7 call sites, 5 include lines (three headers — `<sys/time.h>`, `<unistd.h>` in the `.m`; `<stdio.h>`, `<sys/time.h>`, `<unistd.h>` in `window.c` — unconditional, none inside the `#ifdef` blocks) — ≈101 lines | **removed** from the tree; the history doc keeps the definition verbatim. **One observation survives as a core `TRACE`, in C:** the per-layer z assignment in `window.c`'s `update_remote_layer_frames` (`context_id`, `zpos`, `have_z` — replacing the former `WINPOS` instrument line at its call site), because the design-gaps plan's T5 reads it. Not in the `.m` method: no `.m` file includes `wine/debug.h`, and the Cocoa-side `ERR` is not `WINEDEBUG`-controlled | `grep -c '^+.*DXMT_RSZ'` |
 | vendor-named symbols in core | `dxmt_fill_view_edges` (4 lines: definition, 2 call sites, 1 comment mention) | `snap_host_frame_to_view_edges` (file-local static) | `grep -c '^+.*dxmt_fill_view_edges'` |
 | `ERR`/`TRACE`/`FIXME` use | done in the review pass | unchanged | — |
@@ -124,8 +124,8 @@ Behaviour-neutral by construction — but **byte-identity is not the universal g
 precedent implied, and pass (a) measured why (2026-09-03).** macOS `assert(x)` expands to
 `__assert_rtn(__func__, __FILE__, __LINE__, …)`, so a translation unit containing an `assert` bakes
 its line number into the object: removing 32 comment lines from `window.c` moved its one assert from
-line 1328 to 1296 and changed `window.o` in exactly five bytes, every one `0x30 -> 0x10`, once per
-inlined call site of `impl_from_client_surface()`. The gate is therefore **byte-identical, or
+line 1328 to 1296 and changed `window.o` in exactly five bytes, every one `0x30 -> 0x10` — `impl_from_client_surface()` has
+four call sites, so the fifth is presumably its out-of-line body; the count is measured, that attribution is not. The gate is therefore **byte-identical, or
 byte-identical under `-DNDEBUG` for a file containing `assert()`** (measured: with the assert
 compiled out the two revisions produce an identical `window.o`), and it is paired with a
 **comment-stripped source comparison** — `scripts/strip-comments.py`, which strips C/ObjC
