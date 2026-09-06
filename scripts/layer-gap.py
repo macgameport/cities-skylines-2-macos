@@ -1,28 +1,38 @@
 #!/usr/bin/env python3
-"""layer-gap.py — time the S3 pre-drawable gap from a run's wine trace, in milliseconds.
+"""layer-gap.py — time the layer-swap cycle from a run's wine trace, in milliseconds.
 
-C56 identified issue #12's mechanism as S3: the child's own remote layer exists and is being
-hosted, but has not yet produced a drawable, so the region reads as a hole. That was established
-from ONE captured frame painting `Tblue=100.0` -- which proves the gap is real but says nothing
-about how long it lasts, and "how long" is the whole question for #13 (a 3 ms gap is a non-issue;
-a 100 ms gap is six frames of hole at 60 Hz).
+⚠ **This does NOT measure how long issue #12's S3 gap is visible, and it was written believing it
+did.** Read the negative result below before using it for anything.
 
-Frame captures cannot answer it. The probe samples every ~113 ms, so a gap shorter than that is
-aliased to "present or absent" and one longer is bounded only to the nearest sample. The trace
-carries the same events at 1 ms resolution, hundreds of times per drag, and is already on disk
-beside every run -- so this measures the gap directly instead of inferring it from pixels.
-
-The interval measured, per child window, is:
+The interval it reports, per child window, is
 
     retire_superseded_layers(child C, ctx O -> N)  ..  next macdrv_client_surface_present(C)
 
-At the retire, the layer that had been carrying content is gone. The next present on that child is
-the first moment new content exists. Everything between is the window in which nothing the child
-drew is available. Reported alongside it, because it is the actionable half for a fix:
+which looked like the exposure window: at the retire the layer that had been carrying content is
+gone, and the host adds the replacement's host view in the same message handler (window.c, the
+WM_MACDRV_CREATE_REMOTE_LAYER case -- create the view, then retire the predecessors), so between the
+two the hosted layer has no drawable.
+
+**Measured over the ten stage-1 diag runs of 2026-09-06: 2331 such intervals, median 127 ms, and
+they total 35.9 s of a 35.4 s drag.** They TILE the drag. That is not a description of anything
+visible -- the window renders the store page throughout -- and 127 ms is simply the 120 ms step
+period. The child re-creates its swapchain once per resize step, so the time from one retire to the
+next present is one step, always. Two things follow:
+
+  * The number is a CADENCE, not an exposure. Do not quote it as a gap duration.
+  * "The replacement layer has no drawable yet" is the CONTINUOUS state of this system during a
+    drag, not a rare event -- and blue (that layer's background on the diag build) appears on 1
+    captured frame in ~3,900. So something covers it essentially always, and the open question for
+    issue #13 is what that is and why it occasionally does not, NOT how to shorten the gap.
+
+What the file is still good for, and what it does measure honestly:
 
     retire_superseded_layers(C, O -> N)  ..  update_remote_layer_frame_for(C, context N)
 
-which is how long the host waits before it even installs the replacement's frame.
+how long the host waits before installing the replacement's frame -- a median 100 ms, which is the
+host-side half of the lag issue #7 is about. `scripts/host-frame-stalls.py` is the one that measures
+that lag in pixels-of-window rather than in milliseconds, and it is the one with a claim resting on
+it (C57).
 
 ⚠ Sort by TIMESTAMP, never by line order. The trace is written by several threads (the child's
 0104 and the host's 02e8 both appear in one cycle) and their lines interleave without being
