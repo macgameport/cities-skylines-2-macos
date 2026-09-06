@@ -95,6 +95,26 @@ for r in rows[:i]:
 print(n)
 '
 }
+# Layer-0 windows intersecting an ARBITRARY rect. The overlaps() above asks about Steam's own
+# rect, which is the right question for `-l` and for `screen` mode. Video mode records a rect
+# COVERING THE WHOLE DRAG -- larger than Steam at any instant, and larger than Steam's final size --
+# so it can sweep in a window that never overlaps Steam at all. Counts only, never a title or an
+# owner: naming what it found would defeat the point of refusing to record it (EXPERIMENTS.md).
+overlaps_rect() {
+  /tmp/winlist 2>/dev/null | python3 -c '
+import sys, re
+x, y, w, h = (int(v) for v in sys.argv[1:5])
+n = 0
+for ln in sys.stdin:
+    m = re.match(r"id=(\d+) pid=(\d+) layer=(-?\d+) owner=(.*?) size=(\d+)x(\d+) at=(-?\d+),(-?\d+) title=(.*)$", ln.rstrip("\n"))
+    if not m: continue
+    g = m.groups()
+    if int(g[2]) != 0 or g[8] == "Steam": continue
+    W, H, X, Y = (int(v) for v in g[4:8])
+    if X < x + w and X + W > x and Y < y + h and Y + H > y: n += 1
+print(n)
+' "$1" "$2" "$3" "$4"
+}
 if locked; then
   echo "  note: session is locked — waking the display; the known-good capture decides whether the instrument sees"
   caffeinate -u -t 3; sleep 1
@@ -162,6 +182,14 @@ if [ "$CAPTURE" = video ]; then
   [ "$ry" -lt 0 ] && { rh=$((rh + ry)); ry=0; }
   [ $((rx + rw)) -gt "$dw" ] && rw=$((dw - rx))
   [ $((ry + rh)) -gt "$dh" ] && rh=$((dh - ry))
+  ovr=$(overlaps_rect "$rx" "$ry" "$rw" "$rh")
+  if [ "${ovr:-0}" != 0 ]; then
+    echo "  VOID (video mode): $ovr other window(s) lie inside the rect this would record."
+    echo "  -> the rect covers the window's whole travel, so it is larger than Steam and can sweep"
+    echo "     in windows that never overlap Steam itself. Move or close them and re-run."
+    printf 'mode=video refused=overlap-in-record-rect n=%s\n' "$ovr" > "$out/capture-state.txt"
+    exit 1
+  fi
   echo "  recording ${VIDSEC}s over ${rw}x${rh} at ${rx},${ry} (window ${vw}x${vh} at ${vx},${vy})"
   printf 'rect=%s,%s,%s,%s window=%sx%s at %s,%s vidsec=%s\n' "$rx" "$ry" "$rw" "$rh" "$vw" "$vh" "$vx" "$vy" "$VIDSEC" > "$out/video-rect.txt"
   screencapture -v -V"$VIDSEC" -R"$rx,$ry,$rw,$rh" "$out/rec.mov" 2>"$out/video-capture.err"
