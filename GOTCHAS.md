@@ -2323,3 +2323,49 @@ the transform either way.
    that cadence.
 3. **The acceptance test must ask the question the instrument cannot answer:** T3's verdict now
    includes whether the chrome ever flashes black during a hand drag.
+
+## A locked session turns `screencapture -v` into a recording of the lock screen, which scores as a flawless run (2026-09-06)
+> **Ledger: `SUPPORTED` (C57).** The frame probe's `video` mode now refuses a locked session before recording; the window modes are unaffected and run locked.
+
+**What happened.** A new `CAPTURE=video` mode records the drag with `screencapture -v` so the
+diagnostic colours can be TIMED rather than sampled. Its first row came back with 1073 frames at a
+clean 16.7 ms cadence and no green, blue or magenta in any of them. That is exactly what a build
+with no defect looks like. It was 36 seconds of the lock screen: the machine had idle-locked, and
+`-v` and `-R` composite the DISPLAY, so they get the lock screen while `-l` keeps reading the
+window's own backing store. The animated wallpaper even supplied the 60 fps of change that made the
+recording look alive.
+
+**Why it got through.** The probe already had this guard — for `screen` mode, added when the same
+hazard was reasoned about rather than hit. The new mode was written beside it and did not inherit
+it. And a `screen`-mode run at least leaves per-frame PNGs a reader can open; a video run leaves one
+summary line, where "no episodes" and "no defect" are the same sentence.
+
+**Rules.**
+- **A region or display capture is only evidence while the session is unlocked.** `-l` is not:
+  it works locked as long as the display is awake (measured 2026-09-05).
+- **When a mode's failure produces a CLEAN-LOOKING result, refuse — do not warn.** The video mode
+  now checks before recording (saving 45 s and a 38 MB recording of the lock screen) and again
+  after, and exits non-zero. A warning above a plausible number gets read as a caveat.
+- **A new capture mode inherits none of the older modes' guards.** Copy them deliberately.
+- Fourth of the family after C49, C53 and C56: a criterion that cannot fire on the instrument it is
+  pointed at, reporting its own blindness as a result.
+
+## `biggest-dark-block` cannot see a tall narrow column, so it reports the window's bottom border forever (2026-09-06)
+> **Ledger: `SUPPORTED` (C57).** Used to test whether the strip is an exposure column; it answered the same thing on every frame of every run.
+
+**What happened.** To tell an exposure strip (a black column flush with the growing edge) from the
+page's own dark artwork, the obvious datum is `darkboxes.swift`'s `biggest-dark-block=WxH at x,y`.
+On all 13 diag runs it reads `Wx1 at x=0 y=649` — the window's one-pixel bottom border, full width,
+every time. Its projection step only considers **rows with at least 200 dark pixels**, so a 68 px
+wide column gives every row 68 and no row qualifies; the only row that ever does is the bottom
+border. The metric is width-biased by construction and structurally blind to the shape under test.
+
+**What answered it instead.** `pixel-probe strip <x> <w>` across the last 200 columns: lum 150-175
+out to x=1131, then 40, then 26, then **lum 1 (RGB 1,2,2) from x=1167 to the 1235 px edge** — a
+clean 68 px exposure column, and black with no diagnostic colour, i.e. [[C39]]'s S4.
+
+**Rules.**
+- **A metric that returns the same answer on every frame is not a constant finding, it is a blind
+  instrument.** Check its definition before reading anything into it.
+- Profile columns directly when the feature under test is a column. The band percentages (`R=`)
+  already carry the magnitude; `biggest-dark-block` adds nothing for edge work.
