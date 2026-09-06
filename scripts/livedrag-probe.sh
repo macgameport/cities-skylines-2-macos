@@ -139,6 +139,18 @@ if [ "$CAPTURE" = video ]; then
   # window only grows right and up under drag-session's synthetic drag, so the superset is the
   # current rect widened by SYNTH_DX and raised by SYNTH_DY, plus a margin -- then clamped to the
   # display, because screencapture -R silently returns nothing for a rect that leaves the screen.
+  # ⚠ Refuse a locked session HERE, not after the fact. `screencapture -v` composites the DISPLAY,
+  # so with the session locked it records the LOCK SCREEN -- and on 2026-09-06 that came back as
+  # 1073 frames at a clean 60 fps with no diagnostic colour anywhere, which reads exactly like a
+  # good run of a build that had no defect. `-l` keeps working locked, which is why only the
+  # region-based modes carry this hazard. Costs 45 s and a 38 MB recording of the lock screen to
+  # learn nothing, so it is worth catching before the recording rather than after.
+  if [ "$lock0" = yes ]; then
+    echo "  VOID (video mode): the session is LOCKED — screencapture -v would record the lock screen,"
+    echo "  -> and a lock-screen recording scores as a clean run. Unlock the session and re-run."
+    printf 'mode=video locked=yes refused=locked\n' > "$out/capture-state.txt"
+    exit 1
+  fi
   g=$(/tmp/winlist 2>/dev/null | steamwin | head -1)
   read -r vw vh vx vy <<<"$(echo "$g" | sed -nE 's/.*size=([0-9]+)x([0-9]+) at=(-?[0-9]+),(-?[0-9]+).*/\1 \2 \3 \4/p')"
   read -r dw dh <<<"$(system_profiler SPDisplaysDataType 2>/dev/null | sed -nE 's/.*Resolution: ([0-9]+) x ([0-9]+).*/\1 \2/p' | head -1)"
@@ -187,6 +199,14 @@ printf 'mode=%s locked=%s/%s overlaps=%s/%s\n' "$CAPTURE" "$lock0" "$lock1" "$ov
 if [ "$CAPTURE" = screen ] && { [ "$lock0" = yes ] || [ "$lock1" = yes ] || [ "${ov0:-0}" != 0 ] || [ "${ov1:-0}" != 0 ]; }; then
   echo "  VOID (screen mode): a locked session or a window over Steam means these frames are not of Steam"
   echo "  -> the numbers below describe the capture, not the app; do not read them as a result"
+fi
+if [ "$CAPTURE" = video ] && { [ "$lock1" = yes ] || [ "${ov0:-0}" != 0 ] || [ "${ov1:-0}" != 0 ]; }; then
+  # Video mode EXITS rather than warning. A screen-mode run still leaves per-frame PNGs a reader
+  # can open and judge; a video run leaves one summary line, and "no episodes" is indistinguishable
+  # from a clean result unless the run refuses outright.
+  echo "  VOID (video mode): the session locked mid-run, or a window came over Steam — this"
+  echo "  -> recording is not of Steam, and its colour episodes would be of something else."
+  exit 1
 fi
 
 echo "  distinct window sizes seen while sampling: $(sort -u "$out/sizes.txt" | wc -l | tr -d ' ')  (1 = the drag had stopped; treat as weak)"
