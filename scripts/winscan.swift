@@ -1,6 +1,21 @@
 // winscan.swift -- sample ONE window's diagnostic-colour fractions as fast as the window server
 // will hand them over, for a fixed span. A DURATION instrument.
 //
+// ⛔ THIS DOES NOT RUN, and is kept only so the next person does not spend an hour rediscovering
+// why. It was written to get high-cadence capture that survives a LOCKED session, which
+// `screencapture -v` cannot. Two walls, in order:
+//   1. `CGWindowListCreateImage` -- the obvious API, and what `screencapture -l` is built on -- is
+//      UNAVAILABLE as of macOS 26. Not deprecated: the compiler refuses it outright.
+//      "'CGWindowListCreateImage' is unavailable in macOS: Please use ScreenCaptureKit instead."
+//   2. Rewritten on ScreenCaptureKit (below, and it compiles), every capture fails with
+//      SCStreamErrorDomain Code=-3811, "Failed to start stream due to audio/video capture
+//      failure" -- TCC refusing an unsigned ad-hoc binary. `screencapture` succeeds where this
+//      fails because it is Apple-signed and carries the entitlement; a /tmp binary does not
+//      inherit that from the terminal that spawned it. Granting it would be a security-settings
+//      change, which is the user's to make and not worth it for one measurement.
+// So high-cadence capture needs an UNLOCKED session and `screencapture -v` (scripts/video-blue.swift
+// scores it). Measured 2026-09-06.
+//
 // Why not `screencapture`: spawning it costs ~113 ms a frame, which is the resolution limit that
 // left issue #12's S3 gap bounded only to "under about 226 ms" (C56, 2 blue frames in 3,900). Its
 // video mode (`-v`) does reach 60 fps -- but `-v` and `-R` composite the DISPLAY, so on a LOCKED
