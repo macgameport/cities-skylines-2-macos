@@ -52,7 +52,7 @@ fixed — see § Review log).** Tracker:
 > 8.3 %), stage 1 shows 0 · 0 · 0 (6.6 · 5.4 / 1.4 · 1.4 %), and stage 2 at 25 / 120 sits inside
 > stage 1's spread (5.2 / 2.8 %) — not separable at n = 2. `SYNTH_PX SYNTH_MS SYNTH_REPEAT
 > SYNTH_PAUSE PRESIZE` in `drag-session.sh`; `band-counts.py` prints the growing-frame metric.
-> (4) **Stage 2 shows a one-capture black full-client host** in 2 of 3 prod runs at 25 / 120 and in
+> (4) ⚠ **SUPERSEDED 2026-09-06 by C54 — read that first.** At full drag coverage stage 1 beats baseline with complete separation (p = 0.0079) but **stage 2 is worse than stage 1** (p = 0.0317), and the black frame occurs on the **stage-1 daily driver** too (2 of 5), so it is not a stage-2 defect. Stage 2 has no remaining case for promotion. The original note follows. (4) **Stage 2 shows a one-capture black full-client host** in 2 of 3 prod runs at 25 / 120 and in
 > none of 7 stage-1 / baseline runs (**C51**, tracked in issue #12; rate revised to 2 of 7 by **C52** and the whole-drag re-measurement in **C53**): chrome, footer and margins black, the inset page
 > complete at the new width, ~100 ms after the root pass stretched the full-client child and ~80 ms
 > after CEF re-created it. Display gap or capture artifact is not established. **The stage-2 module
