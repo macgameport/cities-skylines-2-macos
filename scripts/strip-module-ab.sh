@@ -83,6 +83,16 @@ for r in $(seq 1 "$N"); do
       s2b)      role=t3; mod="" ;;
     esac
     id="r${r}-${m}"; rd="$OUT/$TAG-$id"      # unique for all time -- see GOTCHAS on merged cells
+    # ⚠ A row refused by its own precondition aborts in ~4 SECONDS, so without this the queue
+    # empties at four seconds a row and a transient outage takes the whole battery with it. On
+    # 2026-09-06 a ~4 minute VPN reconnect consumed 15 of 20 rows between 01:06 and 01:11 -- every
+    # one correctly VOID (the fingerprint refuses a Steam that cannot connect), and every one
+    # wasted. Wait for the precondition instead of spending a row on it.
+    for w in $(seq 1 60); do
+      ping -c1 -W2000 1.1.1.1 >/dev/null 2>&1 && break
+      [ "$w" = 1 ] && echo "    network down — holding this row until it returns (up to 30 min)"
+      sleep 30
+    done
     echo "=== $id  $(date '+%T')"
     if [ -n "$mod" ]; then
       DRAG=synth MODULE="$mod" TRACE=+err,+macdrv,+cursor,+timestamp DRAG_OUT="$rd" \
@@ -91,7 +101,21 @@ for r in $(seq 1 "$N"); do
       DRAG=synth TRACE=+err,+macdrv,+cursor,+timestamp DRAG_OUT="$rd" \
         bash "$REPO/scripts/drag-session.sh" "$role" > "$OUT/$id.log" 2>&1
     fi
-    echo "    exit $?"
+    rc=$?
+    # One retry if the row died on a precondition rather than on a measurement.
+    if [ "$rc" != 0 ] && grep -qE "VOID:.*(network|FATAL)" "$OUT/$id.log" 2>/dev/null; then
+      echo "    exit $rc — precondition VOID, retrying this row once after 60 s"
+      sleep 60
+      if [ -n "$mod" ]; then
+        DRAG=synth MODULE="$mod" TRACE=+err,+macdrv,+cursor,+timestamp DRAG_OUT="$rd" \
+          bash "$REPO/scripts/drag-session.sh" "$role" > "$OUT/$id.log" 2>&1
+      else
+        DRAG=synth TRACE=+err,+macdrv,+cursor,+timestamp DRAG_OUT="$rd" \
+          bash "$REPO/scripts/drag-session.sh" "$role" > "$OUT/$id.log" 2>&1
+      fi
+      rc=$?
+    fi
+    echo "    exit $rc"
     case "$m" in s1diag) dg=1 ;; *) dg=0 ;; esac
     digest "$rd" "$id" "$dg"
   done

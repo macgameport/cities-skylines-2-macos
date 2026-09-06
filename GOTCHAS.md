@@ -768,6 +768,28 @@ so a queue started after the sleep meets a locked session; and in zsh `GID` is a
 because it runs under bash.
 
 
+## A refused row costs 4 seconds, so a 4-minute outage emptied a 70-minute queue (2026-09-06)
+
+`cell-fingerprint.sh --strict` refuses a run whose preconditions would void it — here
+`FATAL network DOWN`, because a Steam that cannot connect renders an empty client and would read as
+a presentation failure. **That gate worked perfectly and was still a disaster**, for a reason that
+has nothing to do with the gate: a refused row aborts in about **four seconds**, where a real row
+takes three and a half minutes. So the battery's queue drains at four seconds a row.
+
+A VPN tunnel reconnect took the network down for roughly four minutes (01:06–01:11). In that window
+the battery consumed **15 of its 20 rows** — every one correctly VOID, every one wasted, and the run
+reported "done" having measured five.
+
+**The asymmetry is the trap.** A harness paces itself on the assumption that work takes time. A
+fast-failing row inverts that: the healthier your preconditions are at catching problems, the faster
+a transient problem destroys the queue. Anything that runs a list of expensive items must **wait for
+a precondition rather than spend an item on it** — the battery now blocks on connectivity before each
+row (up to 30 min) and retries once if a row still dies on a precondition.
+
+Generalises past the network: the same shape applies to any gate that can fail cheaply and
+transiently — a locked screen, a busy prefix, a missing display, a full disk.
+
+
 ## The native macOS Steam client titles its window "Steam" too (2026-09-06)
 
 `livedrag-probe.sh` found its target with `grep "title=Steam$"` — nine call sites, no owner filter.
