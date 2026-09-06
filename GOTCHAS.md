@@ -768,6 +768,33 @@ so a queue started after the sleep meets a locked session; and in zsh `GID` is a
 because it runs under bash.
 
 
+## The native macOS Steam client titles its window "Steam" too (2026-09-06)
+
+`livedrag-probe.sh` found its target with `grep "title=Steam$"` — nine call sites, no owner filter.
+The wine Steam window is `owner=wine title=Steam` (every `windows.txt` in the evidence store says
+so); the native macOS client presents a main window titled `Steam` as well. With both up the
+selector matches two windows, and the id extraction
+
+```sh
+line=$(/tmp/winlist | grep "title=Steam$")
+ID=$(echo "$line" | sed -E 's/^id=([0-9]+).*/\1/')
+```
+
+takes **every** match, so `$ID` becomes two ids on two lines and the capture either fails or points
+at the wrong application. A run would not announce this: the drag detector would watch a window that
+never resizes and return VOID, or worse, capture the native client — which shows the persona name,
+so it is a privacy problem as well as a measurement one.
+
+This is the **window** version of the rule CLAUDE.md already carries for **processes**: never
+attribute a Steam by something several Steams share. There it is the command line and the fix is
+open files against the prefix; here it is the title and the fix is `owner=wine`. Both selectors are
+a label that looks unique until a second Steam exists.
+
+Found before it fired — James mentioned he would play a game through the native client while a
+drag battery was queued. Nothing had been measured wrong yet, and the prefix conflict everyone
+thinks of first (the wine wrapper) was not the real hazard.
+
+
 ## Two batteries, the same row names, one merged evidence dir (2026-09-05)
 
 `drag-session.sh` labels its cell `drag-<role>-$(basename "$DRAG_OUT")`. A battery that names its

@@ -54,6 +54,13 @@ case "$CAPTURE" in window|screen) ;; *) echo "  ABORT: CAPTURE must be window or
 # that works under the lock screen as long as the DISPLAY is awake (measured 2026-09-05: 1.3 MB,
 # real luminance, session locked). It is display sleep that blinds it, and the 2026-08-24 entry
 # conflated the two. So: wake the display, say so, and let the known-good capture below decide.
+# The WINE Steam window, and only that one. ⚠ The native macOS Steam client titles its main window
+# "Steam" as well, so a title-only selector matches both -- and line 94's `ID=` extraction takes
+# EVERY match, so two windows yield a two-line id and the capture goes wrong or goes to the wrong
+# app (a privacy problem too: the native client shows the persona name). The wine window is
+# `owner=wine`, recorded in every windows.txt in the evidence store. Same reasoning as CLAUDE.md's
+# rule for PROCESSES -- attribute by what actually distinguishes them, never by a label both share.
+steamwin() { grep 'owner=wine .*title=Steam$'; }
 locked() { python3 -c "import subprocess,sys; sys.exit(0 if 'CGSSessionScreenIsLocked' in subprocess.run(['ioreg','-n','Root','-d1','-a'],capture_output=True,text=True).stdout else 1)"; }
 # Layer-0 windows IN FRONT of Steam that intersect its rect. `-l` sees through them, `-R` cannot,
 # so in CAPTURE=screen a nonzero count means the frames may be of something else. Counts only --
@@ -91,24 +98,24 @@ kg=0; [ -s /tmp/kg.png ] && kg=1
 rm -f /tmp/kg.png
 [ "$kg" = 1 ] || { echo "  ABORT: known-good capture failed — instrument blind, nothing here would be evidence"; exit 1; }
 
-line=$(/tmp/winlist 2>/dev/null | grep "title=Steam$")
+line=$(/tmp/winlist 2>/dev/null | steamwin)
 ID=$(echo "$line" | sed -E 's/^id=([0-9]+).*/\1/')
 [ -z "$ID" ] && { echo "  ABORT: no Steam window"; exit 1; }
 # Wait for the window to STOP moving before arming. Steam resizes itself while it starts up, and
 # an unstabilised probe latches onto that and calls it a drag — observed 2026-08-31.
 for i in $(seq 1 40); do
-  a=$(/tmp/winlist 2>/dev/null | grep "title=Steam$" | grep -oE 'size=[0-9]+x[0-9]+'); sleep 1
-  b=$(/tmp/winlist 2>/dev/null | grep "title=Steam$" | grep -oE 'size=[0-9]+x[0-9]+'); sleep 1
-  c=$(/tmp/winlist 2>/dev/null | grep "title=Steam$" | grep -oE 'size=[0-9]+x[0-9]+')
+  a=$(/tmp/winlist 2>/dev/null | steamwin | grep -oE 'size=[0-9]+x[0-9]+'); sleep 1
+  b=$(/tmp/winlist 2>/dev/null | steamwin | grep -oE 'size=[0-9]+x[0-9]+'); sleep 1
+  c=$(/tmp/winlist 2>/dev/null | steamwin | grep -oE 'size=[0-9]+x[0-9]+')
   [ "$a" = "$b" ] && [ "$b" = "$c" ] && break
 done
-base=$(/tmp/winlist 2>/dev/null | grep "title=Steam$" | grep -oE 'size=[0-9]+x[0-9]+')
+base=$(/tmp/winlist 2>/dev/null | steamwin | grep -oE 'size=[0-9]+x[0-9]+')
 echo "  ready — Steam window settled at $base"
 echo "  DRAG A WINDOW EDGE NOW (any edge, ~15 seconds of movement). Waiting up to ${WAIT}s…"
 
 started=0
 for i in $(seq 1 $((WAIT*2))); do
-  now=$(/tmp/winlist 2>/dev/null | grep "title=Steam$" | grep -oE 'size=[0-9]+x[0-9]+')
+  now=$(/tmp/winlist 2>/dev/null | steamwin | grep -oE 'size=[0-9]+x[0-9]+')
   [ -n "$now" ] && [ "$now" != "$base" ] && { started=1; echo "  drag detected: $base -> $now — sampling $FRAMES frames"; break; }
   sleep 0.5
 done
@@ -123,7 +130,7 @@ for i in $(seq 1 "$FRAMES"); do
     # (126 ms/frame against window's 151). ⚠ Its size is therefore read just BEFORE its capture,
     # where window mode reads just after: a growing-frame join can differ by one step between the
     # modes. Irrelevant to "does a black frame occur at all", which is what this mode is for.
-    g=$(/tmp/winlist 2>/dev/null | grep "title=Steam$" | head -1)
+    g=$(/tmp/winlist 2>/dev/null | steamwin | head -1)
     echo "$g" | grep -oE 'size=[0-9]+x[0-9]+' >> "$out/sizes.txt"
     r=$(echo "$g" | sed -nE 's/.*size=([0-9]+)x([0-9]+) at=(-?[0-9]+),(-?[0-9]+).*/\3,\4,\1,\2/p')
     [ -n "$r" ] && screencapture -x -o -R"$r" "$out/f$i.png" 2>/dev/null
@@ -134,11 +141,11 @@ for i in $(seq 1 "$FRAMES"); do
     # band and its EDGE numbers are NOT comparable with window mode's. Recording the after-rect
     # makes that visible per frame instead of silent. A whole-host signature (issue #12's 100 %
     # black TOP band) is unaffected: a 28 px crop off the right cannot hide it.
-    a=$(/tmp/winlist 2>/dev/null | grep "title=Steam$" | head -1 | grep -oE 'size=[0-9]+x[0-9]+')
+    a=$(/tmp/winlist 2>/dev/null | steamwin | head -1 | grep -oE 'size=[0-9]+x[0-9]+')
     printf 'f%d before=%s after=%s\n' "$i" "$(echo "$g" | grep -oE 'size=[0-9]+x[0-9]+')" "$a" >> "$out/rects.txt"
   else
     screencapture -x -o -l "$ID" "$out/f$i.png" 2>/dev/null
-    /tmp/winlist 2>/dev/null | grep "title=Steam$" | grep -oE 'size=[0-9]+x[0-9]+' >> "$out/sizes.txt"
+    /tmp/winlist 2>/dev/null | steamwin | grep -oE 'size=[0-9]+x[0-9]+' >> "$out/sizes.txt"
   fi
 done
 lock1=no; locked && lock1=yes; ov1=$(overlaps)
