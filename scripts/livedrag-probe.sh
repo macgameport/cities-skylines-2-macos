@@ -19,6 +19,16 @@
 #                     used, so it is the only mode comparable with C35/C38/C50/C51.
 #   screen            `screencapture -R x,y,w,h` over the window's current rect -- the composited
 #                     display, i.e. what a camera pointed at the screen would see.
+#   video             `screencapture -v` over a rect covering the window's whole travel, scored by
+#                     scripts/video-blue.swift. A DURATION instrument, not a rate one: it answers
+#                     "how long was the diagnostic colour on screen", which neither other mode can
+#                     -- they sample every ~113 ms, so a single hit bounds an event only to "under
+#                     ~226 ms" (issue #12 / C56 caught blue on 2 frames of 3,900 that way). It
+#                     writes rec.mov + video-frames.txt and NO f*.png, so it produces no bands.txt
+#                     and is not comparable with the C35/C38/C50/C51 rows. ⚠ The recording is
+#                     change-driven, not fixed-rate: a static region yielded 2 frames in 3 s
+#                     (measured 2026-09-06), so the run must report its own achieved cadence
+#                     before any duration read off it means anything.
 # A frame that is black in `window` and lit in `screen` is a capture artifact and no user ever saw
 # it; black in both is a real display gap. ⚠ That inference is sound ONLY for a whole-host
 # signature (issue #12's 100 % black top band). It is INVALID for an EDGE signature (issue #7's
@@ -42,8 +52,8 @@ out="${OUT_DIR:-/tmp/livedrag}"; rm -rf "$out"; mkdir -p "$out"
 # WAIT is the drag window. 90 s suits a human at the keyboard; an agent running this FOR a human
 # who reads messages intermittently should set WAIT=1800 — the 2026-09-03 run voided at 240 s and
 # passed at 1800 s, with the drag itself taking fifteen seconds.
-FRAMES="${FRAMES:-60}"; WAIT="${WAIT:-90}"; CAPTURE="${CAPTURE:-window}"
-case "$CAPTURE" in window|screen) ;; *) echo "  ABORT: CAPTURE must be window or screen"; exit 1 ;; esac
+FRAMES="${FRAMES:-60}"; WAIT="${WAIT:-90}"; CAPTURE="${CAPTURE:-window}"; VIDSEC="${VIDSEC:-45}"
+case "$CAPTURE" in window|screen|video) ;; *) echo "  ABORT: CAPTURE must be window, screen or video"; exit 1 ;; esac
 
 [ -x /tmp/pixel-probe ] || swiftc -O "$(dirname "$0")/pixel-probe.swift" -o /tmp/pixel-probe || exit 1
 # winlist too: without it the known-good capture below fails first and the abort reads "instrument
@@ -124,6 +134,28 @@ done
 : > "$out/sizes.txt"
 echo "$CAPTURE" > "$out/capture-mode.txt"   # a bare run dir must say which instrument made it
 lock0=no; locked && lock0=yes; ov0=$(overlaps)
+if [ "$CAPTURE" = video ]; then
+  # A rect covering the window's WHOLE travel, so the growing edge is never cropped (C53). The
+  # window only grows right and up under drag-session's synthetic drag, so the superset is the
+  # current rect widened by SYNTH_DX and raised by SYNTH_DY, plus a margin -- then clamped to the
+  # display, because screencapture -R silently returns nothing for a rect that leaves the screen.
+  g=$(/tmp/winlist 2>/dev/null | steamwin | head -1)
+  read -r vw vh vx vy <<<"$(echo "$g" | sed -nE 's/.*size=([0-9]+)x([0-9]+) at=(-?[0-9]+),(-?[0-9]+).*/\1 \2 \3 \4/p')"
+  read -r dw dh <<<"$(system_profiler SPDisplaysDataType 2>/dev/null | sed -nE 's/.*Resolution: ([0-9]+) x ([0-9]+).*/\1 \2/p' | head -1)"
+  : "${dw:=5120}" "${dh:=2880}"
+  m=40
+  rx=$((vx - m)); ry=$((vy - ${SYNTH_DY:-350} - m))
+  rw=$((vw + ${SYNTH_DX:-650} + 2*m)); rh=$((vh + ${SYNTH_DY:-350} + 2*m))
+  [ "$rx" -lt 0 ] && { rw=$((rw + rx)); rx=0; }
+  [ "$ry" -lt 0 ] && { rh=$((rh + ry)); ry=0; }
+  [ $((rx + rw)) -gt "$dw" ] && rw=$((dw - rx))
+  [ $((ry + rh)) -gt "$dh" ] && rh=$((dh - ry))
+  echo "  recording ${VIDSEC}s over ${rw}x${rh} at ${rx},${ry} (window ${vw}x${vh} at ${vx},${vy})"
+  printf 'rect=%s,%s,%s,%s window=%sx%s at %s,%s vidsec=%s\n' "$rx" "$ry" "$rw" "$rh" "$vw" "$vh" "$vx" "$vy" "$VIDSEC" > "$out/video-rect.txt"
+  screencapture -v -V"$VIDSEC" -R"$rx,$ry,$rw,$rh" "$out/rec.mov" 2>"$out/video-capture.err"
+  echo "$base" >> "$out/sizes.txt"
+  /tmp/winlist 2>/dev/null | steamwin | grep -oE 'size=[0-9]+x[0-9]+' >> "$out/sizes.txt"
+else
 for i in $(seq 1 "$FRAMES"); do
   if [ "$CAPTURE" = screen ]; then
     # One winlist serves both the region and sizes.txt, so screen mode is not the slower sampler
@@ -148,6 +180,7 @@ for i in $(seq 1 "$FRAMES"); do
     /tmp/winlist 2>/dev/null | steamwin | grep -oE 'size=[0-9]+x[0-9]+' >> "$out/sizes.txt"
   fi
 done
+fi
 lock1=no; locked && lock1=yes; ov1=$(overlaps)
 echo "  capture mode: $CAPTURE · session locked before/after: $lock0/$lock1 · windows over Steam before/after: $ov0/$ov1"
 printf 'mode=%s locked=%s/%s overlaps=%s/%s\n' "$CAPTURE" "$lock0" "$lock1" "$ov0" "$ov1" > "$out/capture-state.txt"
@@ -157,6 +190,52 @@ if [ "$CAPTURE" = screen ] && { [ "$lock0" = yes ] || [ "$lock1" = yes ] || [ "$
 fi
 
 echo "  distinct window sizes seen while sampling: $(sort -u "$out/sizes.txt" | wc -l | tr -d ' ')  (1 = the drag had stopped; treat as weak)"
+
+if [ "$CAPTURE" = video ]; then
+  # Duration, not rate. Report the achieved cadence FIRST: the recording is change-driven, so the
+  # gap between frames is the resolution limit on every interval below it, and a run whose median
+  # gap is 100 ms has measured nothing the ~113 ms frame probe did not already.
+  [ -s "$out/rec.mov" ] || { echo "  VOID: no recording produced — $(head -1 "$out/video-capture.err" 2>/dev/null)"; exit 1; }
+  [ -x /tmp/video-blue ] || swiftc -O "$(dirname "$0")/video-blue.swift" -o /tmp/video-blue -framework AVFoundation 2>/dev/null || exit 1
+  /tmp/video-blue "$out/rec.mov" > "$out/video-frames.txt" 2>"$out/video-score.err"
+  python3 - "$out" <<'PYV'
+import sys, re, os
+d = sys.argv[1]
+rows = []
+for ln in open(os.path.join(d, 'video-frames.txt')):
+    m = re.match(r'f(\d+) t=([0-9.]+) (\d+)x(\d+) blue=([0-9.]+) blueloose=([0-9.]+) green=([0-9.]+) magenta=([0-9.]+)', ln)
+    if m:
+        rows.append((float(m.group(2)), float(m.group(5)), float(m.group(6)), float(m.group(7)), float(m.group(8))))
+if len(rows) < 2:
+    print('  VOID: %d video frames -- nothing to time' % len(rows)); sys.exit(1)
+gaps = sorted((rows[i+1][0] - rows[i][0]) * 1000 for i in range(len(rows) - 1))
+med = gaps[len(gaps)//2]
+span = rows[-1][0] - rows[0][0]
+print('  video: %d frames over %.1f s - inter-frame gap median %.1f ms, p90 %.1f ms, max %.1f ms'
+      % (len(rows), span, med, gaps[int(0.9*len(gaps))], gaps[-1]))
+print('  -> the resolution limit on every duration below is that gap: %.1f ms' % med)
+for name, idx in (('blue (S3, child layer pre-drawable)', 1), ('green (S1, host larger than content)', 3),
+                  ('magenta (S2, deferred create)', 4)):
+    hits = [i for i, r in enumerate(rows) if r[idx] > 0]
+    if not hits:
+        print('  %-38s absent' % name); continue
+    runs, cur = [], [hits[0]]
+    for i in hits[1:]:
+        if i == cur[-1] + 1: cur.append(i)
+        else: runs.append(cur); cur = [i]
+    runs.append(cur)
+    durs = []
+    for r in runs:
+        end = rows[r[-1]+1][0] if r[-1]+1 < len(rows) else rows[r[-1]][0]
+        durs.append((end - rows[r[0]][0]) * 1000)
+    peak = max(rows[i][idx] for i in hits)
+    print('  %-38s %d frame(s) in %d episode(s) - duration median %.0f ms, max %.0f ms - peak %.2f%% of the recorded area'
+          % (name, len(hits), len(runs), sorted(durs)[len(durs)//2], max(durs), peak))
+PYV
+  echo "  frames: $out/video-frames.txt - recording: $out/rec.mov"
+  exit 0
+fi
+
 python3 - "$out" <<'PY'
 import sys, glob, subprocess, re, os
 d=sys.argv[1]; rows=[]

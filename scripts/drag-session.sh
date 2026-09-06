@@ -8,7 +8,15 @@
 #   DRAG=synth bash scripts/drag-session.sh <role>   # no hands: the driver runs the size loop itself
 #   DRAG=synth SYNTH_PX=8 SYNTH_MS=16 SYNTH_REPEAT=3 ... <role>   # cadence and repeats, see below
 #   CAPTURE=screen DRAG=synth ... <role>   # the #12 control: frames off the composited display
+#   CAPTURE=video DRAG=synth ... t0        # DURATION: record the drag and time the diag colours
 #   FRAMES=300 DRAG=synth ... <role>       # sample the WHOLE drag, not its first quarter
+#
+# CAPTURE=video answers the one question the frame modes structurally cannot. They sample every
+# ~113 ms, so a colour caught on a single frame is bounded only to "shorter than ~226 ms" -- and
+# that is the entire state of knowledge about issue #12 after 13 diag runs (blue on 2 frames of
+# 3,900). Video records continuously, so it sees EVERY episode rather than a sample of them, and
+# reports each one's duration. Pair it with role t0 (stage 1 + colours); on a module that paints
+# no diagnostic colours there is nothing for it to time.
 #
 # ⚠ FRAMES=60 covers 8-9 s. The synthetic drag at 25 px / 120 ms with SYNTH_REPEAT=3 runs for
 # 35.4 s (six SC_SIZE segments, measured 2026-09-05), so the default samples ROUGHLY ITS FIRST
