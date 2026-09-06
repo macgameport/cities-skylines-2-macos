@@ -768,6 +768,39 @@ so a queue started after the sleep meets a locked session; and in zsh `GID` is a
 because it runs under bash.
 
 
+## The scorer looked for BLACK on the one build that paints it (2026-09-06)
+
+> **Ledger: `SUPPORTED` (C56).**
+
+Ten runs went on the **diagnostic** module specifically to attribute the black full-client frame —
+that build exists to paint the host backgrounds green / blue / magenta so a black region names its
+own cause. The battery scored them with the criterion it used everywhere else:
+
+```
+top band >= 50% TRUE BLACK (lum < 6)
+```
+
+and reported **0 of 10**. It was holding a hit. `r7-s1diag` f10 reads `T=0.0` black and
+`Tblue=100.0` — the band is entirely blue, and blue is exactly the answer the run was commissioned
+to find (S3, the child's own layer before its first drawable).
+
+**The criterion could not fire on the instrument it was pointed at.** Painting the region is the
+whole point of a diag build, so on that build the signature is *coloured*, never black. Scoring
+black there is like listening for silence through a speaker you just switched on.
+
+Third instance of one family in this project, which is why it earns a heading rather than a line:
+- **C49** — a T6 scorer that cut its window at the last placement, so it could never see the settle
+  it was waiting for.
+- **C53** — `FRAMES=60` sampling 8–9 s of a 35.4 s drag, so two of three hits were unreachable.
+- **C56** — this one.
+
+Each reported a clean, confident, wrong number, and none of them looked broken from the outside.
+**When a run comes back 0, check that the criterion is capable of returning non-zero on that
+specific build before believing it** — ideally by asserting the scorer fires on a known positive
+first. The fix here was one line: count the top band as a hit at ≥ 50 % black **or** ≥ 50 % of any
+diagnostic colour.
+
+
 ## A refused row costs 4 seconds, so a 4-minute outage emptied a 70-minute queue (2026-09-06)
 
 `cell-fingerprint.sh --strict` refuses a run whose preconditions would void it — here

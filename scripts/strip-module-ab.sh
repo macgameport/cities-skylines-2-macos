@@ -51,8 +51,18 @@ digest() {   # digest <rundir> <label> <diag: 1 if the module paints diagnostic 
   local b="$d/bands.txt"
   if [ ! -s "$b" ]; then echo "   $l: NO BANDS"; return; fi
   python3 "$REPO/scripts/band-counts.py" "$b" 2>/dev/null | sed "s/^/   $l · /"
-  awk -v L="$l" '{for(i=1;i<=NF;i++) if($i ~ /^T=/){split($i,t,"="); if(t[2]+0>=50) n++; if(t[2]+0>mx) mx=t[2]+0}}
-    END{printf "   %s · TOP>=50%% (the C51 black frame): %d frames, max %.0f%%\n", L, n+0, mx+0}' "$b"
+  # ⚠ On a DIAG build the frame is NOT BLACK -- that module paints the very region under test, so a
+  # true-black threshold cannot fire on it. Scoring `T>=50` alone reported 0 of 10 while the battery
+  # was holding a hit (r7-s1diag f10: T=0.0, Tblue=100.0). The criterion must match the instrument:
+  # count a frame whose top band is >=50% black OR >=50% of any diagnostic colour.
+  awk -v L="$l" -v DG="$dg" '{ tb=g=b=m=0
+      for(i=1;i<=NF;i++){ if($i ~ /^T=/){split($i,x,"="); tb=x[2]+0}
+                          if($i ~ /^Tgreen=/){split($i,x,"="); g=x[2]+0}
+                          if($i ~ /^Tblue=/){split($i,x,"="); b=x[2]+0}
+                          if($i ~ /^Tmagenta=/){split($i,x,"="); m=x[2]+0} }
+      v = tb; if (g>v) v=g; if (b>v) v=b; if (m>v) v=m
+      if (v>=50) n++; if (v>mx) mx=v }
+    END{printf "   %s · TOP>=50%% (the C51 frame, black OR diagnostic colour): %d frames, max %.0f%%\n", L, n+0, mx+0}' "$b"
   # On a DIAG build the host backgrounds are painted, so a black frame that carries a colour names
   # its own mechanism: green = a host reframed larger than its content, blue = the child's own layer
   # before its first drawable, magenta = the deferred create path. All-zero = nothing is hosting the
