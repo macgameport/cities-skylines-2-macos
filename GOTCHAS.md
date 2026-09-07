@@ -2369,3 +2369,42 @@ clean 68 px exposure column, and black with no diagnostic colour, i.e. [[C39]]'s
   instrument.** Check its definition before reading anything into it.
 - Profile columns directly when the feature under test is a column. The band percentages (`R=`)
   already carry the magnitude; `biggest-dark-block` adds nothing for edge work.
+
+## A diagnostic colour is only safe until the page under test contains it (2026-09-06)
+> **Ledger: `PARTIAL` (C61).** Cyan was chosen because "the store page cannot contain" it. On the page two of ten runs loaded, it did — 1850 frames against the others' 35.
+
+**What happened.** C36 established that **red** is unusable as a diagnostic colour here, because
+Steam's store banner is red; green, magenta and later cyan were picked as safe. Running C42's cyan
+build under a live drag, two runs of ten came back with ~1850 cyan frames where the other eight had
+30-41. Not a defect: a store page whose artwork contains saturated cyan.
+
+**What separated them was SHAPE, not colour.** The diagnostic cyan is a **narrow, full-window-height
+column** at the growing edge (median 25 px wide, 649 px tall). The artwork is a **wide, short block**
+(489x305), present from frame 0 and unrelated to the drag. A filter of `height >= 600 && width <= 200`
+splits them cleanly; no threshold on the colour itself could have.
+
+**Rules.**
+- **"The page cannot contain this colour" has a shelf life.** It is a property of the page loaded on
+  the day, not of the colour. Re-check it per fixture, or measure shape as well as colour.
+- **Score a diagnostic by the geometry you predicted, not only by its hue.** Here the prediction was
+  strong and testable — the exposure should be an integer number of drag steps wide — and it held
+  (widths cluster at 25, 49, 73, 99 px for a 25 px step), which both confirms the finding and
+  rejects the artwork for free.
+- A run confounded this way is not merely noisy: the artwork block dominates the bounding box, so
+  frames carrying BOTH are classified as artwork and the real signal is suppressed. r4/r5 show 6-7
+  strip frames where their neighbours show 30-41.
+
+## A capture mode that writes no PNGs lost its trace to a frame-count check (2026-09-06)
+> **Ledger: `SUPPORTED` (C60).** Ten valid video rows kept no `stdout.txt`, and the stall analysis they were wanted for could not be run against them.
+
+**What happened.** `drag-session.sh` copies the wine trace out of the volatile cell dir inside the
+`else` of `if [ "$n" = 0 ]` where `n` counts `f*.png`. A `CAPTURE=video` row writes `rec.mov` and no
+PNGs **by design**, so every one of them printed `VOID: no frames captured` and silently discarded
+its trace. The rows were fine; the harness threw away half their evidence and said VOID about it.
+
+**Rules.**
+- **Copy evidence out of a volatile location unconditionally**, before any branch that decides how
+  to score it. Scoring is a judgement; preservation is not.
+- **A new capture mode makes every `f*.png` count a lie.** Audit them when adding one — this is the
+  second thing the video mode inherited wrongly, after the locked-session guard.
+- The trace survived only because `/tmp/steam-cell-*` had not been salvaged yet. That is luck.

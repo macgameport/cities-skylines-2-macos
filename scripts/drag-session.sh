@@ -198,13 +198,21 @@ fi
 echo
 echo "########## scoring"
 [ -x /tmp/darkboxes ] || swiftc -O "$REPO/scripts/darkboxes.swift" -o /tmp/darkboxes
+# The trace is worth keeping whatever the capture mode produced, so copy it BEFORE the
+# frame-count branch. ⚠ It used to live inside the `else`, which meant a CAPTURE=video row -- which
+# writes rec.mov and no f*.png by design -- reported "VOID: no frames captured" and silently threw
+# its trace away. Found 2026-09-06 when ten valid video rows turned out to have no stdout.txt, and
+# the stall analysis they were wanted for could not be run against them.
+cp /tmp/steam-cell-drag-$ROLE-$(basename "$OUT")/stdout.txt "$OUT/stdout.txt" 2>/dev/null
 n=$(ls "$OUT/frames"/f*.png 2>/dev/null | wc -l | tr -d ' ')
-if [ "$n" = 0 ]; then echo "  VOID: no frames captured"; else
+if [ "${CAPTURE:-window}" = video ]; then
+  [ -s "$OUT/frames/rec.mov" ] && echo "  video row: $(du -h "$OUT/frames/rec.mov" | cut -f1) recording, scored by the probe above" \
+                              || echo "  VOID: video mode produced no recording"
+elif [ "$n" = 0 ]; then echo "  VOID: no frames captured"; else
   /tmp/darkboxes 6 "$OUT/frames"/f*.png > "$OUT/bands.txt" 2>/dev/null
   python3 "$REPO/scripts/band-counts.py" "$OUT/bands.txt" | sed 's/^/  /'
   [ "$ROLE" != t3 ] && python3 "$REPO/scripts/darkboxes-attrib.py" 6 "$OUT/frames"/f*.png \
       > "$OUT/attrib.txt" 2>&1 && tail -1 "$OUT/attrib.txt" | sed 's/^/  /'
-  cp /tmp/steam-cell-drag-$ROLE-$(basename "$OUT")/stdout.txt "$OUT/stdout.txt" 2>/dev/null
   cnt() { grep -cE "$1" "$OUT/stdout.txt" 2>/dev/null || true; }   # grep -c prints 0 itself; no `|| echo 0`
   # Which resize path the drag took, from the trace. SC_SIZE + a WMSZ_* edge code in the low
   # nibble is DefWindowProc's size loop; SetCapture with GUI_INMOVESIZE (0x2) is that loop handing
