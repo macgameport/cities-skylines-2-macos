@@ -1025,6 +1025,7 @@ its own inter-run shutdown failed, leaving two `steam.exe` racing in one prefix,
 number (60 FreeType) is not clean and phase B never ran. Re-run it with the fingerprint attached.
 
 ---
+| C62 | **The pre-drawable window is NOT brief, and the child keeps its predecessor alive right across it: for the child that actually displays, a new generation's first present lands a median ~53 ms after the owner hosts it, and the child's detach of the predecessor follows that present in 99.9 % of successions** — so the S3 plan's § 7.2 decision rule resolves to **build D** | `SUPPORTED` | **S1a.** `scripts/video-gap-battery.sh N=10 MOD=s1a-stamp-diag CAPMODE=window`, 2026-09-07 18:47-19:23, **all 10 rows valid**, **2,924 generations · 1,442 successions**. Module **`28d40ea5d38a180c`** — the instrument-only stamp build (`scripts/first-drawable-stamp-patch.py --colours`, no candidate code): a `CAMetalLayer` subclass that traces the first `nextDrawable` per context id and attaches `addPresentedHandler:` until one drawable really presents. Both processes on ONE clock — the child prints `NtGetTickCount()` itself, because the Cocoa side's `ERR()` is a raw `fprintf` carrying no `+timestamp` (measured: 300 untimestamped `err:` lines against 35 timestamped). Gated by `align-trace-video.py --check-clock`, **PASS on all 10 rows**. Analysis `scripts/s1a-timing.py --by-child` | **Measured. (ii) detach(old) follows present(new) in 1,440 of 1,442 successions = 99.9 %** (precedes in 2 = 0.1 %; § 7.2 stops D above 5 %), median **+83.5 ms**, p10 36.9, p90 222.4. **(i) the plan's null is REFUTED, and not marginally: 0 of 2,924 generations present within one refresh (8.3 ms) of the owner's commit.** Acquire is immediate (median +2.0 ms, p90 3.0) — it is the PRESENT that lags. ⚠ **The pooled present rate is BIMODAL and must never be quoted alone:** every run has exactly two long-lived children, one presenting **92-98 %** of its generations at a present-commit median of **49.5-59.3 ms**, the other **19-31 %** at **19.1-27.2 ms**; both ACQUIRE at 98-99 %. Pooling them gives "50 % never presented", which is true of no window on screen. Median drawables discarded before the first present: 1 (max 4). Only 1.8 % of presents land beyond 120 ms, D's own cap. **Consequence:** the gap's rarity is NOT explained by the window being short — it is ~6 refreshes at 120 Hz — so something covers it nearly always, and (ii) says the child's live predecessor is available to be that cover for essentially every succession. **Inferred, not measured:** that the predecessor is what the user actually sees during the window; nothing here attributes the covering surface, and C42/C61 name others. **What would overturn it:** a run where detach precedes present in more than 5 % of successions, or where the displaying child's present-commit median falls inside 8.3 ms. Cells: **exp_f71a54** **exp_14f167** **exp_595588** **exp_843b99** **exp_2e73c5** **exp_e9409d** **exp_be30c1** **exp_71823c** **exp_a2b56d** **exp_21f84c** |
 
 ## Experiment index
 
@@ -1302,8 +1303,20 @@ may belong to a different wrapper's Steam.
 | exp_b2af8a | 2026-09-06 23:44 | `drag-s1-20260906-232215-r8-t0b` | 0 | 0 | 0 | rendered | candidate |
 | exp_1eba59 | 2026-09-06 23:47 | `drag-s1-20260906-232215-r9-t0b` | 0 | 0 | 0 | rendered | candidate |
 | exp_42559c | 2026-09-06 23:50 | `drag-s1-20260906-232215-r10-t0b` | 0 | 0 | 0 | rendered | candidate |
+| exp_58b16a | 2026-09-07 18:40 | `drag-s1-20260907-183909-r1-s1a-stamp-diag` | 0 | 0 | 0 | rendered | candidate |
+| exp_eef2e8 | 2026-09-07 18:43 | `drag-s1-20260907-183909-r2-s1a-stamp-diag` | 0 | 0 | 0 | rendered | candidate |
+| exp_f71a54 | 2026-09-07 18:48 | `drag-s1-20260907-184704-r1-s1a-stamp-diag` | 0 | 0 | 0 | rendered | candidate |
+| exp_14f167 | 2026-09-07 18:52 | `drag-s1-20260907-184704-r2-s1a-stamp-diag` | 0 | 0 | 0 | rendered | candidate |
+| exp_595588 | 2026-09-07 18:55 | `drag-s1-20260907-184704-r3-s1a-stamp-diag` | 0 | 0 | 0 | rendered | candidate |
+| exp_843b99 | 2026-09-07 18:59 | `drag-s1-20260907-184704-r4-s1a-stamp-diag` | 0 | 0 | 0 | rendered | candidate |
+| exp_2e73c5 | 2026-09-07 19:02 | `drag-s1-20260907-184704-r5-s1a-stamp-diag` | 0 | 0 | 0 | rendered | candidate |
+| exp_e9409d | 2026-09-07 19:06 | `drag-s1-20260907-184704-r6-s1a-stamp-diag` | 0 | 0 | 0 | rendered | candidate |
+| exp_be30c1 | 2026-09-07 19:10 | `drag-s1-20260907-184704-r7-s1a-stamp-diag` | 0 | 0 | 0 | rendered | candidate |
+| exp_71823c | 2026-09-07 19:13 | `drag-s1-20260907-184704-r8-s1a-stamp-diag` | 0 | 0 | 0 | rendered | candidate |
+| exp_a2b56d | 2026-09-07 19:17 | `drag-s1-20260907-184704-r9-s1a-stamp-diag` | 0 | 0 | 0 | rendered | candidate |
+| exp_21f84c | 2026-09-07 19:20 | `drag-s1-20260907-184704-r10-s1a-stamp-diag` | 0 | 0 | 0 | rendered | candidate |
 
-265 cells · 45 VOID-LIBS · 205 candidate
+277 cells · 45 VOID-LIBS · 217 candidate
 ---
 
 ## Running a cell (the procedure this ledger assumes)

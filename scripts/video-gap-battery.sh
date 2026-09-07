@@ -104,6 +104,19 @@ for r in $(seq 1 "$N"); do
 done
 
 echo "########## tally $(date '+%F %T')"
+# ⚠ The tally below scores a RECORDING. In window mode there is none, so every row would be
+# reported "VOID (no frames)" -- which is not a finding, it is the tally reading the wrong
+# instrument, and a reader coming back to the log later has no way to tell those apart. Say what
+# actually happened instead. The per-row bands were already digested by drag-session.sh, and a
+# window-mode battery's real output is its traces.
+if [ "$CAPMODE" != video ]; then
+  echo "  window mode: no recordings to score, so the duration tally is SKIPPED (not VOID)."
+  echo "  Per-row band digests are above; the traces are the output. Analyse them with e.g."
+  echo "    python3 scripts/s1a-timing.py --by-child \$(find $OUT -maxdepth 1 -type d -name '*-r*') "
+  echo "  and gate first with  align-trace-video.py --check-clock  on the same directories."
+  echo "########## done — $OUT"
+  exit 0
+fi
 MOD="$MOD" python3 - "$OUT" "$TAG" "$N" <<'PY'
 import sys, os, re
 out, tag, n = sys.argv[1], sys.argv[2], int(sys.argv[3])

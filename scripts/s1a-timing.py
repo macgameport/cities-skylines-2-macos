@@ -137,11 +137,18 @@ def resolve(a):
 if __name__ == '__main__':
     args = sys.argv[1:]
     dump = '--dump' in args
+    by_child = '--by-child' in args
     args = [a for a in args if not a.startswith('--')]
     if not args:
         sys.exit(__doc__.split('\n\n')[0])
 
     P_ACQ, P_PRES, P_REL, P_DET, P_DROPS = [], [], [], [], []
+    # ⚠ Pooling every child hides a bimodal population and reports a middle that describes
+    # neither. Measured over these 10 runs: one child per run presents 94-98 % of the generations
+    # it creates, another presents 21-25 %, and both ACQUIRE at 99 %. A pooled "50 % never
+    # presented" is the average of those two and is true of no window on the screen. So (i) is
+    # also reported per child, and the pooled figure must never be quoted on its own.
+    BY = {}          # child -> [creates, acquired, presented, [present-commit deltas]]
     n_gen = n_nopres = n_nocommit = n_discarded = 0
     close_hits = narrow = 0
     clockbad = []
@@ -169,10 +176,15 @@ if __name__ == '__main__':
             if 'commit' not in e:
                 n_nocommit += 1
                 continue
+            b = BY.setdefault(e.get('child', '?'), [0, 0, 0, []])
+            b[0] += 1
             if 'acquire' in e:
+                b[1] += 1
                 acq.append(e['acquire'] - e['commit'])
             if 'pres_tick' in e:
                 pres.append(e['pres_tick'] - e['commit'])
+                b[2] += 1
+                b[3].append(e['pres_tick'] - e['commit'])
                 if 'drops' in e:
                     P_DROPS.append(float(e['drops']))
             else:
@@ -231,6 +243,20 @@ if __name__ == '__main__':
           % (beyond, 100.0 * beyond / len(P_PRES) if P_PRES else 0))
     ok_i = tot_i and 100.0 * within / tot_i >= 90.0
     print('  (i) VERDICT: null %s' % ('UPHELD (>= 90 %)' if ok_i else 'NOT upheld (< 90 %)'))
+    if by_child:
+        print('\n  (i) BY CHILD -- the pooled rate above is a mixture, do not quote it alone:')
+        for c, b in sorted(BY.items(), key=lambda kv: -kv[1][0]):
+            if b[0] < 20:
+                continue
+            print('      child %-10s creates %4d  acquired %3.0f %%  PRESENTED %3.0f %%   '
+                  'present-commit median %6.1f ms'
+                  % (c, b[0], 100.0 * b[1] / b[0], 100.0 * b[2] / b[0],
+                     statistics.median(b[3]) if b[3] else float('nan')))
+        small = [b for c, b in BY.items() if b[0] < 20]
+        if small:
+            n = sum(b[0] for b in small)
+            print('      %d short-lived child window(s), %d generations, presented %3.0f %%'
+                  % (len(small), n, 100.0 * sum(b[2] for b in small) / n if n else 0))
 
     # (ii) -- the § 7.2 decision rule, stated before the run and not softened here
     print()

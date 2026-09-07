@@ -2421,6 +2421,36 @@ splits them cleanly; no threshold on the colour itself could have.
   frames carrying BOTH are classified as artwork and the real signal is suppressed. r4/r5 show 6-7
   strip frames where their neighbours show 30-41.
 
+## `presentedTime` is 0 for a drawable that was never displayed, not a timestamp (2026-09-07)
+
+**`addPresentedHandler:` fires when a drawable is RETIRED, whether or not it ever reached the
+display, and `MTLDrawable.presentedTime` is 0 in the not-displayed case.** So a handler that reads
+`pd.presentedTime` unconditionally gets a mixture of real mach timestamps and zeros, and nothing in
+the callback distinguishes them.
+
+Converting one of those zeros to another clock is spectacular rather than subtle, which is the only
+lucky part: `tick + (0 - media) * 1000` put the present instant about **83 hours before the run**,
+and the pooled median came out as **-299,759,705 ms**. A number that wrong gets looked at. A number
+slightly wrong would not have.
+
+**The deeper bug was in the instrument, not the arithmetic.** The stamp build attached a handler to
+each generation's FIRST drawable only, so a zero was read as "this generation never presented" —
+but a LATER drawable of the same generation may well present. Measured: **175 of 234 first drawables
+came back 0**, so this was not a corner case; metric (i) of the S3 plan's S1a would have been
+decided on three quarters bad data.
+
+**Prevention, both halves:**
+- **Treat `presentedTime == 0` as "not presented", never as a time.** Guard the conversion.
+- **If you want "when did this thing first appear", keep attaching handlers until one reports a
+  nonzero time** — and record how many were discarded first (`drops=`), because that count is a
+  real datum about the path, not bookkeeping. Under MRR the handler retains the layer until it
+  fires; check what that retain delays before accepting it (here it retains the LAYER, not the
+  CAContextSwapChain, so the teardown the same run was timing is unaffected).
+
+Caught on the first live row of a 10-row battery rather than after all ten, because the row's trace
+was read as soon as it existed instead of at the end. Related: [[C62]], and the sibling trap in
+GOTCHAS § *A signal verified at the declaration is not a signal*.
+
 ## A capture mode that writes no PNGs lost its trace to a frame-count check (2026-09-06)
 > **Ledger: `SUPPORTED` (C60).** Ten valid video rows kept no `stdout.txt`, and the stall analysis they were wanted for could not be run against them.
 

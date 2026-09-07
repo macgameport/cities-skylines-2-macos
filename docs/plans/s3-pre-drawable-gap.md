@@ -12,18 +12,28 @@ nested winemac `main` = `52789ff`, `core` = `63a0cec`, `aquadran` = `fe281fe`; p
 stage 1 `2a251a4b2510fb84`. Line numbers are against nested `main` and name their file; unqualified
 `:N` is `cocoa_window.m`; `pristine :N` is the winehq 11.16 tarball's copy.
 
-> **🔧 As-built (2026-09-07): PARTIAL — § 6's nine instruments are BUILT; no candidate is.**
+> **🔧 As-built (2026-09-07): PARTIAL — § 6's instruments BUILT and **S1a RUN**; no candidate is.**
+> **S1a result (ledger C62, 2,924 generations over 10 valid rows, clock gate PASS on all 10):
+> (ii) detach follows present in 1,440 of 1,442 successions = 99.9 %, so § 7.2 resolves to BUILD D.
+> (i) the null is REFUTED — 0 of 2,924 present within one refresh of the owner's commit; the
+> displaying child's median is ~53 ms.** Next: S0, then the § 7 decision rule, then D.
 > Commit: this one. Nothing was installed; the daily driver is still stage 1 `2a251a4b2510fb84`
 > and the nested tree is back on `main` `52789ff`, clean. Build order position: step 1 of
 > *instruments → S1a → S0 → § 7 decision rule → D* is complete; **S1a has not been run.**
-> Three modules were built to scratch and left in `/tmp` (nothing installed): the S1a stamp
-> `5bfb1f07ce0d7598`, the `--cyan` reconstruction `e700ac8fdfef0e80`, the `--norelease` mutant
-> `cf200bbf146ff56f`.
-> **Two deviations from the plan, both recorded in § 6's list:** (a) S1a's "one clock" needed a
-> mechanism the plan did not specify — the Cocoa side's `ERR()` carries no `+timestamp`, so the
-> stamp prints `NtGetTickCount()` itself through a hand-declared `ms_abi` prototype, gated by a new
-> `align-trace-video.py --check-clock`; (b) C42's module is **not byte-reproducible** and instrument
-> (4) is a reconstruction, not a reproduction.
+> Modules built, none installed: the S1a stamp+colours build `28d40ea5d38a180c` (at
+> `~/cs2-patch/winemac.so.s1a-stamp-diag`), the `--cyan` reconstruction `e700ac8fdfef0e80`, the
+> `--norelease` mutant `cf200bbf146ff56f`. The first stamp build `5bfb1f07ce0d7598` is superseded
+> and must not be used — see the `presentedTime` note below.
+> **Four deviations from the plan, all recorded in § 6:** (a) S1a's "one clock" needed a mechanism
+> the plan did not specify — the Cocoa side's `ERR()` carries no `+timestamp`, so the stamp prints
+> `NtGetTickCount()` itself through a hand-declared `ms_abi` prototype, gated by a new
+> `align-trace-video.py --check-clock` (PASS on all 10 rows); (b) C42's module is **not
+> byte-reproducible** and instrument (4) is a reconstruction, not a reproduction; (c)
+> **`presentedTime` is 0 for a drawable that was never displayed**, and the first stamp build read
+> that as a timestamp — 175 of 234 FIRST drawables came back 0, so the instrument now attaches
+> handlers until one really presents (GOTCHAS 2026-09-07); (d) S1a ran in **window capture**
+> (`CAPMODE=window`), because its signal is in the trace and the trial video row was voided by a
+> window overlapping Steam. **S1b still needs a video run with a clear screen.**
 > **Verify against:** `scripts/first-drawable-stamp-patch.py` · `scripts/align-trace-video.py` ·
 > `scripts/live-hosts.py` · `scripts/video-blue.swift` · `scripts/diag-colours-patch.py` ·
 > `scripts/drag-session.sh` · `scripts/strip-module-ab.sh` · `scripts/video-gap-battery.sh`.
@@ -423,7 +433,7 @@ before a rate from one run is compared with a rate from another.
 | id | test | pass / what it decides | mutant |
 |---|---|---|---|
 | **S0** | **A's transparency, before anything is built on it.** A-drop (with `--noblue`) on the diag base, cyan content view (`--cyan`), Library page or shape-gated, video, n ≥ 12 | three outcomes: **cyan** full-client episodes at ≥ the blue rate ⇒ the pre-drawable layer is transparent, A/D proceed; **black** full-client episodes at the blue rate ⇒ A-drop is inert ⇒ A becomes deferred `opaque = NO` + no background on the `:847-861` pattern, S0 re-run; **neither** ⇒ re-read the scorer before believing it (C56) | restore `:4339` and build **without** `--noblue` → blue returns (≥ 1 episode in 12) |
-| **S1a** | **Per-generation timing, trace only, one clock** — the stamp build (instrument-only; no candidate code), diag colours on, 10 full-coverage drags (~300 generations each). (i) `first-acquire(N)` and `presentedTime(N)` − owner host-commit(N) (`window.c:1717`). (ii) `RELEASE(N−1)` **and the child's detach block** vs `presentedTime(N)` | (i) **null upheld** if ≥ 90 % of generations present within one refresh (8.3 ms) of the host commit; report the fraction beyond 120 ms (D's cap). (ii) **D closes** if the child's detach follows `presentedTime(N)` in ≥ 95 % of generations, else **D narrows**, with the covered fraction. **The 95 % is fixed here, before the run** | n/a — diagnostic |
+| **S1a** ✅ **RUN 2026-09-07 — see C62** | **Per-generation timing, trace only, one clock** — the stamp build (instrument-only; no candidate code), diag colours on, 10 full-coverage drags (~300 generations each). (i) `first-acquire(N)` and `presentedTime(N)` − owner host-commit(N) (`window.c:1717`). (ii) `RELEASE(N−1)` **and the child's detach block** vs `presentedTime(N)` | (i) **null upheld** if ≥ 90 % of generations present within one refresh (8.3 ms) of the host commit; report the fraction beyond 120 ms (D's cap). (ii) **D closes** if the child's detach follows `presentedTime(N)` in ≥ 95 % of generations, else **D narrows**, with the covered fraction. **The 95 % is fixed here, before the run**. ⇒ **RESULT: (i) null REFUTED — 0 of 2,924 within 8.3 ms; acquire is immediate (median +2 ms) but the PRESENT lags, median ~53 ms on the displaying child. (ii) detach follows present in 1,440 of 1,442 = 99.9 %, median +83.5 ms ⇒ D CLOSES.** ⚠ The present rate is **bimodal by child** — two long-lived children per run, one presenting 92–98 %, the other 19–31 %; never quote the pooled 50 % | n/a — diagnostic |
 | **S1b** | Video per *visible* episode only (expect ~3 in 10 drags), via the aligner + `--rect`; 25 ms floor stated | confirms S1a's tail is what the eye can see; does not decide anything S1a decides | n/a |
 | **S2** | **Baseline rate on the scorer's known-positive build**: `MOD=s1-diag` (C58's `50fdfe79898dac36`), N = 12, video | PASS = ≥ 1 blue episode (the scorer can fire — the C56 rule); the baseline rate is C58 + S2 pooled (24 drags) with an **exact CI** (4/12 alone is ~0.09–0.85/drag and decides nothing) | n/a |
 | **S3** | **D-diag** (`--noblue --cyan`, page knob or shape gate), interleaved with S2's build, **n ≥ 15**; host bound from `live-hosts.py` | **closure**: 0 full-client cyan episodes, exact Poisson p ≤ 0.007 against the pooled rate; **narrows** (if S1a (ii) said so): decide on S1a's per-generation metric with n ≈ 60/arm interleaved with A-alone, video as confirmation only; max live hosts per child ≤ 2 | (a) restore `:4339` on the D-diag source, build **without** `--noblue` → blue returns, red = ≥ 1 episode in 12; (b) restore keep-one → this is S4's A-alone arm, **red observable under closure only** |
@@ -440,8 +450,16 @@ red" is not red. Where a mutant is red-observable only under one S1a outcome, th
 1. **S1a run first** — an instrument-only build is permitted; no candidate build. Both halves
    reported with their distributions. If (i) upholds the null, that is recorded as the mechanism
    of rarity in a ledger row.
+   ✅ **MET 2026-09-07** (C62): instrument-only build `28d40ea5d38a180c`, 10 valid rows, both halves
+   reported with distributions. **The null is REFUTED, so the brevity of the window is NOT the
+   mechanism of rarity** — it is ~6 refreshes at 120 Hz on the displaying child, not one. What
+   the ledger records instead is that something covers a window that long nearly always, and (ii)
+   establishes the child's live predecessor is available to be that cover in 99.9 % of successions.
+   ⚠ The covering surface is **still unattributed** — C42/C61 name other candidates — so this is a
+   narrowing, not an answer.
 2. **Decision rule, fixed before S1a runs:** if the child's detach precedes `presentedTime(N)` in
    more than 5 % of generations, D cannot reach the tail — return to § 2 / C. Otherwise build D.
+   ✅ **RESOLVED 2026-09-07: 0.1 % (2 of 1,442), far inside the 5 % bar ⇒ BUILD D.**
 3. **S0 decided** (transparent / inert-with-fallback / scorer re-read) before S3.
 4. S3 at the closure bar (0 episodes, n ≥ 15, exact p ≤ 0.007) or on the per-generation metric if
    S1a said narrows; S4 shows A-alone's relocation, if any, as a number; every mutant observed red
