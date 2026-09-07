@@ -16,7 +16,12 @@ stage 1 `2a251a4b2510fb84`. Line numbers are against nested `main` and name thei
 > **S1a result (ledger C62, 2,924 generations over 10 valid rows, clock gate PASS on all 10):
 > (ii) detach follows present in 1,440 of 1,442 successions = 99.9 %, so § 7.2 resolves to BUILD D.
 > (i) the null is REFUTED — 0 of 2,924 present within one refresh of the owner's commit; the
-> displaying child's median is ~53 ms.** Next: S0, then the § 7 decision rule, then D.
+> displaying child's median is ~53 ms.**
+> **S0's mechanism question is ANSWERED (ledger C63): A `--drop` is SOUND — an opaque CAMetalLayer
+> with no background that has never presented composites as NOTHING through a `CALayerHost`,
+> cross-process. So A is not inert and the `opaque = NO` fallback is not needed.** Measured with a
+> new direct probe (`scripts/calayerhost-probe.m`) rather than inferred from the drag battery; the
+> plan's in-situ S0 is running as confirmation. Next: the § 7 decision rule, then D.
 > Commit: this one. Nothing was installed; the daily driver is still stage 1 `2a251a4b2510fb84`
 > and the nested tree is back on `main` `52789ff`, clean. Build order position: step 1 of
 > *instruments → S1a → S0 → § 7 decision rule → D* is complete; **S1a has not been run.**
@@ -432,7 +437,7 @@ before a rate from one run is compared with a rate from another.
 
 | id | test | pass / what it decides | mutant |
 |---|---|---|---|
-| **S0** | **A's transparency, before anything is built on it.** A-drop (with `--noblue`) on the diag base, cyan content view (`--cyan`), Library page or shape-gated, video, n ≥ 12 | three outcomes: **cyan** full-client episodes at ≥ the blue rate ⇒ the pre-drawable layer is transparent, A/D proceed; **black** full-client episodes at the blue rate ⇒ A-drop is inert ⇒ A becomes deferred `opaque = NO` + no background on the `:847-861` pattern, S0 re-run; **neither** ⇒ re-read the scorer before believing it (C56) | restore `:4339` and build **without** `--noblue` → blue returns (≥ 1 episode in 12) |
+| **S0** ✅ **MECHANISM ANSWERED 2026-09-07 — see C63; in-situ arm running** | **A's transparency, before anything is built on it.** A-drop (with `--noblue`) on the diag base, cyan content view (`--cyan`), Library page or shape-gated, video, n ≥ 12 | three outcomes: **cyan** full-client episodes at ≥ the blue rate ⇒ the pre-drawable layer is transparent, A/D proceed; **black** full-client episodes at the blue rate ⇒ A-drop is inert ⇒ A becomes deferred `opaque = NO` + no background on the `:847-861` pattern, S0 re-run; **neither** ⇒ re-read the scorer before believing it (C56). ⇒ **RESULT: outcome 1 — the pre-drawable layer IS transparent, so A/D proceed and the `opaque = NO` fallback is not needed.** Reached by a **direct probe** (`scripts/calayerhost-probe.m`, C63) rather than by this row's battery: the question is a compositing MECHANISM, and § 2b says build the artifact and run it. Three arms hosted side by side over one green backdrop, read from ONE capture, in wine's cross-process topology; control `0,0,0` and A-drop `0,249,0` in the same frame, 4 of 4 same-process and 4 of 5 cross-process valid runs. ⚠ The battery arm below is now a **confirmation through the real DXMT pipeline**, not the decider — module `d79c80d951b3a5e9` (A-drop + `--cyan`, `--noblue`), `STEAM_PAGE=steam://open/games`, video, N = 12 | restore `:4339` and build **without** `--noblue` → blue returns (≥ 1 episode in 12) |
 | **S1a** ✅ **RUN 2026-09-07 — see C62** | **Per-generation timing, trace only, one clock** — the stamp build (instrument-only; no candidate code), diag colours on, 10 full-coverage drags (~300 generations each). (i) `first-acquire(N)` and `presentedTime(N)` − owner host-commit(N) (`window.c:1717`). (ii) `RELEASE(N−1)` **and the child's detach block** vs `presentedTime(N)` | (i) **null upheld** if ≥ 90 % of generations present within one refresh (8.3 ms) of the host commit; report the fraction beyond 120 ms (D's cap). (ii) **D closes** if the child's detach follows `presentedTime(N)` in ≥ 95 % of generations, else **D narrows**, with the covered fraction. **The 95 % is fixed here, before the run**. ⇒ **RESULT: (i) null REFUTED — 0 of 2,924 within 8.3 ms; acquire is immediate (median +2 ms) but the PRESENT lags, median ~53 ms on the displaying child. (ii) detach follows present in 1,440 of 1,442 = 99.9 %, median +83.5 ms ⇒ D CLOSES.** ⚠ The present rate is **bimodal by child** — two long-lived children per run, one presenting 92–98 %, the other 19–31 %; never quote the pooled 50 % | n/a — diagnostic |
 | **S1b** | Video per *visible* episode only (expect ~3 in 10 drags), via the aligner + `--rect`; 25 ms floor stated | confirms S1a's tail is what the eye can see; does not decide anything S1a decides | n/a |
 | **S2** | **Baseline rate on the scorer's known-positive build**: `MOD=s1-diag` (C58's `50fdfe79898dac36`), N = 12, video | PASS = ≥ 1 blue episode (the scorer can fire — the C56 rule); the baseline rate is C58 + S2 pooled (24 drags) with an **exact CI** (4/12 alone is ~0.09–0.85/drag and decides nothing) | n/a |
@@ -461,6 +466,10 @@ red" is not red. Where a mutant is red-observable only under one S1a outcome, th
    more than 5 % of generations, D cannot reach the tail — return to § 2 / C. Otherwise build D.
    ✅ **RESOLVED 2026-09-07: 0.1 % (2 of 1,442), far inside the 5 % bar ⇒ BUILD D.**
 3. **S0 decided** (transparent / inert-with-fallback / scorer re-read) before S3.
+   ✅ **MET 2026-09-07 (C63): TRANSPARENT.** A's form is fixed as `--drop`; `--defer` is not needed
+   and is deliberately left unimplemented in `scripts/candidate-a-patch.py` so nothing is built on
+   a branch S0 closed. The in-situ battery arm is confirmation, and S3 should not start until it
+   agrees.
 4. S3 at the closure bar (0 episodes, n ≥ 15, exact p ≤ 0.007) or on the per-generation metric if
    S1a said narrows; S4 shows A-alone's relocation, if any, as a number; every mutant observed red
    then green, with the S1a-conditional ones marked.
