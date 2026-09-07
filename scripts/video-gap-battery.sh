@@ -78,7 +78,7 @@ for r in $(seq 1 "$N"); do
 done
 
 echo "########## tally $(date '+%F %T')"
-python3 - "$OUT" "$TAG" "$N" <<'PY'
+MOD="$MOD" python3 - "$OUT" "$TAG" "$N" <<'PY'
 import sys, os, re
 out, tag, n = sys.argv[1], sys.argv[2], int(sys.argv[3])
 allrows, cadence, voids = {}, [], []

@@ -251,9 +251,10 @@ import sys, re, os
 d = sys.argv[1]
 rows = []
 for ln in open(os.path.join(d, 'video-frames.txt')):
-    m = re.match(r'f(\d+) t=([0-9.]+) (\d+)x(\d+) blue=([0-9.]+) blueloose=([0-9.]+) green=([0-9.]+) magenta=([0-9.]+)', ln)
+    m = re.match(r'f(\d+) t=([0-9.]+) (\d+)x(\d+) blue=([0-9.]+) blueloose=([0-9.]+) green=([0-9.]+) magenta=([0-9.]+)(?: cyan=([0-9.]+))?', ln)
     if m:
-        rows.append((float(m.group(2)), float(m.group(5)), float(m.group(6)), float(m.group(7)), float(m.group(8))))
+        rows.append((float(m.group(2)), float(m.group(5)), float(m.group(6)), float(m.group(7)),
+                     float(m.group(8)), float(m.group(9) or 0)))
 if len(rows) < 2:
     print('  VOID: %d video frames -- nothing to time' % len(rows)); sys.exit(1)
 gaps = sorted((rows[i+1][0] - rows[i][0]) * 1000 for i in range(len(rows) - 1))
@@ -263,7 +264,7 @@ print('  video: %d frames over %.1f s - inter-frame gap median %.1f ms, p90 %.1f
       % (len(rows), span, med, gaps[int(0.9*len(gaps))], gaps[-1]))
 print('  -> the resolution limit on every duration below is that gap: %.1f ms' % med)
 for name, idx in (('blue (S3, child layer pre-drawable)', 1), ('green (S1, host larger than content)', 3),
-                  ('magenta (S2, deferred create)', 4)):
+                  ('magenta (S2, deferred create)', 4), ('cyan (the content view own layer)', 5)):
     hits = [i for i, r in enumerate(rows) if r[idx] > 0]
     if not hits:
         print('  %-38s absent' % name); continue

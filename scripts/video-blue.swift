@@ -53,7 +53,7 @@ while let sb = out.copyNextSampleBuffer() {
     let w = CVPixelBufferGetWidth(pb), h = CVPixelBufferGetHeight(pb)
     let stride = CVPixelBufferGetBytesPerRow(pb)
     let base = CVPixelBufferGetBaseAddress(pb)!.assumingMemoryBound(to: UInt8.self)
-    var blue = 0, blueLoose = 0, green = 0, magenta = 0
+    var blue = 0, blueLoose = 0, green = 0, magenta = 0, cyan = 0
     for y in 0..<h {
         let row = base + y * stride
         for x in 0..<w {
@@ -63,6 +63,7 @@ while let sb = out.copyNextSampleBuffer() {
             if b >= 140 && r <= 100 && g <= 100 { blueLoose += 1 }
             if g >= 200 && r <= 60 && b <= 60 { green += 1 }
             if r >= 200 && b >= 200 && g <= 60 { magenta += 1 }
+            if g >= 200 && b >= 200 && r <= 60 { cyan += 1 }   // C42's content-view layer
         }
     }
     CVPixelBufferUnlockBaseAddress(pb, .readOnly)
@@ -83,6 +84,7 @@ while let sb = out.copyNextSampleBuffer() {
                 switch want {
                 case "green":   hit = g >= 200 && r <= 60 && b <= 60
                 case "blue":    hit = b >= 200 && r <= 60 && g <= 60
+                case "cyan":    hit = g >= 200 && b >= 200 && r <= 60
                 default:        hit = r >= 200 && b >= 200 && g <= 60
                 }
                 if hit {
@@ -104,9 +106,9 @@ while let sb = out.copyNextSampleBuffer() {
         continue
     }
     let tot = Double(w * h) / 100.0
-    print(String(format: "f%d t=%.4f %dx%d blue=%.4f blueloose=%.4f green=%.4f magenta=%.4f bluepx=%d greenpx=%d",
+    print(String(format: "f%d t=%.4f %dx%d blue=%.4f blueloose=%.4f green=%.4f magenta=%.4f cyan=%.4f bluepx=%d greenpx=%d cyanpx=%d",
                  n, t, w, h, Double(blue)/tot, Double(blueLoose)/tot, Double(green)/tot, Double(magenta)/tot,
-                 blue, green))
+                 Double(cyan)/tot, blue, green, cyan))
     n += 1
 }
 if reader.status == .failed {
