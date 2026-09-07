@@ -49,7 +49,13 @@ going wrong and not the compositor.
 import os, re, sys
 
 TSLINE = re.compile(r'^(\d+)\.(\d{3}):[0-9a-f]+:')
-STAMP = re.compile(r'^err:\S*:?stamp (\w+) ctx=(\d+) tick=(\d+) media=([0-9.]+)(?: pres=([0-9.]+))?')
+# ⚠ `^err:\S*:` does NOT work here, and it fails SILENTLY -- as "no stamp lines, not a stamp
+# build", which reads like a wrong module rather than a wrong regex. ERR() prefixes the message
+# with `__func__`, and for an Objective-C method that is `-[WineStampMetalLayer nextDrawable]`,
+# which contains a SPACE. Measured on the first live row, 2026-09-07:
+#   err:-[WineStampMetalLayer nextDrawable]_block_invoke:stamp presented ctx=... tick=... pres=...
+# So match up to `stamp ` non-greedily instead of assuming the prefix is one token.
+STAMP = re.compile(r'^err:.*?:stamp (\w+) ctx=(\d+) tick=(\d+) media=([0-9.]+)(?: pres=([0-9.]+))?')
 F002 = re.compile(r'macdrv_SysCommand .*, f002, ')
 FRAME = re.compile(r'^f(\d+) t=([0-9.]+) (\d+)x(\d+) (.*)$')
 COLOUR = re.compile(r'(\w+)=([0-9.]+)')

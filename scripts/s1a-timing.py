@@ -51,7 +51,13 @@ RETIRE = re.compile(TS + r'trace:macdrv:retire_superseded_layers retiring supers
                          r'ctx (\d+) for child (0x[0-9a-f]+) \(replaced by (\d+)\)')
 RELEASE = re.compile(TS + r'trace:macdrv:macdrv_WindowMessage WM_MACDRV_RELEASE_REMOTE_LAYER '
                           r'context_id (\d+)')
-STAMP = re.compile(r'^err:\S*:?stamp (\w+) ctx=(\d+) tick=(\d+) media=([0-9.]+)(?: pres=([0-9.]+))?')
+# ⚠ `^err:\S*:` does NOT work here, and it fails SILENTLY -- as "no stamp lines, not a stamp
+# build", which reads like a wrong module rather than a wrong regex. ERR() prefixes the message
+# with `__func__`, and for an Objective-C method that is `-[WineStampMetalLayer nextDrawable]`,
+# which contains a SPACE. Measured on the first live row, 2026-09-07:
+#   err:-[WineStampMetalLayer nextDrawable]_block_invoke:stamp presented ctx=... tick=... pres=...
+# So match up to `stamp ` non-greedily instead of assuming the prefix is one token.
+STAMP = re.compile(r'^err:.*?:stamp (\w+) ctx=(\d+) tick=(\d+) media=([0-9.]+)(?: pres=([0-9.]+))?')
 ANYTS = re.compile(TS)
 
 
