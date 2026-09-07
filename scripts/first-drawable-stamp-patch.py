@@ -1,8 +1,16 @@
 #!/usr/bin/env python3
 """first-drawable-stamp-patch.py -- an INSTRUMENT-ONLY build that times a hosted swapchain's life.
 
-    bash scripts/build-winemac.sh <out.so> scripts/first-drawable-stamp-patch.py
-    (or directly: python3 scripts/first-drawable-stamp-patch.py <cocoa_window.m>)
+    bash scripts/build-winemac.sh <out.so> scripts/first-drawable-stamp-patch.py [--colours [...]]
+    (or directly: python3 scripts/first-drawable-stamp-patch.py <cocoa_window.m> [--colours [...]])
+
+`--colours` also applies `diag-colours-patch.py` to the same file, and passes anything after it
+straight through (`--colours --noblue`, `--colours --cyan`). S1a wants both in ONE module: the
+timing is trace-only and needs no colour, but the same runs are S1b's video source and a build
+that paints nothing gives S1b nothing to see. The two patchers touch disjoint anchors -- the
+colours patch the backgrounds, this one patches the layer class and the lifecycle -- so this
+delegates rather than duplicating, which is also what keeps `build-winemac.sh`'s one-patcher
+contract intact.
 
 ⚠ `main` only, and it patches cocoa_window.m only -- the same two constraints, for the same
 reasons, as `diag-colours-patch.py`. Read that file's header before this one.
@@ -62,9 +70,21 @@ WHAT IT EMITS (all via ERR, so `WINEDEBUG=+err` is enough -- the drag harness al
 only comparable to each other, which is why every line carries both clocks rather than one.
 (macgameport, 2026-09-07)
 """
-import sys, io
+import os, subprocess, sys, io
 
 p = sys.argv[1]
+
+# --colours first, so a zero-match in EITHER patcher fails the build before anything is compiled.
+# Its exit status is read directly and never through a pipe -- the same trap build-winemac.sh
+# documents, where a `python3 patch.py | sed` reported the pipe's status and hid a "FAIL: 0 matches".
+if '--colours' in sys.argv:
+    i = sys.argv.index('--colours')
+    rc = subprocess.run([sys.executable,
+                         os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                      'diag-colours-patch.py'), p] + sys.argv[i + 1:]).returncode
+    if rc != 0:
+        sys.exit("FAIL: diag-colours-patch.py exited %d" % rc)
+
 s = io.open(p, encoding='utf-8').read()
 
 
