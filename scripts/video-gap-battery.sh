@@ -40,12 +40,19 @@ if python3 -c "import subprocess,sys; sys.exit(0 if 'CGSSessionScreenIsLocked' i
   echo "  clean run. Unlock the screen and start this again — it needs no hands after that."
   exit 3
 fi
-f="$HOME/cs2-patch/winemac.so.s1-diag"
+# MOD names the module under test. Default is the stage-1 diag build (green S1 / blue S3 /
+# magenta S2). `MOD=t0b` is C42's build -- the same colours PLUS cyan on the content view's own
+# layer, and with that view's GDI blit suppressed -- the only module that can say whether an
+# exposed frame is the content view or something below it. C42 could only run it under CHURN with
+# the frame probe; a live drag reaches the SC_SIZE path a churn cannot, and video catches the
+# single-frame events the probe misses.
+MOD="${MOD:-s1-diag}"
+f="$HOME/cs2-patch/winemac.so.$MOD"
 [ -f "$f" ] || { echo "missing $f"; exit 2; }
-echo "  s1diag  $(shasum -a 256 "$f" | cut -c1-16)"
+echo "  module $MOD  $(shasum -a 256 "$f" | cut -c1-16)"
 
 for r in $(seq 1 "$N"); do
-  id="r${r}-s1diag"; rd="$OUT/$TAG-$id"
+  id="r${r}-$MOD"; rd="$OUT/$TAG-$id"
   # Same two reasons a row is worth waiting for rather than spending (see strip-module-ab.sh): a
   # refused row costs 4 s against a real row's 3.5 min, so a transient outage drains the queue.
   for w in $(seq 1 60); do
@@ -62,14 +69,14 @@ for r in $(seq 1 "$N"); do
     sleep 30
   done
   echo "=== $id  $(date '+%T')"
-  DRAG=synth TRACE=+err,+macdrv,+cursor,+timestamp DRAG_OUT="$rd" \
-    bash "$REPO/scripts/drag-session.sh" t0 > "$OUT/$id.log" 2>&1
+  DRAG=synth MODULE="$f" TRACE=+err,+macdrv,+cursor,+timestamp DRAG_OUT="$rd" \
+    bash "$REPO/scripts/drag-session.sh" s1 > "$OUT/$id.log" 2>&1
   rc=$?
   if [ "$rc" != 0 ] && grep -qE "VOID:.*(network|FATAL)" "$OUT/$id.log" 2>/dev/null; then
     echo "    exit $rc — precondition VOID, retrying this row once after 60 s"
     sleep 60
-    DRAG=synth TRACE=+err,+macdrv,+cursor,+timestamp DRAG_OUT="$rd" \
-      bash "$REPO/scripts/drag-session.sh" t0 > "$OUT/$id.log" 2>&1
+    DRAG=synth MODULE="$f" TRACE=+err,+macdrv,+cursor,+timestamp DRAG_OUT="$rd" \
+      bash "$REPO/scripts/drag-session.sh" s1 > "$OUT/$id.log" 2>&1
     rc=$?
   fi
   echo "    exit $rc"
@@ -83,7 +90,7 @@ import sys, os, re
 out, tag, n = sys.argv[1], sys.argv[2], int(sys.argv[3])
 allrows, cadence, voids = {}, [], []
 for r in range(1, n + 1):
-    d = os.path.join(out, f"{tag}-r{r}-s1diag", "frames")
+    d = os.path.join(out, f"{tag}-r{r}-" + os.environ.get("MOD", "s1-diag"), "frames")
     fp = os.path.join(d, "video-frames.txt")
     st = os.path.join(d, "capture-state.txt")
     if not os.path.exists(fp):
@@ -95,14 +102,15 @@ for r in range(1, n + 1):
             voids.append(f"r{r}(overlap {m.group(1)})"); continue
     rows = []
     for ln in open(fp):
-        m = re.match(r'f(\d+) t=([0-9.]+) (\d+)x(\d+) blue=([0-9.]+) blueloose=([0-9.]+) green=([0-9.]+) magenta=([0-9.]+)', ln)
+        m = re.match(r'f(\d+) t=([0-9.]+) (\d+)x(\d+) blue=([0-9.]+) blueloose=([0-9.]+) green=([0-9.]+) magenta=([0-9.]+)(?: cyan=([0-9.]+))?', ln)
         if m:
-            rows.append((float(m.group(2)), float(m.group(5)), float(m.group(7)), float(m.group(8))))
+            rows.append((float(m.group(2)), float(m.group(5)), float(m.group(7)), float(m.group(8)),
+                         float(m.group(9) or 0)))
     if len(rows) < 2:
         voids.append(f"r{r}(no frames)"); continue
     gaps = sorted((rows[i+1][0]-rows[i][0])*1000 for i in range(len(rows)-1))
     cadence.append(gaps[len(gaps)//2])
-    for name, idx in (('blue', 1), ('green', 2), ('magenta', 3)):
+    for name, idx in (('blue', 1), ('green', 2), ('magenta', 3), ('cyan', 4)):
         hits = [i for i, x in enumerate(rows) if x[idx] > 0]
         if not hits: continue
         runs, cur = [], [hits[0]]
@@ -119,7 +127,7 @@ if cadence:
           % (len(cadence), cadence[len(cadence)//2], cadence[0], cadence[-1]))
     print("  -> every duration below is resolved to about that; a median near 113 ms would mean")
     print("     this battery measured nothing the frame probe did not already.")
-for name in ('blue', 'green', 'magenta'):
+for name in ('blue', 'green', 'magenta', 'cyan'):
     v = sorted(allrows.get(name, []))
     if not v:
         print("  %-8s no episodes in %d runs" % (name, len(cadence))); continue
