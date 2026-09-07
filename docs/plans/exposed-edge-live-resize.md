@@ -138,6 +138,35 @@ fixed — see § Review log).** Tracker:
 > `~/cs2-patch/stage1-tests/`, and issue
 > [#9](https://github.com/macgameport/cities-skylines-2-macos/issues/9) for the two criteria that
 > do not bind.
+>
+> **2026-09-07 — SUPERSEDED as a live plan. Stage 2 is RULED OUT; the remaining work is tracked in
+> issues, not here.** Everything below this line was written before the drag was ever sampled whole.
+>
+> - **Every drag row through C52 sampled the FIRST QUARTER of a 35.4 s drag** (`FRAMES=60` covers
+>   8–9 s) — ledger **C53**. Re-measured at `FRAMES=300`: **stage 1 beats baseline with complete
+>   separation** (Mann-Whitney p = 0.0079) while **stage 2 is WORSE than stage 1** (p = 0.0317).
+>   **C54: stage 2 is not promoted, and the case for promoting it is gone** — it loses to the
+>   installed driver on the strip and does not avoid the black frame.
+> - **The one-frame black full-client host is architectural**, not a stage-2 defect: it occurs on
+>   the pre-stage-1 baseline (**C55**), its mechanism is **S3 — the child's own layer before its
+>   first drawable** (**C56**, blue on the diag build, so a real display gap and not a capture
+>   artifact), and it is a **single frame, ≤ 25 ms, covering ~half the client area** (**C58**,
+>   measured with the new `CAPTURE=video` mode at a 25 ms cadence). Tracked in issue #12; the fix
+>   design is issue #13.
+> - **The S3 pre-drawable window TILES the whole drag** (2331 intervals, median 127 ms, 35.9 s of a
+>   35.4 s drag) while the artifact is 1 frame in ~4,500 — so **there is nothing to shorten**, and
+>   #13's question is what supplies the covering and why it misses one commit.
+> - **The strip's own mechanism, from both sides.** The host trails a growing window by 50–100 px
+>   and in 4 of 56 runs does not track a whole grow segment (**C57**, 650 px uncovered for 7.2 s —
+>   including twice on the installed daily driver); during a stall **the CHILD stops publishing
+>   swapchains while the host keeps running normally** (**C60**); and under a live drag the exposed
+>   column is **the content view's own layer**, an integer number of drag steps wide (**C61**,
+>   `PARTIAL`). Tracked in issue #7.
+> - **Still owed, unchanged:** T3 (a hand drag — now a much narrower question: a *rare single-frame
+>   flash*, not a lingering region, at 0.3 per drag) and T11 (popups). Stage 3 stays declined.
+>
+> ⚠ **Do not build stage 2 or stage 3 from this document.** The stage-1 module `2a251a4b2510fb84`
+> is the installed daily driver and is the only part of this plan that shipped.
 
 **Scope.** One user-visible artifact: while a Steam window is being dragged larger, the newly
 exposed strip along the growing edge is solid black until the hosted browser catches up. Not in
