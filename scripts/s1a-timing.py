@@ -17,8 +17,13 @@ A "generation" is one CAContextSwapChain -- one context id -- for one child. Per
   owner commit  window.c:1717  WM_MACDRV_CREATE_REMOTE_LAYER child C context_id N   (wine tick)
   child create  stamp create   ctx=N                                                (wine tick)
   first acquire stamp acquire  ctx=N       the first nextDrawable of that generation
-  present       stamp presented ctx=N pres=P   P is on the MACH clock, so it is converted with
-                the (tick, media) pair printed in the SAME statement: pres_tick = tick+(P-media)*1000
+  present       stamp presented ctx=N pres=P drops=D   the generation's FIRST drawable that really
+                reached the display. P is on the MACH clock, converted with the (tick, media) pair
+                printed in the SAME statement: pres_tick = tick+(P-media)*1000. D is how many
+                drawables were discarded first -- `presentedTime` is 0 for those, and the
+                instrument keeps attaching handlers until one presents, because 175 of 234 FIRST
+                drawables came back 0 on the trial row and reading those as "never presented"
+                would have decided (i) on three quarters bad data.
   release post  stamp relpost  ctx=N       the child asks the owner to drop it
   detach        stamp detach   ctx=N       the child's async teardown actually runs (§ 2.5 (a))
 
@@ -57,7 +62,8 @@ RELEASE = re.compile(TS + r'trace:macdrv:macdrv_WindowMessage WM_MACDRV_RELEASE_
 # which contains a SPACE. Measured on the first live row, 2026-09-07:
 #   err:-[WineStampMetalLayer nextDrawable]_block_invoke:stamp presented ctx=... tick=... pres=...
 # So match up to `stamp ` non-greedily instead of assuming the prefix is one token.
-STAMP = re.compile(r'^err:.*?:stamp (\w+) ctx=(\d+) tick=(\d+) media=([0-9.]+)(?: pres=([0-9.]+))?')
+STAMP = re.compile(r'^err:.*?:stamp (\w+) ctx=(\d+) tick=(\d+) media=([0-9.]+)'
+                   r'(?: pres=([0-9.]+))?(?: drops=(\d+))?')
 ANYTS = re.compile(TS)
 
 
@@ -93,10 +99,22 @@ def parse(path):
         if m:
             kind, ctx, tick, media = m.group(1), m.group(2), int(m.group(3)), float(m.group(4))
             e = g(ctx)
+            if kind in e:
+                continue          # first wins: the presented handler's flag is racy by design
             e[kind] = tick
+            if m.group(6) is not None:
+                e['drops'] = int(m.group(6))
             if kind == 'presented' and m.group(5):
-                # both clocks sampled in one statement, so this conversion is exact per line
-                e['pres_tick'] = tick + (float(m.group(5)) - media) * 1000.0
+                # ⚠ presentedTime is 0 when the drawable was NOT presented. addPresentedHandler:
+                # fires on the drawable being retired either way, so a 0 here means "acquired,
+                # then discarded without ever reaching the display" -- not "presented at time 0".
+                # Measured on the first live row: 175 of 234 handlers reported 0. Converting one
+                # of those produces a present instant ~83 hours before the run, which is exactly
+                # what the first version of this script reported as a median.
+                pres = float(m.group(5))
+                if pres > 0:
+                    # both clocks sampled in one statement, so this conversion is exact per line
+                    e['pres_tick'] = tick + (pres - media) * 1000.0
     return gens, succ, lo, hi
 
 
@@ -123,8 +141,8 @@ if __name__ == '__main__':
     if not args:
         sys.exit(__doc__.split('\n\n')[0])
 
-    P_ACQ, P_PRES, P_REL, P_DET = [], [], [], []
-    n_gen = n_nopres = n_nocommit = 0
+    P_ACQ, P_PRES, P_REL, P_DET, P_DROPS = [], [], [], [], []
+    n_gen = n_nopres = n_nocommit = n_discarded = 0
     close_hits = narrow = 0
     clockbad = []
 
@@ -155,8 +173,12 @@ if __name__ == '__main__':
                 acq.append(e['acquire'] - e['commit'])
             if 'pres_tick' in e:
                 pres.append(e['pres_tick'] - e['commit'])
+                if 'drops' in e:
+                    P_DROPS.append(float(e['drops']))
             else:
                 n_nopres += 1
+                if 'acquire' in e:
+                    n_discarded += 1
         # (ii) the succession half
         for old, new, child in succ:
             o, n = gens.get(old, {}), gens.get(new, {})
@@ -198,8 +220,13 @@ if __name__ == '__main__':
     print(describe('POOLED (i) acquire - owner commit', P_ACQ))
     print('  (i) %d of %d generations present within one refresh (8.3 ms) of the commit = %.1f %%'
           % (within, tot_i, 100.0 * within / tot_i if tot_i else 0))
-    print('      %d never presented at all (%.1f %% of the denominator, counted against the null)'
+    print('      %d never presented (%.1f %% of the denominator, counted against the null) --'
           % (n_nopres, 100.0 * n_nopres / tot_i if tot_i else 0))
+    print('        of which %d ACQUIRED at least one drawable and none of them ever reached the'
+          % n_discarded)
+    print('        display, and %d never acquired one at all' % (n_nopres - n_discarded))
+    if P_DROPS:
+        print(describe('      drawables discarded before the first present', P_DROPS, ''))
     print('      %d beyond 120 ms, D\'s own cap (%.1f %% of those that did present)'
           % (beyond, 100.0 * beyond / len(P_PRES) if P_PRES else 0))
     ok_i = tot_i and 100.0 * within / tot_i >= 90.0

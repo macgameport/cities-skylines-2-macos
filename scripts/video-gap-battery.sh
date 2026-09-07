@@ -33,16 +33,28 @@ OUT="${VID_OUT:-$HOME/cs2-patch/video-gap/$(date +%Y%m%d-%H%M%S)}"
 TAG="$(basename "$OUT")"
 mkdir -p "$OUT"
 export SYNTH_PX=25 SYNTH_MS=120 SYNTH_REPEAT=3 SYNTH_PAUSE=3 PRESIZE=1000x650 SYNTH_DX=650 SYNTH_DY=350
-export CAPTURE=video VIDSEC="${VIDSEC:-45}"
+# CAPMODE=window runs the same battery -- same guards, same retries, same tally -- off frame
+# captures of the WINDOW instead of a recording of the composited display. It exists for a run
+# whose signal is in the TRACE rather than in the pixels (the S3 plan's S1a): window capture is
+# immune to a window sitting in front of Steam, needs no unlocked session, and writes a fraction
+# of the bytes. ⚠ It cannot time anything: frames land every ~113 ms, which is the sampling limit
+# this whole battery was written to escape. Use it only when the durations come from elsewhere.
+CAPMODE="${CAPMODE:-video}"
+export CAPTURE="$CAPMODE" VIDSEC="${VIDSEC:-45}"
+[ "$CAPMODE" = window ] && export FRAMES="${FRAMES:-300}"
 
 echo "########## video gap battery  $(date '+%F %T')  run dir $OUT"
-echo "  N=$N · role t0 (stage 1 + diag colours) · recording ${VIDSEC}s per drag · 25 px / 120 ms"
+if [ "$CAPMODE" = video ]; then
+  echo "  N=$N · recording ${VIDSEC}s per drag · 25 px / 120 ms"
+else
+  echo "  N=$N · WINDOW capture, ${FRAMES} frames per drag · 25 px / 120 ms · durations NOT measurable"
+fi
 # ⚠ THIS BATTERY NEEDS THE SESSION UNLOCKED, and that is the one precondition it cannot wait out.
 # `screencapture -v` composites the display, so a locked session records the lock screen -- and a
 # lock-screen recording scores as a flawless run (measured 2026-09-06: 1073 frames, 60 fps, no
 # diagnostic colour). The window-capture modes are unaffected and run locked quite happily; only
 # this one cares. Refuse up front rather than spending twelve rows finding out.
-if python3 -c "import subprocess,sys; sys.exit(0 if 'CGSSessionScreenIsLocked' in subprocess.run(['ioreg','-n','Root','-d1','-a'],capture_output=True,text=True).stdout else 1)"; then
+if [ "$CAPMODE" = video ] && python3 -c "import subprocess,sys; sys.exit(0 if 'CGSSessionScreenIsLocked' in subprocess.run(['ioreg','-n','Root','-d1','-a'],capture_output=True,text=True).stdout else 1)"; then
   echo "  REFUSED: the session is LOCKED. Every row would record the lock screen and report a"
   echo "  clean run. Unlock the screen and start this again — it needs no hands after that."
   exit 3

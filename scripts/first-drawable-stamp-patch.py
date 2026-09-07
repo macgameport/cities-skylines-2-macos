@@ -62,7 +62,9 @@ WHAT IT EMITS (all via ERR, so `WINEDEBUG=+err` is enough -- the drag harness al
 
     stamp create    ctx=%u tick=%u media=%.6f          the child's own create, pairs with :1717
     stamp acquire   ctx=%u tick=%u media=%.6f          FIRST nextDrawable for this generation
-    stamp presented ctx=%u tick=%u media=%.6f pres=%.6f  that drawable reached the display
+    stamp presented ctx=%u tick=%u media=%.6f pres=%.6f drops=%d
+                                   the generation's FIRST drawable that really reached the
+                                   display; drops = how many were discarded before it
     stamp relpost   ctx=%u tick=%u media=%.6f          the child POSTS release, pairs with :1770
     stamp detach    ctx=%u tick=%u media=%.6f          the child's async teardown actually runs
 
@@ -118,14 +120,31 @@ extern unsigned int __attribute__((ms_abi)) NtGetTickCount(void);
  * WineMetalLayer hook (dxmt_objc.m:38-72), which fires only when the layer's delegate is a
  * WineMetalView and this layer never has one.
  *
- * Only the first acquire per generation is stamped: there are ~300 generations in a drag and
+ * Only the first ACQUIRE per generation is stamped: there are ~300 generations in a drag and
  * every one of them acquires repeatedly, so stamping all of them would bury the signal and slow
- * the very path being timed. `sawFirst` needs no lock -- one render thread acquires a given
- * layer, and a duplicate stamp would be visible in the output rather than silent. */
+ * the very path being timed.
+ *
+ * ⚠ PRESENT is different, and the first version of this instrument got it wrong. It stamped the
+ * presentedTime of the FIRST drawable only -- but `presentedTime` is **0 when the drawable was
+ * never presented** (dropped or discarded; addPresentedHandler: fires on retire either way), and
+ * measured on the first live row **175 of 234 first drawables came back 0**. Reading that as "this
+ * generation never presented" is wrong whenever a LATER drawable of the same generation did, and
+ * at 75 % it is not a corner case -- it would have decided (i) on three quarters bad data. So a
+ * handler is attached to every drawable until one reports a nonzero presentedTime, and the stamp
+ * carries `drops=` -- how many were discarded first, which is a datum in its own right.
+ *
+ * ⚠ The handler references ivars, so under MRR it RETAINS the layer until it fires. That is
+ * transient (a handler runs on present or on drop, within a frame or two) and it retains the
+ * LAYER, not the CAContextSwapChain -- so the swapchain's dealloc, where `detach` is stamped, is
+ * not delayed and metric (ii) is unaffected. The flag is read and written from the render thread
+ * and a Metal-internal thread without a lock; the worst case is a duplicate `presented` line,
+ * which is visible in the output, and the analysis keeps the FIRST per context id. */
 @interface WineStampMetalLayer : CAMetalLayer
 {
     unsigned int stampContextId;
     BOOL sawFirst;
+    BOOL presentedStamped;
+    int drops;
 }
 - (void) setStampContextId:(unsigned int)cid;
 @end
@@ -141,18 +160,29 @@ extern unsigned int __attribute__((ms_abi)) NtGetTickCount(void);
 - (id<CAMetalDrawable>) nextDrawable
 {
     id<CAMetalDrawable> d = [super nextDrawable];
+    unsigned int cid = stampContextId;
 
-    if (d && !sawFirst)
+    if (!d) return d;
+
+    if (!sawFirst)
     {
-        unsigned int cid = stampContextId;
-
         sawFirst = YES;
         STAMP("acquire", cid);
-        /* presentedTime is only meaningful once the handler fires; addPresentedHandler: is
-         * public on MTLDrawable (macOS 10.15.4+). The block runs on a Metal-internal thread. */
+    }
+    /* Keep attaching until one drawable actually reaches the display. addPresentedHandler: is
+     * public on MTLDrawable (macOS 10.15.4+); the block runs on a Metal-internal thread. */
+    if (!presentedStamped)
+    {
         [d addPresentedHandler:^(id<MTLDrawable> pd) {
-            ERR(@"stamp presented ctx=%u tick=%u media=%.6f pres=%.6f\\n",
-                cid, NtGetTickCount(), CACurrentMediaTime(), pd.presentedTime);
+            if (presentedStamped) return;
+            if (pd.presentedTime > 0)
+            {
+                presentedStamped = YES;
+                ERR(@"stamp presented ctx=%u tick=%u media=%.6f pres=%.6f drops=%d\\n",
+                    cid, NtGetTickCount(), CACurrentMediaTime(), pd.presentedTime, drops);
+            }
+            else
+                drops++;
         }];
     }
     return d;
