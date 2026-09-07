@@ -1,15 +1,15 @@
 # The S3 pre-drawable gap — the child's own layer before its first drawable
 
-**Status: NOT YET CHECKED — run `check it` before any build.** Fable pre-review 2026-09-07
-(inline, one model, not a check-it pass — see § Review log): the first draft's central claim was
-wrong on z-order and its ownership claim was wrong on provenance; both are corrected below.
-Tracker: [issue #13](https://github.com/macgameport/cities-skylines-2-macos/issues/13); the
-observation it splits from is [#12](https://github.com/macgameport/cities-skylines-2-macos/issues/12);
-umbrella [#1](https://github.com/macgameport/cities-skylines-2-macos/issues/1). Baseline: cs2
-`43227c7`; nested winemac `main` = `52789ff`, `core` = `63a0cec`, `aquadran` = `fe281fe`; pristine
-winehq tree `~/cs2-patch/build-1116/wine-11.16/`; installed daily driver = stage 1
-`2a251a4b2510fb84`. Line numbers are against nested `main` and name their file; unqualified `:N` is
-`cocoa_window.m`; `pristine :N` is the winehq 11.16 tarball's copy.
+**Status: Triple-checked 2026-09-07 — needs-rework (pass 1: the test plan); reworked in place the
+same day, fitted re-check pending — see § Review corrections and § Review log. Do not build until
+the re-check bumps this line.** Tracker:
+[issue #13](https://github.com/macgameport/cities-skylines-2-macos/issues/13); the observation it
+splits from is [#12](https://github.com/macgameport/cities-skylines-2-macos/issues/12); umbrella
+[#1](https://github.com/macgameport/cities-skylines-2-macos/issues/1). Baseline: cs2 `3515efc`;
+nested winemac `main` = `52789ff`, `core` = `63a0cec`, `aquadran` = `fe281fe`; pristine winehq tree
+`~/cs2-patch/build-1116/wine-11.16/`; DXMT fork `~/cs2-patch/dxmt-fork/`; installed daily driver =
+stage 1 `2a251a4b2510fb84`. Line numbers are against nested `main` and name their file; unqualified
+`:N` is `cocoa_window.m`; `pristine :N` is the winehq 11.16 tarball's copy.
 
 > ⚠ **This document REDIRECTS issue #13's stated direction.** #13 proposed deferring
 > `retire_superseded_layers`. § 2.3 shows that cannot work on its own — the new generation sits
@@ -22,20 +22,22 @@ winehq tree `~/cs2-patch/build-1116/wine-11.16/`; installed daily driver = stage
 |---|---|
 | **C55** | The one-frame black full-client host occurs on the pre-stage-1 baseline `cd79fc463795939f`. **Architectural — neither stage introduced it.** |
 | **C56** | Its surface is **S3, the child's own offscreen layer before its first drawable** (`Tblue=100 %` on the diag build). Blue is a positively rendered colour, so it is a **real display gap, not a capture artifact**. C56 also establishes that the remote layer's *background* composites through the host before any drawable exists. |
-| **C58** | It is a **single frame, ≤ 25 ms**, covering ~half the recorded client area. 4 episodes in 12 valid runs — **~0.3 per drag**. |
+| **C58** | **A single captured frame** in every episode — 4 episodes in 12 valid runs, covering 13–53 % of the recorded area. ⚠ Read with its sampler: `screencapture -v` at a 16.7–25 ms cadence on the **120 Hz** main display (`system_profiler`: 1920×1080 @ 120 Hz; the ledger's "1–2 frames at 60 Hz" is corrected 2026-09-07). One sample bounds the flash **below two intervals (< 50 ms, 1–5 refreshes)**, not ≤ 25 ms, and a periodic sampler catches a one-refresh (8.3 ms) flash with p ≈ ⅓ — so **0.3 per drag is a lower bound** on the rate. |
+| **C13** | Hosted layers stack in creation order — the OBSERVED half of § 2.3's z-order argument. |
 
 ⚠ **What is NOT established, and was mis-stated in this document's first draft:** the figure
 "2331 intervals, median 127 ms, 35.9 s of a 35.4 s drag" is **the swapchain re-create cadence**,
 not an exposure — `scripts/layer-gap.py`'s own header says so ("127 ms is simply the 120 ms step
 period … Do not quote it as a gap duration"). **The per-generation pre-drawable duration — create
-to first drawable — has never been measured.** Every argument below that depends on it is marked
-as depending on it, and test S1 measures it first.
+to first drawable — has never been measured**, and no wine-side trace stamps a first drawable (0
+hits for `nextDrawable`/`first drawable` in `window.c`, `cocoa_window.m`, `macdrv.h`). S1a
+measures it first, on an instrument-only build.
 
 ## 2. The mechanism, read from source (2026-09-07)
 
 ### 2.1 Which layer S3 is, and whose code it is
 
-`scripts/diag-colours-patch.py:64-72` paints blue onto `offscreen_layer.backgroundColor` and says
+`scripts/diag-colours-patch.py:64-71` paints blue onto `offscreen_layer.backgroundColor` and says
 in situ that it "Runs in the GPU process." That layer is `CAContextSwapChain`'s, `:4303`,
 constructed at `:4327-4342`:
 
@@ -48,17 +50,33 @@ offscreen_layer.backgroundColor = CGColorGetConstantColor(kCGColorBlack);   /* :
 **The black is set unconditionally at construction, before any drawable exists.** On a production
 build that black is exactly what a user sees in the gap; the diag build only recolours it.
 
+⚠ **Wine's construction block is not what runs.** DXMT rewrites the layer's properties after wine
+hands it over (`dxmt_presenter.cpp:16-21` → `winemetal_unix.c:1517-1529`, `_MetalLayer_setProps`):
+`opaque = YES`, **`framebufferOnly = NO`** ("setting it true results in worse performance"),
+`contentsScale`, `displaySyncEnabled`, and an explicit `drawableSize` — wine never sets
+`drawableSize` (0 hits, nested and pristine). `CAMetalLayer.opaque` defaults to YES anyway (SDK
+`CAMetalLayer.h`, "The default value of the `opaque' property for CAMetalLayer instances is
+true"). After the first present the background is invisible because the layer is opaque and
+`contentsGravity` (default `resize`) stretches the drawable to the bounds, which are fixed at
+construction (`:4341`) — not because of `framebufferOnly`. **The same black line exists on the
+in-process path at `:1257`** (`WineMetalView`, pristine `:1039`); any upstream text must say why
+only `:4339` changes ⚠ That path has no covering either: its view is created hidden
+(`window.c:1280`) and unhidden by a one-shot `.present` **at creation** (`:1285`), before any
+drawable — so whether it flashes too is a real question for the upstream text, not an answered one
+(the first fold of this paragraph claimed a hide-until-present; it was wrong).
+
 **It is upstream wine's code.** The line is at `pristine :4119` in the untouched winehq 11.16
 tarball, inside a `CAContextSwapChain` that is also pristine (`pristine :4080`), created from
-`pristine window.c:1188`. So is the **host** side: `CALayerHost` (12 references), 
+`pristine window.c:1188`. So is the **host** side: `CALayerHost` (12 references),
 `addCALayerHostViewWithContextId` (`pristine :725`), `macdrv_create_remote_layer` and
-`WM_MACDRV_CREATE_REMOTE_LAYER` are all upstream. What this project added is the cross-process
-plumbing on top: the `child:` parameter, `remote_layer_children`, `retire_superseded_layers`,
-per-child frames and zPosition, and the 120 ms deferred host background. **Consequently the S3
-flash exists in stock wine for any recreated CAContext-hosted swapchain**, and a change at
-`:4339` is a change to wine core — § 5.
+`WM_MACDRV_CREATE_REMOTE_LAYER` are all upstream, and pristine already keeps N hosts per window in
+a dictionary (`pristine :396`, `:725-740`). What this project added is the cross-process plumbing
+on top: the `child:` parameter, `remote_layer_children`, `retire_superseded_layers`, per-child
+frames and zPosition, and the 120 ms deferred host background. **Consequently the S3 flash exists
+in stock wine for any recreated CAContext-hosted swapchain**, and a change at `:4339` is a change
+to wine core — § 5.
 
-### 2.2 The publish happens strictly before the first present
+### 2.2 The publish happens strictly before the first present — and the commit later still
 
 Still inside the same initialiser, immediately after the layer is built (`:4344-4359`):
 
@@ -75,24 +93,43 @@ macdrv_create_remote_layer(hwnd, child_hwnd, context_id);   /* :4359 */
 `macdrv_create_remote_layer` is `NtUserPostMessage(WM_MACDRV_CREATE_REMOTE_LAYER, ...)`
 (`window.c:1793-1798`). **The child advertises the context to the owner at construction — before
 DXMT has rendered anything into it.** Every hosted generation therefore begins life as a black
-rectangle of the correct size. `OnMainThread` is synchronous (`cocoa_event.m:486-488`).
+rectangle of the correct size.
+
+`OnMainThread` is synchronous for the *block* (`cocoa_event.m:486-535`, semaphore/`kevent` wait),
+not for the *commit*: `setLayer:` is an implicit-transaction change, committed at the child's next
+main-run-loop iteration (`CATransaction.h`) — after `:4359` has posted. And the first drawable
+presents **asynchronously to any commit**: `presentsWithTransaction` is never set (0 hits), so
+CAMetalLayer's default applies ("changes to the layer's render buffer appear on-screen
+asynchronously to normal layer updates"). **The black is visible from the later of the child's
+commit and the owner's `addSublayer` commit (`:890`), until the first drawable lands.** That is
+the race's mechanism, and it is why S1a's anchor is the owner's handler (`window.c:1717`), not the
+child's post.
 
 ### 2.3 Why the predecessor cannot be the covering — and why #13's deferral cannot work alone
 
 The owner handles the posted message at `window.c:1710-1766`: it adds the new host
 (`macdrv_window_create_ca_layer_host_view` → `addCALayerHostViewWithContextId`, `:832`, which
-`addSublayer`s it at `:890`), sets its zPosition, and **only then** calls
+`addSublayer`s it at `:890`), sets its zPosition **when `have_z`** (`window.c:1747-1750`,
+`:4428-4429`, same main-thread block as the add, `:4416-4430`), and **only then** calls
 `retire_superseded_layers` (`window.c:1761`), which releases every other host mirroring the same
 child. Retire-at-create is deliberate; its rationale is on the function at `window.c:943-945`.
 
 **But the new generation is on top of the old one.** `paint_order_zpos` (`window.c:130-137`) keys
 zPosition on the child **hwnd**, so two generations of one child share one zPosition, and Core
-Animation draws equal-zPosition siblings in sublayer order — `addSublayer` appends. The comment at
-`:940-942` describes exactly this ("a client that recreates a swapchain on every resize puts the
-last-recreated layer on top of live content"; zPosition cannot separate generations of the *same*
-window). And C56 measured that the remote layer's background composites through the host before
-the first drawable. So **from the owner's first commit of the new host, its black covers the child
-rect whether or not the predecessor is still in the tree** — the predecessor is underneath.
+Animation draws equal-zPosition siblings in sublayer order — `addSublayer` appends. **DOCUMENTED:**
+Core Animation Programming Guide § *Building a Layer Hierarchy* — `addSublayer:` "causes the
+sublayer to appear on top of any siblings with the same value in their zPosition property";
+`CALayer.h` (`sublayers` "listed in back to front order"). **OBSERVED:** C13. The comment at
+`:940-942` describes exactly this. And C56 measured that the remote layer's background composites
+through the host before the first drawable. So **from the owner's first commit of the new host,
+its black covers the child rect whether or not the predecessor is still in the tree** — the
+predecessor is underneath.
+
+⚠ **The one ordering that inverts this:** when `have_z` is FALSE for the new generation (paint
+order truncated — `PAINT_ORDER_DEPTH` = 32, `window.c:46`, checked at `:97-100` — or OOM), it keeps CALayer's default
+zPosition 0.0 and "sorts below every ordered one" (`window.c:128-129`). Today that cannot matter,
+because the predecessor is retired in the same handler; under any hold it would put stale content
+*over* live content for a whole step. **D falls back to keep-one whenever `have_z` is FALSE.**
 
 Two consequences:
 
@@ -100,12 +137,14 @@ Two consequences:
    **#13's proposal — defer the retire until the replacement presents — cannot cover anything by
    itself.** A held predecessor sits beneath an opaque black layer. B (§ 4) is dead as a
    standalone candidate.
-2. **What actually keeps the gap rare has a simpler null hypothesis than any covering agent: the
-   gap is rare because it is short.** If the child's first present typically lands within one
-   display refresh of the owner's commit, nothing needs to cover it, and the ~0.3/drag episodes
-   are the tail where the first drawable is late by ≥ 1 refresh. This is consistent with C58
-   (every episode exactly one frame) and with § 1's correction (the duration is unmeasured). **S1
-   measures it before any candidate is chosen.**
+2. **What keeps the gap rare has a simpler null hypothesis than any covering agent: the gap is
+   rare because it is short.** If the child's first present typically lands within one display
+   refresh (8.3 ms) of the owner's commit, nothing needs to cover it, and the ~0.3+/drag episodes
+   are the tail where the first drawable is late. C58's own numbers already point there: ~300
+   creates per drag × 12 drags → 4 captures, p ≈ 10⁻³ per generation at a sampler that would
+   catch a one-refresh flash a third of the time. Consistent with every episode being one captured
+   frame (1–5 refreshes) and with § 1's correction (the duration is unmeasured). **S1a measures it
+   before any candidate is chosen.**
 
 ### 2.4 The in-tree precedent — project-authored, absent upstream
 
@@ -124,34 +163,49 @@ one registered for the id. **The child side (`:4339`) does at construction preci
 owner side deliberately stopped doing, for the reason its own comment gives.** ⚠ The precedent is
 **ours, not upstream's**: `pristine :725-740` sets no host background at all and has no
 `dispatch_after`. To a wine maintainer this precedent does not exist in their tree; the argument
-to them is § 2.1's (the black's only visible effect on a `framebufferOnly` layer whose drawable
-fills its bounds is the pre-drawable flash).
+to them is § 2.1's (on an opaque layer whose contents are only ever presented drawables, the
+background is visible only before the first one).
+
+⚠ **And the same 120 ms paint is a ceiling on any hold (§ 4 D).** It paints the **new** host's
+background black at +120 ms while that host is registered — and the new host sits *above* a held
+predecessor (§ 2.3). Unless the deferred paint is gated on "no other host registered for this
+child", a hold covers only `min(window, 120 ms)`, and the late-drawable tail is exactly where that
+cap bites. Found independently by two lenses.
 
 ### 2.5 The signal-free window: the child creates the new swapchain BEFORE destroying the old
 
 Measured 2026-09-07 from the trace already on disk (`~/cs2-patch/strip-ab/20260906-140732/`
 `…-r1-baseline/stdout.txt`, one full-coverage drag, baseline module), pairing every
-`retiring superseded layer ctx O … (replaced by N)` with `WM_MACDRV_CREATE_REMOTE_LAYER … N` and
-`WM_MACDRV_RELEASE_REMOTE_LAYER context_id O`:
+`retiring superseded layer ctx O … (replaced by N)` (`window.c:964`) with
+`WM_MACDRV_CREATE_REMOTE_LAYER … N` (`:1717`) and `WM_MACDRV_RELEASE_REMOTE_LAYER context_id O`
+(`:1770`); **re-run independently by the correctness lens with identical results**, and on the
+stage-1 row of the same battery:
 
-| | |
-|---|---|
-| creates / retires / releases | 300 / 285 / 271 |
-| `RELEASE(old)` **after** `CREATE(new)` | **271 of 271** (0 before) |
-| `RELEASE(old) − CREATE(new)` | min **33 ms** · p10 106 · median **126** · p90 491 · max 58 561 (a C60 stall) |
-| `RELEASE(old)` arriving after its own retire (handler skips as untracked) | 271 of 271 |
-| predecessors that never received a RELEASE at all | 14 |
+| | baseline r1 | stage-1 r1 |
+|---|---|---|
+| creates / retires / releases | 300 / 285 / 271 | 277 / 262 / 248 |
+| `RELEASE(old)` **after** `CREATE(new)` | **271 of 271** (0 before) | **248 of 248** |
+| `RELEASE(old) − CREATE(new)` | min **33 ms** · p10 106 · median **126** · p90 491 · max 58 561 (a C60 stall) | min 92 · p10 108 · median 130 · p90 774 · max 60 998 |
+| `RELEASE(old)` arriving after its own retire (handler skips as untracked) | 271 of 271 | 248 of 248 |
+| predecessors that never received a RELEASE | 14 | 14 |
 
-So: **the child keeps the old context alive for at least 33 ms — typically one drag step — after
-creating its replacement**, and today the owner discards that live, fully-drawn predecessor at the
-replacement's create, ~100 ms before the child would have. That is a window in which a
-*transparent* new generation over a *held* predecessor would show the last real frame with no
-signal from anyone. The 14 never-released predecessors are the C30 leak class that
-retire-at-create exists to bound, so any hold must keep that bound (§ 4, candidate D).
+So: **the child keeps the old context alive after creating its replacement — never the other way
+round in 519 generations — and today the owner discards that live, fully-drawn predecessor at the
+replacement's create.** That is a window in which a *transparent* new generation over a *held*
+predecessor would show the last real frame with no signal from anyone.
 
-**Inferred, not measured:** whether the child destroys the old swapchain *after* the new one's
-first present (the sane resize ordering — in which case D closes the gap fully) or before it (in
-which case D narrows it by the window above and no more). S1 (ii) measures it.
+⚠ **Two bounds on what that window is worth.** (a) The numbers are owner-handler times: the child
+posts RELEASE (`:4370`) and then tears the context down **asynchronously** on its main thread
+(`:4375-4380`, `setLayer:nil`/release), so the last frame is guaranteed only until the child's own
+detach — RELEASE at the owner is an *upper* bound on the hold, and what a `CALayerHost` shows for a
+detached context is unmeasured. (b) The owner's 120 ms host paint (§ 2.4) caps it unless gated.
+The 14 never-released predecessors are the leak class the 2026-08-31 fix and C29 bounded
+(`EXPERIMENTS.md` § LEAK FIXED; `GOTCHAS.md` § *A "hold until the next event for the same key"
+cache leaks when the key never fires again*), so any hold must keep that bound (§ 4, D's exits).
+
+**Inferred, not measured:** whether the child detaches the old context *after* the new one's
+first drawable (the sane resize ordering — D closes the gap) or before it (D narrows it by the
+window above and no more). S1a (ii) measures it in one clock.
 
 ## 3. Why #7's candidates do not reach this
 
@@ -163,16 +217,48 @@ out on other grounds (C54).
 
 ## 4. Candidates
 
-| | candidate | cost | what it does not do |
+| | candidate | cost | what it does not do / what is unknown |
 |---|---|---|---|
-| **A** | **Drop the child's black background** (`:4339`) — or defer it on the § 2.4 pattern. On a `framebufferOnly` layer whose drawable fills its bounds, the background's only visible effect is the pre-drawable flash, so *drop* is the principled form and *defer* the conservative one | one line (drop) or ~10 (defer); wine core | Makes the pre-drawable layer **transparent**, so what shows is whatever is beneath: today the content view's own layer (C61's strip surface), because the predecessor is retired in the same handler. A alone likely converts a black flash into a stale-content flash |
+| **A** | **Remove the child's black background** (`:4339`) — *drop* (principled: on an opaque layer whose contents are only presented drawables, the background is visible only pre-drawable) or *defer* on the § 2.4 timer pattern (conservative). The form is fixed by S0 before S3 | one line (drop) or ~10 (defer); wine core; any diag build of a source that drops the line needs `diag-colours-patch.py --noblue` or the patcher fails | **Whether an `opaque=YES` `CAMetalLayer` with no background and no drawable composites as nothing through a `CALayerHost` is undocumented and unmeasured** (every cell so far ran black or blue). If it composites as an opaque fill, A-drop is inert and S3's mutant can never be red — **S0 decides before anything is built on A.** If inert, the only fallback is `opaque = NO` *deferred* on the § 2.4 pattern (steady-state `opaque = NO` would blend every presented frame's alpha < 1 pixels and is out of scope). If transparent, A *alone* shows whatever is beneath: the content view's own layer, **black in production** (`:1257`; cyan only on C42's build) — so A alone most likely turns a black flash into a black flash from a different surface, which is what S4 measures |
 | **B** | Defer the retire (#13's direction) | — | **Cannot work alone** — § 2.3. Retained only as the second half of D |
-| **C** | Publish after the first present — move `macdrv_create_remote_layer` (`:4359`) to the child's first drawable | removes the race at its source | **Wine has no first-present signal.** `macdrv_client_surface_present` (`window.c:1243-1256`) is wine's generic `client_surface` `.present` callback — it toggles which `cocoa_view` is unhidden and carries no drawable; `layer-gap.py` used it as "present" and measured the step cadence. DXMT owns the present (`macdrv_swapchain_get_layer` hands it the layer). A hook is either a `CAMetalLayer` subclass overriding `nextDrawable` (fires at first *acquire*, before render — narrows, does not close) or a DXMT-side notification (crosses into `~/cs2-patch/dxmt-fork`, where the no-PR rule applies) |
-| **D** | **A + a one-generation hold.** Drop the black, and change `retire_superseded_layers` to keep the **two** newest generations instead of one: the predecessor is retired at the *next* create (N+1) or at its own `WM_MACDRV_RELEASE_REMOTE_LAYER`, whichever comes first — the release handler (`window.c:1767-1790`) already frees a still-tracked id | A's line + a small change to one owner-side function; **no signal needed**; bounded at 2 hosts per child, so the C30 leak class stays bounded | Closes the gap only for as long as the child keeps the old context alive after the new one's create — ≥ 33 ms, median 126 ms (§ 2.5). Whether that spans the first present is S1 (ii). In the *grown* region of a resize there is no predecessor content; that is #7's strip, not this |
+| **C** | Publish after the first present — move `macdrv_create_remote_layer` (`:4359`) to the child's first drawable | removes the race at its source | **Wine has no first-present signal on this path.** `macdrv_client_surface_present` (`window.c:1243-1258`) is wine's generic `client_surface` `.present` callback — it toggles which `cocoa_view` is unhidden and carries no drawable. **A hook precedent exists in the DXMT glue, not pristine:** `WineMetalLayer.nextDrawable` (`dxmt_objc.m:38-72`) posts `CLIENT_SURFACE_PRESENTED` (→ `event.c:399` → `macdrv_main.c:910-915`) — but only when the layer's delegate is a `WineMetalView` (`dxmt_objc.m:50-54`), which `offscreen_layer` (a plain `CAMetalLayer`, `:4327`) never has, and it is instantiated only for the in-process view (`:1253`). C needs its own subclass; DXMT acquires through the layer object wine hands it (`winemetal_unix.c:1496-1498`, `[layer nextDrawable]`), so a subclass is reached. It fires at *acquire*, a lower bound on present; `addPresentedHandler:` on the returned drawable gives `presentedTime` (public, `MTLDrawable.h`) |
+| **D** | **A + a one-generation hold.** Remove the black, and hold each child's *previous* generation until the earliest of its four exits | see § 4.1 — **not** "one function" | Closes the gap only while the child keeps the old context attached after the new one's create (§ 2.5 (a)) and only until the 120 ms host paint unless gated (§ 2.4). Whether that spans the first present is S1a (ii). In the *grown* region of a resize there is no predecessor content; that is #7's strip, not this. On a *shrink* the held predecessor is larger than its successor — a new artifact class S5/S6 must look for |
 
-**Recommended for the check to adjudicate: D, with A alone as a control arm.** C is the only
-candidate that eliminates the race rather than covering it, and it is also the only one that needs
-code outside wine.
+### 4.1 D, specified (the touch set the first draft called "one function")
+
+1. **A** at `:4339` (form per S0).
+2. **Ordering the owner does not have today.** `remote_layer_children` is CAContextID → child HWND,
+   unordered (`window.c:1758`, `macdrv.h:188`, core patch line 412), and context ids are
+   window-server-allocated and reusable, so "the two newest" is not recoverable from it. Add a
+   per-child *current-context* record set in the CREATE handler beside `:1758`;
+   `retire_superseded_layers` (`:946-970`) keeps `{current, previous}` and **keeps its
+   `vals[i] == child` filter** (`:963`) — a stale entry for a reused id must not retire another
+   child's host.
+3. **`remote_layer_context_for` (`window.c:1852-1872`) returns the first match.** Its D1-scoped
+   caller `:2105` (`update_remote_layer_frame_for(data, hwnd, remote_layer_context_for(data, hwnd))`)
+   reframes **one** host per child move; with two tracked it would move an arbitrary one, leaving
+   the live generation at its old frame about half the time — a new misplacement on the path C32
+   found fragile. D reframes the *current* generation (from the new record), or every tracked host
+   of the moved child.
+4. **Gate the 120 ms deferred host paint (`:847-861`)** on no other host being registered for the
+   same child, or state `min(window, 120 ms)` as D's reach.
+5. **`have_z` FALSE → keep-one** (§ 2.3).
+6. **Four exits, named** (the pattern `GOTCHAS.md` § hold-until-next-event requires): the next
+   CREATE for the child · the predecessor's own `WM_MACDRV_RELEASE_REMOTE_LAYER`
+   (`window.c:1767-1785` already frees a tracked id) · the dead-child drain (`:2031-2039`, which
+   runs only from root frame updates — callers `:2144`, `:2429`, `:2449`) · root destroy
+   (`:1419-1420`). A child that stops recreating, never releases, and dies keeps its held pair
+   until the root's next frame update — today's bound, one larger.
+7. **Comments that become false and must change with the code** (upstream-bound): `window.c:943-945`,
+   `:1760`, `cocoa_window.m:882-884` ("the old one retired at CREATE"), core patch line 412.
+8. **Pattern-fit in D's favour, unused by the first draft:** the root-with-NULL-child path already
+   holds until RELEASE (retire is gated `if (child)` at `:1761`; `addCALayerHostViewWithContextId`
+   removes only the same id, `:841`), and pristine keeps N hosts per window. D generalises an
+   in-tree behaviour rather than inventing one.
+
+**Recommended for the re-check to adjudicate: D, with A alone as a control arm, gated on S0 and
+S1a.** C is the only candidate that eliminates the race rather than covering it, and the only one
+whose code lives in the glue.
 
 ## 5. Where a change belongs (upstream form)
 
@@ -181,51 +267,85 @@ code outside wine.
 - **A and D are wine-core changes.** Wine is a separate project with its own process; the dxmt
   no-PR rule does **not** apply to them. The natural vehicle is
   [bug 60263](https://bugs.winehq.org/show_bug.cgi?id=60263), whose published core patch already
-  modifies `CAContextSwapChain` (the `child:` plumbing; 5 hits in
+  modifies `CAContextSwapChain` (the `child:` plumbing; 4 hits in
   `scripts/winemac-crossprocess-child-core.patch`). The claim a maintainer will act on — *"stock
-  wine flashes black for one frame on every recreated hosted swapchain"* — is § 2.1 + C56 and
-  should be stated as such, with the § 2.5 numbers.
-- **Only C's DXMT-side hook** touches `~/cs2-patch/dxmt-fork`, where `CLAUDE.md` § ⛔ applies:
-  no PR, a comment with exact locations, AI assistance disclosed.
-- Core vs glue: `retire_superseded_layers` is in **core** today (the 60263 patch). D changes it in
-  place; there is no boundary decision to make unless the check finds one.
+  wine flashes black for a frame on every recreated hosted swapchain"* — is § 2.1 + C56 and
+  should be stated with the § 2.5 numbers, **and must say what happens to the identical line at
+  `:1257`** (§ 2.1).
+- **C's hook is glue** (`dxmt_objc.m` is the DXMT glue half of this tree, not pristine); its
+  upstream form is #6's boundary question. A DXMT-side notification instead would touch
+  `~/cs2-patch/dxmt-fork`, where `CLAUDE.md` § ⛔ applies: no PR, a comment with exact locations,
+  AI assistance disclosed.
+- Core vs glue for D: `retire_superseded_layers` is in **core** today (the 60263 patch). D changes
+  it in place plus the § 4.1 sites, all core.
 - #6's two decisions were parked on *"wait for stage 2 to settle"*; stage 2 settled (C54, ruled
   out). That hold has expired independently of this plan.
 
 ## 6. Test plan
 
-Instruments exist; the diag build (`scripts/diag-colours-patch.py`) and `CAPTURE=video`
-(`scripts/video-gap-battery.sh`, C58) resolve the artifact at a 25 ms cadence, and
-`scripts/strip-module-ab.sh FRAMES=300` scores #7's strip. ⚠ Score the top band as black **or**
-any diagnostic colour — a true-black threshold cannot fire on a diag build (C56; the C49/C53/C56
-scorer-bug family). ⚠ Cyan is unsafe on the store page (Steam artwork; C61) — use the Library page
-for any cyan cell.
+**Preconditions on every row** (the test-plan lens found them unstated and partly unmet): every
+drag row is fingerprinted (`drag-session.sh:120` → `steam-render-cell.sh:77` →
+`cell-fingerprint.sh` → `config.json`) — but **without `--strict`** today (0 hits in either
+script): add it, or justify non-strict in the row. `video-gap-battery.sh` carries the lock-screen
+refusal, the network hold and the **loadavg < 12 gate** (`:63-68`); `strip-module-ab.sh` has **no
+loadavg gate** — add one before S6. Record the capture display and its refresh (`cell-fingerprint.sh`
+records neither; a run on the 60 Hz portrait panel halves every sampled rate with nothing in
+`config.json` to show it). Arms interleaved; void a comparison whose arms' achieved cadences differ
+by > 10 %. Every candidate cell lists its module digest per arm so D-diag, A-diag and stamp builds
+can be told apart later. ⚠ Score the top band as black **or** any diagnostic colour (C56; the
+C49/C53/C56 scorer-bug family) — and note **the video tally counts only
+`blue/green/magenta/cyan`** (`video-gap-battery.sh:104-119`) while video mode writes **no
+`bands.txt`** (`livedrag-probe.sh:27`): a prod build paints no colour and reads "no episodes" by
+construction. **Every comparison arm below therefore runs a diag build; prod modules are for S5
+and S6 only.** ⚠ Cyan is unsafe on the store page (Steam artwork; C61): S0/S3/S4 need a page knob
+(`drag-session.sh:123` hard-codes `steam://store`) or a **shape gate** (full-client = cyan bbox
+w ≥ 100 px **and** h ≥ 50 % of the window; the C61 growing-edge column is ≤ 4 drag steps wide).
+
+**Instrument work this plan requires, named as such** (all small, all prerequisites — nothing
+here is candidate code): (1) `scripts/first-drawable-stamp-patch.py` — a diag-only `CAMetalLayer`
+subclass for `CAContextSwapChain` overriding `nextDrawable` to TRACE the first acquire per context
+id and to `addPresentedHandler:` on that drawable, tracing `presentedTime`; (2)
+`scripts/align-trace-video.py` — anchor video PTS to the trace (the first visible edge motion,
+C59's magenta seam, to the first `SysCommand f002` stamp), since nothing aligns them today
+(`drag-session.sh:87` names only wall-clock; `win-resize-driver.c` prints no timestamps); (3)
+`--rect x,y,w,h` on `video-blue.swift` (`--where` gives one whole-frame bbox, `:80-108`); (4) fold
+C42's cyan content-view patch into `diag-colours-patch.py --cyan` — **C42's build
+`38b52d6b3971d78b` has no committed build input**; (5) a `STEAM_PAGE` knob in `drag-session.sh`;
+(6) a `*)` default in `strip-module-ab.sh`'s module map (`:90-95` maps only
+`s1diag|baseline|stage1|s2b`; under `set -u` an unknown role **silently reuses the previous
+iteration's module** and labels it as the new one) + its loadavg gate; (7) `scripts/live-hosts.py`
+(+1 at `:1717`, −1 at `:964`/`:1770`, max per child); (8) a `--norelease` child mutant at `:4370`.
 
 | id | test | pass / what it decides | mutant |
 |---|---|---|---|
-| **S1** | **Measure what § 1 says is unmeasured.** Diag build, video capture, one full-coverage drag, n ≥ 10. (i) Per generation: `CREATE(N)` in the trace → first video frame in which N's rect is no longer blue = the **pre-drawable duration**; report the distribution. (ii) Per generation: `RELEASE(N−1)` vs that same first-content frame — **does the child destroy the old swapchain before or after the new one shows content?** | Decides the null hypothesis of § 2.3 (short gap: median ≪ 25 ms) and D's reach (ii). A refutation of both sends this document back to § 2, not forward. ⚠ 25 ms resolution; timestamps are the trace's and the video's presentation clock — align them on a known event (the first CREATE after drag start) | n/a — diagnostic |
-| **S2** | **Baseline rate**, installed stage-1 driver, `FRAMES=300`, video, n ≥ 12 | reproduces C58's ~0.3 episodes/drag within its spread — the denominator every candidate is measured against | n/a |
-| **S3** | **D built**, prod module: episodes/drag vs S2 | separable **below** S2 at the C54 standard (Mann-Whitney); host count per child never exceeds 2 in the trace | (a) restore `:4339`'s black → the S2 rate returns; (b) restore keep-one in `retire_superseded_layers` → A-alone behaviour (S4's rate) returns |
-| **S4** | **A alone, as a control arm**, on C42's cyan content-view build, Library page | if A merely relocates the artifact, cyan appears in the child rect at the rate blue did — **that is A-alone failing**, scored not argued. Under D cyan must not appear there (the predecessor covers) | restore `:4339`'s black → blue/black returns at the S2 rate and cyan vanishes |
-| **S5** | **T3 (human), narrowed.** James drags on the D build | verdict verbatim: any full-client flash still visible by eye? any *new* artifact (a stale predecessor showing after the new generation should have covered it)? | none — a human drag is not repeated per mutant |
-| **S6** | **No regression on #7's strip**: `strip-module-ab.sh MODULES="stage1 D" N=7 FRAMES=300`, right band, growing frames | stage 1's separation from baseline (p = 0.0079, C54) preserved; D not separable *above* stage 1 | none — structural |
-| **S7** | **The leak bound** (C30 class): synthetic churn with the 14-never-released pattern (a child whose old context never sends RELEASE) | every predecessor is retired by the create after next; `remote_layer_children` never holds > 2 ids per child; boot-verify PASS on the game (the `MetalViewSwapChain` path is disjoint but shares the module) | drop the "or at the next create" half of D's retire → the count grows without bound in the churn |
+| **S0** | **A's transparency, before anything is built on it.** A-drop (with `--noblue`) on the diag base, cyan content view (`--cyan`), Library page or shape-gated, video, n ≥ 12 | three outcomes: **cyan** full-client episodes at ≥ the blue rate ⇒ the pre-drawable layer is transparent, A/D proceed; **black** full-client episodes at the blue rate ⇒ A-drop is inert ⇒ A becomes deferred `opaque = NO` + no background on the `:847-861` pattern, S0 re-run; **neither** ⇒ re-read the scorer before believing it (C56) | restore `:4339` and build **without** `--noblue` → blue returns (≥ 1 episode in 12) |
+| **S1a** | **Per-generation timing, trace only, one clock** — the stamp build (instrument-only; no candidate code), diag colours on, 10 full-coverage drags (~300 generations each). (i) `first-acquire(N)` and `presentedTime(N)` − owner host-commit(N) (`window.c:1717`). (ii) `RELEASE(N−1)` **and the child's detach block** vs `presentedTime(N)` | (i) **null upheld** if ≥ 90 % of generations present within one refresh (8.3 ms) of the host commit; report the fraction beyond 120 ms (D's cap). (ii) **D closes** if the child's detach follows `presentedTime(N)` in ≥ 95 % of generations, else **D narrows**, with the covered fraction. **The 95 % is fixed here, before the run** | n/a — diagnostic |
+| **S1b** | Video per *visible* episode only (expect ~3 in 10 drags), via the aligner + `--rect`; 25 ms floor stated | confirms S1a's tail is what the eye can see; does not decide anything S1a decides | n/a |
+| **S2** | **Baseline rate on the scorer's known-positive build**: `MOD=s1-diag` (C58's `50fdfe79898dac36`), N = 12, video | PASS = ≥ 1 blue episode (the scorer can fire — the C56 rule); the baseline rate is C58 + S2 pooled (24 drags) with an **exact CI** (4/12 alone is ~0.09–0.85/drag and decides nothing) | n/a |
+| **S3** | **D-diag** (`--noblue --cyan`, page knob or shape gate), interleaved with S2's build, **n ≥ 15**; host bound from `live-hosts.py` | **closure**: 0 full-client cyan episodes, exact Poisson p ≤ 0.007 against the pooled rate; **narrows** (if S1a (ii) said so): decide on S1a's per-generation metric with n ≈ 60/arm interleaved with A-alone, video as confirmation only; max live hosts per child ≤ 2 | (a) restore `:4339` on the D-diag source, build **without** `--noblue` → blue returns, red = ≥ 1 episode in 12; (b) restore keep-one → this is S4's A-alone arm, **red observable under closure only** |
+| **S4** | **A alone, the control arm**, same build recipe minus the hold | full-client cyan at the blue rate ⇒ A relocates the flash (black in production, `:1257`); under D that must not occur | restore `:4339` → **full-client** cyan episodes vanish (the C61 growing-edge column persists regardless — that is not this mutant's signal) |
+| **S5** | **T3 (human)**, James on the D **prod** build | verdict verbatim: any full-client flash still visible? any *new* artifact — a stale predecessor showing after the new generation should have covered it, especially on **shrinks**? | none — a human drag is not repeated per mutant |
+| **S6** | **No regression on #7's strip**, after (6): `strip-module-ab.sh MODULES="baseline stage1 D" N=7 FRAMES=300`, interleaved, loadavg-gated | stage 1 < baseline **reproduces in this run** (not against C54's stored numbers) **and** D's growing-frame right-band mean ≤ stage 1's + ½ (baseline − stage 1); plus a **shrink-frame clause** via `band-counts.py`'s grow/shrink split; child placement scored, since `:2105` changed | none — structural |
+| **S7** | **The hold's bound**: `--norelease` mutant (8) + `shimmer-probe.sh churn` (`hosting-layer-tests.sh:254`) + `live-hosts.py`, ≥ 300 creates; then the terminal case — a child that recreates twice, stops, never releases, is destroyed; then `scripts/boot-verify.sh` (the game never constructs a `CAContextSwapChain` — `window.c:1298-1336` — but shares the module) | max live hosts per child ≤ 2 throughout; the terminal child's held pair drops to 0 after the root's next frame update; boot-verify PASS | (a) drop the next-CREATE exit → max grows monotonically (≥ 10); (b) disable the `:2031-2039` drain → dead pairs persist |
 
 Every listed mutant is **applied to real source and observed red, then restored green**. "Argued
-red" is not red.
+red" is not red. Where a mutant is red-observable only under one S1a outcome, the row says so.
 
 ## 7. Exit criteria
 
-1. **S1 run first**, both halves reported with their distributions, before any candidate is built.
-   If (i) shows the gap is typically shorter than one refresh, that is recorded as the mechanism of
-   rarity and § 2.3's null hypothesis becomes a ledger row.
-2. A candidate is chosen with its **cost and reach stated** from S1 (ii) — D closes or D narrows.
-3. S3 separable below S2 at the C54 standard; S4 shows A-alone's relocation, if any, as a number;
-   every mutant observed red then green.
-4. S6 green; S7 green including boot-verify.
-5. T3 (S5) recorded verbatim in the ledger.
-6. Upstream form settled per § 5: the wine-core change described for 60263 with the § 2.1 + § 2.5
-   claims, AI assistance disclosed; no dxmt PR under any outcome.
+1. **S1a run first** — an instrument-only build is permitted; no candidate build. Both halves
+   reported with their distributions. If (i) upholds the null, that is recorded as the mechanism
+   of rarity in a ledger row.
+2. **Decision rule, fixed before S1a runs:** if the child's detach precedes `presentedTime(N)` in
+   more than 5 % of generations, D cannot reach the tail — return to § 2 / C. Otherwise build D.
+3. **S0 decided** (transparent / inert-with-fallback / scorer re-read) before S3.
+4. S3 at the closure bar (0 episodes, n ≥ 15, exact p ≤ 0.007) or on the per-generation metric if
+   S1a said narrows; S4 shows A-alone's relocation, if any, as a number; every mutant observed red
+   then green, with the S1a-conditional ones marked.
+5. S6 green including the shrink clause; S7 green including the terminal case and boot-verify.
+6. T3 (S5) recorded verbatim in the ledger.
+7. Upstream form settled per § 5: the wine-core change described for 60263 with the § 2.1 + § 2.5
+   claims and the `:1257` answer, AI assistance disclosed; no dxmt PR under any outcome.
 
 ## 8. Rollback
 
@@ -233,15 +353,51 @@ The installed daily driver is stage 1 `2a251a4b2510fb84`, kept. Any candidate sh
 module built through `scripts/build-winemac.sh` and is only installed after S3/S6/S7; reverting is
 reinstalling `2a251a4b2510fb84`. No prefix or settings change is involved.
 
-## Review log
+## Review corrections (triple-check 2026-09-07)
 
-Not yet checked. **Run `check it` before the first build commit.**
+Pass 1: four lenses (architecture · correctness · platform-facts · test-plan audit), Fable 5.1,
+against cs2 `3515efc` / nested `52789ff` / pristine `wine-11.16/`; the classic security surface is
+empty here (no authz/tenant/RLS) and was folded into architecture as upstream-form + privacy.
+Every `[BLOCKER]` was spot-checked in this session before folding. Landed above:
+
+- **[BLOCKER, ×2 independent] the 120 ms host paint caps any hold** → § 2.4 ¶3, § 2.5 (b), § 4.1 (4),
+  S1a (i)'s 120 ms fraction.
+- **[BLOCKER] `CAMetalLayer.opaque` defaults YES and DXMT sets it; A's transparency is unmeasured**
+  → § 2.1 ¶2, § 4 A, **S0** (new), exit criterion 3.
+- **[BLOCKER ×4, test plan]** video tally cannot fire on a prod build → every arm is diag, S2 on
+  the known-positive build; `strip-module-ab.sh` silently reruns the previous module for an unknown
+  role → instrument (6) before S6; Mann-Whitney unreachable on a count metric → exact-count bar,
+  n ≥ 15, pooled baseline with CI; S1 needed an instrument build the ordering forbade → S1a/S1b
+  split, instrument-only build permitted, exit criterion 1.
+- **[SHOULD-FIX] D's cost** → § 4.1 (ordering record, `:2105`, `have_z`, four exits, comments).
+- **[SHOULD-FIX] the leak class is C29 / the 2026-08-31 entry, not C30** → § 2.5.
+- **[SHOULD-FIX] `framebufferOnly` was the wrong property; DXMT rewrites the block** → § 2.1 ¶2.
+- **[SHOULD-FIX] `nextDrawable` hook precedent exists** (`dxmt_objc.m`) → § 4 C.
+- **[SHOULD-FIX] commit ≠ block; `presentsWithTransaction` unset** → § 2.2 ¶3.
+- **[SHOULD-FIX] RELEASE at the owner is an upper bound on the hold** → § 2.5 (a).
+- **[SHOULD-FIX] exit criterion 2 had no decision rule** → 95 % fixed in S1a and criterion 2.
+- **[SHOULD-FIX] S4's mutant was unobservable as written; S7 had no instrument and no terminal
+  case** → S4, S7, instruments (7)(8).
+- **[SHOULD-FIX] 120 Hz, not 60 Hz; one sample < 50 ms; 0.3/drag is a lower bound** → § 1 C58 row;
+  **ledger C58 corrected the same day.**
+- **[MINOR]** 5 → 4 patch hits; "~half" → 13–53 %; `:1767-1790` → `:1767-1785`; `:1243-1256` →
+  `:1243-1258`; `:64-72` → `:64-71`; `cocoa_event.m:486-488` → `:486-535`; the content view is
+  black in production, so A alone is "black from a different surface", not "stale content".
+
+**Rejected:** nothing — every finding survived the spot-check. One lens cited `window.c:1716` as
+the handler's TRACE; it is `:1717` (`:1716` is blank).
+
+## Review log
 
 | date | pass | lenses | method | model | verified against | verdict |
 |---|---|---|---|---|---|---|
-| 2026-09-07 | pre-review of the first draft (not a check-it pass) | inline: z-order · provenance · present-hook · trace ordering | one model, direct reads + one trace measurement | Fable 5.1 | cs2 `43227c7`, nested `main` `52789ff`, pristine `wine-11.16/` | **first draft needs-rework → reworked in place** (§ 2.3 covering claim wrong on z-order; § 5 ownership wrong — upstream wine, not DXMT; § 1 quoted a cadence as an exposure; S1 had no wine-side source; S4's mutant was inverted) |
+| 2026-09-07 | pre-review of the first draft (not a check-it pass) | inline: z-order · provenance · present-hook · trace ordering | one model, direct reads + one trace measurement | Fable 5.1 | cs2 `43227c7`, nested `main` `52789ff`, pristine `wine-11.16/` | first draft needs-rework → reworked in place (§ 2.3 covering claim wrong on z-order; § 5 ownership wrong; § 1 quoted a cadence as an exposure) |
+| 2026-09-07 | **pass 1** | architecture (+ upstream-form/privacy) · correctness · platform-facts · test-plan audit | 4 independent agents, ≤ 15 tool calls each; every blocker spot-checked inline | Fable 5.1 ×4 | cs2 `3515efc`, nested `main` `52789ff`, pristine `wine-11.16/`, `dxmt-fork` | **needs-rework** (test plan) · build-ready-with-fixes ×3 → **all folded the same day; fitted re-check pending** |
 
 **Key paths** (re-check if these move): `dlls/winemac.drv/cocoa_window.m` (`:832-894`, `:940-953`,
-`:4298-4385`), `dlls/winemac.drv/window.c` (`:128-137`, `:943-970`, `:1243-1256`, `:1710-1798`),
-`dlls/winemac.drv/cocoa_event.m` (`:486-488`), `scripts/diag-colours-patch.py`,
-`scripts/layer-gap.py`, `scripts/strip-module-ab.sh`, `scripts/video-gap-battery.sh`.
+`:1253-1257`, `:2031-2039`, `:4298-4385`), `dlls/winemac.drv/window.c` (`:46`, `:97-137`, `:943-970`,
+`:1243-1258`, `:1280-1285`, `:1710-1798`, `:1852-1872`, `:2105`), `dlls/winemac.drv/dxmt_objc.m` (`:38-72`),
+`dlls/winemac.drv/cocoa_event.m` (`:486-535`), `~/cs2-patch/dxmt-fork/src/dxmt/dxmt_presenter.cpp`
+(`:16-21`), `…/winemetal/unix/winemetal_unix.c` (`:1496-1529`), `scripts/diag-colours-patch.py`,
+`scripts/layer-gap.py`, `scripts/strip-module-ab.sh`, `scripts/video-gap-battery.sh`,
+`scripts/drag-session.sh`, `scripts/livedrag-probe.sh`, `scripts/video-blue.swift`.
