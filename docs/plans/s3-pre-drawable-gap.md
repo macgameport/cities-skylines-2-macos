@@ -1,8 +1,9 @@
 # The S3 pre-drawable gap — the child's own layer before its first drawable
 
-**Status: Triple-checked 2026-09-07 — needs-rework (pass 1: the test plan); reworked in place the
-same day, fitted re-check pending — see § Review corrections and § Review log. Do not build until
-the re-check bumps this line.** Tracker:
+**Status: Triple-checked 2026-09-07 — build-ready-with-fixes (pass 1 needs-rework on the test plan,
+reworked in place; the fitted re-check the same day built D and found no blocker; all corrections
+folded — see § Review corrections and § Review log). Build order: § 6 instruments → S1a → S0 → the
+§ 7 decision rule → D.** Tracker:
 [issue #13](https://github.com/macgameport/cities-skylines-2-macos/issues/13); the observation it
 splits from is [#12](https://github.com/macgameport/cities-skylines-2-macos/issues/12); umbrella
 [#1](https://github.com/macgameport/cities-skylines-2-macos/issues/1). Baseline: cs2 `3515efc`;
@@ -53,8 +54,9 @@ build that black is exactly what a user sees in the gap; the diag build only rec
 ⚠ **Wine's construction block is not what runs.** DXMT rewrites the layer's properties after wine
 hands it over (`dxmt_presenter.cpp:16-21` → `winemetal_unix.c:1517-1529`, `_MetalLayer_setProps`):
 `opaque = YES`, **`framebufferOnly = NO`** ("setting it true results in worse performance"),
-`contentsScale`, `displaySyncEnabled`, and an explicit `drawableSize` — wine never sets
-`drawableSize` (0 hits, nested and pristine). `CAMetalLayer.opaque` defaults to YES anyway (SDK
+`contentsScale`, `displaySyncEnabled`, and an explicit `drawableSize` (applied at
+`winemetal_unix.c:1527` from the presenter's props) — wine never sets `drawableSize` (0 hits, nested
+and pristine). `CAMetalLayer.opaque` defaults to YES anyway (SDK
 `CAMetalLayer.h`, "The default value of the `opaque' property for CAMetalLayer instances is
 true"). After the first present the background is invisible because the layer is opaque and
 `contentsGravity` (default `resize`) stretches the drawable to the bounds, which are fixed at
@@ -95,7 +97,7 @@ macdrv_create_remote_layer(hwnd, child_hwnd, context_id);   /* :4359 */
 DXMT has rendered anything into it.** Every hosted generation therefore begins life as a black
 rectangle of the correct size.
 
-`OnMainThread` is synchronous for the *block* (`cocoa_event.m:486-535`, semaphore/`kevent` wait),
+`OnMainThread` is synchronous for the *block* (`cocoa_event.m:486-540`, `kevent` loop or semaphore wait),
 not for the *commit*: `setLayer:` is an implicit-transaction change, committed at the child's next
 main-run-loop iteration (`CATransaction.h`) — after `:4359` has posted. And the first drawable
 presents **asynchronously to any commit**: `presentsWithTransaction` is never set (0 hits), so
@@ -222,7 +224,7 @@ out on other grounds (C54).
 | **A** | **Remove the child's black background** (`:4339`) — *drop* (principled: on an opaque layer whose contents are only presented drawables, the background is visible only pre-drawable) or *defer* on the § 2.4 timer pattern (conservative). The form is fixed by S0 before S3 | one line (drop) or ~10 (defer); wine core; any diag build of a source that drops the line needs `diag-colours-patch.py --noblue` or the patcher fails | **Whether an `opaque=YES` `CAMetalLayer` with no background and no drawable composites as nothing through a `CALayerHost` is undocumented and unmeasured** (every cell so far ran black or blue). If it composites as an opaque fill, A-drop is inert and S3's mutant can never be red — **S0 decides before anything is built on A.** If inert, the only fallback is `opaque = NO` *deferred* on the § 2.4 pattern (steady-state `opaque = NO` would blend every presented frame's alpha < 1 pixels and is out of scope). If transparent, A *alone* shows whatever is beneath: the content view's own layer, **black in production** (`:1257`; cyan only on C42's build) — so A alone most likely turns a black flash into a black flash from a different surface, which is what S4 measures |
 | **B** | Defer the retire (#13's direction) | — | **Cannot work alone** — § 2.3. Retained only as the second half of D |
 | **C** | Publish after the first present — move `macdrv_create_remote_layer` (`:4359`) to the child's first drawable | removes the race at its source | **Wine has no first-present signal on this path.** `macdrv_client_surface_present` (`window.c:1243-1258`) is wine's generic `client_surface` `.present` callback — it toggles which `cocoa_view` is unhidden and carries no drawable. **A hook precedent exists in the DXMT glue, not pristine:** `WineMetalLayer.nextDrawable` (`dxmt_objc.m:38-72`) posts `CLIENT_SURFACE_PRESENTED` (→ `event.c:399` → `macdrv_main.c:910-915`) — but only when the layer's delegate is a `WineMetalView` (`dxmt_objc.m:50-54`), which `offscreen_layer` (a plain `CAMetalLayer`, `:4327`) never has, and it is instantiated only for the in-process view (`:1253`). C needs its own subclass; DXMT acquires through the layer object wine hands it (`winemetal_unix.c:1496-1498`, `[layer nextDrawable]`), so a subclass is reached. It fires at *acquire*, a lower bound on present; `addPresentedHandler:` on the returned drawable gives `presentedTime` (public, `MTLDrawable.h`) |
-| **D** | **A + a one-generation hold.** Remove the black, and hold each child's *previous* generation until the earliest of its four exits | see § 4.1 — **not** "one function" | Closes the gap only while the child keeps the old context attached after the new one's create (§ 2.5 (a)) and only until the 120 ms host paint unless gated (§ 2.4). Whether that spans the first present is S1a (ii). In the *grown* region of a resize there is no predecessor content; that is #7's strip, not this. On a *shrink* the held predecessor is larger than its successor — a new artifact class S5/S6 must look for |
+| **D** | **A + a one-generation hold.** Remove the black, and hold each child's *previous* generation until the earliest of its four exits | see § 4.1 — **not** "one function": four files, +140/−37 as built by the re-check (nested branch `d-sim` `b2186a0`, compiles clean, digest `8ff5e4f30492304b`, **not installed, not merged**) | Closes the gap only while the child keeps the old context attached after the new one's create (§ 2.5 (a)) and only until the 120 ms host paint unless gated (§ 2.4). Whether that spans the first present is S1a (ii). In the *grown* region of a resize there is no predecessor content; that is #7's strip, not this. On a *shrink* the held predecessor is larger than its successor — a new artifact class S5/S6 must look for. While the 120 ms paint is withheld the § 2.4 sliver is uncovered unless re-armed (§ 4.1 (4)) |
 
 ### 4.1 D, specified (the touch set the first draft called "one function")
 
@@ -233,24 +235,42 @@ out on other grounds (C54).
    per-child *current-context* record set in the CREATE handler beside `:1758`;
    `retire_superseded_layers` (`:946-970`) keeps `{current, previous}` and **keeps its
    `vals[i] == child` filter** (`:963`) — a stale entry for a reused id must not retire another
-   child's host.
+   child's host. Every read of the record is validated against `remote_layer_children` — a recycled
+   id must not reframe another child's host either — and the record is cleared at all three
+   `remote_layer_children` removal sites (`:966`, `:1780`, `:2038`), routed through one helper, or
+   the two drift.
 3. **`remote_layer_context_for` (`window.c:1852-1872`) returns the first match.** Its D1-scoped
    caller `:2105` (`update_remote_layer_frame_for(data, hwnd, remote_layer_context_for(data, hwnd))`)
    reframes **one** host per child move; with two tracked it would move an arbitrary one, leaving
    the live generation at its old frame about half the time — a new misplacement on the path C32
-   found fragile. D reframes the *current* generation (from the new record), or every tracked host
-   of the moved child.
-4. **Gate the 120 ms deferred host paint (`:847-861`)** on no other host being registered for the
-   same child, or state `min(window, 120 ms)` as D's reach.
-5. **`have_z` FALSE → keep-one** (§ 2.3).
+   found fragile. D reframes the *current* generation (from the new record). **And the bulk path:**
+   `update_remote_layer_frames` (`window.c:1986`; callers `:2144`, `:2429`, `:2449`) iterates every
+   tracked entry, so unchanged it reframes the held predecessor too — stretching stale content to
+   the new rect on every drag step, on exactly the path #7 is about. It must skip a held
+   predecessor. (Found by building it — the re-check's most consequential omission.)
+4. **Gate the 120 ms deferred host paint (`:847-861`)** — but not where the first fold put it: the
+   Cocoa side never receives the child (`macdrv_window_create_ca_layer_host_view`, `:4409-4410`,
+   takes `context_id, frame, zpos, zpos_valid`; `_caLayerHosts` is keyed by context id; the gate at
+   `:858` is id-only). The *decision* lives on the unix side, which knows the hold: pass a `paint_bg`
+   flag down and split the deferred paint into an `-armCALayerHostBackground:` the owner can fire
+   later. **Withholding the paint forfeits the § 2.4 sliver cover for the life of the hold**, so each
+   of the four exits in (6) needs a re-arm site — the re-check wired one from the RELEASE handler and
+   left the drain and root-destroy exits unarmed — or the sliver is stated as D's cost. The
+   alternative is to accept `min(window, 120 ms)` as D's reach.
+5. **`have_z` FALSE → keep-one** (§ 2.3). A generation created with `have_z` FALSE is never recorded
+   as *current*, so the generation after it holds nothing — otherwise the inversion recurs one
+   generation later.
 6. **Four exits, named** (the pattern `GOTCHAS.md` § hold-until-next-event requires): the next
    CREATE for the child · the predecessor's own `WM_MACDRV_RELEASE_REMOTE_LAYER`
-   (`window.c:1767-1785` already frees a tracked id) · the dead-child drain (`:2031-2039`, which
+   (`window.c:1767-1785` already frees a tracked id) · the dead-child drain (`:2033-2041`, which
    runs only from root frame updates — callers `:2144`, `:2429`, `:2449`) · root destroy
    (`:1419-1420`). A child that stops recreating, never releases, and dies keeps its held pair
-   until the root's next frame update — today's bound, one larger.
+   until the root's next frame update — today's bound, one larger. Any new structure (the
+   current-context record) needs its own release at the root-destroy exit, which today releases
+   `remote_layer_children` only.
 7. **Comments that become false and must change with the code** (upstream-bound): `window.c:943-945`,
-   `:1760`, `cocoa_window.m:882-884` ("the old one retired at CREATE"), core patch line 412.
+   `:1760`, `:1850-1851` ("the context id of this root's hosted layer for this child" — under D
+   there are two), `cocoa_window.m:882-884` ("the old one retired at CREATE"), core patch line 412.
 8. **Pattern-fit in D's favour, unused by the first draft:** the root-with-NULL-child path already
    holds until RELEASE (retire is gated `if (child)` at `:1761`; `addCALayerHostViewWithContextId`
    removes only the same id, `:841`), and pristine keeps N hosts per window. D generalises an
@@ -297,7 +317,9 @@ C49/C53/C56 scorer-bug family) — and note **the video tally counts only
 `blue/green/magenta/cyan`** (`video-gap-battery.sh:104-119`) while video mode writes **no
 `bands.txt`** (`livedrag-probe.sh:27`): a prod build paints no colour and reads "no episodes" by
 construction. **Every comparison arm below therefore runs a diag build; prod modules are for S5
-and S6 only.** ⚠ Cyan is unsafe on the store page (Steam artwork; C61): S0/S3/S4 need a page knob
+and S6 only.** ⚠ That constraint is two lines from expiring: `video-blue.swift` already emits
+`black=`/`blackpx=` per frame (`:114`, cs2 `f4e84c3`); only the battery's regex and tuple
+(`video-gap-battery.sh:105`, `:113`) lack a black group — instrument (9). ⚠ Cyan is unsafe on the store page (Steam artwork; C61): S0/S3/S4 need a page knob
 (`drag-session.sh:123` hard-codes `steam://store`) or a **shape gate** (full-client = cyan bbox
 w ≥ 100 px **and** h ≥ 50 % of the window; the C61 growing-edge column is ≤ 4 drag steps wide).
 
@@ -311,10 +333,12 @@ C59's magenta seam, to the first `SysCommand f002` stamp), since nothing aligns 
 `--rect x,y,w,h` on `video-blue.swift` (`--where` gives one whole-frame bbox, `:80-108`); (4) fold
 C42's cyan content-view patch into `diag-colours-patch.py --cyan` — **C42's build
 `38b52d6b3971d78b` has no committed build input**; (5) a `STEAM_PAGE` knob in `drag-session.sh`;
-(6) a `*)` default in `strip-module-ab.sh`'s module map (`:90-95` maps only
-`s1diag|baseline|stage1|s2b`; under `set -u` an unknown role **silently reuses the previous
-iteration's module** and labels it as the new one) + its loadavg gate; (7) `scripts/live-hosts.py`
-(+1 at `:1717`, −1 at `:964`/`:1770`, max per child); (8) a `--norelease` child mutant at `:4370`.
+(6) a `*)` default in `strip-module-ab.sh`'s module map (`set -u` at `:24`; the map at `:89-94` covers only
+`s1diag|baseline|stage1|s2b` with no `*)`: an unknown role **aborts loudly if it comes first and
+silently reuses the previous iteration's module if it comes later** — S6's `"baseline stage1 D"` is
+the silent case) + its loadavg gate; (7) `scripts/live-hosts.py`
+(+1 at `:1717`, −1 at `:964`/`:1770`, max per child); (8) a `--norelease` child mutant at `:4370`; (9) a black group in `video-gap-battery.sh:105,113`,
+so prod arms become scoreable and the all-diag constraint can be revisited.
 
 | id | test | pass / what it decides | mutant |
 |---|---|---|---|
@@ -326,7 +350,7 @@ iteration's module** and labels it as the new one) + its loadavg gate; (7) `scri
 | **S4** | **A alone, the control arm**, same build recipe minus the hold | full-client cyan at the blue rate ⇒ A relocates the flash (black in production, `:1257`); under D that must not occur | restore `:4339` → **full-client** cyan episodes vanish (the C61 growing-edge column persists regardless — that is not this mutant's signal) |
 | **S5** | **T3 (human)**, James on the D **prod** build | verdict verbatim: any full-client flash still visible? any *new* artifact — a stale predecessor showing after the new generation should have covered it, especially on **shrinks**? | none — a human drag is not repeated per mutant |
 | **S6** | **No regression on #7's strip**, after (6): `strip-module-ab.sh MODULES="baseline stage1 D" N=7 FRAMES=300`, interleaved, loadavg-gated | stage 1 < baseline **reproduces in this run** (not against C54's stored numbers) **and** D's growing-frame right-band mean ≤ stage 1's + ½ (baseline − stage 1); plus a **shrink-frame clause** via `band-counts.py`'s grow/shrink split; child placement scored, since `:2105` changed | none — structural |
-| **S7** | **The hold's bound**: `--norelease` mutant (8) + `shimmer-probe.sh churn` (`hosting-layer-tests.sh:254`) + `live-hosts.py`, ≥ 300 creates; then the terminal case — a child that recreates twice, stops, never releases, is destroyed; then `scripts/boot-verify.sh` (the game never constructs a `CAContextSwapChain` — `window.c:1298-1336` — but shares the module) | max live hosts per child ≤ 2 throughout; the terminal child's held pair drops to 0 after the root's next frame update; boot-verify PASS | (a) drop the next-CREATE exit → max grows monotonically (≥ 10); (b) disable the `:2031-2039` drain → dead pairs persist |
+| **S7** | **The hold's bound**: `--norelease` mutant (8) + `shimmer-probe.sh churn` (`hosting-layer-tests.sh:254`) + `live-hosts.py`, ≥ 300 creates; then the terminal case — a child that recreates twice, stops, never releases, is destroyed; then `scripts/boot-verify.sh` (the game never constructs a `CAContextSwapChain` — `window.c:1298-1336` — but shares the module) | max live hosts per child ≤ 2 throughout; the terminal child's held pair drops to 0 after the root's next frame update; boot-verify PASS | (a) drop the next-CREATE exit → max grows monotonically (≥ 10); (b) disable the `:2033-2041` drain → dead pairs persist |
 
 Every listed mutant is **applied to real source and observed red, then restored green**. "Argued
 red" is not red. Where a mutant is red-observable only under one S1a outcome, the row says so.
@@ -352,6 +376,13 @@ red" is not red. Where a mutant is red-observable only under one S1a outcome, th
 The installed daily driver is stage 1 `2a251a4b2510fb84`, kept. Any candidate ships as a separate
 module built through `scripts/build-winemac.sh` and is only installed after S3/S6/S7; reverting is
 reinstalling `2a251a4b2510fb84`. No prefix or settings change is involved.
+
+⚠ **`scripts/build-winemac.sh:36-37` refuses any nested branch but `main` and any dirty tree**, so a
+candidate on a branch cannot go through it as written: either land D on `main` behind the § 7 gate,
+or give the script a branch knob. The re-check's fallback was the target the script names —
+`gmake dlls/winemac.drv/winemac.so` in `~/cs2-patch/build-1116/wine-1116-vis-build` — with the
+digest taken by hand. (The file's exported Cocoa wrappers close with two braces, `@autoreleasepool`
+inside the body; the first compile of D tripped on it.)
 
 ## Review corrections (triple-check 2026-09-07)
 
@@ -387,17 +418,39 @@ Every `[BLOCKER]` was spot-checked in this session before folding. Landed above:
 **Rejected:** nothing — every finding survived the spot-check. One lens cited `window.c:1716` as
 the handler's TRACE; it is `:1717` (`:1716` is blank).
 
+### Fitted re-check (same day) — builder-simulation on the folded plan
+
+One agent (Opus 5), against `407348d`: verified every fold edit against the code (all true), then
+**built D as § 4.1 specified** on a throwaway nested branch (`d-sim` `b2186a0`, compiles clean, digest
+`8ff5e4f30492304b`, not installed, not merged; nested `main` and this repo untouched). No blocker.
+Every finding is an omission in § 4.1's touch set, landed above:
+
+- `[SHOULD-FIX]` the bulk reframe path moves the held predecessor → § 4.1 (3).
+- `[SHOULD-FIX]` the 120 ms gate cannot live on the Cocoa side, and withholding the paint forfeits
+  the sliver cover with no re-arm → § 4.1 (4), § 4 D.
+- `[SHOULD-FIX]` `build-winemac.sh` refuses any branch but `main` → § 8.
+- `[SHOULD-FIX]` the all-diag constraint is two lines from expiring → § 6 preamble, instrument (9).
+- `[SHOULD-FIX]` the generation after an unordered one; a second structure at the root-destroy exit;
+  id reuse on the record → § 4.1 (5), (6), (2).
+- `[MINOR]` `window.c:1850-1851` becomes false → § 4.1 (7); the unknown-role failure is loud on
+  iteration 1 → § 6 preamble; cites: drain `:2033-2041`, map `:89-94`, `cocoa_event.m:486-540`,
+  `drawableSize` applied at `winemetal_unix.c:1527` → § 2.1.
+
+**Rejected:** nothing.
+
 ## Review log
 
 | date | pass | lenses | method | model | verified against | verdict |
 |---|---|---|---|---|---|---|
 | 2026-09-07 | pre-review of the first draft (not a check-it pass) | inline: z-order · provenance · present-hook · trace ordering | one model, direct reads + one trace measurement | Fable 5.1 | cs2 `43227c7`, nested `main` `52789ff`, pristine `wine-11.16/` | first draft needs-rework → reworked in place (§ 2.3 covering claim wrong on z-order; § 5 ownership wrong; § 1 quoted a cadence as an exposure) |
-| 2026-09-07 | **pass 1** | architecture (+ upstream-form/privacy) · correctness · platform-facts · test-plan audit | 4 independent agents, ≤ 15 tool calls each; every blocker spot-checked inline | Fable 5.1 ×4 | cs2 `3515efc`, nested `main` `52789ff`, pristine `wine-11.16/`, `dxmt-fork` | **needs-rework** (test plan) · build-ready-with-fixes ×3 → **all folded the same day; fitted re-check pending** |
+| 2026-09-07 | **pass 1** | architecture (+ upstream-form/privacy) · correctness · platform-facts · test-plan audit | 4 independent agents, ≤ 15 tool calls each; every blocker spot-checked inline | Fable 5.1 ×4 | cs2 `3515efc`, nested `main` `52789ff`, pristine `wine-11.16/`, `dxmt-fork` | **needs-rework** (test plan) · build-ready-with-fixes ×3 → all folded the same day |
+| 2026-09-07 | **fitted re-check** of the fold + builder-simulation | fold verification · build D on a scratch branch · compile · gates | 1 agent, ~15 tool calls; D built and compiled (`d-sim` `b2186a0`, digest `8ff5e4f30492304b`) | Opus 5 | cs2 `407348d`, nested `main` `52789ff`, pristine, `dxmt-fork` | **build-ready-with-fixes** — no blocker; nine omissions in § 4.1 / § 6 / § 8 folded the same day |
 
 **Key paths** (re-check if these move): `dlls/winemac.drv/cocoa_window.m` (`:832-894`, `:940-953`,
-`:1253-1257`, `:2031-2039`, `:4298-4385`), `dlls/winemac.drv/window.c` (`:46`, `:97-137`, `:943-970`,
-`:1243-1258`, `:1280-1285`, `:1710-1798`, `:1852-1872`, `:2105`), `dlls/winemac.drv/dxmt_objc.m` (`:38-72`),
-`dlls/winemac.drv/cocoa_event.m` (`:486-535`), `~/cs2-patch/dxmt-fork/src/dxmt/dxmt_presenter.cpp`
+`:1253-1257`, `:2033-2041`, `:4298-4385`), `dlls/winemac.drv/window.c` (`:46`, `:97-137`, `:943-970`,
+`:1243-1258`, `:1280-1285`, `:1850-1851`, `:1986`, `:1710-1798`, `:1852-1872`, `:2105`), `dlls/winemac.drv/dxmt_objc.m` (`:38-72`),
+`dlls/winemac.drv/cocoa_event.m` (`:486-540`), `~/cs2-patch/dxmt-fork/src/dxmt/dxmt_presenter.cpp`
 (`:16-21`), `…/winemetal/unix/winemetal_unix.c` (`:1496-1529`), `scripts/diag-colours-patch.py`,
 `scripts/layer-gap.py`, `scripts/strip-module-ab.sh`, `scripts/video-gap-battery.sh`,
-`scripts/drag-session.sh`, `scripts/livedrag-probe.sh`, `scripts/video-blue.swift`.
+`scripts/drag-session.sh`, `scripts/livedrag-probe.sh`, `scripts/video-blue.swift`,
+`scripts/build-winemac.sh` (`:36-37`).
