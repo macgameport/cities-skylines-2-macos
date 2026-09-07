@@ -28,6 +28,10 @@ import Foundation
 let args = CommandLine.arguments
 guard args.count > 1 else { FileHandle.standardError.write("usage: video-blue <file.mov>\n".data(using: .utf8)!); exit(2) }
 
+// optional: `--where green|blue|magenta` switches from counting to locating
+var whereColour: String? = nil
+if let i = args.firstIndex(of: "--where"), i + 1 < args.count { whereColour = args[i + 1] }
+
 let asset = AVURLAsset(url: URL(fileURLWithPath: args[1]))
 guard let track = asset.tracks(withMediaType: .video).first else {
     FileHandle.standardError.write("no video track\n".data(using: .utf8)!); exit(2)
@@ -62,6 +66,43 @@ while let sb = out.copyNextSampleBuffer() {
         }
     }
     CVPixelBufferUnlockBaseAddress(pb, .readOnly)
+    // `--where <colour>` locates rather than counts: the bounding box and column extent of the
+    // named colour on the frames that carry it. Added 2026-09-06 because magenta turned up on
+    // hundreds of video frames while the WINDOW capture of the same build scored 0 of 300, and
+    // "how many" cannot tell those two instruments apart -- "where" can.
+    if let want = whereColour {
+        var minx = w, maxx = -1, miny = h, maxy = -1, cnt = 0, cols = 0
+        CVPixelBufferLockBaseAddress(pb, .readOnly)
+        var seen = [Bool](repeating: false, count: w)
+        for y in 0..<h {
+            let row = base + y * stride
+            for x in 0..<w {
+                let p = row + x * 4
+                let b = Int(p[0]), g = Int(p[1]), r = Int(p[2])
+                let hit: Bool
+                switch want {
+                case "green":   hit = g >= 200 && r <= 60 && b <= 60
+                case "blue":    hit = b >= 200 && r <= 60 && g <= 60
+                default:        hit = r >= 200 && b >= 200 && g <= 60
+                }
+                if hit {
+                    cnt += 1
+                    if !seen[x] { seen[x] = true; cols += 1 }
+                    if x < minx { minx = x }
+                    if x > maxx { maxx = x }
+                    if y < miny { miny = y }
+                    if y > maxy { maxy = y }
+                }
+            }
+        }
+        CVPixelBufferUnlockBaseAddress(pb, .readOnly)
+        if cnt > 0 {
+            print(String(format: "f%d t=%.4f %dx%d %@=%d px  x %d..%d (w %d, %d distinct cols)  y %d..%d (h %d)",
+                         n, t, w, h, want, cnt, minx, maxx, maxx - minx + 1, cols, miny, maxy, maxy - miny + 1))
+        }
+        n += 1
+        continue
+    }
     let tot = Double(w * h) / 100.0
     print(String(format: "f%d t=%.4f %dx%d blue=%.4f blueloose=%.4f green=%.4f magenta=%.4f bluepx=%d greenpx=%d",
                  n, t, w, h, Double(blue)/tot, Double(blueLoose)/tot, Double(green)/tot, Double(magenta)/tot,
