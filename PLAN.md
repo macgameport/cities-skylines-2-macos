@@ -97,9 +97,6 @@ superseded, with the pointer to where the surviving content lives.
   U2720Q (27" 4K, 163 ppi) as the *portrait secondary*; making it `spdisplays_main` is a
   one-setting change that would put `home` at native 4K (~4× the tuned working point). Wants a new
   `home-hidpi` row giving 4K the *mobile* treatment (DRS 0.5 + CAS), re-benched not assumed.
-- 📋 **`scripts/README.md` coverage drift.** [#3](https://github.com/macgameport/cities-skylines-2-macos/issues/3). Re-measured 2026-09-03: **25 of 63
-  tracked source files documented, 38 unmentioned** (was 15 unmentioned on 2026-08-28 — it is
-  getting worse, not better, as instruments land).
 - 📋 **Fullscreen-toggle cursor desync.** [#4](https://github.com/macgameport/cities-skylines-2-macos/issues/4). Observed on wine 11.0, **never re-tested on
   the promoted 11.16 engine**; the whole defect class lived in the client-surface machinery 11.16
   reworked, so it may already be gone. Re-check before repeating the old "set Fullscreen and don't
@@ -110,6 +107,16 @@ superseded, with the pointer to where the surviving content lives.
   whether Wine-style use qualifies. Nothing to do today; plan-B territory around late 2027.
 
 ### Closed — where each one went
+
+- ✅ **`scripts/README.md` coverage drift** — [#3](https://github.com/macgameport/cities-skylines-2-macos/issues/3)
+  **CLOSED 2026-09-04, and the condition was actually fixed**, not just filed away. Re-measured on
+  `button up` 2026-09-07 with the issue's own method (every `scripts/*.{sh,py,c,swift}` filename
+  `grep`ed against `scripts/README.md`): **78 source files · 70 documented · 8 unmentioned**, against
+  24 of 62 when the issue was written. The eight are the 2026-09-05/06 drag-battery instruments,
+  which is the expected lag: `host-frame-stalls.py` · `issue12-capture-control.sh` · `layer-gap.py`
+  · `stall-window.py` · `strip-module-ab.sh` · `video-blue.swift` · `video-gap-battery.sh` ·
+  `winscan.swift`. ⚠ This bullet sat under **Still real** citing a closed issue as a live standing
+  item for three days — the `open up` § 15a failure mode, caught here instead.
 
 - **Metal HUD off in the double-clickable shortcut** (James, 2026-08-27, "for now"). Not a defect, a
   setting: per-run `CS2_HUD=1` is documented in `INSTALL.md` § the HUD and in `README.md`; baking it

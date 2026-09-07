@@ -768,6 +768,33 @@ so a queue started after the sleep meets a locked session; and in zsh `GID` is a
 because it runs under bash.
 
 
+## A `case` with no `*)` under `set -u` reuses the previous loop iteration's module (2026-09-07)
+
+> **Ledger: instrument defect, unfixed — tracked as instrument (6) in `docs/plans/s3-pre-drawable-gap.md` § 6.**
+
+`scripts/strip-module-ab.sh` runs `set -u` (`:24`) and maps each requested arm to a module with a
+`case` (`:89-94`) covering `s1diag|baseline|stage1|s2b` and **no `*)` default**. Ask it for an arm it
+does not know and it does not fail — `role` and `mod` simply keep the values the *previous* iteration
+left in them, so the battery runs the previous module again and labels every row with the new arm's
+name. The file-existence check earlier in the script passes and never feeds the loop.
+
+**What makes it survive review:** it is loud in exactly the case you test it in. An unknown arm
+*first* in `$MODULES` leaves the names unset and `set -u` aborts — so a one-off `MODULES="D"` looks
+correctly defensive. It is silent only from the second iteration on, which is the shape every real
+A/B has: `MODULES="baseline stage1 D"`.
+
+**The class:** this is the harness family already in this file — a rig that produces a *wrong answer*
+rather than *no answer*. It would have reported a candidate module's A/B as separable or not while
+measuring the incumbent twice, with nothing in the run dir to show it, because the digest is recorded
+from the variable rather than from the module actually loaded.
+
+**Prevention.** A `case` that selects state inside a loop gets a `*)` that exits non-zero, always.
+Where a run's identity comes from a variable, record it from the artifact instead — the battery
+already reads the module digest, so make the arm's recorded digest the one read back from the loaded
+module and compare it against the map.
+
+Found by a builder-simulation agent during the `check it` on the S3 plan, not by a failing run.
+
 ## The scorer looked for BLACK on the one build that paints it (2026-09-06)
 
 > **Ledger: `SUPPORTED` (C56).**
