@@ -12,6 +12,22 @@ nested winemac `main` = `52789ff`, `core` = `63a0cec`, `aquadran` = `fe281fe`; p
 stage 1 `2a251a4b2510fb84`. Line numbers are against nested `main` and name their file; unqualified
 `:N` is `cocoa_window.m`; `pristine :N` is the winehq 11.16 tarball's copy.
 
+> **🔧 As-built (2026-09-07): PARTIAL — § 6's nine instruments are BUILT; no candidate is.**
+> Commit: this one. Nothing was installed; the daily driver is still stage 1 `2a251a4b2510fb84`
+> and the nested tree is back on `main` `52789ff`, clean. Build order position: step 1 of
+> *instruments → S1a → S0 → § 7 decision rule → D* is complete; **S1a has not been run.**
+> Three modules were built to scratch and left in `/tmp` (nothing installed): the S1a stamp
+> `5bfb1f07ce0d7598`, the `--cyan` reconstruction `e700ac8fdfef0e80`, the `--norelease` mutant
+> `cf200bbf146ff56f`.
+> **Two deviations from the plan, both recorded in § 6's list:** (a) S1a's "one clock" needed a
+> mechanism the plan did not specify — the Cocoa side's `ERR()` carries no `+timestamp`, so the
+> stamp prints `NtGetTickCount()` itself through a hand-declared `ms_abi` prototype, gated by a new
+> `align-trace-video.py --check-clock`; (b) C42's module is **not byte-reproducible** and instrument
+> (4) is a reconstruction, not a reproduction.
+> **Verify against:** `scripts/first-drawable-stamp-patch.py` · `scripts/align-trace-video.py` ·
+> `scripts/live-hosts.py` · `scripts/video-blue.swift` · `scripts/diag-colours-patch.py` ·
+> `scripts/drag-session.sh` · `scripts/strip-module-ab.sh` · `scripts/video-gap-battery.sh`.
+
 > ⚠ **This document REDIRECTS issue #13's stated direction.** #13 proposed deferring
 > `retire_superseded_layers`. § 2.3 shows that cannot work on its own — the new generation sits
 > *above* its predecessor — but § 2.5 measures a window in which a companion form of it can. Read
@@ -317,28 +333,92 @@ C49/C53/C56 scorer-bug family) — and note **the video tally counts only
 `blue/green/magenta/cyan`** (`video-gap-battery.sh:104-119`) while video mode writes **no
 `bands.txt`** (`livedrag-probe.sh:27`): a prod build paints no colour and reads "no episodes" by
 construction. **Every comparison arm below therefore runs a diag build; prod modules are for S5
-and S6 only.** ⚠ That constraint is two lines from expiring: `video-blue.swift` already emits
-`black=`/`blackpx=` per frame (`:114`, cs2 `f4e84c3`); only the battery's regex and tuple
-(`video-gap-battery.sh:105`, `:113`) lack a black group — instrument (9). ⚠ Cyan is unsafe on the store page (Steam artwork; C61): S0/S3/S4 need a page knob
-(`drag-session.sh:123` hard-codes `steam://store`) or a **shape gate** (full-client = cyan bbox
-w ≥ 100 px **and** h ≥ 50 % of the window; the C61 growing-edge column is ≤ 4 drag steps wide).
+and S6 only.** ⚠ **That constraint survives instrument (9), but its reason has changed and the new
+reason is narrower.** The battery now scores a black episode too (`BLACK_MIN`, default 5 %), so a
+prod arm is no longer unscoreable by construction — what a prod arm still cannot do is
+**attribute**. A diagnostic colour says *which surface* is exposed; black says only that something
+dark is, and on a prod build nothing separates the defect from a dark banner. So: comparison arms
+stay diag because attribution is what they are for, and a prod arm is now usable to *confirm a rate
+the diag arm already attributed*. ⚠ Cyan is unsafe on the store page (Steam artwork; C61): S0/S3/S4
+need a page knob — ✅ instrument (5) built it, `STEAM_PAGE`, recorded per run in `steam-page.txt` —
+or a **shape gate** (full-client = cyan bbox w ≥ 100 px **and** h ≥ 50 % of the window; the C61
+growing-edge column is ≤ 4 drag steps wide).
 
 **Instrument work this plan requires, named as such** (all small, all prerequisites — nothing
-here is candidate code): (1) `scripts/first-drawable-stamp-patch.py` — a diag-only `CAMetalLayer`
+here is candidate code). ✅ **All nine BUILT 2026-09-07** — see the as-built header; per-item
+build notes are inline below, and two of them change how a result may be read. (1) `scripts/first-drawable-stamp-patch.py` — a diag-only `CAMetalLayer`
 subclass for `CAContextSwapChain` overriding `nextDrawable` to TRACE the first acquire per context
-id and to `addPresentedHandler:` on that drawable, tracing `presentedTime`; (2)
+id and to `addPresentedHandler:` on that drawable, tracing `presentedTime`. ✅ **BUILT**, module `5bfb1f07ce0d7598`, compiles clean, all five stamp
+strings and the `_NtGetTickCount` import verified present in the `.so`. ⚠ **The plan did not
+specify how the child reaches "one clock", and it needed a decision.** The Cocoa side's `ERR()`
+goes through `LogErrorv`'s raw `fprintf` (`cocoa_app.m:2402-2412`) and never enters wine's debug
+header — measured on a real trace: **300 untimestamped `^err:` lines against 35 timestamped ones**
+— so a stamp emitted the obvious way lands on no clock at all. The stamp therefore prints
+`NtGetTickCount()` itself, declared `__attribute__((ms_abi))` by hand because `WINAPI` → `__stdcall`
+→ `ms_abi` on x86_64 with no unix-lib carve-out (`minwindef.h:157`, `corecrt.h:112-117`) even though
+winemac.drv is a `UNIXLIB`. **A wrong ABI there would not fail the build, it would print a
+plausible wrong number** — so S1a is gated on `align-trace-video.py --check-clock`, which refuses a
+run whose stamp ticks fall outside the trace's own tick range. **Run that gate before reading any
+S1a number.** (2)
 `scripts/align-trace-video.py` — anchor video PTS to the trace (the first visible edge motion,
 C59's magenta seam, to the first `SysCommand f002` stamp), since nothing aligns them today
-(`drag-session.sh:87` names only wall-clock; `win-resize-driver.c` prints no timestamps); (3)
-`--rect x,y,w,h` on `video-blue.swift` (`--where` gives one whole-frame bbox, `:80-108`); (4) fold
+(`drag-session.sh:87` names only wall-clock; `win-resize-driver.c` prints no timestamps).
+✅ **BUILT**, and it carries the `--check-clock` gate above. Anchor arithmetic verified against a
+controlled fixture (planted offset recovered to 8 ms, inside the ±25 ms one-frame uncertainty) and
+the gate observed **red then green** on a spliced `tick=0`. ⚠ Two limits are printed with every
+run rather than assumed: it is a **one-point anchor worth about one video frame**, and drift is
+estimated by re-anchoring on the last right-edge press — **not** on the last coloured frame, which
+would compare the first f002 against the *top*-edge segment and report that segment's duration as
+drift. ⚠ **Not yet exercised end to end: no run on disk pairs a trace with scored video**, because
+`drag-session.sh`'s trace-copy fix postdates every video row. S1b is its first real use. (3)
+`--rect x,y,w,h` on `video-blue.swift` (`--where` gives one whole-frame bbox, `:80-108`).
+✅ **BUILT**, both the counting and the locating paths, tested on a real recording; fractions are
+rect-relative and every line carries `rect=`, so a rect run cannot be misread as a whole-frame one,
+and an off-frame rect reads as `rect=…,0,0` rather than as a clean sheet. (4) fold
 C42's cyan content-view patch into `diag-colours-patch.py --cyan` — **C42's build
-`38b52d6b3971d78b` has no committed build input**; (5) a `STEAM_PAGE` knob in `drag-session.sh`;
-(6) a `*)` default in `strip-module-ab.sh`'s module map (`set -u` at `:24`; the map at `:89-94` covers only
-`s1diag|baseline|stage1|s2b` with no `*)`: an unknown role **aborts loudly if it comes first and
+`38b52d6b3971d78b` had no committed build input**. ✅ **BUILT** as `--cyan` (background at
+`initWithFrame:`, GDI blit suppressed — C42's void first attempt is the reason for the first half),
+module `e700ac8fdfef0e80`, compiles clean. ⚠ **It is a RECONSTRUCTION, not a reproduction, and it
+cannot be made into one** — so **C42's 3-of-15 split and C61's 25 px column are not a baseline a new
+`--cyan` arm continues; S0/S3/S4 must carry their own controls.** Two independent reasons a
+byte-compare is unavailable: five behavioural commits landed on `main` after C42's module was built
+at 21:22 on 2026-09-03 (`eecbe79`..`5dd318c`), and `main` is the glue commit rebased over the core
+series, so the tip C42 built from is not a commit that still exists. The check that IS available is
+the `--noblue` mutant (blue returns), which catches the failure C42 actually hit. (5) a
+`STEAM_PAGE` knob in `drag-session.sh`. ✅ **BUILT**, and the chosen page is written to
+`steam-page.txt` in the run dir, since it is part of the fixture;
+(6) a `*)` default in `strip-module-ab.sh`'s module map (`set -u` at `:24`; the map covered only
+`s1diag|baseline|stage1|s2b` with no `*)`: an unknown role **aborted loudly if it came first and
 silently reuses the previous iteration's module if it comes later** — S6's `"baseline stage1 D"` is
-the silent case) + its loadavg gate; (7) `scripts/live-hosts.py`
-(+1 at `:1717`, −1 at `:964`/`:1770`, max per child); (8) a `--norelease` child mutant at `:4370`; (9) a black group in `video-gap-battery.sh:105,113`,
-so prod arms become scoreable and the all-diag constraint can be revisited.
+the silent case) + its loadavg gate. ✅ **BOTH BUILT**; the dispatch was exercised over all six
+names including `D` and `Ddiag`, and any arm whose name ends in `diag` now sets the digest's
+colour-reading flag. (7) `scripts/live-hosts.py`
+(+1 at `:1717`, −1 at `:964`/`:1770`, max per child). ✅ **BUILT, and it reproduces every one of
+§ 2.5's six published figures exactly** (baseline r1 300/285/271, stage-1 r1 277/262/248, 14
+retired-but-never-released in both) — an independent replay of the same traces. ⚠ **It replays the
+dictionary rather than counting events**, because RELEASE is not a decrement: the handler skips an
+untracked id and § 2.5 measured that as 271 of 271, so a per-line −1 would run the count to −271
+and report health. ⚠ **And S7's bound must be read off the DWELL column, not the max**: today's
+baseline already reaches 2 momentarily (CREATE adds before retire removes), measured at 0.07 s of
+149 s = 0.0 %, so max is 2 on a clean baseline *and* on a correct D. `--max N` is a gate with an
+exit code, observed red then green. (8) a `--norelease` child mutant at `:4370`. ✅ **BUILT** into
+`diag-colours-patch.py` beside `--e1` (same file, same one-file `build-winemac.sh` contract),
+module `cf200bbf146ff56f`, compiles clean. (9) a black group in `video-gap-battery.sh:105,113`,
+so prod arms become scoreable and the all-diag constraint can be revisited. ✅ **BUILT** — and it
+needed a threshold the plan did not name. `> 0` is sound for a diagnostic colour and **wrong for
+black**, which measured 0.14 % of the frame on a *static* store page in this battery's own
+recordings and would mark every frame an episode; C58's real episodes covered 13–53 %, so
+`BLACK_MIN` (default 5 %) separates them and is printed with the tally. Regression-checked against
+C61's stored run: 281 cyan episodes over 10 runs, unchanged.
+
+⚠ **Still owed in this section, and deliberately not done with the instruments** (both are
+preconditions, not instruments, and both change harness behaviour rather than adding a tool):
+**`--strict` on the drag rows' fingerprint** — still 0 hits in `drag-session.sh` and
+`steam-render-cell.sh`, so the plan's "add it, or justify non-strict in the row" is unanswered and
+every S-row below must do one or the other; and **recording the capture display and its refresh**
+in `cell-fingerprint.sh`, without which a row taken on the 60 Hz portrait panel halves every
+sampled rate with nothing in `config.json` to show it. Neither blocks S1a; both must be settled
+before a rate from one run is compared with a rate from another.
 
 | id | test | pass / what it decides | mutant |
 |---|---|---|---|
@@ -430,6 +510,8 @@ Every finding is an omission in § 4.1's touch set, landed above:
   the sliver cover with no re-arm → § 4.1 (4), § 4 D.
 - `[SHOULD-FIX]` `build-winemac.sh` refuses any branch but `main` → § 8.
 - `[SHOULD-FIX]` the all-diag constraint is two lines from expiring → § 6 preamble, instrument (9).
+  ✅ **Resolved 2026-09-07 by building (9)** — and the constraint did not lift, it narrowed: prod
+  arms are now scoreable but still cannot attribute. See the § 6 preamble.
 - `[SHOULD-FIX]` the generation after an unordered one; a second structure at the root-destroy exit;
   id reuse on the record → § 4.1 (5), (6), (2).
 - `[MINOR]` `window.c:1850-1851` becomes false → § 4.1 (7); the unknown-role failure is loud on

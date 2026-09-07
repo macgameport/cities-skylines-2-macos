@@ -10,6 +10,7 @@
 #   CAPTURE=screen DRAG=synth ... <role>   # the #12 control: frames off the composited display
 #   CAPTURE=video DRAG=synth ... t0        # DURATION: record the drag and time the diag colours
 #   FRAMES=300 DRAG=synth ... <role>       # sample the WHOLE drag, not its first quarter
+#   STEAM_PAGE=steam://open/games ... <role>  # a page that cannot supply the diagnostic colour
 #
 # CAPTURE=video answers the one question the frame modes structurally cannot. They sample every
 # ~113 ms, so a colour caught on a single frame is bounded only to "shorter than ~226 ms" -- and
@@ -120,7 +121,19 @@ echo "  module:  $(shasum -a 256 "$INST" | cut -c1-16)"
 WINEDEBUG="$TRACE" bash "$REPO/scripts/steam-render-cell.sh" \
     --label "drag-$ROLE-$(basename "$OUT")" --keep-running >"$OUT/cell.txt" 2>&1
 steam_up || { echo "  VOID: $(grep -m1 FATAL "$OUT/cell.txt" | cut -c1-120)"; exit 1; }
-WINEDEBUG=-all "$W" "$S/steam.exe" steam://store >/dev/null 2>&1; sleep 15
+# STEAM_PAGE picks the page the drag happens on. It is not cosmetic: C61 lost two runs of ten to
+# Steam's own artwork because CYAN -- chosen as "a colour the store page cannot contain" (C42) --
+# was sitting in a 489x305 banner from frame 0, scoring 1850 cyan frames against the others' 30-41.
+# A diagnostic colour is only safe until the page under test contains it, so a cell that scores by
+# colour alone needs a page that cannot supply it. `STEAM_PAGE=steam://open/games` (the Library) is
+# the shorthand default for that; any steam:// URL works.
+#   STEAM_PAGE=steam://open/games DRAG=synth bash scripts/drag-session.sh t0
+# ⚠ Changing the page changes the fixture, so it is recorded in the run dir and must be stated in
+# any cell that uses it -- two runs on different pages are not two runs of the same experiment.
+STEAM_PAGE="${STEAM_PAGE:-steam://store}"
+echo "  page: $STEAM_PAGE"
+echo "$STEAM_PAGE" > "$OUT/steam-page.txt"
+WINEDEBUG=-all "$W" "$S/steam.exe" "$STEAM_PAGE" >/dev/null 2>&1; sleep 15
 
 # Shrink the window first, so the drag has somewhere to GROW. The defect is on the growing edge, and
 # the first run (2026-09-04, t0) opened at 1853x994 with little headroom: the drag oscillated

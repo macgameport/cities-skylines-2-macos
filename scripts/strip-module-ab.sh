@@ -86,11 +86,19 @@ digest() {   # digest <rundir> <label> <diag: 1 if the module paints diagnostic 
 
 for r in $(seq 1 "$N"); do
   for m in $MODULES; do
+    # ⚠ The `*)` is not defensive padding -- without it this case is a silent-wrong-answer
+    # machine. `role` and `mod` are loop variables, so an unknown module name leaves BOTH holding
+    # the previous iteration's values: `MODULES="baseline stage1 D"` would run D's row on stage 1's
+    # module and file the result under D. Only the FIRST unknown name fails loudly (`set -u` at
+    # :24, nothing assigned yet); every later one measures the wrong module and says nothing. The
+    # default matches the file-resolution case at the top of this script, so the pre-flight check
+    # and the run agree on where an arbitrary name's module lives.
     case "$m" in
       s1diag)   role=t0; mod="" ;;
       baseline) role=s1; mod="$HOME/cs2-patch/winemac.so.baseline" ;;
       stage1)   role=s1; mod="" ;;
       s2b)      role=t3; mod="" ;;
+      *)        role=s1; mod="$HOME/cs2-patch/winemac.so.$m" ;;
     esac
     id="r${r}-${m}"; rd="$OUT/$TAG-$id"      # unique for all time -- see GOTCHAS on merged cells
     # ⚠ A row refused by its own precondition aborts in ~4 SECONDS, so without this the queue
@@ -101,6 +109,16 @@ for r in $(seq 1 "$N"); do
     for w in $(seq 1 60); do
       ping -c1 -W2000 1.1.1.1 >/dev/null 2>&1 && break
       [ "$w" = 1 ] && echo "    network down — holding this row until it returns (up to 30 min)"
+      sleep 30
+    done
+    # Same gate video-gap-battery.sh carries, and for the same reason: this battery's metric is a
+    # per-frame band mean during a timed drag, so a row taken while the machine is busy reports
+    # partly the machine. C52-C54 added it there after `~/cs2-patch` was found being Spotlight-
+    # indexed through a battery; it belonged here too and was simply never copied across.
+    for w in $(seq 1 40); do
+      l=$(uptime | sed -E 's/.*load averages?: ([0-9.]+).*/\1/')
+      awk -v l="$l" 'BEGIN{exit !(l+0 < 12)}' && break
+      [ "$w" = 1 ] && echo "    loadavg $l — holding this row until it settles (up to 20 min)"
       sleep 30
     done
     echo "=== $id  $(date '+%T')"
@@ -126,7 +144,9 @@ for r in $(seq 1 "$N"); do
       rc=$?
     fi
     echo "    exit $rc"
-    case "$m" in s1diag) dg=1 ;; *) dg=0 ;; esac
+    # Any arm whose name ends in "diag" paints the diagnostic colours, so the digest reads its
+    # colour columns. Before the S3 plan only s1diag existed; D-diag and A-diag arrive with S3/S4.
+    case "$m" in *diag) dg=1 ;; *) dg=0 ;; esac
     digest "$rd" "$id" "$dg"
   done
 done

@@ -10,9 +10,16 @@
 #   bash scripts/video-gap-battery.sh          # 12 runs, ~45 min
 #   N=4 bash scripts/video-gap-battery.sh      # a short version
 #
-# Only the diag build is worth recording: a prod build paints no colours, so there would be nothing
-# to time. Green/magenta/blue are scored together because the same recording carries all three, and
-# green (S1, issue #7's strip) is far commoner than blue -- present in every diag run on disk.
+# Green/magenta/blue are scored together because the same recording carries all three, and green
+# (S1, issue #7's strip) is far commoner than blue -- present in every diag run on disk.
+#
+# A PROD build used to be pointless here -- it paints no diagnostic colour, so the tally read "no
+# episodes" by construction whatever the display did. Since cs2 `f4e84c3` the scorer emits `black=`
+# per frame, and this battery now counts a black episode too, at the BLACK_MIN threshold (see the
+# tally). That makes a prod arm measurable, which is what the S3 plan's S5/S6 need. It does NOT make
+# black comparable to a diagnostic colour: the colour says WHICH surface is exposed, black says only
+# that something dark is, and on a prod build nothing distinguishes the defect from a dark banner.
+# Use black to confirm a rate the diag arm attributed, never to attribute one.
 #
 # ⚠ WHILE THIS RUNS, TOUCH NOTHING IT READS, and keep windows off Steam: this records the
 # COMPOSITED DISPLAY, so a window in front of Steam lands in the recording. The probe counts
@@ -88,6 +95,7 @@ echo "########## tally $(date '+%F %T')"
 MOD="$MOD" python3 - "$OUT" "$TAG" "$N" <<'PY'
 import sys, os, re
 out, tag, n = sys.argv[1], sys.argv[2], int(sys.argv[3])
+black_min = float(os.environ.get("BLACK_MIN", "5"))
 allrows, cadence, voids = {}, [], []
 for r in range(1, n + 1):
     d = os.path.join(out, f"{tag}-r{r}-" + os.environ.get("MOD", "s1-diag"), "frames")
@@ -102,16 +110,26 @@ for r in range(1, n + 1):
             voids.append(f"r{r}(overlap {m.group(1)})"); continue
     rows = []
     for ln in open(fp):
-        m = re.match(r'f(\d+) t=([0-9.]+) (\d+)x(\d+) blue=([0-9.]+) blueloose=([0-9.]+) green=([0-9.]+) magenta=([0-9.]+)(?: cyan=([0-9.]+))?', ln)
+        m = re.match(r'f(\d+) t=([0-9.]+) (\d+)x(\d+) blue=([0-9.]+) blueloose=([0-9.]+) green=([0-9.]+) magenta=([0-9.]+)(?: cyan=([0-9.]+))?(?: black=([0-9.]+))?', ln)
         if m:
             rows.append((float(m.group(2)), float(m.group(5)), float(m.group(7)), float(m.group(8)),
-                         float(m.group(9) or 0)))
+                         float(m.group(9) or 0), float(m.group(10) or 0)))
     if len(rows) < 2:
         voids.append(f"r{r}(no frames)"); continue
     gaps = sorted((rows[i+1][0]-rows[i][0])*1000 for i in range(len(rows)-1))
     cadence.append(gaps[len(gaps)//2])
-    for name, idx in (('blue', 1), ('green', 2), ('magenta', 3), ('cyan', 4)):
-        hits = [i for i, x in enumerate(rows) if x[idx] > 0]
+    # ⚠ Black is not scored the way a diagnostic colour is, and the difference is the whole reason
+    # this row exists. A diagnostic colour appears nowhere but the build's own backgrounds, so `> 0`
+    # is a sound episode test. Black is everywhere -- page artwork, the desktop, the window's own
+    # chrome -- and measured 0.14 % of the frame on a STATIC store page in this very battery's
+    # recordings, so `> 0` would mark every frame of every run as an episode and report a rate of
+    # 1.0/drag that means nothing. C58's real episodes covered 13-53 % of the recorded area, two
+    # orders of magnitude above the page's own black, so a threshold separates them cleanly.
+    # BLACK_MIN is that bar, in percent, and it is printed with the tally: a black rate read without
+    # the threshold it used is not a number.
+    for name, idx in (('blue', 1), ('green', 2), ('magenta', 3), ('cyan', 4), ('black', 5)):
+        floor = black_min if name == 'black' else 0.0
+        hits = [i for i, x in enumerate(rows) if x[idx] > floor]
         if not hits: continue
         runs, cur = [], [hits[0]]
         for i in hits[1:]:
@@ -127,7 +145,9 @@ if cadence:
           % (len(cadence), cadence[len(cadence)//2], cadence[0], cadence[-1]))
     print("  -> every duration below is resolved to about that; a median near 113 ms would mean")
     print("     this battery measured nothing the frame probe did not already.")
-for name in ('blue', 'green', 'magenta', 'cyan'):
+print("  black episodes are counted at >= %.1f%% of the scored area (BLACK_MIN); every other"
+      " colour at > 0" % black_min)
+for name in ('blue', 'green', 'magenta', 'cyan', 'black'):
     v = sorted(allrows.get(name, []))
     if not v:
         print("  %-8s no episodes in %d runs" % (name, len(cadence))); continue

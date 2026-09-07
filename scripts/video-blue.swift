@@ -7,10 +7,19 @@
 // scores a `screencapture -v` recording instead, at display refresh (~16.7 ms), and prints each
 // frame's presentation timestamp so consecutive-blue RUN LENGTHS give the duration directly.
 //
-// Whole-recording fractions, deliberately: the window grows and moves during a drag, so a rect that
-// tracks it crops the edge under test (C53). The recorded rect is a fixed superset of the window's
-// whole travel, and pure blue/green/magenta appear nowhere on a desktop but the diag build's own
-// backgrounds -- so "any blue in this frame" needs no geometry to be meaningful.
+// Whole-recording fractions by default, deliberately: the window grows and moves during a drag, so
+// a rect that TRACKS it crops the edge under test (C53). The recorded rect is a fixed superset of
+// the window's whole travel, and pure blue/green/magenta appear nowhere on a desktop but the diag
+// build's own backgrounds -- so "any blue in this frame" needs no geometry to be meaningful.
+//
+// `--rect x,y,w,h` is the exception the S3 plan's S1b needs, and it is NOT the thing C53 ruled out.
+// C53's mistake was a rect that FOLLOWED the window, which subtracts the newly-grown ground that is
+// the whole signal. This one is FIXED for the life of the recording, supplied by the caller (the
+// aligner, from a known episode), and its only job is to stop the rest of the screen contributing
+// to a fraction. A fixed rect cannot crop a growing edge it does not move with -- but it can crop a
+// window that grows out of it, so size it as a superset of the travel, exactly as the recording is.
+// Fractions are then RECT-relative, and every line says `rect=` so a rect run cannot be read as a
+// whole-frame one.
 //
 // STRICT uses darkboxes.swift's thresholds unchanged (b>=200, r<=60, g<=60) so the numbers are
 // comparable to bands.txt. LOOSE (b>=140, r<=100, g<=100) is reported beside it because H.264
@@ -31,6 +40,47 @@ guard args.count > 1 else { FileHandle.standardError.write("usage: video-blue <f
 // optional: `--where green|blue|magenta` switches from counting to locating
 var whereColour: String? = nil
 if let i = args.firstIndex(of: "--where"), i + 1 < args.count { whereColour = args[i + 1] }
+
+// optional: `--rect x,y,w,h` scores only that sub-rectangle, in the recording's own pixels.
+var rectArg: (x: Int, y: Int, w: Int, h: Int)? = nil
+if let i = args.firstIndex(of: "--rect"), i + 1 < args.count {
+    let p = args[i + 1].split(separator: ",").map { Int($0.trimmingCharacters(in: .whitespaces)) }
+    guard p.count == 4, !p.contains(where: { $0 == nil }), p[2]! > 0, p[3]! > 0 else {
+        FileHandle.standardError.write("--rect wants x,y,w,h with w,h > 0\n".data(using: .utf8)!); exit(2)
+    }
+    rectArg = (p[0]!, p[1]!, p[2]!, p[3]!)
+}
+
+// Clamp to the frame ONCE per frame and report what was actually scored. A rect partly off the
+// frame is a caller error worth seeing rather than silently shrinking: `rect=` prints the clamped
+// values, so a run whose rect fell outside the recording reads as a zero-area refusal, not as a
+// clean sheet of zero episodes.
+func clamped(_ w: Int, _ h: Int) -> (x0: Int, y0: Int, x1: Int, y1: Int) {
+    guard let r = rectArg else { return (0, 0, w, h) }
+    let x0 = max(0, min(r.x, w)), y0 = max(0, min(r.y, h))
+    return (x0, y0, max(x0, min(r.x + r.w, w)), max(y0, min(r.y + r.h, h)))
+}
+
+func rectLabel(_ r: (x0: Int, y0: Int, x1: Int, y1: Int)) -> String {
+    guard rectArg != nil else { return "" }
+    return String(format: "  rect=%d,%d,%d,%d", r.x0, r.y0, r.x1 - r.x0, r.y1 - r.y0)
+}
+
+// ⚠ Refuse an argument this build does not know, rather than ignoring it. `livedrag-probe.sh:247`
+// CACHES the compiled binary at /tmp/video-blue and only rebuilds it when absent, so a caller can
+// easily be talking to a binary older than the source. Silently ignoring `--rect` there would
+// return WHOLE-FRAME fractions to a caller that asked for a sub-rectangle -- the same numbers, the
+// same shape, quietly answering a different question. Exit loudly instead.
+let known = ["--where", "--rect"]
+for (i, a) in args.enumerated() where i > 1 && a.hasPrefix("--") {
+    if !known.contains(a) {
+        FileHandle.standardError.write(("unknown option \(a) -- this build knows only "
+            + known.joined(separator: ", ")
+            + ".\nIf you expected it to: rm /tmp/video-blue and let the caller rebuild.\n")
+            .data(using: .utf8)!)
+        exit(2)
+    }
+}
 
 let asset = AVURLAsset(url: URL(fileURLWithPath: args[1]))
 guard let track = asset.tracks(withMediaType: .video).first else {
@@ -54,9 +104,10 @@ while let sb = out.copyNextSampleBuffer() {
     let stride = CVPixelBufferGetBytesPerRow(pb)
     let base = CVPixelBufferGetBaseAddress(pb)!.assumingMemoryBound(to: UInt8.self)
     var blue = 0, blueLoose = 0, green = 0, magenta = 0, cyan = 0, black = 0
-    for y in 0..<h {
+    let R = clamped(w, h)
+    for y in R.y0..<R.y1 {
         let row = base + y * stride
-        for x in 0..<w {
+        for x in R.x0..<R.x1 {
             let p = row + x * 4                       // BGRA
             let b = Int(p[0]), g = Int(p[1]), r = Int(p[2])
             if b >= 200 && r <= 60 && g <= 60 { blue += 1 }
@@ -79,9 +130,9 @@ while let sb = out.copyNextSampleBuffer() {
         var minx = w, maxx = -1, miny = h, maxy = -1, cnt = 0, cols = 0
         CVPixelBufferLockBaseAddress(pb, .readOnly)
         var seen = [Bool](repeating: false, count: w)
-        for y in 0..<h {
+        for y in R.y0..<R.y1 {
             let row = base + y * stride
-            for x in 0..<w {
+            for x in R.x0..<R.x1 {
                 let p = row + x * 4
                 let b = Int(p[0]), g = Int(p[1]), r = Int(p[2])
                 let hit: Bool
@@ -104,16 +155,19 @@ while let sb = out.copyNextSampleBuffer() {
         }
         CVPixelBufferUnlockBaseAddress(pb, .readOnly)
         if cnt > 0 {
-            print(String(format: "f%d t=%.4f %dx%d %@=%d px  x %d..%d (w %d, %d distinct cols)  y %d..%d (h %d)",
-                         n, t, w, h, want, cnt, minx, maxx, maxx - minx + 1, cols, miny, maxy, maxy - miny + 1))
+            print(String(format: "f%d t=%.4f %dx%d %@=%d px  x %d..%d (w %d, %d distinct cols)  y %d..%d (h %d)%@",
+                         n, t, w, h, want, cnt, minx, maxx, maxx - minx + 1, cols, miny, maxy, maxy - miny + 1,
+                         rectLabel(R)))
         }
         n += 1
         continue
     }
-    let tot = Double(w * h) / 100.0
-    print(String(format: "f%d t=%.4f %dx%d blue=%.4f blueloose=%.4f green=%.4f magenta=%.4f cyan=%.4f black=%.4f bluepx=%d greenpx=%d cyanpx=%d blackpx=%d",
+    // Rect-relative: the denominator is the area actually scanned, so a fraction means the same
+    // thing ("this share of what I looked at") whether or not a rect was supplied.
+    let tot = Double(max(1, (R.x1 - R.x0) * (R.y1 - R.y0))) / 100.0
+    print(String(format: "f%d t=%.4f %dx%d blue=%.4f blueloose=%.4f green=%.4f magenta=%.4f cyan=%.4f black=%.4f bluepx=%d greenpx=%d cyanpx=%d blackpx=%d%@",
                  n, t, w, h, Double(blue)/tot, Double(blueLoose)/tot, Double(green)/tot, Double(magenta)/tot,
-                 Double(cyan)/tot, Double(black)/tot, blue, green, cyan, black))
+                 Double(cyan)/tot, Double(black)/tot, blue, green, cyan, black, rectLabel(R)))
     n += 1
 }
 if reader.status == .failed {
