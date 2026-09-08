@@ -21,18 +21,24 @@ stage 1 `2a251a4b2510fb84`. Line numbers are against nested `main` and name thei
 > with no background that has never presented composites as NOTHING through a `CALayerHost`,
 > cross-process. So A is not inert and the `opaque = NO` fallback is not needed.** Measured with a
 > new direct probe (`scripts/calayerhost-probe.m`) rather than inferred from the drag battery; the
-> plan's in-situ S0 arm is **VOID** (C64): run on the Library page, which supplies BOTH cyan
-> and blue — the two arms scored cyan 542 vs 543 and the plan's own mutant failed backwards.
-> **S0's mechanism is unaffected (C63 carries its own control); the in-situ confirmation is
-> owed, on a page supplying neither colour or with the shape gate declared before the run.**
+> plan's in-situ S0 arm was called **VOID** (C64) — **and that verdict is itself RETRACTED
+> 2026-09-08 (C65): the page was never the problem, the SCORER was.** The battery counts an
+> episode at `fraction > 0`, and the median cyan frame among those 542 carries **one pixel**,
+> present in nearly every frame of every run; 542 against 543 compared a stray pixel with itself.
+> Re-scored by SIZE — `scripts/full-client-episodes.py`, a colour covering ≥ 0.80 × the window's
+> initial area — **the two arms separate completely: A-drop shows cyan 2 / blue 0 / black 0, the
+> mutant shows blue 4 / cyan 0 / black 0**, over the same 24 recordings. The regions coincide to
+> within 4 px of 671,658. **So S0 in situ is ANSWERED, outcome 1, and `black = 0` on the A arm
+> refutes "A-drop is inert" through the real pipeline as well as on the bench. S4 is answered by
+> the same re-scoring: A alone RELOCATES the flash, it does not remove it.**
 > **D is BUILT (2026-09-07): module `4975a8c9a720773f`, nested branch `d` at `72184cd`, compiles
 > clean, NOT installed and NOT merged to `main`.** It starts from the re-check's `d-sim` `b2186a0`
 > and adds the two things § 4.1 required that the simulation left out — see § 4.1's build note.
 > `build-winemac.sh` gained the `WINEMAC_BRANCH` knob § 8 asked for, so a candidate never has to
-> land on `main` to be built. **Owed before D can be judged: S3 · S4 · S6 · S7 · T3.**
+> land on `main` to be built. **Owed before D can be judged: S3 · S6 · S7 · T3** (S4 is answered — C65).
 > Commit: this one. Nothing was installed; the daily driver is still stage 1 `2a251a4b2510fb84`
-> and the nested tree is back on `main` `52789ff`, clean. Build order position: step 1 of
-> *instruments → S1a → S0 → § 7 decision rule → D* is complete; **S1a has not been run.**
+> and the nested tree is back on `main` `52789ff`, clean. Build order position: *instruments → S1a
+> → S0 → § 7 decision rule → D* is complete end to end — every step above has been taken.
 > Modules built, none installed: the S1a stamp+colours build `28d40ea5d38a180c` (at
 > `~/cs2-patch/winemac.so.s1a-stamp-diag`), the `--cyan` reconstruction `e700ac8fdfef0e80`, the
 > `--norelease` mutant `cf200bbf146ff56f`. The first stamp build `5bfb1f07ce0d7598` is superseded
@@ -49,7 +55,21 @@ stage 1 `2a251a4b2510fb84`. Line numbers are against nested `main` and name thei
 > window overlapping Steam. **S1b still needs a video run with a clear screen.**
 > **Verify against:** `scripts/first-drawable-stamp-patch.py` · `scripts/align-trace-video.py` ·
 > `scripts/live-hosts.py` · `scripts/video-blue.swift` · `scripts/diag-colours-patch.py` ·
-> `scripts/drag-session.sh` · `scripts/strip-module-ab.sh` · `scripts/video-gap-battery.sh`.
+> `scripts/drag-session.sh` · `scripts/strip-module-ab.sh` · `scripts/video-gap-battery.sh` ·
+> `scripts/full-client-episodes.py`.
+>
+> **🔧 As-built addendum (2026-09-08): the scoring gate, and D's diag builds.** The plan's § 6
+> preconditions asked for a shape gate "declared before the run"; it is now a committed instrument
+> with its bar swept and published rather than a sentence — `full-client-episodes.py`, BAR = 0.80 ×
+> the window's initial area, flat over 0.65–0.92 across 24 runs. It replaces the battery's
+> `fraction > 0` tally for every decision, and the battery calls it per arm. `video-gap-battery.sh`
+> gained `MODS`, which runs several modules **interleaved** — the plan requires interleaved arms and
+> C64's two were 100 minutes apart. `diag-colours-patch.py` gained a second exact anchor per colour
+> for branch `d` (which re-indented the magenta block and deleted the line blue recolours), via
+> `sub_any`: exactly one anchor must match exactly once, so a file the patcher does not understand
+> still refuses loudly. Proven byte-identical on `main` across all five recipes. Modules built on
+> branch `d`, **neither installed**: **D-diag `6385a7ffb1cbb408`** (`--noblue --cyan`) and
+> **D-mutant-blue `cf9a904f283e55e0`** (S3's mutant (a) — the dropped background restored, in blue).
 
 > ⚠ **This document REDIRECTS issue #13's stated direction.** #13 proposed deferring
 > `retire_superseded_layers`. § 2.3 shows that cannot work on its own — the new generation sits
@@ -381,8 +401,20 @@ dark is, and on a prod build nothing separates the defect from a dark banner. So
 stay diag because attribution is what they are for, and a prod arm is now usable to *confirm a rate
 the diag arm already attributed*. ⚠ Cyan is unsafe on the store page (Steam artwork; C61): S0/S3/S4
 need a page knob — ✅ instrument (5) built it, `STEAM_PAGE`, recorded per run in `steam-page.txt` —
-or a **shape gate** (full-client = cyan bbox w ≥ 100 px **and** h ≥ 50 % of the window; the C61
-growing-edge column is ≤ 4 drag steps wide).
+or a **shape gate**. ✅ **SETTLED 2026-09-08 (C65), and as an instrument rather than a sentence:
+`scripts/full-client-episodes.py`.** A frame is full-client for a colour when that colour covers
+**≥ 0.80 × the window's INITIAL area** (`video-rect.txt`; a size the client never falls below).
+Three things the plan's draft version got wrong and this does not: it counts **pixels, not the
+bounding box** — the C61 column is 26 distinct columns inside a 1005 px bbox, so a bbox test passes
+it and a pixel test does not; the bar is **swept and published** (flat 0.65–0.92 over 24 runs, so
+0.80 is not a tuned number, and `--sweep` prints the table for any new battery); and **isolation is
+reported, never required** — every episode measured to date is one frame, so an isolated-spike
+filter would reproduce today's counts *and* would silently miss a multi-frame episode, which is the
+one result a closure test must not miss. ⚠ **This supersedes the page requirement, and the reason
+matters more than the fix: presence is the wrong test for a defect that has a SIZE.** C64 voided a
+sound run because a single stray cyan pixel at (30,479), present in nearly every frame, scored 542
+episodes on one arm and 543 on the other. No page is safe under a `> 0` count and every page is
+safe under this one.
 
 **Instrument work this plan requires, named as such** (all small, all prerequisites — nothing
 here is candidate code). ✅ **All nine BUILT 2026-09-07** — see the as-built header; per-item
@@ -462,12 +494,12 @@ before a rate from one run is compared with a rate from another.
 
 | id | test | pass / what it decides | mutant |
 |---|---|---|---|
-| **S0** ✅ **MECHANISM ANSWERED 2026-09-07 — see C63; in-situ arm running** | **A's transparency, before anything is built on it.** A-drop (with `--noblue`) on the diag base, cyan content view (`--cyan`), Library page or shape-gated, video, n ≥ 12 | three outcomes: **cyan** full-client episodes at ≥ the blue rate ⇒ the pre-drawable layer is transparent, A/D proceed; **black** full-client episodes at the blue rate ⇒ A-drop is inert ⇒ A becomes deferred `opaque = NO` + no background on the `:847-861` pattern, S0 re-run; **neither** ⇒ re-read the scorer before believing it (C56). ⇒ **RESULT: outcome 1 — the pre-drawable layer IS transparent, so A/D proceed and the `opaque = NO` fallback is not needed.** Reached by a **direct probe** (`scripts/calayerhost-probe.m`, C63) rather than by this row's battery: the question is a compositing MECHANISM, and § 2b says build the artifact and run it. Three arms hosted side by side over one green backdrop, read from ONE capture, in wine's cross-process topology; control `0,0,0` and A-drop `0,249,0` in the same frame, 4 of 4 same-process and 4 of 5 cross-process valid runs. ⚠ The battery arm below is now a **confirmation through the real DXMT pipeline**, not the decider — module `d79c80d951b3a5e9` (A-drop + `--cyan`, `--noblue`), `STEAM_PAGE=steam://open/games`, video, N = 12 | restore `:4339` and build **without** `--noblue` → blue returns (≥ 1 episode in 12) |
+| **S0** ✅ **MECHANISM ANSWERED 2026-09-07 — see C63; in-situ arm running** | **A's transparency, before anything is built on it.** A-drop (with `--noblue`) on the diag base, cyan content view (`--cyan`), Library page or shape-gated, video, n ≥ 12 | three outcomes: **cyan** full-client episodes at ≥ the blue rate ⇒ the pre-drawable layer is transparent, A/D proceed; **black** full-client episodes at the blue rate ⇒ A-drop is inert ⇒ A becomes deferred `opaque = NO` + no background on the `:847-861` pattern, S0 re-run; **neither** ⇒ re-read the scorer before believing it (C56). ⇒ **RESULT: outcome 1 — the pre-drawable layer IS transparent, so A/D proceed and the `opaque = NO` fallback is not needed.** Reached by a **direct probe** (`scripts/calayerhost-probe.m`, C63) rather than by this row's battery: the question is a compositing MECHANISM, and § 2b says build the artifact and run it. Three arms hosted side by side over one green backdrop, read from ONE capture, in wine's cross-process topology; control `0,0,0` and A-drop `0,249,0` in the same frame, 4 of 4 same-process and 4 of 5 cross-process valid runs. ⚠ The battery arm below is a **confirmation through the real DXMT pipeline**, not the decider — module `d79c80d951b3a5e9` (A-drop + `--cyan`, `--noblue`), `STEAM_PAGE=steam://open/games`, video, N = 12. ⇒ **IN-SITU RESULT 2026-09-08 (C65): AGREES, outcome 1.** Re-scored at the full-client bar, the arms separate completely: **A-drop cyan 2 / blue 0 / black 0 · mutant blue 4 / cyan 0 / black 0**, 12 valid rows each, every episode one frame. The regions coincide to within 4 px of 671,658 (`x 0..1034, y 180..828` on both). **`black = 0` on the A arm is the in-situ refutation of "A-drop is inert"** — were the layer still opaque, its flash would read black, and it reads the content view. ⚠ The two arms ran sequentially, 100 minutes apart, so the between-arm RATE (0.17 vs 0.33/drag) is weak; the within-arm attribution is not | ⇒ **OBSERVED RED then GREEN**: the mutant arm (`e700ac8fdfef0e80`, `:4339` restored, blue on) shows 4 full-client blue episodes in 12 where the A arm shows 0, and 0 cyan where the A arm shows 2 |
 | **S1a** ✅ **RUN 2026-09-07 — see C62** | **Per-generation timing, trace only, one clock** — the stamp build (instrument-only; no candidate code), diag colours on, 10 full-coverage drags (~300 generations each). (i) `first-acquire(N)` and `presentedTime(N)` − owner host-commit(N) (`window.c:1717`). (ii) `RELEASE(N−1)` **and the child's detach block** vs `presentedTime(N)` | (i) **null upheld** if ≥ 90 % of generations present within one refresh (8.3 ms) of the host commit; report the fraction beyond 120 ms (D's cap). (ii) **D closes** if the child's detach follows `presentedTime(N)` in ≥ 95 % of generations, else **D narrows**, with the covered fraction. **The 95 % is fixed here, before the run**. ⇒ **RESULT: (i) null REFUTED — 0 of 2,924 within 8.3 ms; acquire is immediate (median +2 ms) but the PRESENT lags, median ~53 ms on the displaying child. (ii) detach follows present in 1,440 of 1,442 = 99.9 %, median +83.5 ms ⇒ D CLOSES.** ⚠ The present rate is **bimodal by child** — two long-lived children per run, one presenting 92–98 %, the other 19–31 %; never quote the pooled 50 % | n/a — diagnostic |
 | **S1b** | Video per *visible* episode only (expect ~3 in 10 drags), via the aligner + `--rect`; 25 ms floor stated | confirms S1a's tail is what the eye can see; does not decide anything S1a decides | n/a |
 | **S2** | **Baseline rate on the scorer's known-positive build**: `MOD=s1-diag` (C58's `50fdfe79898dac36`), N = 12, video | PASS = ≥ 1 blue episode (the scorer can fire — the C56 rule); the baseline rate is C58 + S2 pooled (24 drags) with an **exact CI** (4/12 alone is ~0.09–0.85/drag and decides nothing) | n/a |
-| **S3** | **D-diag** (`--noblue --cyan`, page knob or shape gate), interleaved with S2's build, **n ≥ 15**; host bound from `live-hosts.py` | **closure**: 0 full-client cyan episodes, exact Poisson p ≤ 0.007 against the pooled rate; **narrows** (if S1a (ii) said so): decide on S1a's per-generation metric with n ≈ 60/arm interleaved with A-alone, video as confirmation only; max live hosts per child ≤ 2 | (a) restore `:4339` on the D-diag source, build **without** `--noblue` → blue returns, red = ≥ 1 episode in 12; (b) restore keep-one → this is S4's A-alone arm, **red observable under closure only** |
-| **S4** | **A alone, the control arm**, same build recipe minus the hold | full-client cyan at the blue rate ⇒ A relocates the flash (black in production, `:1257`); under D that must not occur | restore `:4339` → **full-client** cyan episodes vanish (the C61 growing-edge column persists regardless — that is not this mutant's signal) |
+| **S3** ▶ **RUNNING 2026-09-08** | **D-diag** (`6385a7ffb1cbb408`, `--noblue --cyan`), **interleaved with the A-alone arm** via the battery's new `MODS`, **n = 15 each**, `STEAM_PAGE=steam://open/games`, video; host bound from `live-hosts.py`. **Scored by `full-client-episodes.py` at BAR = 0.80, declared and committed before the run** (C65) | **closure**: 0 full-client cyan episodes, exact Poisson p ≤ 0.007 against the pooled rate; **narrows** (if S1a (ii) said so): decide on S1a's per-generation metric with n ≈ 60/arm interleaved with A-alone, video as confirmation only; max live hosts per child ≤ 2 | (a) restore `:4339` on the D-diag source, build **without** `--noblue` → blue returns, red = ≥ 1 episode in 12; (b) restore keep-one → this is S4's A-alone arm, **red observable under closure only** |
+| **S4** ✅ **ANSWERED 2026-09-08 — see C65** | **A alone, the control arm**, same build recipe minus the hold — module `d79c80d951b3a5e9` | full-client cyan at the blue rate ⇒ A relocates the flash (black in production, `:1257`); under D that must not occur. ⇒ **RESULT: A ALONE IS NOT A FIX.** 2 full-client cyan episodes in 12 runs against the mutant's 4 full-client blue in 12 — the same surface, in the same place, in the same shape, one frame each. On a production A build that region is the content view's ordinary black, so **A alone moves the flash from the child's layer to the surface below it**. D's hold is what has to remove it, and the row above is that test. ⚠ n = 12, 2 events; and this arm re-runs interleaved beside D-diag in the S3 battery, which is the rate comparison the sequential pair could not give | restore `:4339` → **full-client** cyan episodes vanish. ⇒ **OBSERVED: 2 → 0** (and blue 0 → 4 in the same frames). The C61 growing-edge column persists regardless and does not reach the bar — that is not this mutant's signal, and the gate counting pixels rather than a bbox is what keeps it out |
 | **S5** | **T3 (human)**, James on the D **prod** build | verdict verbatim: any full-client flash still visible? any *new* artifact — a stale predecessor showing after the new generation should have covered it, especially on **shrinks**? | none — a human drag is not repeated per mutant |
 | **S6** | **No regression on #7's strip**, after (6): `strip-module-ab.sh MODULES="baseline stage1 D" N=7 FRAMES=300`, interleaved, loadavg-gated | stage 1 < baseline **reproduces in this run** (not against C54's stored numbers) **and** D's growing-frame right-band mean ≤ stage 1's + ½ (baseline − stage 1); plus a **shrink-frame clause** via `band-counts.py`'s grow/shrink split; child placement scored, since `:2105` changed | none — structural |
 | **S7** | **The hold's bound**: `--norelease` mutant (8) + `shimmer-probe.sh churn` (`hosting-layer-tests.sh:254`) + `live-hosts.py`, ≥ 300 creates; then the terminal case — a child that recreates twice, stops, never releases, is destroyed; then `scripts/boot-verify.sh` (the game never constructs a `CAContextSwapChain` — `window.c:1298-1336` — but shares the module) | max live hosts per child ≤ 2 throughout; the terminal child's held pair drops to 0 after the root's next frame update; boot-verify PASS | (a) drop the next-CREATE exit → max grows monotonically (≥ 10); (b) disable the `:2033-2041` drain → dead pairs persist |
@@ -493,11 +525,24 @@ red" is not red. Where a mutant is red-observable only under one S1a outcome, th
 3. **S0 decided** (transparent / inert-with-fallback / scorer re-read) before S3.
    ✅ **MET 2026-09-07 (C63): TRANSPARENT.** A's form is fixed as `--drop`; `--defer` is not needed
    and is deliberately left unimplemented in `scripts/candidate-a-patch.py` so nothing is built on
-   a branch S0 closed. The in-situ battery arm is confirmation, and S3 should not start until it
-   agrees.
+   a branch S0 closed. ✅ **The in-situ arm now AGREES (C65, 2026-09-08)**, so the condition "S3
+   should not start until it agrees" is satisfied and S3 is running. ⚠ Worth recording, because it
+   is the third member of the C49/C53/C56 family and the first one to bite an S-row of this plan:
+   the in-situ arm was reported VOID for a day on a scoring artifact, not a fixture fault. The run
+   was always sound. **What the third instance changes is the remedy** — a scorer bug caught by
+   re-reading is a scorer bug that will recur, so the gate is now a committed instrument with a
+   published sweep, not a threshold chosen per analysis.
 4. S3 at the closure bar (0 episodes, n ≥ 15, exact p ≤ 0.007) or on the per-generation metric if
    S1a said narrows; S4 shows A-alone's relocation, if any, as a number; every mutant observed red
    then green, with the S1a-conditional ones marked.
+   ◐ **S4 MET 2026-09-08 (C65): A alone relocates the flash — 2 full-client cyan episodes in 12
+   runs where the mutant shows 4 full-client blue, same surface, same shape, one frame each.**
+   The arithmetic behind S3's bar, checked rather than assumed: the pooled baseline is C58's 4/12
+   plus the mutant arm's 4/12 = **8 episodes in 24 drags = 0.333 per drag**, so 15 drags with zero
+   episodes gives an exact Poisson P(0) = e^−5 = **0.0068**, just inside the 0.007 the plan fixed
+   in advance. n = 15 is therefore the minimum, not a round number, and a voided row costs the
+   bar — `full-client-episodes.py` refuses an all-void battery rather than reporting zero episodes
+   off zero evidence. S3 ▶ running; S3's mutant (a) is built (`cf9a904f283e55e0`).
 5. S6 green including the shrink clause; S7 green including the terminal case and boot-verify.
 6. T3 (S5) recorded verbatim in the ledger.
 7. Upstream form settled per § 5: the wine-core change described for 60263 with the § 2.1 + § 2.5

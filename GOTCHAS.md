@@ -2421,28 +2421,71 @@ splits them cleanly; no threshold on the colour itself could have.
   frames carrying BOTH are classified as artwork and the real signal is suppressed. r4/r5 show 6-7
   strip frames where their neighbours show 30-41.
 
-**Update 2026-09-07 — it happened again, in the OTHER direction, and switching pages is what did
-it.** C61 lost 2 runs of 10 to cyan in Steam's store artwork. The fix chosen for S0 was the new
-`STEAM_PAGE` knob, pointed at the Library (`steam://open/games`) — a page which turns out to supply
-**cyan AND blue**. Both S0 arms scored cyan 542 vs 543 episodes across builds that differ precisely
-in the surface under test, and blue came out *higher* on the arm carrying no blue patch (19) than
-on the arm that has one (12).
+**Update 2026-09-07 — it looked like it happened again, in the OTHER direction.** C61 lost 2 runs of
+10 to cyan in Steam's store artwork. The fix chosen for S0 was the new `STEAM_PAGE` knob, pointed at
+the Library (`steam://open/games`). Both S0 arms then scored cyan 542 vs 543 episodes across builds
+that differ precisely in the surface under test, and blue came out *higher* on the arm carrying no
+blue patch (19) than on the arm that has one (12). Read as a contaminated page; the run was voided.
 
-**The lesson is not "pick a better page", it is that a colour-only cell cannot tell you it is
-confounded.** 542 cyan episodes read as an overwhelming signal until the control arm sat beside it.
-Two prevention rules, and the second is the cheap one:
+> ⚠ **CORRECTED 2026-09-08 ([[C65]]) — that reading was WRONG, and the correction is the useful
+> part.** The Library page supplies neither colour in any quantity. **The median cyan frame among
+> those 542 carries ONE PIXEL, at (30,479), in nearly every frame of every run** — 542 against 543
+> compared a stray pixel with itself. Re-scored by SIZE the same recordings separate completely:
+> A-drop **cyan 2 / blue 0 / black 0**, the mutant **blue 4 / cyan 0 / black 0**, regions coinciding
+> to within 4 px of 671,658. **The mutant fired in the correct direction all along** — "blue 19 vs
+> 12 backwards" was single-pixel noise, and the diagnostic was never confounded. See the next entry:
+> the fault was in the COUNT, not in the fixture, and switching pages would not have fixed it.
 
-- **Run the mutant/control arm in the same session, not later.** It is what turned a fake result
-  into a refusal here. A colour rate with no control arm is not a measurement.
-- **Sanity-check the page for every colour the build paints, before the battery** — one recorded
-  drag scored with `video-blue.swift` on a STATIC window costs a minute and would have caught this.
-  Episode *duration* is the tell that needs no control at all: a real S3 exposure is a single frame
-  (C58), so cyan at p90 1350 ms and max 16.6 s was page content on its face.
-- Or drop colour identity for **shape**: full-client = bbox w >= 50 % of the window width AND
-  h >= 50 % of its height. Declare the gate before the run, never after seeing the tally.
+**What still stands from that day, unchanged and worth more than the wrong diagnosis:**
 
-Ledger: [[C64]] (the void run), [[C61]] (the first instance), [[C63]] (the direct probe that
-answered the same question with a control built in, and is why nothing downstream was blocked).
+- **Run the mutant/control arm in the same session, not later.** It is the arm that made the
+  contradiction visible at all — a colour rate with no control arm is not a measurement. It is also
+  what a re-read could then resolve: with only one arm there would have been nothing to compare.
+  ⚠ And run it **interleaved**: C64's arms were 100 minutes apart, which the S3 plan's own rule
+  ("arms interleaved; void a comparison whose achieved cadences differ by > 10 %") refuses.
+  `video-gap-battery.sh` gained `MODS` for exactly this.
+- **Episode duration is a tell that needs no control**: a real S3 exposure is a single frame (C58),
+  so cyan at p90 1350 ms and max 16.6 s could not be one. That instinct was right; the inference
+  drawn from it ("therefore page content") was the wrong one of the two available.
+- **Declare the gate before the run, never after seeing the tally** — now enforced by a committed
+  instrument, `scripts/full-client-episodes.py`, rather than by a sentence in a plan.
+
+Ledger: [[C65]] (the correction), [[C64]] (`RETRACTED`), [[C61]] (the first instance, which was a
+real page-artwork case), [[C63]] (the direct probe that answered the same question with a control
+built in, and is why nothing downstream was blocked).
+
+## `> 0` is not an episode test — one stray pixel scored 542 of them (2026-09-08)
+> **Ledger: [[C65]].** Two builds differing exactly in the surface under test scored 542 cyan episodes against 543. Both numbers were the same single pixel.
+
+**What happened.** `video-gap-battery.sh` counts a frame as an episode when a diagnostic colour's
+frame fraction is `> 0`, and groups consecutive such frames. That is sound for a colour the fixture
+cannot produce at all, and it silently stops being sound the moment one pixel of it exists anywhere
+in the capture — a UI accent, a compression artefact, an anti-aliased edge. A single cyan pixel at
+(30,479), present in nearly every frame of nearly every run, produced hundreds of multi-second
+"episodes" and read as an overwhelming signal. It cost a day and a `VOID` verdict on a sound run.
+
+**Why the obvious guards did not catch it.** The A/B *looked* like the control: two builds, one
+difference, 542 vs 543. But **both arms painted the content view cyan**, so an identical cyan count
+was the expected result whether or not the page contributed anything — the comparison could not
+distinguish "the page supplies cyan" from "both instruments do". A control arm only controls for
+what it actually varies.
+
+**The rule: score a defect by the SIZE it is predicted to have, not by its presence.**
+
+- S3 exposes the whole client (C56: `Tblue=100 %`). Two other phenomena live in the same recordings
+  and neither is full-client — the C61 growing-edge column (2.2 % of the window) and the C57/C60
+  stall (a sustained 51-60 %). A bar at 0.80 x the window's initial area separates all three, and
+  the counts are **flat from 0.65 to 0.92**, so it is a plateau rather than a tuned number.
+- **Count pixels, not the bounding box.** The C61 column is 26 distinct columns inside a 1005 px
+  bbox: a bbox test passes it, a pixel test does not.
+- **Do not filter on isolation even when every episode is one frame.** It would reproduce today's
+  counts exactly and would silently miss a multi-frame episode — the one result a closure test must
+  not miss. Report isolation; never require it.
+- **Publish the sweep with the number.** `full-client-episodes.py --sweep` prints the count at seven
+  bars, so a later battery can check its own bar still sits on a flat stretch instead of inheriting
+  a constant.
+- **A gate must refuse an empty input.** Zero episodes across zero valid runs is not a pass; the
+  script exits 2. Same shape as the lock-screen recording that scored as a flawless run.
 
 ## `presentedTime` is 0 for a drawable that was never displayed, not a timestamp (2026-09-07)
 
