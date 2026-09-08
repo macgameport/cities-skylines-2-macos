@@ -2421,6 +2421,29 @@ splits them cleanly; no threshold on the colour itself could have.
   frames carrying BOTH are classified as artwork and the real signal is suppressed. r4/r5 show 6-7
   strip frames where their neighbours show 30-41.
 
+**Update 2026-09-07 — it happened again, in the OTHER direction, and switching pages is what did
+it.** C61 lost 2 runs of 10 to cyan in Steam's store artwork. The fix chosen for S0 was the new
+`STEAM_PAGE` knob, pointed at the Library (`steam://open/games`) — a page which turns out to supply
+**cyan AND blue**. Both S0 arms scored cyan 542 vs 543 episodes across builds that differ precisely
+in the surface under test, and blue came out *higher* on the arm carrying no blue patch (19) than
+on the arm that has one (12).
+
+**The lesson is not "pick a better page", it is that a colour-only cell cannot tell you it is
+confounded.** 542 cyan episodes read as an overwhelming signal until the control arm sat beside it.
+Two prevention rules, and the second is the cheap one:
+
+- **Run the mutant/control arm in the same session, not later.** It is what turned a fake result
+  into a refusal here. A colour rate with no control arm is not a measurement.
+- **Sanity-check the page for every colour the build paints, before the battery** — one recorded
+  drag scored with `video-blue.swift` on a STATIC window costs a minute and would have caught this.
+  Episode *duration* is the tell that needs no control at all: a real S3 exposure is a single frame
+  (C58), so cyan at p90 1350 ms and max 16.6 s was page content on its face.
+- Or drop colour identity for **shape**: full-client = bbox w >= 50 % of the window width AND
+  h >= 50 % of its height. Declare the gate before the run, never after seeing the tally.
+
+Ledger: [[C64]] (the void run), [[C61]] (the first instance), [[C63]] (the direct probe that
+answered the same question with a control built in, and is why nothing downstream was blocked).
+
 ## `presentedTime` is 0 for a drawable that was never displayed, not a timestamp (2026-09-07)
 
 **`addPresentedHandler:` fires when a drawable is RETIRED, whether or not it ever reached the

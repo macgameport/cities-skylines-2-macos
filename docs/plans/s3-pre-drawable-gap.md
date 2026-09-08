@@ -21,7 +21,10 @@ stage 1 `2a251a4b2510fb84`. Line numbers are against nested `main` and name thei
 > with no background that has never presented composites as NOTHING through a `CALayerHost`,
 > cross-process. So A is not inert and the `opaque = NO` fallback is not needed.** Measured with a
 > new direct probe (`scripts/calayerhost-probe.m`) rather than inferred from the drag battery; the
-> plan's in-situ S0 is running as confirmation.
+> plan's in-situ S0 arm is **VOID** (C64): run on the Library page, which supplies BOTH cyan
+> and blue — the two arms scored cyan 542 vs 543 and the plan's own mutant failed backwards.
+> **S0's mechanism is unaffected (C63 carries its own control); the in-situ confirmation is
+> owed, on a page supplying neither colour or with the shape gate declared before the run.**
 > **D is BUILT (2026-09-07): module `4975a8c9a720773f`, nested branch `d` at `72184cd`, compiles
 > clean, NOT installed and NOT merged to `main`.** It starts from the re-check's `d-sim` `b2186a0`
 > and adds the two things § 4.1 required that the simulation left out — see § 4.1's build note.
