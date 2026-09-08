@@ -19,8 +19,13 @@
 #   2. the patcher's own exit status is read DIRECTLY -- never through a pipe, which reports the
 #      pipe's last command (the same trap as `<cmd> | tail` announcing a failed suite as exit 0;
 #      a `python3 patch.py | sed` on this very script's first draft hid a "FAIL: 0 matches");
-#   3. the built module carries `dxmt_client_surface` (5 hits on main/aquadran, 0 on core), so a
-#      module missing the vendor layer is refused rather than measured.
+#   3. the built module carries `dxmt_client_surface`, so a module missing the vendor layer is
+#      refused rather than measured. ⚠ The count is ONE, not five: `strings` reports the symbol
+#      name once per binary however many times the source names it (measured 2026-09-08 -- source
+#      has 15 occurrences on main and aquadran, 0 on core; every module ever built here, including
+#      the installed stage-1 driver, reports exactly 1). The gate is `-gt 0` and the discriminator
+#      is core's zero, so the stale "5 hits" never changed a verdict -- but a reader checking the
+#      claim would have found it false, which is the whole reason to correct it.
 # (macgameport, 2026-09-03)
 set -u
 OUT="${1:?usage: build-winemac.sh <out.so> [patcher [args...]]}"; shift || true
