@@ -21,7 +21,12 @@ stage 1 `2a251a4b2510fb84`. Line numbers are against nested `main` and name thei
 > with no background that has never presented composites as NOTHING through a `CALayerHost`,
 > cross-process. So A is not inert and the `opaque = NO` fallback is not needed.** Measured with a
 > new direct probe (`scripts/calayerhost-probe.m`) rather than inferred from the drag battery; the
-> plan's in-situ S0 is running as confirmation. Next: the § 7 decision rule, then D.
+> plan's in-situ S0 is running as confirmation.
+> **D is BUILT (2026-09-07): module `4975a8c9a720773f`, nested branch `d` at `72184cd`, compiles
+> clean, NOT installed and NOT merged to `main`.** It starts from the re-check's `d-sim` `b2186a0`
+> and adds the two things § 4.1 required that the simulation left out — see § 4.1's build note.
+> `build-winemac.sh` gained the `WINEMAC_BRANCH` knob § 8 asked for, so a candidate never has to
+> land on `main` to be built. **Owed before D can be judged: S3 · S4 · S6 · S7 · T3.**
 > Commit: this one. Nothing was installed; the daily driver is still stage 1 `2a251a4b2510fb84`
 > and the nested tree is back on `main` `52789ff`, clean. Build order position: step 1 of
 > *instruments → S1a → S0 → § 7 decision rule → D* is complete; **S1a has not been run.**
@@ -258,6 +263,23 @@ out on other grounds (C54).
 | **D** | **A + a one-generation hold.** Remove the black, and hold each child's *previous* generation until the earliest of its four exits | see § 4.1 — **not** "one function": four files, +140/−37 as built by the re-check (nested branch `d-sim` `b2186a0`, compiles clean, digest `8ff5e4f30492304b`, **not installed, not merged**) | Closes the gap only while the child keeps the old context attached after the new one's create (§ 2.5 (a)) and only until the 120 ms host paint unless gated (§ 2.4). Whether that spans the first present is S1a (ii). In the *grown* region of a resize there is no predecessor content; that is #7's strip, not this. On a *shrink* the held predecessor is larger than its successor — a new artifact class S5/S6 must look for. While the 120 ms paint is withheld the § 2.4 sliver is uncovered unless re-armed (§ 4.1 (4)) |
 
 ### 4.1 D, specified (the touch set the first draft called "one function")
+
+> **🔧 Built 2026-09-07 — module `4975a8c9a720773f`, nested branch `d` (`72184cd`), not installed.**
+> Built on the re-check's `d-sim` (`b2186a0`, digest `8ff5e4f30492304b`) plus the two items below
+> that simulation omitted; the digests differ for that reason.
+> **(3) second half — FIXED, and it was the real one.** `update_remote_layer_frames` (`:1986`)
+> walks *every* tracked entry, and under D a child has two, so unchanged it reframed the held
+> predecessor on every drag step — stretching stale content across the ground the window just
+> gained, on exactly the path #7 is about and worse than the gap the hold exists to cover. The
+> skip is placed **after** the child-gone check, so a gone child's pair is still released together
+> and no hold outlives its window.
+> **(4) — the drain and root-destroy exits are deliberately left unarmed, and that is a decision,
+> not the omission it looks like.** Both exits fire only when the child (or the root) is going
+> away, and `update_remote_layer_frames` drops *all* of a gone child's entries in the same pass —
+> so there is no survivor to re-arm. Verified by reading `remote_layer_target_rect`'s per-child
+> failure, not assumed. The RELEASE handler's arm remains the one that matters.
+> **(7) — `remote_layer_context_for`'s comment corrected**: it claimed "the" hosted layer for a
+> child, and under D there can be two; its one remaining caller is a fallback.
 
 1. **A** at `:4339` (form per S0).
 2. **Ordering the owner does not have today.** `remote_layer_children` is CAContextID → child HWND,

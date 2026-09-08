@@ -32,8 +32,17 @@ PATCH_FILE="${PATCH_FILE:-cocoa_window.m}"
 SRC="$NR/$PATCH_FILE"
 SO="$BLD/dlls/winemac.drv/winemac.so"
 
+# WINEMAC_BRANCH names a branch other than `main` and is how a CANDIDATE gets built. The refusal
+# below is not paranoia -- a `core` build installs, loads, and renders pure black, which scores as
+# a clean pass -- so the knob does not remove it: it requires the caller to NAME the branch, still
+# refuses `core` outright, and still checks the glue markers at the end, which is what actually
+# catches a build with no vendor layer. Landing a candidate on `main` instead would contaminate
+# every diag build derived from it, which is why the S3 plan's § 8 asks for this knob.
 br=$(git -C "$NR" rev-parse --abbrev-ref HEAD)
-[ "$br" = main ] || { echo "REFUSED: nested repo is on '$br', not main -- a core build has no DXMT glue"; exit 2; }
+WANT="${WINEMAC_BRANCH:-main}"
+[ "$WANT" != core ] || { echo "REFUSED: 'core' has no DXMT glue -- it renders black and that scores as a pass"; exit 2; }
+[ "$br" = "$WANT" ] || { echo "REFUSED: nested repo is on '$br', not '$WANT' (set WINEMAC_BRANCH to build a candidate)"; exit 2; }
+[ "$WANT" = main ] || echo "  CANDIDATE BUILD from branch '$WANT' -- not main. Do not install without its gate."
 [ -z "$(git -C "$NR" status --porcelain)" ] || { echo "REFUSED: nested tree is dirty before patching"; exit 2; }
 
 restore() { git -C "$NR" checkout -- "$PATCH_FILE" 2>/dev/null; }
