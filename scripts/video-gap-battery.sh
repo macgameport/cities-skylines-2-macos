@@ -65,12 +65,22 @@ fi
 # exposed frame is the content view or something below it. C42 could only run it under CHURN with
 # the frame probe; a live drag reaches the SC_SIZE path a churn cannot, and video catches the
 # single-frame events the probe misses.
-MOD="${MOD:-s1-diag}"
-f="$HOME/cs2-patch/winemac.so.$MOD"
-[ -f "$f" ] || { echo "missing $f"; exit 2; }
-echo "  module $MOD  $(shasum -a 256 "$f" | cut -c1-16)"
+# MOD names the module under test; MODS names SEVERAL, run INTERLEAVED -- one row of each per
+# round, so a drift in the fixture (a Steam update, a page whose artwork changed, a machine that
+# got busier) lands on every arm instead of on whichever ran last. The S3 plan requires arms
+# interleaved and voids a comparison whose arms' achieved cadences differ by more than 10 %; two
+# arms run back to back on separate evenings do not meet that, and C64's two arms were exactly
+# that shape. Back-compatible: MOD alone still runs one module.
+MODS="${MODS:-${MOD:-s1-diag}}"
+for m in $MODS; do
+  f="$HOME/cs2-patch/winemac.so.$m"
+  [ -f "$f" ] || { echo "missing $f"; exit 2; }
+  echo "  module $m  $(shasum -a 256 "$f" | cut -c1-16)"
+done
 
 for r in $(seq 1 "$N"); do
+ for MOD in $MODS; do
+  f="$HOME/cs2-patch/winemac.so.$MOD"
   id="r${r}-$MOD"; rd="$OUT/$TAG-$id"
   # Same two reasons a row is worth waiting for rather than spending (see strip-module-ab.sh): a
   # refused row costs 4 s against a real row's 3.5 min, so a transient outage drains the queue.
@@ -101,6 +111,7 @@ for r in $(seq 1 "$N"); do
   echo "    exit $rc"
   sed -n '/video:/,/magenta (S2/p' "$OUT/$id.log" 2>/dev/null | sed "s/^/   $id · /"
   grep -h 'mode=video' "$rd/frames/capture-state.txt" 2>/dev/null | sed "s/^/   $id · guards: /"
+ done
 done
 
 echo "########## tally $(date '+%F %T')"
@@ -117,6 +128,8 @@ if [ "$CAPMODE" != video ]; then
   echo "########## done — $OUT"
   exit 0
 fi
+for MOD in $MODS; do
+echo "  ---------- $MOD  $(shasum -a 256 "$HOME/cs2-patch/winemac.so.$MOD" | cut -c1-16)"
 MOD="$MOD" python3 - "$OUT" "$TAG" "$N" <<'PY'
 import sys, os, re
 out, tag, n = sys.argv[1], sys.argv[2], int(sys.argv[3])
@@ -180,4 +193,10 @@ for name in ('blue', 'green', 'magenta', 'cyan', 'black'):
           % (name, len(v), len(cadence), len(v)/max(1, len(cadence)), v[len(v)//2], v[int(0.9*len(v))], v[-1]))
 if voids: print("  VOID rows (not counted): %s" % ", ".join(voids))
 PY
+# The tally above counts an episode at `fraction > 0`, which is sound only for a colour the page
+# cannot contain -- and C64 spent a run finding out that a single stray pixel present in nearly
+# every frame reads as hundreds of episodes. The full-client gate is the one a decision rests on.
+python3 "$REPO/scripts/full-client-episodes.py" $(find "$OUT" -maxdepth 1 -type d -name "*-$MOD") \
+  2>/dev/null | sed 's/^/  /'
+done
 echo "########## done — $OUT"

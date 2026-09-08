@@ -28,21 +28,46 @@ def sub(old, new, label):
     s = s.replace(old, new)
     print("  ok %s" % label)
 
+
+def sub_any(variants, label):
+    """Exactly one of several EXACT anchors must match exactly once; the rest must not match.
+
+    Branch `d` (candidate D) moved the deferred create background out of
+    -addCALayerHostViewWithContextId: into -armCALayerHostBackground:, which re-indented the two
+    lines the magenta anchor matches by four columns. A regex over whitespace would paper over
+    that, and would also stop this patcher failing loudly on a file it does not understand -- the
+    property that catches a `core` build. So each branch gets its own exact anchor and the patcher
+    says which one it used; two matching, or none, is still a refusal.
+    """
+    global s
+    hits = [(o, n, c) for o, n, c in ((o, n, s.count(o)) for o, n in variants) if c]
+    if len(hits) != 1 or hits[0][2] != 1:
+        sys.exit("FAIL %s: %s (want exactly one anchor matching exactly once)"
+                 % (label, ", ".join("anchor %d: %d matches" % (i + 1, s.count(o))
+                                     for i, (o, _) in enumerate(variants))))
+    s = s.replace(hits[0][0], hits[0][1])
+    print("  ok %s (anchor %d of %d)" % (label, variants.index((hits[0][0], hits[0][1])) + 1, len(variants)))
+
 # --- magenta (S2): the create path's DEFERRED background. `main` already paints a host black 120 ms
 # after creation to cover the snap's sliver, and "a new host past its deferred black with no frame"
 # is exactly the plan's S2. So recolour that, rather than adding a second background.
-sub("""                if ([_caLayerHosts objectForKey:@(cid)] == deferred)
-                    deferred.backgroundColor = CGColorGetConstantColor(kCGColorBlack);""",
-    """                /* DIAG (issue #7): magenta = S2, a host still showing its create-path
-                 * background. Magenta and green, not red: Steam's store banner is red (C36).
-                 * The !backgroundColor guard matters -- a host created and then reframed-grown
-                 * inside the 120 ms window has already been painted green by placeCALayerHost:,
-                 * and without the guard this would repaint it magenta and score S1 as S2. */
-                static CGColorRef diag_magenta;
-                if (!diag_magenta) diag_magenta = CGColorCreateGenericRGB(1.0, 0.0, 1.0, 1.0);
-                if ([_caLayerHosts objectForKey:@(cid)] == deferred && !deferred.backgroundColor)
-                    deferred.backgroundColor = diag_magenta;""",
-    "magenta / deferred create background")
+MAGENTA_BODY = """/* DIAG (issue #7): magenta = S2, a host still showing its create-path
+%(i)s * background. Magenta and green, not red: Steam's store banner is red (C36).
+%(i)s * The !backgroundColor guard matters -- a host created and then reframed-grown
+%(i)s * inside the 120 ms window has already been painted green by placeCALayerHost:,
+%(i)s * and without the guard this would repaint it magenta and score S1 as S2. */
+%(i)sstatic CGColorRef diag_magenta;
+%(i)sif (!diag_magenta) diag_magenta = CGColorCreateGenericRGB(1.0, 0.0, 1.0, 1.0);
+%(i)sif ([_caLayerHosts objectForKey:@(cid)] == deferred && !deferred.backgroundColor)
+%(i)s    deferred.backgroundColor = diag_magenta;"""
+
+# ⚠ Two anchors, because branch `d` re-indented these lines by four columns when it moved the
+# deferred background into -armCALayerHostBackground:. Exact strings both ways -- see sub_any.
+_MAG = [(i + "if ([_caLayerHosts objectForKey:@(cid)] == deferred)\n"
+         + i + "    deferred.backgroundColor = CGColorGetConstantColor(kCGColorBlack);",
+         i + MAGENTA_BODY % {"i": i})
+        for i in (" " * 16, " " * 12)]
+sub_any(_MAG, "magenta / deferred create background")
 
 # --- green (S1): a placement whose target frame exceeds the size the remote content was created at
 sub("""        host.bounds = (CGRect){ CGPointZero, content };
@@ -63,14 +88,30 @@ sub("""        host.bounds = (CGRect){ CGPointZero, content };
     "green / reframe-grow")
 
 # --- blue (S3): the child's own offscreen layer. Runs in the GPU process.
-if '--noblue' not in sys.argv:
-    sub("    offscreen_layer.backgroundColor = CGColorGetConstantColor(kCGColorBlack);",
-        """{   /* DIAG (issue #7): blue = the child's own layer before its first drawable (S3). */
+#
+# ⚠ Two anchors again, and on branch `d` this is a MUTANT rather than a recolour. On `main` the
+# line being recoloured is the opaque black candidate A removes (`:4339`), so painting it blue only
+# changes the colour of a background that is there either way. Candidate D's branch has already
+# dropped that line, so blue there RESTORES a background the candidate removed -- which is exactly
+# the S3 plan's mutant (a): "restore :4339 on the D-diag source, build without --noblue -> blue
+# returns". A D build carrying it is not candidate D and must never be installed or compared as one.
+BLUE_BODY = """{   /* DIAG (issue #7): blue = the child's own layer before its first drawable (S3). */
         static CGColorRef diag_blue;
         if (!diag_blue) diag_blue = CGColorCreateGenericRGB(0.0, 0.0, 1.0, 1.0);
         offscreen_layer.backgroundColor = diag_blue;
-    }""",
-        "blue / child offscreen layer")
+    }"""
+if '--noblue' not in sys.argv:
+    # ⚠ anchor 1's replacement carries NO leading indent, because the string it replaces includes
+    # its own -- reproducing exactly what every module built from `main` to date was patched with.
+    # Verified byte-identical against the pre-two-anchor patcher over all five main recipes.
+    sub_any([("    offscreen_layer.backgroundColor = CGColorGetConstantColor(kCGColorBlack);",
+              BLUE_BODY),
+             ("    offscreen_layer.magnificationFilter = kCAFilterNearest;\n"
+              "    offscreen_layer.contentsScale = retina_on ? 2.0 : 1.0;",
+              "    offscreen_layer.magnificationFilter = kCAFilterNearest;\n"
+              "    " + BLUE_BODY + "\n"
+              "    offscreen_layer.contentsScale = retina_on ? 2.0 : 1.0;")],
+            "blue / child offscreen layer")
 
 # --- cyan (S4): the CONTENT VIEW's own layer, the surface below every host.
 #
