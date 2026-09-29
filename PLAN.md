@@ -93,10 +93,21 @@ superseded, with the pointer to where the surviving content lives.
 
 ### Still real
 
-- 📋 **`home` profile assumes a ~1080p main panel.** [#2](https://github.com/macgameport/cities-skylines-2-macos/issues/2). The desk already carries a DELL
-  U2720Q (27" 4K, 163 ppi) as the *portrait secondary*; making it `spdisplays_main` is a
-  one-setting change that would put `home` at native 4K (~4× the tuned working point). Wants a new
-  `home-hidpi` row giving 4K the *mobile* treatment (DRS 0.5 + CAS), re-benched not assumed.
+- 📋 **`home` profile assumes a ~1080p main panel — and as of 2026-09-09 it no longer holds.**
+  [#2](https://github.com/macgameport/cities-skylines-2-macos/issues/2). **The hypothetical
+  arrived**: the main display is now an Apple **Studio Display** (5120×2880 backing, presented by
+  macOS at **2560×1440 HiDPI, 60 Hz**), the U2720Q is the portrait secondary, and the 1080p/120 Hz
+  U2424H this profile was tuned against is **no longer attached**. `cs2-display-profile.sh` still
+  classifies it `home` — retina off, DRS off, native 1:1 — verified by a `DRY=1` run. Wants the
+  `home-hidpi` row giving high-DPI the *mobile* treatment (DRS 0.5 + CAS), **re-benched not
+  assumed**. Two things to settle before benching: (a) with `RetinaMode` deleted, does winemac hand
+  the game the panel's **point** space (2560×1440 = 1.78× the tuned load) or its **backing** space
+  (5120×2880 = 7.1×)? Every prior `home` measurement was against a 1× external, so this is
+  untested — arbiter is `Player.log` "Window resolution", never the results `resolution` field
+  (GOTCHAS § Retina, TRAP 1). (b) The saved Screenmanager state is **1920×1080 @ 120 Hz** in
+  exclusive fullscreen on a **60 Hz** panel — the mismatch that blanks the other display (GOTCHAS
+  § "Second display gets blacked out"), direction reversed from the original incident. Set the
+  refresh **in-game**; editing `Settings.coc` was measured not to take.
 - 📋 **Fullscreen-toggle cursor desync.** [#4](https://github.com/macgameport/cities-skylines-2-macos/issues/4). Observed on wine 11.0, **never re-tested on
   the promoted 11.16 engine**; the whole defect class lived in the client-surface machinery 11.16
   reworked, so it may already be gone. Re-check before repeating the old "set Fullscreen and don't
