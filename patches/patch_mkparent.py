@@ -287,6 +287,25 @@ def text_slack(px, nbytes, data):
     bad = [hex(r) for r in refs if lo <= r < text_end]
     if bad: die(f".text slack RVA {lo:#x}.. is referenced or followed by referenced data ({bad})")
     return start, lo
+def ensure_text_vsize(px, data):
+    """Map the relocated body by the PE spec too: raise .text VirtualSize to SizeOfRawData.
+    Mono maps RVAs against raw size, so the body already loads (1.6.0f1 shipped that way and
+    downloads worked), but a spec-following loader maps only VirtualSize. Raising it costs nothing:
+    the bytes are already on disk, and the section's aligned end must not move (checked).
+    Suggested in cs2 #15 (jvyoralek). Returns True if the header changed."""
+    s = px.pe.sections[0]
+    if s.Misc_VirtualSize >= s.SizeOfRawData: return False
+    align = px.pe.OPTIONAL_HEADER.SectionAlignment
+    up = lambda v: (v + align - 1) & ~(align - 1)
+    nxt = px.pe.sections[1].VirtualAddress if len(px.pe.sections) > 1 else None
+    if up(s.VirtualAddress + s.SizeOfRawData) != up(s.VirtualAddress + s.Misc_VirtualSize):
+        die(".text VirtualSize raise would change the section's aligned end")
+    if nxt is not None and s.VirtualAddress + s.SizeOfRawData > nxt:
+        die(".text VirtualSize raise would overlap the next section")
+    struct.pack_into("<I", data, s.get_file_offset() + 8, s.SizeOfRawData)
+    return True
+
+
 def match(px, il, pos, template):
     """template items: bytes (literal) | (name,) a 4-byte token that must resolve to `name` |
     (name, key) same, captured into the result dict. -> (dict | None, reason)"""
@@ -362,7 +381,12 @@ def main():
     if not b["fat"] and b["size"] == len(pre) + ORIG_LEN and il[:len(pre)] == pre:
         got, end = match(px, il, len(pre), ORIG)
         if got is not None and end == len(il):
-            print(f"already patched (RVA repointed: MethodDef#{rid} -> {rva:#x})."); return
+            if ensure_text_vsize(px, data):
+                backup_and_write(p, data)
+                print(f"already relocated (MethodDef#{rid} -> {rva:#x}); raised .text VirtualSize to SizeOfRawData.")
+            else:
+                print(f"already patched (RVA repointed: MethodDef#{rid} -> {rva:#x})."); return
+            return
     if b["fat"] or b["size"] != ORIG_LEN:
         die(f"MethodDef#{rid} body at RVA {rva:#x} is {'fat' if b['fat'] else 'tiny'} size {b['size']} (want tiny 38)")
     got, why = match(px, il, 0, ORIG)
@@ -376,6 +400,7 @@ def main():
     start, new_rva = text_slack(px, len(body), data)
     data[start:start + len(body)] = body
     struct.pack_into("<I", data, px.rva_field_off(rid), new_rva)
+    ensure_text_vsize(px, data)
 
     # re-resolve from the modified image before writing anything to disk
     v = PDX(data); r2 = v.method(TYPE, "CreateFileStream")

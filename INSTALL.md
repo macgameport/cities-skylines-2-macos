@@ -28,6 +28,16 @@ Porting Kit's UI changes between versions, so follow their current instructions 
 wrapper. What matters is the end state: **`~/Applications/CS2dxmt11.app` exists and contains
 `Contents/SharedSupport/prefix`**.
 
+> **Porting Kit 6.7.0:** creating the wrapper can fail with `ERROR: WS12WineWine11.0_1_DXMT-v0.80
+> not found`. It downloads the engine correctly, then adds the `WS12Wine` prefix a second time when
+> it looks for it. Copy the downloaded archive to the doubled name and try again (reported on
+> macOS 27.0, [#15](https://github.com/macgameport/cities-skylines-2-macos/issues/15); a Porting Kit
+> bug, not this project's):
+>
+> ```bash
+> cd ~/Library/Application\ Support/Wineskin/Engines/ && cp WS12Wine11.0_1_DXMT-v0.80.tar.7z WS12WineWine11.0_1_DXMT-v0.80.tar.7z
+> ```
+
 *If Porting Kit is doing something useful for you, donate to them — this project only exists
 because they publish that engine.*
 
@@ -151,7 +161,11 @@ exclusive Fullscreen come back live; **Direct** presentation (the 11.0 stack com
 ~45 FPS where the same city/settings measured 42.7 before; in-game mod downloads still work
 (same 10 patches — the file-IO probe is identical to 11.0). Exclusive Fullscreen works again
 too, but **Fullscreen Windowed is the standing mode** — the launcher's guidance and the display-
-profile system both assume it. You also get **CS2 Steam Store.app** — the
+profile system both assume it. **Direct presentation only shows in exclusive Fullscreen:** macOS
+composites every borderless window, so in Fullscreen Window the Metal HUD still says `Composited`
+on 11.16 too. If you want Direct, switch to exclusive Fullscreen, which this engine makes safe
+(reported on M4 Pro / macOS 27.0, where 11.16 measured +6.1 % over 11.0 —
+[#15](https://github.com/macgameport/cities-skylines-2-macos/issues/15)). You also get **CS2 Steam Store.app** — the
 storefront, one double-click away in the preserved 11.0 wrapper.
 
 Validated on one machine so far — if it misbehaves on yours, roll back and open an issue with

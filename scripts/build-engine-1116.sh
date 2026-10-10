@@ -32,7 +32,15 @@ step "Preflight"
 APP="${CS2_WRAPPER:-$HOME/Applications/CS2dxmt11.app}"
 [ -d "$APP/Contents/SharedSupport/prefix" ] || die "no wrapper at $APP — install the base stack first (INSTALL.md steps 1-4), or set CS2_WRAPPER"
 PK="$APP/Contents/SharedSupport/wine"
-PKLIB="$PK/lib"
+# Donor x86_64 dylibs (freetype, gnutls, …). Older Porting Kit wrappers keep them in wine/lib;
+# Porting Kit 6.7.0 moved them to Contents/Frameworks and leaves only wine/ in wine/lib (reported
+# on M4 Pro / macOS 27.0, cs2 #15). Same libraries, same pathless install names — only the folder
+# moved, so take whichever holds both.
+PKLIB=""
+for _d in "$PK/lib" "$APP/Contents/Frameworks"; do
+  [ -e "$_d/libfreetype.dylib" ] && [ -e "$_d/libgnutls.dylib" ] && { PKLIB="$_d"; break; }
+done
+[ -n "$PKLIB" ] || die "wrapper has no libfreetype.dylib + libgnutls.dylib in $PK/lib or $APP/Contents/Frameworks — this script needs the Porting Kit Wine11+DXMT engine as its donor"
 for f in "$PK/lib/wine/x86_64-unix/winemetal.so" \
          "$PK/lib/wine/x86_64-windows/d3d11.dll" "$PK/lib/wine/i386-windows/d3d11.dll" \
          "$PKLIB/libfreetype.dylib" "$PKLIB/libgnutls.dylib"; do
@@ -52,7 +60,17 @@ for _p in $(pgrep -f "steam" 2>/dev/null); do
   lsof -p "$_p" 2>/dev/null | grep -q "$APP/Contents/SharedSupport/prefix" && \
     die "Steam (or a webhelper) is running in the wrapper — quit it first (steam.exe -shutdown; never kill -9)"
 done
+# Any OTHER wine process still holding the prefix — typically services.exe/winedevice.exe left from
+# an earlier session (two day-old services.exe were found holding it, cs2 #15). They keep wineserver
+# alive, and the prefix update in step 6 would then wait on them. Same open-file attribution.
+_held=""
+for _p in $(pgrep -f -i 'wine|\.exe' 2>/dev/null); do
+  [ "$_p" = "$$" ] && continue
+  lsof -p "$_p" 2>/dev/null | grep -q "$APP/Contents/SharedSupport/prefix" && _held="$_held $_p"
+done
+[ -z "$_held" ] || die "wine processes from an earlier session still hold the wrapper's prefix (pids:$_held) — end them with: WINEPREFIX=\"$APP/Contents/SharedSupport/prefix\" \"$PK/bin/wineserver\" -k"
 echo "  wrapper: $APP"
+echo "  donor dylibs: $PKLIB"
 echo "  donor engine: $("$PK/bin/wine64" --version 2>/dev/null || cat "$PK/version" 2>/dev/null)"
 
 # ---------------------------------------------------------------- 1. source + patch
@@ -168,7 +186,17 @@ step "one-time prefix update (dialogs disabled — this is the step that hangs i
 WINEPREFIX="$SS/prefix" DYLD_FALLBACK_LIBRARY_PATH="$SS/wine/lib" \
   WINEDLLOVERRIDES="mscoree=;mshtml=" WINEDEBUG=-all \
   "$SS/wine/bin/wine64" wineboot -u >/dev/null 2>&1
-WINEPREFIX="$SS/prefix" "$SS/wine/bin/wineserver" -w
+# `wineserver -w` alone can wait forever: services.exe is a persistent client that never leaves on
+# its own, and wineserver does not exit while it lives (measured ~25 min, cs2 #15). The update itself
+# is finished when wineboot returns, so give the session a bounded grace period, then end it —
+# the launcher's own shutdown does the same. wineserver writes the registry as it exits.
+WINEPREFIX="$SS/prefix" "$SS/wine/bin/wineserver" -w & _wpid=$!
+for _i in $(seq 1 30); do kill -0 "$_wpid" 2>/dev/null || break; sleep 1; done
+if kill -0 "$_wpid" 2>/dev/null; then
+  echo "  session still up after 30 s (persistent services.exe) — ending it"
+  WINEPREFIX="$SS/prefix" "$SS/wine/bin/wineserver" -k
+fi
+wait "$_wpid" 2>/dev/null
 
 # ------------------------------------------- 7. storefront wrapper + Steam shortcut
 # The 11.16 engine renders the game but Steam's visible storefront is BLACK on it (GOTCHAS,

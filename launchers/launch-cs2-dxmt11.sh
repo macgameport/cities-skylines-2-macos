@@ -81,8 +81,11 @@ fi
 # usable built-in counter.
 [ "${CS2_HUD:-0}" = "1" ] && export MTL_HUD_ENABLED=1 && echo "Metal HUD: on"
 # CS2_METALFX=1 — EXPERIMENTAL. Renders through a MetalFX spatially-upscaled swapchain; the factor
-# comes from d3d11.metalSpatialUpscaleFactor (default 2). Untested here — try it for performance,
-# expect softer output, and turn it off if anything looks wrong.
+# comes from d3d11.metalSpatialUpscaleFactor (default 2). It does NOT lower the render resolution:
+# it upscales the game's output toward the panel's native size. Measured on an M4 Pro (cs2 #15):
+# a net LOSS at the game's own 2560x1440 (14.72 -> 14.31 FPS; 2560x1440 -> 5120x2880 upscale),
+# and only worth it combined with a lowered in-game resolution (1080p: no measurable cost, cleaner
+# than letting the panel stretch). Expect softer output; turn it off if anything looks wrong.
 if [ "${CS2_METALFX:-0}" = "1" ]; then
   export DXMT_METALFX_SPATIAL_SWAPCHAIN=1
   echo "MetalFX spatial upscaling: on (experimental)"

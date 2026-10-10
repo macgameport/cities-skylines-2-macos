@@ -2625,3 +2625,17 @@ reference is leaked. That only prevents a crash if the translation layer under-c
 in its Get methods (the GPTK/D3DMetal origin of the fix). Unpatched 1.6.2f1 on DXMT reached the
 menu once; it stays **applied** because that is the long-proven configuration — whether DXMT needs
 it is an open experiment, and if it does not, dropping it removes a per-frame leak.
+
+## Never edit a launcher in place while a launch might be running — rename a new file over it (2026-10-10)
+
+bash reads a script from disk *as it executes*, by byte offset. Inserting lines above the point a
+running launcher has reached shifts everything under it, so when it next reads — typically right
+after the game exits — it resumes mid-line or re-runs earlier statements. Python's `open(p,'w')`,
+`sed -i` and editor saves that truncate-and-rewrite all keep the same inode and expose the running
+bash to the new bytes. Caught 2026-10-10 by restoring the original bytes ~30 s later, while the
+launcher sat in its licence wait; its log then matched the previous run line for line, so no harm.
+
+- **Safe edit:** write the new content to a temp file in the same directory and `mv` it over the
+  launcher. The running bash keeps reading its old inode; the next launch gets the new file.
+- Check first: `pgrep -f launch-cs2-dxmt11.sh` (and `boot-verify.sh`) before touching
+  `~/cs2-patch/launch-cs2-dxmt11.sh`, the copy every launch actually runs.
