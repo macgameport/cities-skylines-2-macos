@@ -115,7 +115,7 @@ superseded, with the pointer to where the surviving content lives.
 - 📋 **Rosetta horizon → [#16](https://github.com/macgameport/cities-skylines-2-macos/issues/16)** (supersedes #5, closed 2026-10-10). The stack is entirely x86-64 under
   Rosetta 2. Apple, 2026-09-01: macOS 27 is the last release with full Rosetta; 28 keeps an
   undefined games-only subset. The path out exists now (CodeWeavers' arm64 Wine + FEX, DXMT
-  ARM64EC) — plan it before the macOS 28 betas (≈ June 2027). Meanwhile: the 27.0.1 upgrade
+  ARM64EC) — planned in `docs/plans/arm64-migration.md` (2026-10-10, not yet `check it`'d; P0 = watch + **hold the Studio on macOS 27 until an arm64 stack is promoted**), due before the macOS 28 betas (≈ June 2027). Meanwhile: the 27.0.1 upgrade
   silently REMOVED Rosetta here (C69) — check it after every macOS update.
 
 ### Closed — where each one went
