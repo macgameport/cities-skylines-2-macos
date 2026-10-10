@@ -1,6 +1,6 @@
 # Binary patches
 
-16 idempotent, pattern-matched patches for **Cities: Skylines II `1.6.0f1 (419.d6c6)`** running
+16 idempotent, self-verifying patches for **Cities: Skylines II `1.6.2f1`** (re-derived 2026-10-10; 1.6.0f1 before that) running
 under Wine on macOS. Each is a workaround for a defect in Wine (mostly), Colossal.IO, or the
 Paradox SDK — see [`../docs/patch-inventory.md`](../docs/patch-inventory.md) for what each one
 fixes and who owns the real bug.
@@ -24,8 +24,10 @@ it isn't in this repo and PRs adding it will be declined. **The correct fix is i
 
 ## Safety properties
 
-- **Pattern-matched.** Every patch verifies a byte fingerprint before writing. A game update moves
-  IL offsets, and the patch will **refuse and tell you** rather than corrupt the binary.
+- **Self-verifying.** Every patch checks exactly what it is about to change before writing — a byte
+  fingerprint, or (the five `PDX.SDK.dll` patches since 1.6.2f1) the target method found **by name**
+  with its full original IL matched. A game update that moves or changes the code makes the patch
+  **refuse and tell you** rather than corrupt the binary.
 - **Backed up.** First run writes `<file>.bak` — the pristine original.
 - **Idempotent.** Re-running is a no-op.
 - **Revertible.** `patch_fshandle.py <dir> --revert`, or restore from `.bak`.

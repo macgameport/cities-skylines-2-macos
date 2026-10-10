@@ -1754,6 +1754,14 @@ to suspect the window rect still contains one.
 needs the same client-rect evidence — and it is called *while* win32u is computing those rects, so
 the ordering has to be worked out first. That is upstream wine work, unrelated to DXMT.
 
+
+**Update 2026-10-10 — an upstream fix exists and is measured (C68).** Julliard's
+[6cfa941](https://gitlab.winehq.org/wine/wine/-/commit/6cfa941df3f385ab025aa2c458753c017aa49ccc)
+answers the ordering problem above from win32u, where the rects are computed: when the client
+extends past the visible rect, the window rect becomes the visible rect, so winemac's existing
+`EqualRect(window, visible)` escape fires and the caption space is no longer reserved. On the
+reproducer it removes the title bar and makes the Cocoa frame equal the Win32 window rect. Not yet
+carried into the daily engine, so the Paradox launcher still shows the offset here.
 ## The Paradox launcher's PLAY: `ENOENT` is not a missing file (2026-08-31, OPEN)
 
 > **Ledger:** `SUPPORTED` — C25. Evidence: the launcher log across two attempts, one with an
@@ -2534,7 +2542,7 @@ its trace. The rows were fine; the harness threw away half their evidence and sa
 
 ## The macOS 27 upgrade dropped Rosetta — and the game had not run since, so nothing noticed (2026-10-10)
 
-> **Ledger:** `SUPPORTED` — found while trying to run the wine 60262 reproducer; fixed by James
+> **Ledger: `SUPPORTED` (C69).** Found while trying to run the wine 60262 reproducer; fixed by James
 > reinstalling Rosetta the same day.
 
 macOS 27.0.1 (26A434) was installed 2026-09-24. Afterwards **every** x86_64 Mach-O failed to exec
@@ -2575,7 +2583,7 @@ hash alone cannot prove a tree is stock — `cmp` the source against the tarball
 
 ## The launcher never lets Steam update the game — mods drift ahead of it (2026-10-10)
 
-> **Ledger:** `SUPPORTED` — 2026-10-10 16:2x and 16:1x-16:3x.
+> **Ledger: `SUPPORTED` (C70).** Traced 2026-10-10; the update and re-patch that cleared it are in the ledger.
 
 The game sat on the 2026-07-05 build (1.6.0f1) for three months with a 5.1 GB update pending
 (`appmanifest_949230.acf`: `StateFlags 6`, `TargetBuildID` ≠ `buildid`). Steam had auto-update on
@@ -2595,7 +2603,7 @@ the old Game.dll lacked; Find It then re-scanned the broken assembly every frame
 
 ## A relocated IL body must land inside a section's RAW range — 0x191e0c was `.reloc` (2026-10-10)
 
-> **Ledger:** `SUPPORTED` — found by the 1.6.2f1 re-derivation, verified with pefile.
+> **Ledger: `SUPPORTED` (C71).** Found by the 1.6.2f1 re-derivation, verified with pefile.
 
 `patch_createfile.py` (shipped since July) wrote its two method bodies at file 0x191e0c/0x191e2c and
 pointed the methods at RVA 0x193c0c/0x193c2c using `.text`'s file-to-RVA delta. But 0x191e0c is in
@@ -2617,6 +2625,8 @@ copy nothing executes; installing a fixed patcher there changes nothing (the run
 patcher's own messages). Install into `patches/`, and compare against the repo's `patches/`.
 
 ## The cohtml "crash fix" is a deliberate COM reference leak (2026-10-10)
+
+> **Ledger: `PARTIAL` (C72).** The leak is read from disassembly; whether DXMT needs the patch is unmeasured.
 
 Disassembled while re-deriving it for 1.6.2f1: the flipped `je` is the first branch of the plugin's
 D3D11 state-restore *release* function (save ~33 `ID3D11DeviceContext` Get results → restore →

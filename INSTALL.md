@@ -7,7 +7,9 @@ Mods included.
 **You need:** an Apple Silicon Mac (M1 or newer) on macOS 13+, the game already owned on Steam, and
 roughly 40 GB free.
 
-> Tested on an M3 Max running macOS 26 with game version 1.6.0f1. Intel Macs are untested. A game
+> Tested on an M3 Max running macOS 26 with game version 1.6.0f1, and on an M5 Max running macOS 27.0.1
+> with 1.6.2f1 (2026-10-10). Intel Macs are untested. On macOS 27, check Rosetta is still installed
+> after every update (`arch -x86_64 /bin/ls /`). A game
 > update can move the patch offsets — see [After a game update](#after-a-game-update).
 
 ---

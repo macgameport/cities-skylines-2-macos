@@ -1,14 +1,14 @@
 # CS2 macOS patch inventory
 
-**Game:** Cities: Skylines II `1.6.0f1 (419.d6c6)`
+**Game:** Cities: Skylines II `1.6.2f1` (Steam build 25127643; re-derived 2026-10-10 — 1.6.0f1 `419.d6c6` before that)
 **Stack (default):** self-built stock Wine 11.16 + DXMT (`~/Applications/CS2dxmt11.app`) — needs
 **10** of these patches and **no licence bypass**; every one of the 10 is published here
 **Stack (fallback):** Kegworks/WineskinNavy wrapper (`~/Applications/S734M.app`) — Wine 10.0
 Sikarugir + D3DMetal v2.1 — runs all **16** published patches, and still needs the unpublished
 licence bypass (#5), so it cannot reach a main menu from this repo alone
 **Applied by:** `~/cs2-patch/repatch.sh dxmt11` (default) · `~/cs2-patch/repatch.sh free`
-(fallback) — idempotent, pattern-matched, each writes a `.bak`
-**Last verified:** 2026-09-03 — targets and patch counts re-measured against `repatch.sh`; the
+(fallback) — idempotent, self-verifying (byte pattern, or by-name method lookup for the PDX.SDK five), each writes a `.bak`
+**Last verified:** 2026-10-10 — 1.6.2f1 re-derivation: all 10 dxmt11 patches + badge applied, boot-verify PASS ×3 and a forced mod re-download (C73); before that 2026-09-03, when targets and patch counts were re-measured against `repatch.sh`; the
 in-game verification behind §1 is 2026-08-22
 
 > **These are not bugs in this project's code.** Every entry is a workaround for a defect in
@@ -80,10 +80,10 @@ A fourth, narrower one: under **concurrent** IO, metadata-query APIs (`GetFileAt
 
 | # | Patch | Target | Symptom / cause |
 |---|---|---|---|
-| 13 | `patch_mkparent` | `DiskIODefaultWindows.CreateFileStream` | nested download dirs don't exist → `DirectoryNotFoundException`. Prepends `Directory.CreateDirectory(dirname)` |
+| 13 | `patch_mkparent` | `DiskIODefaultWindows.CreateFileStream` | nested download dirs don't exist → `DirectoryNotFoundException`. Prepends `Directory.CreateDirectory(dirname)`. The body is relocated into `.text`'s file padding and, since 2026-10-10, `.text` VirtualSize is raised to SizeOfRawData so any loader maps it (suggested in #15) |
 | 14 | `patch_lockbypass` | `AcquireLockResult.GetError` | lock reports "UNKNOWN" failure under Wine threading; force `null` so the caller proceeds |
 | 15 | `patch_longdelete` | `DeleteLongPathFile` / `DeleteLongPathDirectory` | PdxSdk's **own second IO layer** for long paths, same R1 garbage-errno throws |
-| 16 | `patch_createfile` | `LongPathFileExists` / `LongPathDirectoryExists` | under concurrency both metadata queries false-positive on a missing file → integrity check reads a not-yet-downloaded `.zip` → abort **before** download. Rewritten to test existence by *opening*. |
+| 16 | `patch_createfile` | `LongPathFileExists` / `LongPathDirectoryExists` | under concurrency both metadata queries false-positive on a missing file → integrity check reads a not-yet-downloaded `.zip` → abort **before** download. Rewritten to test existence by *opening*. Since 1.6.2f1 the bodies are rewritten **in place**; the 1.6.0f1 version relocated them to RVAs that mapped to no section and was never runnable (C71) |
 | 17 | `patch_lockleak` | `<CreateFileStream>d__25.MoveNext` | **A genuine Paradox bug, not a Wine one.** The method has two `catch` clauses and **no `finally`**; the catch handler never disposes the lock acquired at IL 0x78/0x82 (the FileNotFound path at 0x120 does). Any throw leaks the per-path lock forever; the next waiter dies on `GetLockToken`'s timeout. Would bite on Windows too, given the right timing. |
 
 **Superseded — do NOT re-apply.** `patch_pdxsdk_io` (`ResultFactory.CreateIoResultFromException` →
@@ -112,8 +112,10 @@ Ranked by how many patches it retires:
 
 ## Method notes
 
-- Every patch is **pattern-matched**: it refuses to write if the IL moved (game update), rather than
-  corrupting the binary. `.bak` = pristine original.
+- Every patch **verifies before it writes** (byte pattern, or by-name lookup + full original IL for
+  the PDX.SDK five): it refuses if the code moved or changed (game update), rather than corrupting
+  the binary. `.bak` = pristine original — a refresh-on-update rule varies by script, so check that
+  a `.bak` predating an update is not left holding the OLD build (2026-10-10: two were).
 - **Prefer in-place edits** (same byte count) over relocation — no branch-target, offset or
   exception-handler-clause shifts. Relocating a `.ctor` specifically breaks early-init resolution.
 - **Verify stack balance on both branch paths** before applying; an unbalanced edit yields

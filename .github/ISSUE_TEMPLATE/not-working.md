@@ -9,7 +9,7 @@ labels: ''
 
 **Mac and macOS version:** <!-- e.g. M3 Max, macOS 26.5 -->
 **Wrapper and engine:** <!-- e.g. Porting Kit WS12Wine11.0_DXMT-v0.80 -->
-**Game version:** <!-- shown bottom-left of the in-game Options screen, e.g. 1.6.0f1 -->
+**Game version:** <!-- shown bottom-left of the in-game Options screen, e.g. 1.6.2f1 -->
 **What happens:** <!-- what you expected, what actually happened -->
 
 **Output of the setup check:**

@@ -112,10 +112,11 @@ superseded, with the pointer to where the surviving content lives.
   the promoted 11.16 engine**; the whole defect class lived in the client-surface machinery 11.16
   reworked, so it may already be gone. Re-check before repeating the old "set Fullscreen and don't
   toggle" advice.
-- 📋 **Rosetta horizon.** [#5](https://github.com/macgameport/cities-skylines-2-macos/issues/5). The stack is entirely x86-64 under Rosetta 2 and macOS 26
-  surfaces a deprecation notice ([Apple 102527](https://support.apple.com/en-us/102527)). Apple's
-  stated plan: full Rosetta through macOS 27, a reduced "older games" subset in 28+, no word on
-  whether Wine-style use qualifies. Nothing to do today; plan-B territory around late 2027.
+- 📋 **Rosetta horizon → [#16](https://github.com/macgameport/cities-skylines-2-macos/issues/16)** (supersedes #5, closed 2026-10-10). The stack is entirely x86-64 under
+  Rosetta 2. Apple, 2026-09-01: macOS 27 is the last release with full Rosetta; 28 keeps an
+  undefined games-only subset. The path out exists now (CodeWeavers' arm64 Wine + FEX, DXMT
+  ARM64EC) — plan it before the macOS 28 betas (≈ June 2027). Meanwhile: the 27.0.1 upgrade
+  silently REMOVED Rosetta here (C69) — check it after every macOS update.
 
 ### Closed — where each one went
 
