@@ -1,6 +1,6 @@
 #!/bin/bash
 # CS2 launcher — Wine 11 + DXMT wrapper. The recipe, in order:
-#   patches -> Steam up + logged in -> licence sync -> Cities2.exe DIRECTLY -> graceful shutdown.
+#   patches -> Steam up + logged in -> licence sync -> update check -> Cities2.exe DIRECTLY -> shutdown.
 #
 # Steam's "Play" button does NOT deliver a game on this stack: the Paradox Launcher now boots
 # fully (re-tested 2026-08-24) but its cpatch/socket IPC times out under stock Wine — see
@@ -18,6 +18,10 @@
 #   CS2_ARGS="..."                     extra Cities2.exe arguments (e.g. -benchmark for the
 #                                      perf-pass measurement cells; unquoted expansion, so
 #                                      multiple space-separated args work)
+#   CS2_UPDATE=ask|apply|skip          what to do when Steam has a game update waiting (step 2b).
+#                                      ask (default) offers it; with no one to answer — no
+#                                      terminal, or no reply within 2 minutes — the installed
+#                                      build launches with a warning. apply takes it unasked.
 set -u
 
 # ---------------------------------------------------------------- locate the wrapper
@@ -126,21 +130,29 @@ echo "949230" > "$GDIR/steam_appid.txt"
 echo "Engine: $("$WINE" --version 2>/dev/null)"
 
 # 0) Ensure the binary patches are applied — a game update reverts them. All are idempotent and
-#    refuse to write if the pattern moved, so re-running is always safe.
-if [ -x "$PATCH_DIR/repatch.sh" ]; then
-  CS2_GAME_DIR="$GDIR" bash "$PATCH_DIR/repatch.sh" dxmt11 >/dev/null 2>&1 && echo "Patches ensured (10, dxmt11 target)." \
-    || echo "WARNING: repatch reported an issue — continuing (patches are idempotent)."
-else
-  echo "NOTE: no repatch.sh in $PATCH_DIR — skipping the patch check. Run scripts/setup.sh to install it."
-fi
-
-# 0b) Badge patch (Game.dll): re-ensure after game updates — Steam replaces Game.dll and
-#     repatch.sh does not cover it (see patch-modconflict-badge.py; fail-open by design).
-if [ -x "$PATCH_DIR/revenv/bin/python3" ] && [ -f "$PATCH_DIR/patch-modconflict-badge.py" ]; then
-  BP_OUT=$("$PATCH_DIR/revenv/bin/python3" "$PATCH_DIR/patch-modconflict-badge.py" apply 2>&1) \
-    && echo "Badge patch: $(printf '%s' "$BP_OUT" | tail -1)" \
-    || echo "WARNING: badge-patch check failed — continuing (cosmetic). $(printf '%s' "$BP_OUT" | head -1)"
-fi
+#    refuse to write if the pattern moved, so re-running is always safe. Step 2b calls this again
+#    after it updates the game. Returns non-zero when repatch.sh reported a problem.
+ensure_patches() {
+  local rc=0
+  if [ -x "$PATCH_DIR/repatch.sh" ]; then
+    if CS2_GAME_DIR="$GDIR" bash "$PATCH_DIR/repatch.sh" dxmt11 >/dev/null 2>&1; then
+      echo "Patches ensured (10, dxmt11 target)."
+    else
+      echo "WARNING: repatch reported an issue — continuing (patches are idempotent)."; rc=1
+    fi
+  else
+    echo "NOTE: no repatch.sh in $PATCH_DIR — skipping the patch check. Run scripts/setup.sh to install it."
+  fi
+  # 0b) Badge patch (Game.dll): re-ensure after game updates — Steam replaces Game.dll and
+  #     repatch.sh does not cover it (see patch-modconflict-badge.py; fail-open by design).
+  if [ -x "$PATCH_DIR/revenv/bin/python3" ] && [ -f "$PATCH_DIR/patch-modconflict-badge.py" ]; then
+    BP_OUT=$("$PATCH_DIR/revenv/bin/python3" "$PATCH_DIR/patch-modconflict-badge.py" apply 2>&1) \
+      && echo "Badge patch: $(printf '%s' "$BP_OUT" | tail -1)" \
+      || echo "WARNING: badge-patch check failed — continuing (cosmetic). $(printf '%s' "$BP_OUT" | head -1)"
+  fi
+  return $rc
+}
+ensure_patches
 
 # 1) Steam up + FRESHLY logged in — scoped to THIS wrapper. Two wrappers can each have a Steam
 #    resident, and `pgrep steamwebhelper` cannot tell them apart: webhelper children carry
@@ -187,6 +199,80 @@ if [ "$STARTED_STEAM" = 1 ]; then
 else
   echo "Steam already warm — skipping the 45s licence wait."
 fi
+
+# 2b) Is a game update waiting? (#17) This launcher runs Steam -silent and shuts it down the moment
+#     the game exits, so Steam's scheduled auto-update window never arrives: the game sat on the
+#     2026-07-05 build for three months while Paradox Mods updated mods to the current one, until a
+#     mod needed a type the old Game.dll lacked (GOTCHAS 2026-10-10, ledger C70). Checked after the
+#     licence wait so a freshly started Steam has had time to refresh the app's manifest.
+MANIFEST="$WINEPREFIX/drive_c/Program Files (x86)/Steam/steamapps/appmanifest_949230.acf"
+# >>> update-check — scripts/test-update-check.sh sources everything between these markers
+UPDATE_POLL="${CS2_UPDATE_POLL:-10}"          # seconds between manifest reads while updating
+UPDATE_TIMEOUT="${CS2_UPDATE_TIMEOUT:-3600}"  # give up waiting for Steam after this long
+UPDATE_ASK_SECS="${CS2_UPDATE_ASK_SECS:-120}" # unanswered question -> launch the installed build
+acf_field() {   # first top-level "<key>" "<value>" pair; the three keys used here occur once
+  sed -n "s/^[[:space:]]*\"$1\"[[:space:]]*\"\([^\"]*\)\".*/\1/p" "$MANIFEST" 2>/dev/null | head -1
+}
+update_pending() {   # 0 = update waiting, 1 = current, 2 = manifest unreadable. Sets UPD_FROM/UPD_TO.
+  local flags target
+  flags=$(acf_field StateFlags); UPD_FROM=$(acf_field buildid); target=$(acf_field TargetBuildID)
+  UPD_TO="${target:-?}"
+  [ -n "$flags" ] || return 2
+  [ "$flags" != 4 ] && return 0                     # 4 = fully installed, nothing scheduled
+  [ -n "$target" ] && [ "$target" != 0 ] && [ "$target" != "$UPD_FROM" ] && return 0
+  return 1
+}
+apply_game_update() {
+  local waited=0 last=0 rc
+  note "Updating the game through Steam (build $UPD_FROM -> $UPD_TO)…"
+  # Forwarded to the running Steam. It validates the installed build first — our patched DLLs
+  # count as mismatches, which is expected — then runs the real update. 1.6.0f1 -> 1.6.2f1 was
+  # 5.1 GB and ~6.5 min (ledger 2026-10-10). No `timeout` wrapper: macOS has none, and
+  # `timeout … wine` exits 127 having done nothing.
+  "$WINE" "$STEAM" "steam://validate/949230" >/dev/null 2>&1 & disown
+  while [ "$waited" -lt "$UPDATE_TIMEOUT" ]; do
+    sleep "$UPDATE_POLL"; waited=$((waited + UPDATE_POLL))
+    update_pending; rc=$?
+    if [ "$rc" = 1 ]; then note "Game updated to build $UPD_FROM."; return 0; fi
+    steam_exe_up || die "Steam exited while updating the game. Open Steam inside the wrapper, let the update finish, then relaunch."
+    if [ $((waited - last)) -ge 60 ]; then
+      last=$waited
+      note "Still updating the game — $((waited / 60)) min so far (StateFlags $(acf_field StateFlags), $(acf_field BytesDownloaded) of $(acf_field BytesToDownload) bytes)."
+    fi
+  done
+  die "The game update did not finish within $((UPDATE_TIMEOUT / 60)) minutes. Steam is still running in the wrapper: let it finish, then relaunch."
+}
+check_game_update() {
+  local rc ans=play msg
+  update_pending; rc=$?
+  if [ "$rc" = 2 ]; then echo "NOTE: cannot read the game's Steam manifest — update check skipped."; return 0; fi
+  if [ "$rc" = 1 ]; then echo "Game build $UPD_FROM is current."; return 0; fi
+  msg="Steam has a game update waiting (build $UPD_FROM -> $UPD_TO). Mods follow the newest game version, so the installed build can break them."
+  case "${CS2_UPDATE:-ask}" in
+    apply) ans=update ;;
+    skip)  ;;
+    *)
+      if [ "$QUIET" = "1" ]; then
+        [ "$(osascript -e "button returned of (display dialog \"$msg Updating takes several minutes.\" buttons {\"Play anyway\", \"Update first\"} default button \"Update first\" with title \"Cities: Skylines II\" giving up after $UPDATE_ASK_SECS)" 2>/dev/null)" = "Update first" ] && ans=update
+      elif [ -t 0 ]; then
+        printf '%s\nUpdate first? [Y/n] (no answer in %ss = play the installed build) ' "$msg" "$UPDATE_ASK_SECS"
+        if read -r -t "$UPDATE_ASK_SECS" ans; then
+          case "$ans" in [nN]*) ans=play ;; *) ans=update ;; esac
+        else
+          echo; ans=play
+        fi
+      fi
+      ;;
+  esac
+  if [ "$ans" != update ]; then
+    note "WARNING: game update waiting (build $UPD_FROM -> $UPD_TO) — launching the installed build. CS2_UPDATE=apply takes it."
+    return 0
+  fi
+  apply_game_update
+  ensure_patches || note "WARNING: some fixes did not apply to the new game build — see INSTALL.md 'After a game update'."
+}
+# <<< update-check
+check_game_update
 
 # 3) Launch the game DIRECTLY — NOT via `explorer /desktop` (that eats WSAD: the keyboard goes to
 #    the virtual-desktop container).

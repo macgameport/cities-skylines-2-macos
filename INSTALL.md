@@ -234,18 +234,25 @@ sharpness. Untested here — report what you find.
 
 ## After a game update
 
-**The launcher does not let Steam update the game.** It starts Steam silently, runs the game, and
-shuts Steam down when you quit, so Steam's own update window never arrives. Mods keep updating to
-the newest game version anyway, and sooner or later one of them fails to load. If a mod suddenly
-errors after a Paradox update, check whether Steam has a game update waiting:
+**Steam never gets a quiet moment to update the game on its own.** The launcher starts Steam
+silently, runs the game, and shuts Steam down when you quit, so Steam's scheduled update window
+never arrives — while mods keep updating to the newest game version. So the launcher checks for
+you: once Steam has signed in, if a game update is waiting it asks **Update first** or **Play
+anyway** (a dialog from the app shortcut, a `[Y/n]` prompt in a terminal). *Update first* has Steam
+verify and update the game (several minutes; it shows progress), then re-applies the fixes and
+launches. No answer within 2 minutes, or no one to ask, launches the installed build with a
+warning. `CS2_UPDATE=apply` updates without asking; `CS2_UPDATE=skip` never does.
+
+To check by hand — for example if a mod suddenly errors after a Paradox update:
 
 ```bash
 grep -E '"(StateFlags|buildid|TargetBuildID)"' ~/Applications/CS2dxmt11.app/Contents/SharedSupport/prefix/drive_c/Program\ Files\ \(x86\)/Steam/steamapps/appmanifest_949230.acf
 ```
 
-`StateFlags` other than `4`, or two different build ids, means one is pending. Open Steam inside the
-wrapper and let it update (or ask it to verify the game's files, which updates first), quit Steam,
-then re-apply the fixes, because the update replaces the patched DLLs:
+`StateFlags` other than `4`, or two different build ids, means one is pending. Without the
+launcher: open Steam inside the wrapper and let it update (or ask it to verify the game's files,
+which updates first), quit Steam, then re-apply the fixes, because the update replaces the patched
+DLLs:
 
 ```bash
 cd cities-skylines-2-macos && git pull && bash scripts/setup.sh

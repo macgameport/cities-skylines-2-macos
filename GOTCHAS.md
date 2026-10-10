@@ -2584,6 +2584,10 @@ hash alone cannot prove a tree is stock — `cmp` the source against the tarball
 ## The launcher never lets Steam update the game — mods drift ahead of it (2026-10-10)
 
 > **Ledger: `SUPPORTED` (C70).** Traced 2026-10-10; the update and re-patch that cleared it are in the ledger.
+> **Launcher fix BUILT 2026-10-10 (#17, C74 `PARTIAL`):** step 2b reads the manifest after the
+> licence wait and offers the update (`CS2_UPDATE=ask|apply|skip`). Fixture-tested by
+> `scripts/test-update-check.sh` (25 checks, 9 mutants all red) and boot-verified on the current
+> build; **a real Steam update through it is still unexercised** — the next game patch is that test.
 
 The game sat on the 2026-07-05 build (1.6.0f1) for three months with a 5.1 GB update pending
 (`appmanifest_949230.acf`: `StateFlags 6`, `TargetBuildID` ≠ `buildid`). Steam had auto-update on
@@ -2600,6 +2604,16 @@ the old Game.dll lacked; Find It then re-scanned the broken assembly every frame
   `steam://validate/949230`. Steam validates the OLD build first — expect exactly our patched DLLs
   as "corrupt" (6 of 5,313) — then runs the real update. Then `repatch.sh dxmt11`, then boot-verify.
 - macOS has no `timeout`: `timeout 60 wine … steam://…` exits 127 and silently does nothing.
+
+## A `script`-driven tty test passes vacuously if its input arrives before the prompt (2026-10-10)
+
+Testing the launcher's `[Y/n]` prompt needs a real tty (`[ -t 0 ]`), so the test runs it under
+`script -q`. Input piped straight into `script` is consumed before the child's `read` starts: the
+prompt then sees **EOF**, which this prompt treats like a timeout — *play the installed build*. So
+the `n` case passed whether or not `n` arrived, and only the `Enter` case (EOF ≠ "update") exposed
+it. Hold the input back (`< <(sleep 1; cat input; sleep 20)`) and prove the case is live with a
+mutant that flips the answer it tests. **Generalise:** when a test's "no input" path and its
+"expected input" path give the same result, a passing test cannot tell you the input was read.
 
 ## A relocated IL body must land inside a section's RAW range — 0x191e0c was `.reloc` (2026-10-10)
 
