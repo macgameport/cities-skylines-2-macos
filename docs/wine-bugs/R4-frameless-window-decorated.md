@@ -5,7 +5,7 @@
 **Upstream fix MEASURED 2026-10-10:** Alexandre Julliard's
 [6cfa941](https://gitlab.winehq.org/wine/wine/-/commit/6cfa941df3f385ab025aa2c458753c017aa49ccc)
 (2026-10-07, *"win32u: Display the full client area if it extends into the window decorations"*)
-fixes both symptoms on this reproducer — see § "Upstream fix, measured" below.
+fixes both symptoms on this reproducer — see § "Upstream fix, measured" below. Reported back as comments #3/#4 (attachments 82319 stock, 82320 fixed) the same day.
 
 ## Summary
 
