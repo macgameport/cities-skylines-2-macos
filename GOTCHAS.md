@@ -2572,3 +2572,56 @@ window is on screen — `screencapture -R x,y,w,h` with the frame from `scripts/
 captures it (2× device pixels on this display). And a relink is **not** byte-deterministic here:
 restoring the source and relinking gave a third hash (`2f37…` vs the pre-session `bc7a…`), so a
 hash alone cannot prove a tree is stock — `cmp` the source against the tarball.
+
+## The launcher never lets Steam update the game — mods drift ahead of it (2026-10-10)
+
+> **Ledger:** `SUPPORTED` — 2026-10-10 16:2x and 16:1x-16:3x.
+
+The game sat on the 2026-07-05 build (1.6.0f1) for three months with a 5.1 GB update pending
+(`appmanifest_949230.acf`: `StateFlags 6`, `TargetBuildID` ≠ `buildid`). Steam had auto-update on
+but kept scheduling it for a future quiet window (`ScheduledAutoUpdate`), and the launcher runs
+Steam `-silent`, starts `Cities2.exe` directly and shuts Steam down the moment the game exits — so
+the window never comes. Paradox Mods, meanwhile, auto-updates mods at every boot to match the
+*current* game. The first casualty was Traffic 0.2.13 needing a type (`Game.Net.NetCustomColorVariation`)
+the old Game.dll lacked; Find It then re-scanned the broken assembly every frame (3,036
+`ReflectionTypeLoadException` in two minutes, a 55,663-line Player.log).
+
+- **Tell:** `grep -E '"(StateFlags|buildid|TargetBuildID)"' …/steamapps/appmanifest_949230.acf` —
+  `StateFlags` other than `4`, or two different build ids, means an update is waiting.
+- **Forcing it:** with Steam up in the prefix (launcher env, detached), forward
+  `steam://validate/949230`. Steam validates the OLD build first — expect exactly our patched DLLs
+  as "corrupt" (6 of 5,313) — then runs the real update. Then `repatch.sh dxmt11`, then boot-verify.
+- macOS has no `timeout`: `timeout 60 wine … steam://…` exits 127 and silently does nothing.
+
+## A relocated IL body must land inside a section's RAW range — 0x191e0c was `.reloc` (2026-10-10)
+
+> **Ledger:** `SUPPORTED` — found by the 1.6.2f1 re-derivation, verified with pefile.
+
+`patch_createfile.py` (shipped since July) wrote its two method bodies at file 0x191e0c/0x191e2c and
+pointed the methods at RVA 0x193c0c/0x193c2c using `.text`'s file-to-RVA delta. But 0x191e0c is in
+`.reloc`'s raw range (0x191e00..0x192000), and the RVA falls between `.text`'s raw end (0x193800) and
+`.rsrc` (0x194000): **it maps to no section at all** — pefile refuses it, and Mono maps RVAs against
+`SizeOfRawData`. `patch_mkparent`'s relocation (file 0x191868 = `.text` padding past VirtualSize but
+inside raw size) was fine. So the July "*** WORKED ***" for createfile most likely measured the
+methods *throwing* when called, which the caller treats like "missing" — the same effect as the
+always-false diagnostic that preceded it.
+
+- **Rule:** after any relocation, map the new RVA back with `pefile.get_offset_from_rva()`; if it
+  raises, the patch is broken however well the download test went.
+- The 1.6.2f1 patcher rewrites both bodies **in place** (each fits the old 40-byte slot) — no RVA move.
+
+## `repatch.sh` runs `~/cs2-patch/patches/*.py` — the `patch_*.py` beside it are stale duplicates (2026-10-10)
+
+`HERE="$(cd "$(dirname "$0")/patches" && pwd)"`. The top-level `~/cs2-patch/patch_*.py` are an older
+copy nothing executes; installing a fixed patcher there changes nothing (the run prints the old
+patcher's own messages). Install into `patches/`, and compare against the repo's `patches/`.
+
+## The cohtml "crash fix" is a deliberate COM reference leak (2026-10-10)
+
+Disassembled while re-deriving it for 1.6.2f1: the flipped `je` is the first branch of the plugin's
+D3D11 state-restore *release* function (save ~33 `ID3D11DeviceContext` Get results → restore →
+`Release()` each). `jne` makes it return early exactly when state was captured, so every captured
+reference is leaked. That only prevents a crash if the translation layer under-counts references
+in its Get methods (the GPTK/D3DMetal origin of the fix). Unpatched 1.6.2f1 on DXMT reached the
+menu once; it stays **applied** because that is the long-proven configuration — whether DXMT needs
+it is an open experiment, and if it does not, dropping it removes a per-frame leak.

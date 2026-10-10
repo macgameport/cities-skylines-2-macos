@@ -218,15 +218,27 @@ sharpness. Untested here — report what you find.
 
 ## After a game update
 
-Game updates replace the patched DLLs, so the fixes need re-applying:
+**The launcher does not let Steam update the game.** It starts Steam silently, runs the game, and
+shuts Steam down when you quit, so Steam's own update window never arrives. Mods keep updating to
+the newest game version anyway, and sooner or later one of them fails to load. If a mod suddenly
+errors after a Paradox update, check whether Steam has a game update waiting:
+
+```bash
+grep -E '"(StateFlags|buildid|TargetBuildID)"' ~/Applications/CS2dxmt11.app/Contents/SharedSupport/prefix/drive_c/Program\ Files\ \(x86\)/Steam/steamapps/appmanifest_949230.acf
+```
+
+`StateFlags` other than `4`, or two different build ids, means one is pending. Open Steam inside the
+wrapper and let it update (or ask it to verify the game's files, which updates first), quit Steam,
+then re-apply the fixes, because the update replaces the patched DLLs:
 
 ```bash
 cd cities-skylines-2-macos && git pull && bash scripts/setup.sh
 ```
 
-The patches are pattern-matched rather than hardcoded to file offsets, so they usually survive
-updates. Each one refuses to write if it can't find its pattern — it will never corrupt a file. If
-one does report a miss, please open an issue.
+Each patch finds its target by name or by a byte pattern and refuses to write if what it finds is
+not exactly what it expects, so it will never corrupt a file. If one reports a miss, please open an
+issue. (1.6.2f1, October 2026: the cohtml and Paradox SDK patches needed re-deriving; the SDK ones
+now resolve their methods by name, so later updates should not break them the same way.)
 
 ## Troubleshooting
 

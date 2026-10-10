@@ -61,7 +61,7 @@ A fourth, narrower one: under **concurrent** IO, metadata-query APIs (`GetFileAt
 
 | # | Patch | Target | Symptom |
 |---|---|---|---|
-| 1 | `patch_cohtml` | `cohtml_unity3dplugin.dll` | crash during UI init (`je`→`jne` in `IAllocator` init). Community fix, credit **manolz1/cities2-gptk-fix** |
+| 1 | `patch_cohtml` | `cohtml_unity3dplugin.dll` | crash during UI init on the GPTK/D3DMetal path. One `je`→`jne` at the top of the plugin's D3D11 state-restore release function. **What it really does (disassembled 2026-10-10):** the plugin saves Unity's pipeline state with ~33 `ID3D11DeviceContext` Get calls, restores it, then `Release()`s every captured COM reference; the flip makes that function return early whenever state was captured, so the references are deliberately **leaked**. That only avoids a crash if the translation layer under-counts references in its Get methods. Not an `IAllocator` fix (no such string in the binary). Re-derived for 1.6.2f1: same 1,604-byte function, moved; the patcher now also anchors on the function's own bytes. Kept applied on DXMT because it is the long-proven configuration; whether DXMT needs it is untested (the unpatched 1.6.2f1 build reached the menu once). Community fix, credit **manolz1/cities2-gptk-fix** |
 | 2 | `patch_colossal_io` | `Colossal.IO.dll` → `EnumerateFileSystemIterator[Recursive]` | startup crash — Win32 error check after `FindNextFile` reads garbage (R1) |
 | 4 | `patch_asset_database` | `Colossal.IO.AssetDatabase.dll` → `PopulateFromDirectory` | `File.Exists` wrong under Wine → bogus `.priority` read |
 
