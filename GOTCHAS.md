@@ -2531,3 +2531,44 @@ its trace. The rows were fine; the harness threw away half their evidence and sa
 - **A new capture mode makes every `f*.png` count a lie.** Audit them when adding one — this is the
   second thing the video mode inherited wrongly, after the locked-session guard.
 - The trace survived only because `/tmp/steam-cell-*` had not been salvaged yet. That is luck.
+
+## The macOS 27 upgrade dropped Rosetta — and the game had not run since, so nothing noticed (2026-10-10)
+
+> **Ledger:** `SUPPORTED` — found while trying to run the wine 60262 reproducer; fixed by James
+> reinstalling Rosetta the same day.
+
+macOS 27.0.1 (26A434) was installed 2026-09-24. Afterwards **every** x86_64 Mach-O failed to exec
+with *"Bad CPU type in executable"* — `engine-1116/bin/wine`, the CS2dxmt11 wrapper's own
+`wine64`, and even universal `/bin/ls` under `arch -x86_64`. `/Library/Apple/usr/share/rosetta` was
+absent. The game's `Player.log` was dated 2026-09-03, i.e. the last launch predated the upgrade, so
+the loss sat undetected for 16 days.
+
+- **Tell:** `arch -x86_64 /bin/ls /` — a universal binary that fails there is Rosetta missing, not
+  a broken wine. Sandbox on or off makes no difference.
+- **Fix is a human step:** `softwareupdate --install-rosetta --agree-to-license`.
+- **Collateral:** the x86_64 wine *build tools* (`tools/widl`, winebuild, winegcc) die too, so no
+  `win32u.so`/`winemac.so` relink is possible — only single `.o` compiles, because the native clang
+  cross-compiles. And every memory/doc claim that the stack "runs" is a pre-upgrade claim until the
+  first post-upgrade `boot-verify.sh` PASS.
+- **Generalise:** after any major macOS upgrade, the first check is the Rosetta tell above, before
+  believing any "wine is broken" symptom.
+
+## `DYLD_FALLBACK_LIBRARY_PATH` into the wrapper bundle makes Gatekeeper verify all 90 GB of it (2026-10-10)
+
+Running `engine-1116` with `DYLD_FALLBACK_LIBRARY_PATH=…/CS2dxmt11.app/Contents/SharedSupport/wine/lib`
+(to silence its FreeType warning) popped a CoreServicesUIAgent sheet *"Verifying CS2dxmt11.app…"*
+and `wineboot.exe --init` sat behind it for 3+ minutes. Loading a dylib from inside an app bundle
+triggers Gatekeeper's first-run verification of the **whole bundle**, and this one contains the
+91 GB game prefix. The engine's own `libfreetype`-less run is fine for geometry work — the warning
+is cosmetic. Never point a dyld search path into a wrapper bundle for a throwaway run.
+
+## Wine's per-directory Makefile is a stub: `gmake -C dlls/win32u win32u.so` is always "up to date" (2026-10-10)
+
+The build tree's `dlls/<x>/Makefile` forwards to the top-level Makefile, and the forwarded target
+name does not resolve to the real rule, so it reports *up to date* even with the `.o` deleted.
+Build from the top: `gmake dlls/win32u/win32u.so`. Same session, same family: `screencapture -l
+<id>` returns *"could not create image from window"* for wine windows on macOS 27 even when the
+window is on screen — `screencapture -R x,y,w,h` with the frame from `scripts/winlist.swift`
+captures it (2× device pixels on this display). And a relink is **not** byte-deterministic here:
+restoring the source and relinking gave a third hash (`2f37…` vs the pre-session `bc7a…`), so a
+hash alone cannot prove a tree is stock — `cmp` the source against the tarball.

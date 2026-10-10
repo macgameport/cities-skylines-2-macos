@@ -2,6 +2,10 @@
 
 **Component:** winemac.drv (window) · **Severity:** normal · **Platform:** macOS
 **Status: ✅ FILED 2026-08-31 — [wine bug 60262](https://bugs.winehq.org/show_bug.cgi?id=60262).** Reproduced on stock wine 11.16.
+**Upstream fix MEASURED 2026-10-10:** Alexandre Julliard's
+[6cfa941](https://gitlab.winehq.org/wine/wine/-/commit/6cfa941df3f385ab025aa2c458753c017aa49ccc)
+(2026-10-07, *"win32u: Display the full client area if it extends into the window decorations"*)
+fixes both symptoms on this reproducer — see § "Upstream fix, measured" below.
 
 ## Summary
 
@@ -58,6 +62,33 @@ macOS 891.7,641.2 pt = 1783.4,1282.4 px | wine 1783,1282 px | dx -0.4  dy -0.4 p
 
 It is window-relative: `ScreenToClient` subtracts a window origin 56 px (28 pt) above where the
 NSWindow actually is (Win32 `228,346` px vs Cocoa `232,402` px).
+
+## Upstream fix, measured (2026-10-10)
+
+Jactry Zeng asked on the bug (comment #2) whether commit `6cfa941df3f385ab025aa2c458753c017aa49ccc`
+helps. It is five lines in `win32u` `get_visible_rect()` (`dlls/win32u/window.c`): if `rects->client`
+extends outside `visible_rect`, use `rects->window` as the visible rect. That is the "one source"
+this doc asked for — it acts where the rects are computed, so winemac's existing
+`EqualRect(window, visible)` escape fires for the `dx=5 dy=0` case **and** win32u stops reserving
+caption space. The half fix above only did the Cocoa side; this does both.
+
+**Method.** The commit applies clean to stock 11.16 (`git apply --check`). `win32u.so` was relinked
+with it, `engine-1116` was APFS-cloned and **only** `lib/wine/x86_64-unix/win32u.so` swapped, and
+the reproducer ran on both engines back to back in the same throwaway prefix
+(`scripts/run-60262-repro.sh`; chrome rows counted by `scripts/toprows.swift`, Cocoa frame from
+`scripts/winlist.swift`). Retina mode off in that prefix, so 1 Win32 px = 1 pt; the captures are
+2× device pixels.
+
+| | stock 11.16 | + 6cfa941 |
+|---|---|---|
+| Win32 window / client | `100,100 800x600` / `790x595 @ 105,100`, **dx=5 dy=0** | identical (app-side geometry untouched) |
+| Cocoa window frame (pt) | **792x605 at 104,91** — does not match the Win32 rect | **800x600 at 100,100 — equals the Win32 window rect** |
+| macOS title bar | **yes**, traffic lights + title | **none**; 5 px border left/right/bottom, nothing on top |
+| chrome above first client row (centre column) | **64 device px = 32 pt** | **0** |
+
+With the frame equal to the Win32 window and no title bar, the content view *is* the Win32 window,
+so the client sits at +5,+0 exactly as Win32 reports — the geometry behind the hit-test offset is
+gone, not moved. Evidence: `~/cs2-patch/evidence/60262-6cfa941/`.
 
 ## A half fix that does NOT work — recorded so nobody repeats it
 
