@@ -171,3 +171,30 @@ CAS · home/external = retina off + DRS off, true native 1:1** —
 docs/plans/launcher-display-profiles.md). T10 (first dock, 2026-08-27) found and fixed the home
 defect above; both configs now carry measured rows. The 2026-08-23/24 1920×1080 rows further up
 ran a different quality profile and don't transfer.
+
+## Studio series (2026-10-10) — Mac Studio M5 Max, Apple Studio Display, `home` profile
+
+> First rows on this machine (every row above ran on the M3 Max MacBook) and on this panel. Game
+> 1.6.2f1, engine wine-11.16 + DXMT, launcher `b5fb8ac`. Settings read from `Settings.coc` before
+> the run = the accepted daily driver (DRS **disabled**, High SMAA, LOD 0.25, mipbias 0). Render
+> resolution from `Player.log` on every cycle: `Window resolution: 2560x1440` (the results row's
+> `resolution` field says 1920×1080 — GOTCHAS § Retina mode, TRAP 1). Issue #2.
+
+| cell | avgFps | gpuMs avg / p95 | cpuGameMs | 1%-low (cpuFrame p99) | gpuBound % | load s |
+|---|---|---|---|---|---|---|
+| studio-home-1440-1 | 44.11 | 22.6 / 55.3 | 11.7 | 14.9 | 20.4 | 34.4 |
+| studio-home-1440-2 | 47.78 | 17.4 / 22.1 | 10.5 | 41.1 | 19.6 | 31.7 |
+| studio-home-1440-3 | 47.87 | 17.5 / 22.4 | 10.2 | 40.2 | 18.2 | 31.3 |
+
+- **Cycle 1 is a warm-up outlier** (p99 67 ms vs 24 ms): first benchmark on new hardware, whose new
+  Metal `pipelineCacheUUID` means shader caches rebuild (ledger 2026-10-10). Repeat spread of 2–3
+  is 0.09 FPS. Quote the median of 2–3: **47.8 FPS · gpuMs 17.5 · cpuGame 10.4 · 1%-low ~41.**
+- **Against the accepted daily driver** (s7 composed: 26.80 FPS · gpuMs 35.9 · cpuGame 20.3 ·
+  1%-low 23.6 — M3 Max, 1920×1080): **+78 % FPS at 1.78× the pixels**, gpuMs roughly halved,
+  cpuGame halved. Hardware and resolution both changed, so this is not a lever reading — it says the
+  new working point is far above the one James accepted, not why.
+- **Verdict for #2's `home-hidpi` row: not needed for performance on this machine** — at native
+  2560×1440 the scene stays sim-dominated (gpuBound 18–20 %) and every metric beats the accepted
+  baseline. ⚠ The bench understates pixel cost on the GPU-bound live city (retina series: 25.4 →
+  45.9 ms live for 4× pixels on the M3 Max), so the closing measurement is one live-city HUD reading
+  (`CS2_HUD=1`) in James's next session.

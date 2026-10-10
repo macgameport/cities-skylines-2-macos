@@ -108,6 +108,10 @@ superseded, with the pointer to where the surviving content lives.
   exclusive fullscreen on a **60 Hz** panel — the mismatch that blanks the other display (GOTCHAS
   § "Second display gets blacked out"), direction reversed from the original incident. Set the
   refresh **in-game**; editing `Settings.coc` was measured not to take.
+  **Answered 2026-10-10 (C75):** (a) point space — `Window resolution: 2560x1440`; benched there
+  with the daily-driver settings: **47.8 FPS · gpuMs 17.5**, well above the accepted 1080p baseline,
+  so no `home-hidpi` row is needed for performance. (b) `Player.log` reports `2560x1440x60`. Left:
+  one live-city HUD reading (`CS2_HUD=1`) by James, then close #2.
 - 📋 **Fullscreen-toggle cursor desync.** [#4](https://github.com/macgameport/cities-skylines-2-macos/issues/4). Observed on wine 11.0, **never re-tested on
   the promoted 11.16 engine**; the whole defect class lived in the client-surface machinery 11.16
   reworked, so it may already be gone. Re-check before repeating the old "set Fullscreen and don't
