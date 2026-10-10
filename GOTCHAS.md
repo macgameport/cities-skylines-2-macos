@@ -2637,6 +2637,8 @@ always-false diagnostic that preceded it.
 `HERE="$(cd "$(dirname "$0")/patches" && pwd)"`. The top-level `~/cs2-patch/patch_*.py` are an older
 copy nothing executes; installing a fixed patcher there changes nothing (the run prints the old
 patcher's own messages). Install into `patches/`, and compare against the repo's `patches/`.
+**Removed the trap 2026-10-10:** all 28 moved to `~/cs2-patch/old-patchers/` with an index (10
+identical, 6 stale, 12 the only copy — rejected experiments and the unpublished `patch_cohtml_license`).
 
 ## The cohtml "crash fix" is a deliberate COM reference leak (2026-10-10)
 

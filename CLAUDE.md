@@ -9,7 +9,7 @@ Durable record = this repo + its issues + `~/cs2-patch/change-ledger.txt`.
 
 | What | Path |
 |---|---|
-| Patch scripts + ledger | `~/cs2-patch/` (**outside this repo**, deliberately). ⚠ `repatch.sh` runs `~/cs2-patch/patches/*.py` (= this repo's `patches/`); the top-level `~/cs2-patch/patch_*.py` are stale duplicates nothing runs |
+| Patch scripts + ledger | `~/cs2-patch/` (**outside this repo**, deliberately). ⚠ `repatch.sh` runs `~/cs2-patch/patches/*.py` (= this repo's `patches/`); the old top-level `patch_*.py` were moved to `~/cs2-patch/old-patchers/` 2026-10-10 (its README says which are stale, duplicate, or the only copy) |
 | Canonical launcher (**default**) | `~/cs2-patch/launch-cs2-dxmt11.sh` — Wine 11 + DXMT. Repo copies are thin wrappers (macOS TCC blocks app bundles from executing scripts in `~/Documents`) |
 | Canonical launcher (fallback) | `~/cs2-patch/launch-cs2.sh` — Wine 10 + D3DMetal |
 | Display-profile helper | `~/cs2-patch/cs2-display-profile.sh` — the dxmt11 launcher runs it pre-boot: retina + DRS per *main* display (mobile = retina on + DRS 0.5 CAS · home/external = retina off, native 1:1). `CS2_PROFILE=off\|home\|mobile`, `DRY=1` preview. Repo original: `scripts/`; design: `docs/plans/launcher-display-profiles.md` |

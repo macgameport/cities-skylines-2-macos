@@ -82,7 +82,7 @@ mods. Tooling kept in `scripts/`: `filetest.{c,exe}` (Win32), `filetest_net.{cs,
 throwaway prefix `~/monotest` (~500MB, deletable).
 
 ## What's confirmed (as of 2026-07-06)
-- **Playset activation WORKS** via `~/cs2-patch/patch_pdxsdk_io.py` (PDX.SDK.dll
+- **Playset activation WORKS** via `~/cs2-patch/old-patchers/patch_pdxsdk_io.py` (PDX.SDK.dll
   `CreateIoResultFromException` → `set_Success`). Mods queue + reach "Preparing… 2.0%".
 - **Downloads then hang / fail.** Root suspect: **Wine's `CreateFile` returns handle value 0** for
   valid files; .NET `FileStream`/`SafeFileHandle.IsInvalid` reject handle-0 → the mod-content file
