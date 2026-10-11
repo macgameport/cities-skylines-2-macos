@@ -64,3 +64,8 @@ venv/
 .DS_Store
 .AppleDouble
 Icon?
+
+# Apple signing material (arm64 plan D2) — never commit: carries the UDID / Team ID
+*.mobileprovision
+*.p12
+*.cer
