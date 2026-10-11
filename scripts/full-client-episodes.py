@@ -26,7 +26,9 @@ full-client:
 
 THE GATE, declared before the run it decides (S3): a frame is FULL-CLIENT for colour X when X
 covers at least BAR x the window's INITIAL area (`video-rect.txt`'s `window=WxH`, which is the
-pre-drag size and therefore a size the client never falls below). Default BAR = 0.80.
+pre-drag size and therefore a size the client never falls below). Default BAR = 0.80. That area is
+in points and is converted to recording pixels per run (1x or 2x, read off the recording against
+`rect=`; anything else voids the run) -- added 2026-10-10 for the Studio's 2x display.
 
 BAR is not tuned. Swept over C64's two arms (24 runs, ~24,000 frames) the counts are FLAT from 0.65
 to 0.92 -- arm A cyan 2 / blue 0 / black 0, arm B cyan 0 / blue 4 / black 0 at every bar in that
@@ -67,10 +69,34 @@ def read_run(d, bar):
         return label, None, 'no video-frames.txt'
     if not os.path.exists(rp):
         return label, None, 'no video-rect.txt -- window size unknown, so no full-client bar exists'
-    m = re.search(r'window=(\d+)x(\d+)', open(rp).read())
+    rect_txt = open(rp).read()
+    m = re.search(r'window=(\d+)x(\d+)', rect_txt)
     if not m:
         return label, None, 'video-rect.txt carries no window=WxH'
-    area = int(m.group(1)) * int(m.group(2))
+    # `window=` and `rect=` are winlist POINTS; the per-frame counts are RECORDING pixels. On a 1x
+    # display those agree, which is why this was invisible until the Mac Studio's 2x Studio Display
+    # (measured 2026-10-10: a 400x300-point `screencapture -v -R` records at 800x600). Unscaled, a
+    # 2x recording reaches BAR x area at a quarter of the real coverage -- where #7's strip column
+    # (51-60 % of the window) crosses on both arms. So the area is converted to recording pixels
+    # with the scale read off this run's own recording, never assumed.
+    rm = re.search(r'rect=-?\d+,-?\d+,(\d+),(\d+)', rect_txt)
+    if not rm:
+        return label, None, 'video-rect.txt carries no rect=x,y,w,h -- recording scale unknown'
+    rect_w, rect_h = int(rm.group(1)), int(rm.group(2))
+    rec = None
+    for ln in open(fp):
+        dm = re.match(r'f\d+ t=[0-9.]+ (\d+)x(\d+) ', ln)
+        if dm:
+            rec = (int(dm.group(1)), int(dm.group(2)))
+            break
+    if rec is None or not rect_w or not rect_h:
+        return label, None, 'no recording size in video-frames.txt -- recording scale unknown'
+    sx, sy = rec[0] / rect_w, rec[1] / rect_h
+    # A recording is 1x or 2x of its rect (+- a pixel of rounding: 1826 px over a 1825-pt rect on the
+    # M3 Max). Anything else means the rect and the recording disagree, and no bar is meaningful.
+    if not any(abs(sx - k) < 0.01 and abs(sy - k) < 0.01 for k in (1.0, 2.0)):
+        return label, None, 'recording %dx%d vs rect %dx%d pt is neither 1x nor 2x' % (rec + (rect_w, rect_h))
+    area = int(m.group(1)) * int(m.group(2)) * sx * sy
     # Same guard the battery uses: a window in front of Steam lands in the recording.
     if os.path.exists(sp):
         o = re.search(r'overlaps=(\S+)', open(sp).read())
