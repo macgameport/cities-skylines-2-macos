@@ -2615,6 +2615,24 @@ it. Hold the input back (`< <(sleep 1; cat input; sleep 20)`) and prove the case
 mutant that flips the answer it tests. **Generalise:** when a test's "no input" path and its
 "expected input" path give the same result, a passing test cannot tell you the input was read.
 
+## Measurement traps the Mac Studio re-check found (2026-10-10)
+
+> **Ledger: `SUPPORTED` (C75 annotated).** From the pass-2 re-checks of `docs/plans/perf-pass.md` and
+> `docs/plans/s3-pre-drawable-gap.md`; each was spot-checked.
+
+- **On a 60 Hz panel, in-game VSync is a 60 FPS cap.** DXMT's minimum present duration is
+  `SyncInterval / refresh` (`d3d11_swapchain.cpp:762-766`); on the old 120 Hz panel it never bound
+  below 40 FPS, so "vsync on" was harmless there and every saved base still carries `"vSync": true`.
+  Turn it off for any measurement cell.
+- **`perf-bench.sh` ends the game with SIGTERM, and a SIGTERM'd Player.log has no allocator report**
+  (`Memory Statistics`, `[ALLOC_*]`, the `Job.Worker` list are written only on a graceful exit). Any
+  cell whose load signal lives there needs a WM_CLOSE teardown, as `boot-verify.sh` does.
+- **`full-client-episodes.py` compares recording pixels with a window area in points** — fine at 1×,
+  a 4× easier bar on a 2× display. Normalise before scoring anything recorded on the Studio.
+- **`gmake -n -B` is not a dry run in a wine build tree** — make still runs the makefile-remake rules,
+  so `-B` re-runs `configure`. Here it failed at `/usr/bin/bison` 2.3 (first on PATH; Homebrew's is
+  `/opt/homebrew/opt/bison/bin`) and overwrote `config.log`. Use `gmake -n` without `-B`.
+
 ## A relocated IL body must land inside a section's RAW range — 0x191e0c was `.reloc` (2026-10-10)
 
 > **Ledger: `SUPPORTED` (C71).** Found by the 1.6.2f1 re-derivation, verified with pefile.

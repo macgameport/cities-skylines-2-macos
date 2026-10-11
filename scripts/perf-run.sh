@@ -44,7 +44,10 @@ rc=${PIPESTATUS[0]}
 echo
 echo "=== cell $CELL finished (launcher rc=$rc) — $(date '+%Y%m%d-%H%M%S')"
 echo "--- load signals in $LOG:"
-grep -E "Found config (env|file)|MetalFX|Scale:|DXMT capture enabled|^Engine:|Vendor extension enabled" "$LOG" \
-  | sed 's/^/    /' || echo "    (none found — a DXMT cell without its signal measured NOTHING; see plan §0 ethos #4)"
+# (The `|| echo` used to bind to sed, which always succeeds, so the warning could never print —
+#  found by the 2026-10-10 re-check.)
+sigs=$(grep -E "Found config (env|file)|MetalFX|Scale:|DXMT capture enabled|^Engine:|Vendor extension enabled" "$LOG")
+if [ -n "$sigs" ]; then printf '%s\n' "$sigs" | sed 's/^/    /'
+else echo "    (none found — a DXMT cell without its signal measured NOTHING; see plan §0 ethos #4)"; fi
 echo "--- next: record HUD readings + verdict in docs/perf-pass-results.md (protocol: plan §2)"
 exit "$rc"

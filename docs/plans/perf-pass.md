@@ -1,6 +1,9 @@
 # The deep performance pass — squeeze the promoted 11.16 stack
 
-> **Status: check-it'd 2026-08-23 — build-ready-with-fixes (pass 1, corrections folded).**
+> **Status: check-it'd 2026-10-10 — P3 build-ready-with-fixes, P4 + P5 needs-rework (pass 2, a
+> re-check after the move to the Mac Studio; corrections folded below, § Review corrections pass 2).
+> P3 may start once Studio M0 (§2) has run; P4/P5 need the instrument rework named there and a
+> fitted re-check before building.** Pass 1: check-it'd 2026-08-23 — build-ready-with-fixes.
 > **🔧 As-built (2026-08-24):** P0–P2 executed and substantially measured — instrument = the
 > game's own `-benchmark` (structured per-frame output; autonomous cycles via
 > `scripts/perf-bench.sh`); settings cells went fully autonomous after the Settings.coc
@@ -11,6 +14,9 @@
 > edits via file (not menu) after the controlled experiment. Remaining: P3 pacing cells,
 > P4 late-game CPU cells (M0-L), P5 ship. Verify against: docs/perf-pass-results.md ·
 > scripts/perf-bench.sh · ~/cs2-patch/perf-runs/settings-series.py · GOTCHAS.md.
+> ⚠ (2026-10-10) `settings-series.py` is **unrunnable as-is**: `REPO` points at the retired
+> `~/Documents/github/cs2`, it has no dry mode (any run copies Settings.coc over `.series-base`),
+> and its August cell regexes do not match today's base. Fix or drop it before P3 relies on it.
 > Tracking: PLAN.md § "Performance: the deep optimization pass" (personal-tier repo; GitHub issues were not in use when this shipped — enabled 2026-09-02).
 
 James, 2026-08-23: *"take a deep hard look at optimizing efficiency"* — serious token budget
@@ -66,17 +72,17 @@ receipts); they outlive this pass:
 | Bound | **GPU-bound** at baseline settings | Metal HUD, ledger |
 | Baseline settings | 1080p@120Hz · Global=Custom · DynamicRes=Automatic · AA=Low SMAA · Clouds=Med · Fog=on · Volumetrics=Low · AO=Med · GI=Off · Reflections=Med · DoF=Off · MotionBlur=Off · Shadows=Low · Terrain/Water/LOD/Texture=Med · Display Mode=Fullscreen Window | V3 row, ledger |
 | Presentation | Direct; DXMT always sets `displaySyncEnabled=false` — ALL pacing is `presentDrawableAfterMinimumDuration` (`dxmt_presenter.cpp:19`) | V-session + source |
-| Unity / game build | **Unity 2022.3.71f1**, game 1.6.0f1; maintained by Iceflake Studios since the 2026 perf push (external claim) | globalgamemanagers + Player.log |
+| Unity / game build | **Unity 2022.3.71f1**, game 1.6.0f1 → **1.6.2f1 since 2026-10-10** (Unity unchanged, LegacyJobified unchanged); maintained by Iceflake Studios since the 2026 perf push (external claim) | globalgamemanagers + Player.log |
 | `WINEESYNC=1 WINEMSYNC=1` | **INERT** — stock winehq wine has never shipped esync/msync (whole-tree grep: zero hits); launcher vars were Porting-Kit habit | research, measured |
 | `gfx-enable-native-gfx-jobs=1` | **no-op on D3D11** — Player.log: `Rendering Threading Mode: LegacyJobified`; don't spend a run on it, don't turn plain gfx-jobs off | Player.log, measured |
-| Allocator telemetry | ~17M failed fast-path (bucket) allocs per session in Player.log's allocator report | Player.log, measured |
-| Refresh rate | game must run 120 Hz (DELL U2424H) or a mode change blanks display 2 | GOTCHAS |
+| Allocator telemetry | ~17M failed fast-path (bucket) allocs per session in Player.log's allocator report — **session-length dependent** (2026-10-10 boot-verify session: ~1.77M per dump); re-derive at M0-L, never quote. ⚠ The report is written **only on a graceful exit** (absent from every SIGTERM'd perf-bench Player.log) | Player.log, measured |
+| Refresh rate | ~~120 Hz (DELL U2424H)~~ **2026-10-10: both displays 60 Hz** (Studio Display main, U2720Q portrait); the game must keep the main panel's refresh or a mode change blanks display 2. ⚠ **At 60 Hz, in-game VSync is a 60 FPS cap**: with SyncInterval 1 DXMT's minimum present duration is 1/refresh (`d3d11_swapchain.cpp:762-766`) | GOTCHAS + source |
 | Game Mode | Off even in exclusive fullscreen — closed, negative | V5 |
 | `CS2_METALFX=1` | wired in launcher, never tested; **default factor 2.0 is a trap at 1080p** (renders a 4K drawable — §3A) | launcher + source |
 | Benchmark mode | game ships a benchmark since patch 1.5.7f1 (2026-04-29): **both** a `-benchmark` launch param and a main-menu Options entry; output format + whether it forces its own profile undocumented — P0 answers | Iceflake notes (external) |
 | A4 preconditions | **measured ABSENT 2026-08-23**: no nvngx.dll/nvapi64.dll anywhere (prefix system32/syswow64, engine PE dirs, both sibling wrappers). DXMT builds them off by default (`meson.options` `enable_nvapi`/`enable_nvngx`) | find, read-only |
-| Xcode | **not installed** (CLT only; `xcode-select -p` → CommandLineTools) — .gputrace unreadable until installed | measured |
-| Hardware | 14" M3 Max (Mac15,10 — supports High Power Mode), 36 GB, macOS 26, 14 Rosetta-visible cores | system |
+| Xcode | ~~not installed~~ **installed on the Studio** (`xcode-select -p` → `/Applications/Xcode.app`, 2026-10-10) — M1's .gputrace is readable | measured |
+| Hardware | ~~14" M3 Max (Mac15,10), 36 GB, macOS 26, 14 cores~~ **since 2026-10: Mac Studio M5 Max (Mac17,14), 18 cores (6 + 12), 64 GB, macOS 27.0.1** — Rosetta/wine see all 18 (PhysX 18 workers; 17 `Job.Worker`s). **No High Power Mode** (`pmset -g cap` lists only `lowpowermode`) | system |
 | boot.config path | `<game dir>/Cities2_Data/boot.config` (NOT the game root) | measured |
 
 **DXMT config surface — fork is a SUPERSET of upstream v0.80** (strings-verified on the shipping
@@ -135,11 +141,16 @@ stated per row.
 - One lever per launch; DXMT config is read once per process — no in-session toggling.
 - **Display Mode = Fullscreen Window pinned for every cell** (exclusive-fullscreen changes the
   swapchain/resolution machinery and the mode-change/blanking class lives there — GOTCHAS).
-- Any resolution selection must keep the ×120 Hz pairing; after any resolution/vsync change,
-  verify no mode change: display 2 did not blank and the HUD refresh didn't drop from 120.
+- Any resolution selection must keep the main panel's refresh (**60 Hz** on the Studio Display and
+  the U2720Q since 2026-10); after any resolution/vsync change, verify no mode change: display 2
+  did not blank and the HUD refresh did not change.
 - **Pin DynamicRes off/Constant for every cell** (Automatic floats internal resolution — it
   invalidated the original 44.9 baseline as an absolute).
 - V-Sync **off** during measurement cells; re-decide vsync for the daily profile in P3.
+  ⚠ **Not optional on a 60 Hz panel** — vsync-on there is a 60 FPS min-duration cap that compresses
+  every delta near 60. Every saved base carries `"vSync": true` and the 2026-10-10 Studio series
+  (C75) ran with it on: set `"vSync": false` as a complete-value edit (GOTCHAS § "Settings.coc:
+  complete value edits ARE honored") before each P3–P5 cell unless vsync is the lever.
 - Discard the first run after any engine rebuild or macOS update (Rosetta AOT re-translation),
   and after anything that invalidates the shader cache (metal-version/shader-flag changes). A
   macOS point update mid-pass re-baselines: repeat M0's control before counting further cells.
@@ -168,6 +179,12 @@ launches). Noise floor = max−min; **KEEP margin = max(floor, ~1 FPS), expresse
 so it scales with regime; re-establish with one repeat pair if the working point moves >~30% FPS
 from baseline. Record the floor for BOTH reading classes (R-running adds sim jitter). The
 composed-profile margin (§4 P5) is fixed in writing at the end of P0.
+**Studio M0 (added 2026-10-10, gates P3):** the P0 floor (1.03 FPS ≈ 4.7 %) was measured on the M3
+Max at 22 FPS and does not transfer. Before any P3 cell: one discarded warm-up run (new hardware,
+new Metal pipeline cache), then **≥3 consecutive perf-bench runs of the current daily driver with
+vsync off**, then **≥3 of the clean baseline** (`Settings.coc.series-base`, vsync off) for P5 to
+compare against. Floor, KEEP margin and composed margin are re-fixed **in writing** from those
+runs; the P0 numbers become the M3 Max stratum.
 
 **M1 — GPU frame capture (best-effort, NON-gating: Xcode isn't installed).**
 `MTL_CAPTURE_ENABLED=1 DXMT_CAPTURE_EXECUTABLE=Cities2` (exact — `getExeBaseName` strips `.exe`;
@@ -214,8 +231,8 @@ screenshots at the FPS gained and picks the daily point. A1 is pure sizing data.
 
 | # | Lever | Design | Confidence |
 |---|---|---|---|
-| B1 | **[pacing]** `d3d11.preferredMaxFrameRate=40` | Metal-coordinated cap via `presentDrawableAfterMinimumDuration` (`d3d11_swapchain.cpp:762-766`; works with vsync off): trades ~5 avg FPS for a flat 25.0 ms cadence (40 divides 120). Test AFTER the GPU levers land — if P1 gets near a stable 60, cap at 60 instead. Judged on feel + frame-time consistency over the fixed window (instrument per P0's validation; eyeball fallback stated per row). | documented |
-| B2 | **[pacing]** In-game "reduced input latency"/max-frames-ahead option, if present | DXMT's frame-latency depth (default 3 ≈ 67 ms at 45 FPS) has NO config knob (`dxmt_command_queue.hpp:153`), but the game-side `SetMaximumFrameLatency` path works (`d3d11_device.cpp:1244-1245`). Check the options; if present, test at 2. | documented |
+| B1 | **[pacing]** `d3d11.preferredMaxFrameRate` = **30 or 60** (re-derived 2026-10-10; ~~40, which divided 120~~ — 40 does **not** divide 60 and would judder) | Metal-coordinated cap via `presentDrawableAfterMinimumDuration` (`d3d11_swapchain.cpp:762-766`; works with vsync off; mechanism load-verified 2026-08-24, results:55). On 60 Hz, vsync-on ≡ cap 60. Pick 30 vs uncapped/60 only after the Studio live-city HUD reading (#2); test against vsync off. Judged on feel + frame-time consistency over the fixed window (instrument per P0's validation; eyeball fallback stated per row). | documented |
+| B2 | **[pacing]** In-game max-frame-latency slider — **present** (Options, set 2 — results:100-101; no Settings.coc key, set it in-game) — **still needs a measured cell** | DXMT's frame-latency depth (default 3 ≈ 67 ms at 45 FPS) has NO config knob (`dxmt_command_queue.hpp:153`), but the game-side `SetMaximumFrameLatency` path works (`d3d11_device.cpp:1244-1245`). Check the options; if present, test at 2. | documented |
 | B3 | **[validity]** Keep-off inventory — CLOSED by source read, no cells | `sampleNaNToZero`, `defuseFma` (add ALU work), `ignoreMapFlagNoWait` (adds stalls), `forceSDR` (no-op on SDR panel), `handleAltTab` (inert + fixed upstream), `shaderMetalVersion` (already max; orphans shader cache), `DXMT_SHADER_CACHE=0` (never), `DXMT_USE_DEFAULT_METAL_CACHE` (leave), `DXMT_LOG_LEVEL` (leave at info — `none` hides load signals), fork-only `DXMT_RESOURCE_RESIDENCY`/`DXMT_NVEXT_GUID` (semantics unknown). | documented |
 
 ### 3C. In-game settings — visual trades + free quality (Phase P2)
@@ -239,17 +256,31 @@ on the highest-FPS artifact-free point, re-adjudicated later.
 boot.config lives at **`<game dir>/Cities2_Data/boot.config`**. Discipline: game NOT running for
 any edit; `cp boot.config boot.config.bak` beside it before the first edit; verify boot after
 each change; a game update may rewrite it (a KEEP joins the launcher's repatch-style check).
+⚠ **2026-10-10: the 1.6.2f1 update DID rewrite it** (only `build-guid` changed), and launcher step
+2b's `steam://validate` restores depot files too — so `cat boot.config` after every launch, re-take
+`.bak` after any update, and note that no launcher re-assert exists yet (a D-row KEEP needs one
+built before P5 can ship it).
 **P4 opens with M0-L:** late-game save, unmodified config, R-running, ≥2 runs — the scene-specific
 baseline + noise floor that all D-verdicts are computed against (never the P0-scene numbers).
+⚠ **Instrument (2026-10-10):** `-benchmark` loads a save hard-coded by content id (`Game.dll`:
+`kBenchmarkSaveCid`; no save argument), and its scene is already the sim-bound late-game regime
+(gpuBound 18–20 % on the Studio). So **M0-L = R-bench on the bundled save, ≥3 runs**; a user
+late-game save is an optional James-run HUD cross-check, named by file before the run, its path
+never committed. **Every D-cell must end in a graceful quit**, never perf-bench's SIGTERM
+(`perf-bench.sh:78-80`): the allocator report and the `Job.Worker` list are written only on a
+clean exit (0 `Memory Statistics` lines in every SIGTERM'd Player.log, 2026-10-10). Use
+`win-resize-driver.exe close` as `scripts/boot-verify.sh` does; a D-cell whose Player.log lacks
+`Game terminated successfully` + `Memory Statistics:` is **VOID**. That teardown does not exist in
+perf-bench yet — building it is P4's first task.
 Unity ignores unknown keys silently, so each D-row has its own load signal:
 
 | # | Lever | Design + load signal | Confidence |
 |---|---|---|---|
-| D1 | **[CPU-sim]** `job-worker-count=10` (then 8) | Workers = cores−1 today; measured census ~45+ runnable threads on 14 Rosetta cores. Can only lower, never raise. **Load signal: re-run the thread census (`sample` the process, read-only) — job-worker count must equal the configured value.** | community |
-| D2 | **[CPU-sim]** `memorysetup-bucket-allocator-block-count=4` | Best-evidenced CPU lever: ~17M failed fast-path allocs/session. +12 MB. **Load signal: Player.log's allocator report echoes the bucket configuration; failed-alloc count should drop.** | measured |
-| D3 | **[CPU-sim]** `memorysetup-temp-allocator-size-main=8388608` | ~0.4 overflows/frame with bursts; +4 MB. Separate cell from D2. **Load signal: Player.log temp-allocator overflow count.** | measured |
-| D4 | **[GPU?]** Second display disconnected during play | Cheap A/B; plausibly 0–1 ms; may be zero (presentation is Direct). Don't re-plug mid-session (mode-change class). | speculative |
-| D5 | **[validity]** High Power Mode for long sessions | Thermal-sag insurance (14" chassis). Loud fans. One soak cell: 45 min, does GPU ms creep? No KEEP/REVERT — record the curve, decide daily use on it. | documented |
+| D1 | **[CPU-sim]** `job-worker-count` = values **re-derived for 18 cores** before the cell (~~10, then 8 — sized for 14~~) | Workers = cores−1 = **17** on the Studio (allocator report lists `Job.Worker 0…16`; PhysX 18). Can only lower, never raise. **Load signal: the highest `[ALLOC_TEMP_Job.Worker N]` in the graceful-exit allocator report = configured − 1** (cheaper and validated, unlike `sample` under Rosetta). | community |
+| D2 | **[CPU-sim]** `memorysetup-bucket-allocator-block-count=4` | Best-evidenced CPU lever: failed fast-path allocs (count re-derived at M0-L). +12 MB. **Load signal: `[ALLOC_BUCKET]` `Used Block count` > 1 and summed `Failed count` drops vs M0-L** (the report has no configured-value echo). | measured |
+| D3 | **[CPU-sim]** `memorysetup-temp-allocator-size-main=8388608` | Overflows/frame re-derived at M0-L (~~0.4~~; the 2026-10-10 boot-verify scene shows ~1.7). +4 MB. Separate cell from D2. **Load signal: `[ALLOC_TEMP_MAIN]` `Initial Block Size 8.0 MB` (default 4.0 MB) + Overflow Count vs M0-L.** | measured |
+| D4 | **[GPU?]** Second display disconnected during play | Cheap A/B; plausibly 0–1 ms; may be zero (presentation is Direct). Don't re-plug mid-session (mode-change class). James unplugs the U2720Q before launch (human step); both arms assert `Player.log` `Window resolution: 2560x1440` (the U2720Q's unrotated 3840×2160 has leaked into a resolution reading before). Scheduled in P3 (§4). | speculative |
+| D5 | **[validity]** ~~High Power Mode for long sessions~~ **CLOSED/SKIP (precondition absent, 2026-10-10)** | The Mac Studio has no High Power Mode (`pmset -g cap`: `lowpowermode` only) and the desktop chassis removes the 14" thermal-sag premise. A plain 45-min soak for GPU-ms creep stays optional, recorded as a curve. | measured |
 
 ### 3E. Closed — measured/proven dead, do not revisit
 
@@ -261,7 +292,7 @@ Unity ignores unknown keys silently, so each D-row has its own load signal:
   only the first-run-after-rebuild rule) · **App Nap** (disabled by stock wine per source read —
   local tree not retained; unverified-local, low stakes) · **winemac.drv registry knobs** (no
   perf switches; CaptureDisplaysForFullscreen touches the mode-change freeze class) · **memory
-  pressure** (non-issue at 36 GB).
+  pressure** (non-issue at 36 GB; 64 GB on the Studio).
 - **`preload-shaders`** (string absent from this UnityPlayer.dll) · **`gc-max-time-slice`**
   (already Unity's default 3) · **gfx-jobs toggles** (native no-op on D3D11; plain off = pure
   regression) · **`-nolog`** (kills diagnostics for a sub-1% CPU win — permanent decline) ·
@@ -277,12 +308,12 @@ Unity ignores unknown keys silently, so each D-row has its own load signal:
 | **P0** | Harness live (`perf-run.sh` + `CS2_ARGS` passthrough — DONE with this fold) · benchmark probe (param + menu; settings-honoring check) · instrument-validation cell (HUD logging) · **M0 re-baseline + noise floor (≥3 runs, both reading classes)** · KEEP margin + composed margin fixed in writing · M1 capture taken (non-gating) | clean baseline + floor + instrument decision recorded |
 | **P1** | Resolution levers A1→A2→A3, one per launch (A4 parked) | curve measured; TRADE screenshots saved; point picked (provisionally if James away) |
 | **P2** | Settings matrix C1–C5 on top of the chosen P1 point | all C-rows verdicts |
-| **P3** | Pacing & experience: B1 (cap at the sustainable rate), B2 if present, vsync decision, D4 | pacing chosen on feel + frame-time consistency |
-| **P4** | **M0-L late-game baseline first**, then D1–D3 (boot.config; game-not-running edits) · D5 soak | verdicts or explicit CLOSED/SKIP |
-| **P5** | **Compose + re-measure**: baseline + every KEEP as one profile, ≥2 runs; if P4 produced any KEEP, re-measure on BOTH scenes (P0 scene vs clean baseline; late-game vs M0-L); ship | composed profile beats clean baseline by the margin fixed at P0 |
+| **P3** | **Studio M0 first (§2)**, then pacing & experience: B1 (cap 30 / 60), B2 (slider present), vsync decision, D4 — every cell vsync off unless vsync is the lever | pacing chosen on feel + frame-time consistency |
+| **P4** | **Graceful-quit teardown built first (§3D)**, then **M0-L** (R-bench, ≥3), then D1–D3 (boot.config; game-not-running edits; `cat` after each launch) · ~~D5 soak~~ CLOSED | verdicts or explicit CLOSED/SKIP |
+| **P5** | **Compose + re-measure**: baseline + every KEEP as one profile, ≥2 runs; if P4 produced any KEEP, re-measure on BOTH scenes (bench scene vs the Studio clean baseline; late-game vs M0-L); ship | composed profile beats the **Studio** clean baseline by the margin fixed at **Studio M0** |
 
 **P5 ships:** launcher defaults for unconditional KEEPs (same override pattern as `CS2_HUD`) ·
-README numbers + settings table · as-built header here · AppleGamingWiki draft · PLAN.md pointer
+README numbers + settings table (**every number labelled with its machine**; reduced numbers only, no raw logs, no SteamID-named paths) · as-built header here · AppleGamingWiki draft (**a draft in the repo — posting it is James's manual step**) · a launcher re-assert for any boot.config KEEP · PLAN.md pointer
 to §0 as the standing ethos. *(Launcher hygiene — the inert `WINEESYNC/WINEMSYNC` line — was
 pulled forward into the P0 harness edit, game-not-running verified.)*
 
@@ -293,8 +324,8 @@ pulled forward into the P0 harness edit, game-not-running verified.)*
 2. Every §3A–§3D lever row carries either a **measured verdict + load-verification mark**, or an
    explicit **CLOSED/SKIP mark citing its reason** (source-read, precondition failed, regime
    guard) — an auditor can tell "unmeasured" from "deliberately not a cell".
-3. Composed profile re-measured as a whole (both scenes if P4 kept anything); beats clean
-   baseline by the margin fixed at P0 (aspiration: ≥25% FPS at a quality point James accepts —
+3. Composed profile re-measured as a whole (both scenes if P4 kept anything); beats the Studio
+   clean baseline by the margin fixed at Studio M0 (§2) (aspiration: ≥25% FPS at a quality point James accepts —
    else the pass documents why not, which is itself a valid outcome).
 4. P5 ship list complete; no stale numbers in README/PLAN; new GOTCHAS entries for anything that
    surprised us.
@@ -303,11 +334,12 @@ pulled forward into the P0 harness edit, game-not-running verified.)*
 
 ## 6. Rollback
 
-P1–P3: unset env var / re-select in Options → Graphics (never hand-edit `Settings.coc` —
-GOTCHAS). A4 (if ever unpacked): unset the spoof vars — the next launch auto-deletes the spoofed
+P1–P3: unset env var / re-select in Options → Graphics, or restore the saved `Settings.coc` base
+(complete-value edits are honoured — GOTCHAS 2026-08-24; partial flips are the trap). A4 (if ever unpacked): unset the spoof vars — the next launch auto-deletes the spoofed
 registry values itself (`dxgi.cpp:34-37`); verify the adapter reads Apple in that same launch
-(the empty NVIDIA parent keys remain, cosmetic). P4: copy `Cities2_Data/boot.config.bak` back,
-game not running. Launcher edits only while the game is not running (standing rule).
+(the empty NVIDIA parent keys remain, cosmetic). P4: delete the added key line, game not running —
+**not** a blind `.bak` copy, which after an intervening game update would write a stale
+`build-guid` over the new build (the update changed exactly that line, 2026-10-10). Launcher edits only while the game is not running (standing rule).
 
 ## Review corrections (triple-check 2026-08-23, pass 1)
 
@@ -325,11 +357,43 @@ added · A1 blit is nearest-neighbor (not "linear") · fork config surface is a 
 unset) · boot.config full path + game-not-running symmetry · exit criterion 2 rewritten to admit
 CLOSED/SKIP · ephemeral workflow citation demoted in favor of the durable file:line cites.
 
+
+## Review corrections (re-check 2026-10-10, pass 2 — the Mac Studio)
+
+Re-check of the **remaining** work (P3–P5) after the move from the M3 Max MacBook (120 Hz external)
+to the Mac Studio M5 Max (60 Hz Studio Display, macOS 27.0.1, game 1.6.2f1). Two lenses (premises;
+builder-simulation + test-plan), read-only, no launches; every BLOCKER spot-checked inline. All
+corrections below are already folded into §1–§6.
+
+- **[BLOCKER] No valid floor or baseline on this machine** — P0's 1.03 FPS floor is the M3 Max at
+  22 FPS; the Studio has 2 clean samples. → Studio M0 (§2), P5 gate and exit criterion 3 re-pointed.
+- **[BLOCKER] Vsync-on is a 60 FPS cap at 60 Hz** (`d3d11_swapchain.cpp:762-766`; spot-checked in
+  the fork) and every saved base + the C75 Studio series ran `"vSync": true`. → vsync-off rule made
+  mandatory; C75 annotated (the cap can only have held numbers down, so its verdict stands).
+- **[BLOCKER] D-row load signals are destroyed by SIGTERM** — 0 `Memory Statistics` lines in the
+  SIGTERM'd Player.log / Player-prev.log, 1 in boot-verify's graceful-exit log (spot-checked).
+  → graceful-quit teardown is P4's first task; D-cells without it are VOID.
+- **[BLOCKER] M0-L cannot load a user save through `-benchmark`** (hard-coded content id). → M0-L =
+  R-bench on the bundled save; user save is an optional James-run cross-check.
+- **[SHOULD-FIX]** B1's 40 does not divide 60 → 30 / 60. D1's values sized for 14 cores → re-derive
+  for 18; load signal = highest `Job.Worker N`. D5 impossible (no High Power Mode; spot-checked
+  `pmset -g cap`) → CLOSED/SKIP. boot.config rewritten by the update and restorable by step 2b's
+  validate → `cat` after each launch, `.bak` re-taken, rollback by line delete. `settings-series.py`
+  unrunnable → flagged in the header. `perf-run.sh`'s "signal missing" warning could never print
+  (`||` bound to `sed`) → fixed in the same commit as this fold.
+- **[MINOR]** B2's slider is present (needs a cell, not discovery); D2/D3 load-signal wording;
+  allocator counts session-dependent; Xcode now installed; 36 → 64 GB; §6's Settings.coc rule
+  brought in line with GOTCHAS; README numbers to be machine-labelled; AGW draft posting is James's.
+- Verified unchanged: boot.config path and key set, Unity 2022.3.71f1 / LegacyJobified, the DXMT
+  B1/B2 source cites in both v0.80 and the fork, B1's key in the shipping `d3d11.dll`, the
+  launcher's `CS2_HUD` / `CS2_ARGS` hooks.
+
 ## Review log
 
 | Date | Pass | Lenses | Method | Model | Verified against | Verdict |
 |---|---|---|---|---|---|---|
 | 2026-08-23 | triple-check pass 1 | correctness · methodology · platform-facts · builder-sim · test-plan · publishability | Workflow fan-out, 6 agents, structured findings; BLOCKERs spot-checked inline | Fable 5 | `2cf8f5e` | **build-ready-with-fixes — corrections folded, build may start** |
+| 2026-10-10 | **pass 2 — re-check after the machine change** (P3–P5 only) | premises (architecture + correctness + platform-facts) · builder-simulation + test-plan (+ security/publishability in both) | 2 independent agents, read-only, ~20 tool calls each; every BLOCKER spot-checked inline | Opus 5.5 ×2 + Opus 5.5 synthesis | `9a953c1` on the Mac Studio | **P3 build-ready-with-fixes (after Studio M0) · P4 + P5 needs-rework** — corrections folded |
 
 Key paths: `~/cs2-patch/launch-cs2-dxmt11.sh` · `scripts/perf-run.sh` · `scripts/make-shortcut.sh` ·
 `docs/plans/build-wine1116-dxmt-engine.md` · `GOTCHAS.md` · `<game dir>/Cities2_Data/boot.config` ·

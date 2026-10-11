@@ -1,6 +1,10 @@
 # The S3 pre-drawable gap — the child's own layer before its first drawable
 
-**Status: Triple-checked 2026-09-07 — build-ready-with-fixes (pass 1 needs-rework on the test plan,
+**Status: check-it'd 2026-10-10 — needs-rework for S3 + S6, build-ready-with-fixes for S7 + T3
+(pass 2, a re-check after the move to the Mac Studio — 60 Hz 2× display, macOS 27; corrections
+folded, § Review corrections pass 2). S3 must be re-run fresh on the Studio after the scorer's
+scale fix and an S2 known-positive gate; S6 is blocked on its capture instrument.** Pass 1:
+Triple-checked 2026-09-07 — build-ready-with-fixes (pass 1 needs-rework on the test plan,
 reworked in place; the fitted re-check the same day built D and found no blocker; all corrections
 folded — see § Review corrections and § Review log). Build order: § 6 instruments → S1a → S0 → the
 § 7 decision rule → D.** Tracker:
@@ -74,13 +78,17 @@ stage 1 `2a251a4b2510fb84`. Line numbers are against nested `main` and name thei
 > **▶ S3 + S4 RUN 2026-09-08, 10 of 15 planned rounds (C66/C67), stopped by hand — the machine was
 > needed, and an unwatched video battery voids its own rows.** Interleaved D-diag against A-alone.
 > **D: 0 full-client episodes in 10 valid runs. A alone: 4 in 4 of 10.** That is suggestive at
-> p = 0.018–0.043 and it is **NOT the closure bar**, which needs n ≥ 15 for P(0) = 0.0067. **Five
-> more rounds finish it; nothing else needs redoing.** Resume with the exact command in § 6's S3 row
-> — same arms, same page, same gate — and pool, since the fixture and both digests are recorded.
+> p = 0.018–0.043 and it is **NOT the closure bar**, which needs n ≥ 15 for P(0) = 0.0067.
+> ~~Five more rounds finish it … and pool~~ — **SUPERSEDED 2026-10-10 (pass 2):** those 10 rounds
+> ran on the M3 Max at **120 Hz, 1×**; the machine is now a Mac Studio at **60 Hz, 2×**, which moves
+> both the detection probability of a one-refresh flash (C58's correction) and the scorer's pixel
+> scale. C66 stands as the **prior-machine stratum**; the remaining work is a **fresh interleaved
+> n ≥ 15 battery on the Studio** with its own A-alone control — see § 6 S3.
 > **S7's bound is met in passing** (max 2 over 1,611 creates, dwell 99.7 % against A's 0.0 %) and D
 > also takes `retired-but-never-released` from 140 to 0, at the cost of roughly doubling the
-> resident host count. **Owed: the last 5 S3 rounds · S6 · S7's terminal case + `--norelease` on
-> branch `d` + boot-verify · T3.** The daily driver was verified back at stage 1 `2a251a4b2510fb84`
+> resident host count. **Owed (re-stated 2026-10-10): a fresh Studio S3 battery (after the scale fix +
+> an S2 gate) · S3 mutant (a) observed red · S6 (blocked on capture) · S7's terminal case +
+> `--norelease` on branch `d` + boot-verify on D · T3.** The daily driver was verified back at stage 1 `2a251a4b2510fb84`
 > after the last row.
 
 > ⚠ **This document REDIRECTS issue #13's stated direction.** #13 proposed deferring
@@ -395,7 +403,8 @@ whose code lives in the glue.
 drag row is fingerprinted (`drag-session.sh:120` → `steam-render-cell.sh:77` →
 `cell-fingerprint.sh` → `config.json`) — but **without `--strict`** today (0 hits in either
 script): add it, or justify non-strict in the row. `video-gap-battery.sh` carries the lock-screen
-refusal, the network hold and the **loadavg < 12 gate** (`:63-68`); `strip-module-ab.sh` has **no
+refusal, the network hold and the **loadavg < 12 gate** (`:93-98` since the MODS interleave; kept at
+12 on the 18-core Studio — it guards absolute contention, and a gate must not change mid-battery); `strip-module-ab.sh` has **no
 loadavg gate** — add one before S6. Record the capture display and its refresh (`cell-fingerprint.sh`
 records neither; a run on the 60 Hz portrait panel halves every sampled rate with nothing in
 `config.json` to show it). Arms interleaved; void a comparison whose arms' achieved cadences differ
@@ -510,11 +519,11 @@ before a rate from one run is compared with a rate from another.
 | **S1a** ✅ **RUN 2026-09-07 — see C62** | **Per-generation timing, trace only, one clock** — the stamp build (instrument-only; no candidate code), diag colours on, 10 full-coverage drags (~300 generations each). (i) `first-acquire(N)` and `presentedTime(N)` − owner host-commit(N) (`window.c:1717`). (ii) `RELEASE(N−1)` **and the child's detach block** vs `presentedTime(N)` | (i) **null upheld** if ≥ 90 % of generations present within one refresh (8.3 ms) of the host commit; report the fraction beyond 120 ms (D's cap). (ii) **D closes** if the child's detach follows `presentedTime(N)` in ≥ 95 % of generations, else **D narrows**, with the covered fraction. **The 95 % is fixed here, before the run**. ⇒ **RESULT: (i) null REFUTED — 0 of 2,924 within 8.3 ms; acquire is immediate (median +2 ms) but the PRESENT lags, median ~53 ms on the displaying child. (ii) detach follows present in 1,440 of 1,442 = 99.9 %, median +83.5 ms ⇒ D CLOSES.** ⚠ The present rate is **bimodal by child** — two long-lived children per run, one presenting 92–98 %, the other 19–31 %; never quote the pooled 50 % | n/a — diagnostic |
 | **S1b** | Video per *visible* episode only (expect ~3 in 10 drags), via the aligner + `--rect`; 25 ms floor stated | confirms S1a's tail is what the eye can see; does not decide anything S1a decides | n/a |
 | **S2** | **Baseline rate on the scorer's known-positive build**: `MOD=s1-diag` (C58's `50fdfe79898dac36`), N = 12, video | PASS = ≥ 1 blue episode (the scorer can fire — the C56 rule); the baseline rate is C58 + S2 pooled (24 drags) with an **exact CI** (4/12 alone is ~0.09–0.85/drag and decides nothing) | n/a |
-| **S3** ◐ **RUN 2026-09-08, 10 of 15 rounds — see C66** | **D-diag** (`6385a7ffb1cbb408`, `--noblue --cyan`), **interleaved with the A-alone arm** via the battery's new `MODS`, **n = 15 each**, `STEAM_PAGE=steam://open/games`, video; host bound from `live-hosts.py`. **Scored by `full-client-episodes.py` at BAR = 0.80, declared and committed before the run** (C65). ⇒ **RESULT (C66): D-diag 0 full-client episodes of any colour in 10 valid runs; the interleaved A-alone control 4 in 4 of 10 (0.40/drag).** Both arms 10 valid rows, 150 children, ~1,600 generations — the interleave held. ⚠ **NOT closure.** The bar is 0 episodes at **n ≥ 15** (exact Poisson P(0) = 0.0067, the only n that clears 0.007); at n = 10 it is **0.0357** against the pooled baseline, **0.0183** against this battery's own control, Fisher **0.0433**. **Five more rounds settle it and nothing else needs redoing** — arms, page, digests and gate are all fixed and recorded | **closure**: 0 full-client cyan episodes, exact Poisson p ≤ 0.007 against the pooled rate; **narrows** (if S1a (ii) said so): decide on S1a's per-generation metric with n ≈ 60/arm interleaved with A-alone, video as confirmation only; max live hosts per child ≤ 2 | (a) restore `:4339` on the D-diag source, build **without** `--noblue` → blue returns, red = ≥ 1 episode in 12; (b) restore keep-one → this is S4's A-alone arm, **red observable under closure only** |
+| **S3** ◐ **RUN 2026-09-08, 10 of 15 rounds — see C66** | **D-diag** (`6385a7ffb1cbb408`, `--noblue --cyan`), **interleaved with the A-alone arm** via the battery's new `MODS`, **n = 15 each**, `STEAM_PAGE=steam://open/games`, video; host bound from `live-hosts.py`. Command (C66): `MODS="D-diag s0-adrop-cyan" N=15 STEAM_PAGE=steam://open/games bash scripts/video-gap-battery.sh`; new rows start at `r1` in a new `VID_OUT` (no resume knob). **Scored by `full-client-episodes.py` at BAR = 0.80, declared and committed before the run** (C65). ⇒ **RESULT (C66): D-diag 0 full-client episodes of any colour in 10 valid runs; the interleaved A-alone control 4 in 4 of 10 (0.40/drag).** Both arms 10 valid rows, 150 children, ~1,600 generations — the interleave held. ⚠ **NOT closure.** The bar is 0 episodes at **n ≥ 15** (exact Poisson P(0) = 0.0067, the only n that clears 0.007); at n = 10 it is **0.0357** against the pooled baseline, **0.0183** against this battery's own control, Fisher **0.0433**. ~~Five more rounds settle it~~ **(pass 2, 2026-10-10): re-run FRESH on the Studio, never pooled with C66.** Before the first Studio row: (1) `full-client-episodes.py` normalises area by (recording px ÷ `video-rect.txt` points)² — today it compares recording pixels with a point-space area (`:73` vs `:84-91`), so on a 2× display BAR 0.80 silently becomes ~0.20, where #7's strip column (51–60 %) crosses on both arms; verify on one recording; (2) measure whether `screencapture -v` records at 2× (one 1-s recording of an empty desktop region, then delete it); (3) fix `livedrag-probe.sh:176-183`'s clamp, which compares points with `system_profiler`'s device-pixel `5120 x 2880`; (4) record display + refresh per row (`cell-fingerprint.sh` records neither); (5) **S2's known-positive gate on the Studio** (scorer must fire), which also gives the closure bar its Studio baseline rate: n ≥ ln(1/0.007) ÷ rate_A ≈ 4.96 ÷ rate_A. Use the **staged** modules (`winemac.so.D-diag` `6385a7ffb1cbb408`, `s0-adrop-cyan` `d79c80d951b3a5e9`) — a rebuild is a new arm with a new digest (relinks are not byte-deterministic) | **closure**: 0 full-client cyan episodes, exact Poisson p ≤ 0.007 against the pooled rate; **narrows** (if S1a (ii) said so): decide on S1a's per-generation metric with n ≈ 60/arm interleaved with A-alone, video as confirmation only; max live hosts per child ≤ 2 | (a) restore `:4339` on the D-diag source, build **without** `--noblue` → blue returns, red = ≥ 1 episode in 12 — staged as `winemac.so.D-mutant-blue` `cf9a904f283e55e0` but **never observed red** (not in C66's `MODS`): owed; (b) restore keep-one → this is S4's A-alone arm, **red observable under closure only** |
 | **S4** ✅ **ANSWERED 2026-09-08 — see C65** | **A alone, the control arm**, same build recipe minus the hold — module `d79c80d951b3a5e9` | full-client cyan at the blue rate ⇒ A relocates the flash (black in production, `:1257`); under D that must not occur. ⇒ **RESULT: A ALONE IS NOT A FIX.** 2 full-client cyan episodes in 12 runs against the mutant's 4 full-client blue in 12 — the same surface, in the same place, in the same shape, one frame each. On a production A build that region is the content view's ordinary black, so **A alone moves the flash from the child's layer to the surface below it**. D's hold is what has to remove it, and the row above is that test. ⚠ n = 12, 2 events; and this arm re-runs interleaved beside D-diag in the S3 battery, which is the rate comparison the sequential pair could not give | restore `:4339` → **full-client** cyan episodes vanish. ⇒ **OBSERVED: 2 → 0** (and blue 0 → 4 in the same frames). The C61 growing-edge column persists regardless and does not reach the bar — that is not this mutant's signal, and the gate counting pixels rather than a bbox is what keeps it out |
-| **S5** | **T3 (human)**, James on the D **prod** build | verdict verbatim: any full-client flash still visible? any *new* artifact — a stale predecessor showing after the new generation should have covered it, especially on **shrinks**? | none — a human drag is not repeated per mutant |
-| **S6** | **No regression on #7's strip**, after (6): `strip-module-ab.sh MODULES="baseline stage1 D" N=7 FRAMES=300`, interleaved, loadavg-gated | stage 1 < baseline **reproduces in this run** (not against C54's stored numbers) **and** D's growing-frame right-band mean ≤ stage 1's + ½ (baseline − stage 1); plus a **shrink-frame clause** via `band-counts.py`'s grow/shrink split; child placement scored, since `:2105` changed | none — structural |
-| **S7** | **The hold's bound**: `--norelease` mutant (8) + `shimmer-probe.sh churn` (`hosting-layer-tests.sh:254`) + `live-hosts.py`, ≥ 300 creates; then the terminal case — a child that recreates twice, stops, never releases, is destroyed; then `scripts/boot-verify.sh` (the game never constructs a `CAContextSwapChain` — `window.c:1298-1336` — but shares the module) | max live hosts per child ≤ 2 throughout; the terminal child's held pair drops to 0 after the root's next frame update; boot-verify PASS. ⇒ **FIRST HALF MET 2026-09-08 (C67): max live 2, never 3, over 1,611 creates across 10 D runs**, replayed with `live-hosts.py --max 2` off the S3 battery rather than the churn probe (a different path; the create count far exceeds the row's ≥ 300). The DWELL column is what separates the arms, as the instrument note warned: **D 99.7 % of its life at ≥ 2 hosts, A alone 0.0 %**. Unlooked-for: **`retired-but-never-released` falls from 140 to 0** — under today's code the owner retires at CREATE and the child's later RELEASE finds an untracked id. ⚠ **Cost, as a number: D roughly doubles the resident host count** (290 tracked at end vs 150; 140 of 150 children end holding 2, against A's 0), which is precisely why the terminal case matters. **STILL UNRUN: the `--norelease` mutant on D, the terminal case, and `boot-verify.sh`** | (a) drop the next-CREATE exit → max grows monotonically (≥ 10); (b) disable the `:2033-2041` drain → dead pairs persist |
+| **S5** | **T3 (human)**, James on the D **prod** build (`4975a8c9a720773f`, installed and restored by the same trap as S7's boot-verify wrapper; digest asserted back to `2a251a4b2510fb84` after). Protocol written before he starts: Steam on the Studio Display (main), `steam://open/games`, 10 grows then 10 shrinks by the bottom-right corner, the question asked verbatim and his answer copied verbatim into the ledger; no screen recording kept | verdict verbatim: any full-client flash still visible? any *new* artifact — a stale predecessor showing after the new generation should have covered it, especially on **shrinks**? | none — a human drag is not repeated per mutant |
+| **S6** ⛔ **BLOCKED on instrument (2026-10-10)** | **No regression on #7's strip**, after (6): `strip-module-ab.sh MODULES="baseline stage1 D" N=7 FRAMES=300`, interleaved, loadavg-gated. ⚠ `strip-module-ab.sh:38` forces `CAPTURE=window` = `screencapture -l` (`livedrag-probe.sh:219`), which fails for wine windows on macOS 27 (GOTCHAS 2026-10-10 — one observation; prove or disprove it on a Steam window first), and `CAPTURE=screen` is blind to the strip (C52). Re-specify on video capture (sees 1-px edges, C59) with a band metric over the recording, or restore `-l`. The **shrink clause has no instrument yet** (`band-counts.py` has no grow/shrink split) and "child placement scored" names no scorer — both to build | stage 1 < baseline **reproduces in this run** (not against C54's stored numbers) **and** D's growing-frame right-band mean ≤ stage 1's + ½ (baseline − stage 1); plus a **shrink-frame clause** via `band-counts.py`'s grow/shrink split; child placement scored, since `:2105` changed | none — structural |
+| **S7** | **The hold's bound**: `--norelease` mutant (8) + `shimmer-probe.sh churn` (`hosting-layer-tests.sh:254`) + `live-hosts.py`, ≥ 300 creates; then the terminal case — a child that recreates twice, stops, never releases, is destroyed; then `scripts/boot-verify.sh` (the game never constructs a `CAContextSwapChain` — `window.c:1298-1336` — but shares the module). **Recipes (pass 2):** `--norelease` on `d` = `git -C $NR checkout d && WINEMAC_BRANCH=d bash scripts/build-winemac.sh ~/cs2-patch/winemac.so.D-norelease scripts/diag-colours-patch.py --noblue --cyan --norelease; git -C $NR checkout main` (the script refuses unless the repo is already on `d` and restores only the patched file, never the branch; the patcher applies the colour patches too, so the flags match D-diag), digest recorded. **Terminal case = trace-only**: `live-hosts.py --dump` over a D session in which a CEF child is destroyed; pass when that child's count reaches 0 after its gone-child TRACE (near `d:window.c:2105`); check C66's 10 D traces for that TRACE before running anything new. **boot-verify on D**: `boot-verify.sh` has no module knob, so a wrapper copies `winemac.so.D` (`4975a8c9a720773f`) into the wrapper under a `trap restore EXIT` modelled on `drag-session.sh:106-110` (`DAILY=~/cs2-patch/winemac.so.stage1`), runs boot-verify detached, then asserts `shasum` = `2a251a4b2510fb84` | max live hosts per child ≤ 2 throughout; the terminal child's held pair drops to 0 after the root's next frame update; boot-verify PASS. ⇒ **FIRST HALF MET 2026-09-08 (C67): max live 2, never 3, over 1,611 creates across 10 D runs**, replayed with `live-hosts.py --max 2` off the S3 battery rather than the churn probe (a different path; the create count far exceeds the row's ≥ 300). The DWELL column is what separates the arms, as the instrument note warned: **D 99.7 % of its life at ≥ 2 hosts, A alone 0.0 %**. Unlooked-for: **`retired-but-never-released` falls from 140 to 0** — under today's code the owner retires at CREATE and the child's later RELEASE finds an untracked id. ⚠ **Cost, as a number: D roughly doubles the resident host count** (290 tracked at end vs 150; 140 of 150 children end holding 2, against A's 0), which is precisely why the terminal case matters. **STILL UNRUN: the `--norelease` mutant on D, the terminal case, and `boot-verify.sh`** | (a) drop the next-CREATE exit → max grows monotonically (≥ 10); (b) disable the **`window.c`** drain (`main :2033-2041`; on `d` the gone-child block near `:2105`) → dead pairs persist. ⚠ Neither (a) nor (b) has a build input yet — the patcher only has `--norelease` |
 
 Every listed mutant is **applied to real source and observed red, then restored green**. "Argued
 red" is not red. Where a mutant is red-observable only under one S1a outcome, the row says so.
@@ -554,8 +563,13 @@ red" is not red. Where a mutant is red-observable only under one S1a outcome, th
    episodes gives an exact Poisson P(0) = e^−5 = **0.0068**, just inside the 0.007 the plan fixed
    in advance. n = 15 is therefore the minimum, not a round number, and a voided row costs the
    bar — `full-client-episodes.py` refuses an all-void battery rather than reporting zero episodes
-   off zero evidence. S3 ▶ running; S3's mutant (a) is built (`cf9a904f283e55e0`).
+   off zero evidence. ~~S3 ▶ running~~ ⚠ **Pass 2 (2026-10-10): that 0.333/drag is a 120 Hz, M3 Max
+   rate.** The Studio battery takes its bar from its own A-alone control and S2 gate: n ≥ 4.96 ÷
+   rate_A, fixed in writing before the run (§ 6 S3). S3's mutant (a) is built (`cf9a904f283e55e0`)
+   and still owes an observed red.
 5. S6 green including the shrink clause; S7 green including the terminal case and boot-verify.
+   ⚠ Pass 2: S6 cannot start until its capture instrument works on macOS 27 and the shrink clause
+   has a scorer (§ 6 S6).
    ◐ **S7's bound MET 2026-09-08 (C67)**; its terminal case, its `--norelease` mutant and boot-verify
    are unrun, and S6 has not started. ⚠ **The `--norelease` mutant must be rebuilt on branch `d`, not
    reused from `main`** (`cf200bbf146ff56f` is main's): under D the child's RELEASE is the *only*
@@ -570,8 +584,15 @@ red" is not red. Where a mutant is red-observable only under one S1a outcome, th
 The installed daily driver is stage 1 `2a251a4b2510fb84`, kept. Any candidate ships as a separate
 module built through `scripts/build-winemac.sh` and is only installed after S3/S6/S7; reverting is
 reinstalling `2a251a4b2510fb84`. No prefix or settings change is involved.
+**Pass 2 (2026-10-10):** every battery restores stage 1 through `drag-session.sh`'s `trap restore EXIT`
+(`:106-112`), but the restore is `cp … 2>/dev/null &&` and asserts nothing — end every battery, and
+the S7/T3 D installs, with `shasum -a 256 <installed winemac.so> | cut -c1-16` = `2a251a4b2510fb84`.
+Building D on the shared tree overwrites its `winemac.so` (today `cf9a904f283e55e0`); copy the
+output out before the next build.
 
-⚠ **`scripts/build-winemac.sh:36-37` refuses any nested branch but `main` and any dirty tree**, so a
+⚠ ~~`scripts/build-winemac.sh:36-37` refuses any nested branch but `main`~~ **(stale since 30ea6b7: the
+script has `WINEMAC_BRANCH` at `:39-50` — it still requires the repo to be checked out on that branch
+first.)** The original note, kept for the record: it refused any nested branch but `main` and any dirty tree, so a
 candidate on a branch cannot go through it as written: either land D on `main` behind the § 7 gate,
 or give the script a branch knob. The re-check's fallback was the target the script names —
 `gmake dlls/winemac.drv/winemac.so` in `~/cs2-patch/build-1116/wine-1116-vis-build` — with the
@@ -634,6 +655,41 @@ Every finding is an omission in § 4.1's touch set, landed above:
 
 **Rejected:** nothing.
 
+
+## Review corrections (re-check 2026-10-10, pass 2 — the Mac Studio)
+
+Re-check of the **remaining** work (S3 tail, S6, S7 tail, T3) after the move from the M3 Max
+MacBook + 120 Hz external to the Mac Studio (Studio Display 60 Hz at 2×, macOS 27.0.1). Two lenses
+(premises; builder-simulation + test-plan), read-only apart from one disclosed side effect below;
+every BLOCKER spot-checked inline. All corrections are folded into the status, § 6 and § 8.
+
+- **[BLOCKER] "Five more rounds and pool" does not survive the machine change** — refresh (120 → 60 Hz)
+  moves the detection probability of a one-refresh flash (C58), and the display scale moves the
+  scorer. → fresh Studio battery; C66 is the prior-machine stratum.
+- **[BLOCKER] The scorer is scale-unsafe on a 2× display** — `full-client-episodes.py:73` takes a
+  point-space area, `:84-91` counts recording pixels (spot-checked). → normalise before any Studio row.
+- **[BLOCKER] S6's capture mode cannot run on macOS 27** — `strip-module-ab.sh:38` `CAPTURE=window` →
+  `livedrag-probe.sh:219` `screencapture -l` (spot-checked); `screen` is blind to the strip. → blocked,
+  re-specify on video.
+- **[SHOULD-FIX]** the rect clamp compares points with device pixels; S3's command was cited but not
+  in the row; S3 mutant (a) built but never observed red; S6's shrink clause and placement scorer do
+  not exist; `--norelease`-on-`d` recipe, the terminal-case instrument and the boot-verify-on-D
+  install/restore were unwritten; S7 mutant (b) cited the wrong file; restores assert no digest;
+  T3 protocol under-specified; no capture rule for recordings (they show the Steam account).
+- **[MINOR]** stale cites (`:63-68` → `:93-98`; `build-winemac.sh:36-37`); loadavg gate kept at 12.
+- **Publishability rule (added):** only numeric summaries and digests enter the repo; Steam-UI
+  recordings and frames stay in `~/cs2-patch` and are never attached to issues.
+- Verified unchanged: nested `main` `52789ff` / `d` `72184cd`, tree clean; every sampled `main`
+  cite (`:1257`, `:4339`, `:4370`, `window.c:964/1717/1770/2033-2041/2105`); the `--norelease`
+  anchor present on `d` (`:4378`); staged arm digests (`D` `4975a8c9…`, `D-diag` `6385a7ff…`,
+  `s0-adrop-cyan` `d79c80d9…`, `D-mutant-blue` `cf9a904f…`, `stage1` `2a251a4b…`); the band metric
+  is relative (scale-safe); per-row restore via `drag-session.sh` traps.
+- **Side effect of the review itself:** the builder lens ran `gmake -n -B` in
+  `wine-1116-vis-build`, which re-ran `configure` (failed at the bison 2.3 check) and overwrote only
+  `config.log`; `config.status` / `include/config.h` kept their Aug 29 timestamps (spot-checked).
+  Trap for builders: `/usr/bin/bison` 2.3 is first on PATH, so any reconfigure fails — Homebrew's is
+  `/opt/homebrew/opt/bison/bin`.
+
 ## Review log
 
 | date | pass | lenses | method | model | verified against | verdict |
@@ -641,6 +697,7 @@ Every finding is an omission in § 4.1's touch set, landed above:
 | 2026-09-07 | pre-review of the first draft (not a check-it pass) | inline: z-order · provenance · present-hook · trace ordering | one model, direct reads + one trace measurement | Fable 5.1 | cs2 `43227c7`, nested `main` `52789ff`, pristine `wine-11.16/` | first draft needs-rework → reworked in place (§ 2.3 covering claim wrong on z-order; § 5 ownership wrong; § 1 quoted a cadence as an exposure) |
 | 2026-09-07 | **pass 1** | architecture (+ upstream-form/privacy) · correctness · platform-facts · test-plan audit | 4 independent agents, ≤ 15 tool calls each; every blocker spot-checked inline | Fable 5.1 ×4 | cs2 `3515efc`, nested `main` `52789ff`, pristine `wine-11.16/`, `dxmt-fork` | **needs-rework** (test plan) · build-ready-with-fixes ×3 → all folded the same day |
 | 2026-09-07 | **fitted re-check** of the fold + builder-simulation | fold verification · build D on a scratch branch · compile · gates | 1 agent, ~15 tool calls; D built and compiled (`d-sim` `b2186a0`, digest `8ff5e4f30492304b`) | Opus 5 | cs2 `407348d`, nested `main` `52789ff`, pristine, `dxmt-fork` | **build-ready-with-fixes** — no blocker; nine omissions in § 4.1 / § 6 / § 8 folded the same day |
+| 2026-10-10 | **pass 2 — re-check after the machine change** (remaining work only) | premises (architecture + correctness + platform-facts) · builder-simulation + test-plan (+ security/publishability) | 2 independent agents, read-only (one disclosed `config.log` side effect); every BLOCKER spot-checked inline | Opus 5.5 ×2 + Opus 5.5 synthesis | cs2 `9a953c1`, nested `main` `52789ff` / `d` `72184cd`, on the Mac Studio | **S3 + S6 needs-rework · S7 + T3 build-ready-with-fixes** — corrections folded |
 
 **Key paths** (re-check if these move): `dlls/winemac.drv/cocoa_window.m` (`:832-894`, `:940-953`,
 `:1253-1257`, `:2033-2041`, `:4298-4385`), `dlls/winemac.drv/window.c` (`:46`, `:97-137`, `:943-970`,

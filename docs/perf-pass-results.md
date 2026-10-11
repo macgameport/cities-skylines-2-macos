@@ -193,6 +193,10 @@ ran a different quality profile and don't transfer.
   1%-low 23.6 — M3 Max, 1920×1080): **+78 % FPS at 1.78× the pixels**, gpuMs roughly halved,
   cpuGame halved. Hardware and resolution both changed, so this is not a lever reading — it says the
   new working point is far above the one James accepted, not why.
+- ⚠ **These ran with in-game VSync ON** (`"vSync": true`, as every saved base), which on a 60 Hz
+  panel is a 60 FPS min-duration cap (`d3d11_swapchain.cpp:762-766`) — against the plan's
+  vsync-off rule (found by the 2026-10-10 re-check). The cap can only hold numbers DOWN, so the
+  verdict below stands; the rows are not a noise floor and not P3–P5 baselines (Studio M0 is).
 - **Verdict for #2's `home-hidpi` row: not needed for performance on this machine** — at native
   2560×1440 the scene stays sim-dominated (gpuBound 18–20 %) and every metric beats the accepted
   baseline. ⚠ The bench understates pixel cost on the GPU-bound live city (retina series: 25.4 →
