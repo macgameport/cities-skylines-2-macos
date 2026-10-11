@@ -6,6 +6,9 @@
 [6cfa941](https://gitlab.winehq.org/wine/wine/-/commit/6cfa941df3f385ab025aa2c458753c017aa49ccc)
 (2026-10-07, *"win32u: Display the full client area if it extends into the window decorations"*)
 fixes both symptoms on this reproducer — see § "Upstream fix, measured" below. Reported back as comments #3/#4 (attachments 82319 stock, 82320 fixed) the same day.
+**2026-10-11: CLOSED — RESOLVED DUPLICATE of [42877](https://bugs.winehq.org/show_bug.cgi?id=42877)** (SumatraPDF tabs under
+the title bar, winex11, 2017), which Jactry Zeng marked FIXED by 6cfa941 on 2026-10-10. Not yet in a release:
+no tag contains 6cfa941 as of 2026-10-11 (latest wine-11.19, 2026-10-02), so expect wine-11.20.
 
 ## Summary
 
