@@ -1521,10 +1521,14 @@ still reveal is the seam. Verified: 0 bright edges on all four parities, popups 
 **The general shape:** a property that exists to fix a *steady-state* artifact should not be applied
 during the *transient*. Ask when a value needs to be true, not just whether it needs to be true.
 
-## Paradox launcher: mouse hit-testing sits BELOW the visible cursor (2026-08-31, OPEN)
+## Paradox launcher: mouse hit-testing sits BELOW the visible cursor (2026-08-31, RESOLVED 2026-10-11)
 
-> **Ledger:** `UNREVIEWED` — C19. Reported by James; direction measured, mechanism is a hypothesis,
-> ownership untested.
+> **Ledger:** `SUPPORTED` — C19. **Resolved 2026-10-11 by upstream wine 6cfa941 in the daily engine**
+> (b48d166). On the real launcher window (`Chrome_WidgetWin_1`, Win32 client offset dx=4 dy=0 — the
+> 60262 trigger) the Cocoa frame equals the Win32 window rect (1290x676 at 316,220), no macOS title bar
+> is drawn, and James confirmed by hand that hover and clicks land under the pointer ([#18](https://github.com/macgameport/cities-skylines-2-macos/issues/18)).
+> Ownership answered: stock wine (60262, reproduced on stock 11.16), not our winemac patches.
+> Everything below is the original investigation, kept as history.
 
 The Paradox launcher renders correctly on the patched stack (EULA, store panels, PLAY — the game
 boots from it and reaches `MainMenu`), but **hit-testing is offset vertically**: to activate a
@@ -1762,8 +1766,8 @@ extends past the visible rect, the window rect becomes the visible rect, so wine
 `EqualRect(window, visible)` escape fires and the caption space is no longer reserved. On the
 reproducer it removes the title bar and makes the Cocoa frame equal the Win32 window rect.
 **2026-10-11: now carried** — the daily engine's `win32u.so` has it (b48d166) and `build-engine-1116.sh`
-applies it (1e2ab47). Whether the real launcher window is fixed is **not yet observed** — boot-verify never
-opens it; tracked in [#18](https://github.com/macgameport/cities-skylines-2-macos/issues/18).
+applies it (1e2ab47). **Observed fixed on the real launcher window 2026-10-11** — frame == Win32 rect, no
+title bar, hover and clicks under the pointer ([#18](https://github.com/macgameport/cities-skylines-2-macos/issues/18)).
 ## The Paradox launcher's PLAY: `ENOENT` is not a missing file (2026-08-31, OPEN)
 
 > **Ledger:** `SUPPORTED` — C25. Evidence: the launcher log across two attempts, one with an

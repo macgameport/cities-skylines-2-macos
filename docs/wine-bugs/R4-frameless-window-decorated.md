@@ -11,7 +11,9 @@ the title bar, winex11, 2017), which Jactry Zeng marked FIXED by 6cfa941 on 2026
 no tag contains 6cfa941 as of 2026-10-11 (latest wine-11.19, 2026-10-02), so expect wine-11.20.
 **2026-10-11: the project's daily engine carries it** — the measured win32u.so (stock 11.16 + 6cfa941) swapped
 into the wrapper; boot-verify PASS. The public `scripts/build-engine-1116.sh` applies it too (same day,
-`scripts/wine-6cfa941-win32u-visible-rect.patch`). Not yet observed on a real Electron window (the Paradox launcher).
+`scripts/wine-6cfa941-win32u-visible-rect.patch`).
+**2026-10-11: confirmed on the real Paradox launcher** ([#18](https://github.com/macgameport/cities-skylines-2-macos/issues/18)): Win32 client offset dx=4 dy=0, Cocoa frame ==
+Win32 window rect (1290x676 at 316,220), no title bar, hover and clicks land under the pointer.
 
 ## Summary
 
