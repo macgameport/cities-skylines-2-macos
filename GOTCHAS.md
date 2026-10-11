@@ -2588,6 +2588,9 @@ the display-sleep failure either: the note above had `-R` working, so that displ
 differs is the WINDOW — the 60262 reproducer's frameless popup on the test engine, against an
 ordinary Notepad window on the installed one. So `-l` is window/build-specific, not broken on
 macOS 27; confirm it on Steam's window (display awake) before relying on it, and never assume.
+**Confirmed on Steam 2026-10-10 23:3x:** `-l` on Steam's main window (1660×800 pt) returned
+3320×1600 with 4.1 % near-black and 208 colour bins, its Special Offers popup 1412×1660 with 2.7 % —
+rendered UI, out-of-process, on stage 1 `2a251a4b2510fb84`: the first Steam UI seen on the Studio.
 
 ## The launcher never lets Steam update the game — mods drift ahead of it (2026-10-10)
 
