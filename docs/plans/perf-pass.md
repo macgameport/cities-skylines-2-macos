@@ -270,8 +270,10 @@ never committed. **Every D-cell must end in a graceful quit**, never perf-bench'
 (`perf-bench.sh:78-80`): the allocator report and the `Job.Worker` list are written only on a
 clean exit (0 `Memory Statistics` lines in every SIGTERM'd Player.log, 2026-10-10). Use
 `win-resize-driver.exe close` as `scripts/boot-verify.sh` does; a D-cell whose Player.log lacks
-`Game terminated successfully` + `Memory Statistics:` is **VOID**. That teardown does not exist in
-perf-bench yet — building it is P4's first task.
+`Game terminated successfully` + `Memory Statistics:` is **VOID**. **BUILT 2026-10-10:** `perf-bench.sh` now ends with
+WM_CLOSE (SIGTERM only as fallback) and records `teardown` + `graceful` in each row, copying
+Player.log beside the run log — tested: `teardown-test-wmclose` graceful=yes (allocator report +
+17 `Job.Worker`s), `CS2_TEARDOWN=sigterm` mutant graceful=no.
 Unity ignores unknown keys silently, so each D-row has its own load signal:
 
 | # | Lever | Design + load signal | Confidence |
@@ -309,7 +311,7 @@ Unity ignores unknown keys silently, so each D-row has its own load signal:
 | **P1** | Resolution levers A1→A2→A3, one per launch (A4 parked) | curve measured; TRADE screenshots saved; point picked (provisionally if James away) |
 | **P2** | Settings matrix C1–C5 on top of the chosen P1 point | all C-rows verdicts |
 | **P3** | **Studio M0 first (§2)**, then pacing & experience: B1 (cap 30 / 60), B2 (slider present), vsync decision, D4 — every cell vsync off unless vsync is the lever | pacing chosen on feel + frame-time consistency |
-| **P4** | **Graceful-quit teardown built first (§3D)**, then **M0-L** (R-bench, ≥3), then D1–D3 (boot.config; game-not-running edits; `cat` after each launch) · ~~D5 soak~~ CLOSED | verdicts or explicit CLOSED/SKIP |
+| **P4** | ~~Graceful-quit teardown built first (§3D)~~ (built 2026-10-10), then **M0-L** (R-bench, ≥3), then D1–D3 (boot.config; game-not-running edits; `cat` after each launch) · ~~D5 soak~~ CLOSED | verdicts or explicit CLOSED/SKIP |
 | **P5** | **Compose + re-measure**: baseline + every KEEP as one profile, ≥2 runs; if P4 produced any KEEP, re-measure on BOTH scenes (bench scene vs the Studio clean baseline; late-game vs M0-L); ship | composed profile beats the **Studio** clean baseline by the margin fixed at **Studio M0** |
 
 **P5 ships:** launcher defaults for unconditional KEEPs (same override pattern as `CS2_HUD`) ·
