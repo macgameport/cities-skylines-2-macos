@@ -37,7 +37,7 @@ breakdown.
   [60263](https://bugs.winehq.org/show_bug.cgi?id=60263) (cross-process child-window Metal
   swapchains) are tracked in `docs/wine-bugs/README.md`.
 
-## Queued: mod keybinding alerts (James, 2026-08-24) — CLOSED pending one visual check
+## Queued: mod keybinding alerts (James, 2026-08-24) — CLOSED (visual check done 2026-10-11)
 
 The ⚠ badges on mod rows in Options are a **boot-time notice armed from the mods' factory
 defaults**, evaluated before the per-user `.coc` overrides apply — so the 2026-08-25 rebinds fixed
@@ -46,8 +46,8 @@ the real conflicts but could never clear the badge. Killed by a two-patch IL set
 clean 2026-08-27; the launcher re-ensures it pre-boot (step 0b, fail-open), so a game update
 self-heals.
 
-**Remaining — the only reason this is still open:** James eyeballs Options → mod rows and confirms
-no ⚠ anywhere, including Anarchy.
+**Visual check DONE 2026-10-11:** James went through Options → every mod row, including Anarchy, on
+the 11.16 daily engine: no ⚠ badge anywhere (also visible in the #4 captures). Nothing remains open here.
 
 Detail, all of it recorded elsewhere: the offline collision table and the `.coc` edit protocol in
 GOTCHAS § "Mod keybinding defaults are extractable offline" · the four invalid-IL rounds and the
@@ -119,10 +119,12 @@ superseded, with the pointer to where the surviving content lives.
   with the daily-driver settings: **47.8 FPS · gpuMs 17.5**, well above the accepted 1080p baseline,
   so no `home-hidpi` row is needed for performance. (b) `Player.log` reports `2560x1440x60`. Left:
   one live-city HUD reading (`CS2_HUD=1`) by James, then close #2.
-- 📋 **Fullscreen-toggle cursor desync.** [#4](https://github.com/macgameport/cities-skylines-2-macos/issues/4). Observed on wine 11.0, **never re-tested on
-  the promoted 11.16 engine**; the whole defect class lived in the client-surface machinery 11.16
-  reworked, so it may already be gone. Re-check before repeating the old "set Fullscreen and don't
-  toggle" advice.
+- ✅ **Fullscreen-toggle cursor desync — does not reproduce on 11.16** ([#4](https://github.com/macgameport/cities-skylines-2-macos/issues/4), closed 2026-10-11).
+  Fullscreen ↔ windowed toggled twice at the main menu on the daily engine: windowed gets one
+  correct macOS title bar with the content view == Win32 client, fullscreen is a real exclusive mode
+  switch with no title bar, clicks accurate in every state (James), display restored on exit,
+  boot-verify PASS. Measurements: evidence cell `4-fullscreen-toggle-1116` (exp_ad3998). Fullscreen Window stays
+  the recommended mode in README/INSTALL; that advice is about the 11.0 freeze, not this.
 - 📋 **Rosetta horizon → [#16](https://github.com/macgameport/cities-skylines-2-macos/issues/16)** (supersedes #5, closed 2026-10-10). The stack is entirely x86-64 under
   Rosetta 2. Apple, 2026-09-01: macOS 27 is the last release with full Rosetta; 28 keeps an
   undefined games-only subset. The path out exists now (CodeWeavers' arm64 Wine + FEX, DXMT
