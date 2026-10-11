@@ -9,6 +9,9 @@ fixes both symptoms on this reproducer — see § "Upstream fix, measured" below
 **2026-10-11: CLOSED — RESOLVED DUPLICATE of [42877](https://bugs.winehq.org/show_bug.cgi?id=42877)** (SumatraPDF tabs under
 the title bar, winex11, 2017), which Jactry Zeng marked FIXED by 6cfa941 on 2026-10-10. Not yet in a release:
 no tag contains 6cfa941 as of 2026-10-11 (latest wine-11.19, 2026-10-02), so expect wine-11.20.
+**2026-10-11: the project's daily engine carries it** — the measured win32u.so (stock 11.16 + 6cfa941) swapped
+into the wrapper; boot-verify PASS. The public `scripts/build-engine-1116.sh` does not; it arrives there with
+the next rebase. Not yet observed on a real Electron window (the Paradox launcher).
 
 ## Summary
 

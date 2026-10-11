@@ -192,7 +192,7 @@ Entry: P3 complete. The x86_64 wrapper stays installed and launchable throughout
 | W2 | A DXMT release after v0.80, with arm64x DLLs and an aarch64 unix side | `gh release list -R 3Shain/dxmt` |
 | W3 | A FEX ARM64EC module for macOS works with a **public Wine tree we can build** (neutron's, `willfaust/wine`, CrossOver source) | `FEX-Emu/FEX` releases; `dbc-hbin/FEX-darwin` activity and the Wine hooks it names |
 | W4 | Apple defines the post-27 games subset of Rosetta | developer.apple.com news |
-| W5 | Wine 6cfa941 (60262) reaches a release — one fewer patch to rebase | wine release notes |
+| W5 | Wine 6cfa941 (60262) reaches a release — the daily engine's cherry-picked win32u.so (2026-10-11) can then be dropped instead of carried | wine release notes |
 | W6 | neutron matures: a release that documents its entitlement route, or reports a Unity DX11 title at scale | `lixsldotnet/neutron`, `codeWonderland/neutron` releases |
 | W7 | `willfaust/wine` gains a macOS (not iOS) branch | its branch list |
 | W8 | The first macOS 28 beta: are the cross-arch kernel features still there? | Apple's beta release notes and the beta SDK's `os/arch/arm64.h` (the SDK comes with Xcode beta and needs no OS upgrade); reports of `os_cross_arch_is_supported(OS_CROSS_ARCH_X86_64)` and `arch -x86_64` on the beta. **Never by upgrading the Studio** (D4) |
