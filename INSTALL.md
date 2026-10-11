@@ -9,7 +9,8 @@ roughly 40 GB free.
 
 > Tested on an M3 Max running macOS 26 with game version 1.6.0f1, and on an M5 Max running macOS 27.0.1
 > with 1.6.2f1 (2026-10-10). Intel Macs are untested. On macOS 27, check Rosetta is still installed
-> after every update (`arch -x86_64 /bin/ls /`). A game
+> after every update (`arch -x86_64 /bin/ls /`); the launcher also checks, and if Rosetta is gone it
+> stops with the reinstall command (`softwareupdate --install-rosetta --agree-to-license`). A game
 > update can move the patch offsets — see [After a game update](#after-a-game-update).
 
 ---
