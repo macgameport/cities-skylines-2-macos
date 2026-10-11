@@ -58,7 +58,10 @@ case "$CAPTURE" in window|screen|video) ;; *) echo "  ABORT: CAPTURE must be win
 [ -x /tmp/pixel-probe ] || swiftc -O "$(dirname "$0")/pixel-probe.swift" -o /tmp/pixel-probe || exit 1
 # winlist too: without it the known-good capture below fails first and the abort reads "instrument
 # blind" — a misdiagnosis, not a result (verification-instruments.md I2, 2026-09-03)
-[ -x /tmp/winlist ] || swiftc -O "$(dirname "$0")/winlist.swift" -o /tmp/winlist || exit 1
+# Rebuilt when the source is newer: a stale /tmp/winlist predating `--displays` would hand the video
+# clamp below no display at all (2026-10-10).
+{ [ -x /tmp/winlist ] && [ /tmp/winlist -nt "$(dirname "$0")/winlist.swift" ]; } \
+  || swiftc -O "$(dirname "$0")/winlist.swift" -o /tmp/winlist || exit 1
 
 # A locked SESSION is not a blind instrument: `screencapture -l` reads a window's backing store, and
 # that works under the lock screen as long as the DISPLAY is awake (measured 2026-09-05: 1.3 MB,
@@ -173,15 +176,30 @@ if [ "$CAPTURE" = video ]; then
   fi
   g=$(/tmp/winlist 2>/dev/null | steamwin | head -1)
   read -r vw vh vx vy <<<"$(echo "$g" | sed -nE 's/.*size=([0-9]+)x([0-9]+) at=(-?[0-9]+),(-?[0-9]+).*/\1 \2 \3 \4/p')"
-  read -r dw dh <<<"$(system_profiler SPDisplaysDataType 2>/dev/null | sed -nE 's/.*Resolution: ([0-9]+) x ([0-9]+).*/\1 \2/p' | head -1)"
-  : "${dw:=5120}" "${dh:=2880}"
+  # Clamp to the display that holds the window's origin, in POINTS (winlist --displays). This used
+  # system_profiler's first `Resolution:`, which is DEVICE pixels on a Retina panel (5120x2880 on
+  # the Studio Display, 2560x1440 points), so on the Studio the clamp never bound (re-check
+  # 2026-10-10). No containing display = no clamp, said aloud: the row then voids on an empty
+  # recording rather than on a guessed screen size.
+  read -r dx dy dw dh <<<"$(/tmp/winlist --displays 2>/dev/null | python3 -c '
+import re,sys
+vx,vy=int(sys.argv[1]),int(sys.argv[2])
+for ln in sys.stdin:
+    m=re.search(r"size=(\d+)x(\d+) at=(-?\d+),(-?\d+)",ln)
+    if m:
+        w,h,x,y=map(int,m.groups())
+        if x<=vx<x+w and y<=vy<y+h: print(x,y,w,h); break' "$vx" "$vy")"
   m=40
   rx=$((vx - m)); ry=$((vy - ${SYNTH_DY:-350} - m))
   rw=$((vw + ${SYNTH_DX:-650} + 2*m)); rh=$((vh + ${SYNTH_DY:-350} + 2*m))
-  [ "$rx" -lt 0 ] && { rw=$((rw + rx)); rx=0; }
-  [ "$ry" -lt 0 ] && { rh=$((rh + ry)); ry=0; }
-  [ $((rx + rw)) -gt "$dw" ] && rw=$((dw - rx))
-  [ $((ry + rh)) -gt "$dh" ] && rh=$((dh - ry))
+  if [ -n "${dw:-}" ]; then
+    [ "$rx" -lt "$dx" ] && { rw=$((rw - (dx - rx))); rx=$dx; }
+    [ "$ry" -lt "$dy" ] && { rh=$((rh - (dy - ry))); ry=$dy; }
+    [ $((rx + rw)) -gt $((dx + dw)) ] && rw=$((dx + dw - rx))
+    [ $((ry + rh)) -gt $((dy + dh)) ] && rh=$((dy + dh - ry))
+  else
+    echo "  WARNING: no display contains the window origin ${vx},${vy} — recording rect left unclamped"
+  fi
   ovr=$(overlaps_rect "$rx" "$ry" "$rw" "$rh")
   if [ "${ovr:-0}" != 0 ]; then
     echo "  VOID (video mode): $ovr other window(s) lie inside the rect this would record."

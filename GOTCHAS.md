@@ -2580,6 +2580,12 @@ window is on screen — `screencapture -R x,y,w,h` with the frame from `scripts/
 captures it (2× device pixels on this display). And a relink is **not** byte-deterministic here:
 restoring the source and relinking gave a third hash (`2f37…` vs the pre-session `bc7a…`), so a
 hash alone cannot prove a tree is stock — `cmp` the source against the tarball.
+**Corrected later 2026-10-10 — not a macOS 27 regression.** With the display held awake
+(`caffeinate -d -u`), `screencapture -x -o -l <id>` on a wine Notepad window in the CS2 prefix
+returned the real window at **2720×2048 for a 1360×1024-pt window (2×)**, under a LOCKED session,
+while `-R` on the same window failed (it composites the display, which shows the lock). That error
+string is the § "screencapture goes silently blind" display-SLEEP failure: hold the display awake
+before blaming the OS. Steam's own window is the next thing to confirm, not assume.
 
 ## The launcher never lets Steam update the game — mods drift ahead of it (2026-10-10)
 

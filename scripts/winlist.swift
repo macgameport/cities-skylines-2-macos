@@ -16,6 +16,23 @@
 import CoreGraphics
 import Foundation
 
+// `--displays`: one line per ONLINE display (the ACTIVE list is empty while the panels sleep),
+// its bounds in global POINTS (the same space as the window `at=`/`size=` below), main flagged.
+// Added 2026-10-10: livedrag-probe clamped its recording rect to system_profiler's `Resolution:`,
+// which on a Retina panel is DEVICE pixels (5120x2880 on the Studio Display, whose point size is
+// 2560x1440), so the clamp never bound.
+if CommandLine.arguments.contains("--displays") {
+    var n: UInt32 = 0
+    CGGetOnlineDisplayList(0, nil, &n)
+    var ids = [CGDirectDisplayID](repeating: 0, count: Int(n))
+    CGGetOnlineDisplayList(n, &ids, &n)
+    for id in ids {
+        let b = CGDisplayBounds(id)
+        print("display=\(id) main=\(CGDisplayIsMain(id) != 0 ? 1 : 0) size=\(Int(b.width))x\(Int(b.height)) at=\(Int(b.minX)),\(Int(b.minY))")
+    }
+    exit(0)
+}
+
 let opts: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
 guard let info = CGWindowListCopyWindowInfo(opts, kCGNullWindowID) as? [[String: Any]] else {
     FileHandle.standardError.write("winlist: CGWindowListCopyWindowInfo returned nothing (screen recording permission?)\n".data(using: .utf8)!)
