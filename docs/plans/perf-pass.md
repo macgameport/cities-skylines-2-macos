@@ -179,7 +179,11 @@ launches). Noise floor = max−min; **KEEP margin = max(floor, ~1 FPS), expresse
 so it scales with regime; re-establish with one repeat pair if the working point moves >~30% FPS
 from baseline. Record the floor for BOTH reading classes (R-running adds sim jitter). The
 composed-profile margin (§4 P5) is fixed in writing at the end of P0.
-**Studio M0 (added 2026-10-10, gates P3):** the P0 floor (1.03 FPS ≈ 4.7 %) was measured on the M3
+**Studio M0 (added 2026-10-10, gates P3):** ⚠ needs the session UNLOCKED — a locked session blanks
+the panel after 30 s whatever `caffeinate` asserts, and a dark panel moves the numbers (GOTCHAS);
+perf-bench records `display_awake` and flags dark cycles VOID. Also: the game rewrites
+`Settings.coc` on a graceful exit with `"vSync": true`, so the vsync-off edit is re-applied before
+every cycle (game not running) and the backup restored after the series. the P0 floor (1.03 FPS ≈ 4.7 %) was measured on the M3
 Max at 22 FPS and does not transfer. Before any P3 cell: one discarded warm-up run (new hardware,
 new Metal pipeline cache), then **≥3 consecutive perf-bench runs of the current daily driver with
 vsync off**, then **≥3 of the clean baseline** (`Settings.coc.series-base`, vsync off) for P5 to

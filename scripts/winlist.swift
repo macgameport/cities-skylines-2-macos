@@ -17,7 +17,8 @@ import CoreGraphics
 import Foundation
 
 // `--displays`: one line per ONLINE display (the ACTIVE list is empty while the panels sleep),
-// its bounds in global POINTS (the same space as the window `at=`/`size=` below), main flagged.
+// its bounds in global POINTS (the same space as the window `at=`/`size=` below), main flagged,
+// and whether it is ASLEEP (perf-bench voids a cycle run against a sleeping panel, 2026-10-10).
 // Added 2026-10-10: livedrag-probe clamped its recording rect to system_profiler's `Resolution:`,
 // which on a Retina panel is DEVICE pixels (5120x2880 on the Studio Display, whose point size is
 // 2560x1440), so the clamp never bound.
@@ -28,7 +29,7 @@ if CommandLine.arguments.contains("--displays") {
     CGGetOnlineDisplayList(n, &ids, &n)
     for id in ids {
         let b = CGDisplayBounds(id)
-        print("display=\(id) main=\(CGDisplayIsMain(id) != 0 ? 1 : 0) size=\(Int(b.width))x\(Int(b.height)) at=\(Int(b.minX)),\(Int(b.minY))")
+        print("display=\(id) main=\(CGDisplayIsMain(id) != 0 ? 1 : 0) size=\(Int(b.width))x\(Int(b.height)) at=\(Int(b.minX)),\(Int(b.minY)) asleep=\(CGDisplayIsAsleep(id) != 0 ? 1 : 0)")
     }
     exit(0)
 }

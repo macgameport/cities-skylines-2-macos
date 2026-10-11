@@ -11,7 +11,9 @@
 # Teardown: WM_CLOSE to the game window (win-resize-driver.exe close, as boot-verify.sh does), so
 #   Unity writes its graceful-exit report (allocator stats, Job.Worker list) into Player.log; SIGTERM
 #   only if that fails. CS2_TEARDOWN=sigterm restores the old SIGTERM-only ending. The row records
-#   `teardown` and `graceful`; Player.log is copied beside the run log. Added 2026-10-10 (perf-pass
+#   `teardown` and `graceful`; Player.log is copied beside the run log.
+#   Also wakes the display first and records `display_awake` / `locked` (a sleeping panel changes
+#   the numbers — see the state block below). Added 2026-10-10 (perf-pass
 #   re-check: a SIGTERM'd Player.log carries none of P4's load signals).
 # Output: human summary on stdout; one JSON row appended to ~/cs2-patch/perf-runs/results.jsonl
 #         (frame-time series reduced to stats — raw series stays in Benchmark.coc until the next run
@@ -29,6 +31,20 @@ mkdir -p "$RUNDIR"
 
 BC_BEFORE=$(stat -f %m "$BC" 2>/dev/null || echo 0)
 T_START=$(date +%s)
+
+# Display + session state are part of the measurement (2026-10-10): runs with the panels ASLEEP read
+# GPU-bound 2-9 % and gpuMs ~21.5 where the same config with them awake read 18-20 % and 17.5 —
+# perf-run's `caffeinate -dis` stops idle sleep but never wakes a panel that is already off. So wake
+# it (`caffeinate -u` declares user activity; it does not unlock), and record both states in the row.
+{ [ -x /tmp/winlist ] && [ /tmp/winlist -nt "$SELF_DIR/winlist.swift" ]; } \
+  || swiftc -O "$SELF_DIR/winlist.swift" -o /tmp/winlist 2>/dev/null
+caffeinate -u -t 5 >/dev/null 2>&1 &
+sleep 3
+main_awake() { /tmp/winlist --displays 2>/dev/null | grep -q 'main=1 .*asleep=0'; }
+is_locked() { ioreg -n Root -d1 -a 2>/dev/null | grep -q CGSSessionScreenIsLocked; }
+AWAKE_START=no; main_awake && AWAKE_START=yes
+LOCKED=no; is_locked && LOCKED=yes
+echo "    display awake at start: $AWAKE_START · session locked: $LOCKED"
 echo "=== bench cycle: $CELL (previous Benchmark.coc mtime: $BC_BEFORE)"
 
 CS2_ARGS="-benchmark${CS2_ARGS:+ $CS2_ARGS}" bash "$SELF_DIR/perf-run.sh" "$CELL" &
@@ -43,6 +59,9 @@ for i in $(seq 1 180); do
   [ "$NOW" -gt "$BC_BEFORE" ] && { ok=1; break; }
 done
 
+AWAKE_END=no; main_awake && AWAKE_END=yes   # sampled as the result lands, before teardown
+DISPLAY_AWAKE=no; [ "$AWAKE_START" = yes ] && [ "$AWAKE_END" = yes ] && DISPLAY_AWAKE=yes
+[ "$DISPLAY_AWAKE" = yes ] || echo "  ⚠ VOID as a measurement: the main display was ASLEEP during this cycle (start=$AWAKE_START end=$AWAKE_END)"
 [ "$ok" = 1 ] && sleep 10   # let the file finish writing and the menu settle
 
 # End the session at the idle menu. WM_CLOSE first, so the game exits the way a player's Quit does
@@ -91,9 +110,9 @@ cp "$PL" "$RUNDIR/$CELL-$(date '+%Y%m%d-%H%M%S')-Player.log" 2>/dev/null
 echo "  teardown=$TEARDOWN graceful=$GRACEFUL (Player.log: exit marker + allocator report $([ "$GRACEFUL" = yes ] && echo present || echo ABSENT))"
 
 if [ "$ok" = 1 ]; then
-  python3 - "$BC" "$CELL" "$RUNDIR/results.jsonl" "$TEARDOWN" "$GRACEFUL" <<'PY'
+  python3 - "$BC" "$CELL" "$RUNDIR/results.jsonl" "$TEARDOWN" "$GRACEFUL" "$DISPLAY_AWAKE" "$LOCKED" <<'PY'
 import json, sys, statistics, datetime
-bc, cell, out, teardown, graceful = sys.argv[1:6]
+bc, cell, out, teardown, graceful, awake, locked = sys.argv[1:8]
 raw = open(bc, encoding='utf-8', errors='replace').read()
 d = json.loads(raw[raw.index('{'):])['latestResult']
 def series_stats(name):
@@ -116,6 +135,7 @@ row = {
     'quality': d.get('graphicsQuality'), 'resolution': d.get('screenResolution'),
     'gameVersion': d.get('gameVersion'),
     'teardown': teardown, 'graceful': graceful == 'yes',
+    'display_awake': awake == 'yes', 'locked': locked == 'yes',
 }
 with open(out, 'a') as f:
     f.write(json.dumps(row) + '\n')

@@ -197,6 +197,10 @@ ran a different quality profile and don't transfer.
   panel is a 60 FPS min-duration cap (`d3d11_swapchain.cpp:762-766`) — against the plan's
   vsync-off rule (found by the 2026-10-10 re-check). The cap can only hold numbers DOWN, so the
   verdict below stands; the rows are not a noise floor and not P3–P5 baselines (Studio M0 is).
+- **Display state (added 2026-10-10 22:1x):** these three ran with the display AWAKE (user activity
+  18:22:06, display on 18:22:07–18:43:20). Later rows `teardown-test-*`, `studio-m0-vsoff-warmup` and
+  `studio-awake-control-vson` ran with the panel ASLEEP under a locked session (gpuBound 2–9 %,
+  gpuMs 21–24) and are **VOID as measurements** — GOTCHAS § Measurement traps (locked display).
 - **Verdict for #2's `home-hidpi` row: not needed for performance on this machine** — at native
   2560×1440 the scene stays sim-dominated (gpuBound 18–20 %) and every metric beats the accepted
   baseline. ⚠ The bench understates pixel cost on the GPU-bound live city (retina series: 25.4 →

@@ -2635,6 +2635,14 @@ mutant that flips the answer it tests. **Generalise:** when a test's "no input" 
 - **`perf-bench.sh` ends the game with SIGTERM, and a SIGTERM'd Player.log has no allocator report**
   (`Memory Statistics`, `[ALLOC_*]`, the `Job.Worker` list are written only on a graceful exit). Any
   cell whose load signal lives there needs a WM_CLOSE teardown, as `boot-verify.sh` does.
+- **A LOCKED session blanks the display after 30 s, and `caffeinate` cannot stop it** — and a
+  sleeping panel changes the benchmark: GPU-bound 2–9 % and gpuMs ~21.5 against 18–20 % and 17.5
+  with the display awake, same config (vsync on, 2026-10-10). Measured: `caffeinate -u` woke the
+  panel at 22:05:00, it went dark at 22:05:30 under the lock with `caffeinate -d` held and a second
+  `-u` at 22:05:28; earlier, every bench cycle after 21:46:58 ran dark. `perf-bench.sh` now wakes the
+  display, records `display_awake` + `locked` per row, and flags a dark cycle VOID. **A valid bench
+  needs the session UNLOCKED** (then `caffeinate -d` holds the panel). The 18:24 C75 trio ran awake —
+  WindowServer user activity at 18:22:06 — so it stands.
 - **`full-client-episodes.py` compares recording pixels with a window area in points** — fine at 1×,
   a 4× easier bar on a 2× display. Normalise before scoring anything recorded on the Studio.
 - **`gmake -n -B` is not a dry run in a wine build tree** — make still runs the makefile-remake rules,
