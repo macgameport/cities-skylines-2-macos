@@ -93,13 +93,15 @@ Only P0 is current. P1–P4 are planning-only until their entry gate is met.
 - **Launcher preflight (P0 build task):** `arch -x86_64 /usr/bin/true` at launch, failing with a
   message that names the reinstall command. C69 failed silently ("Bad CPU type" in no visible
   place) and nothing in `launchers/` checks for it today (0 hits).
-- **D4 enforcement:** James turns off automatic macOS major upgrades (a human step).
+- **D4 enforcement** (deferred 2026-10-11 — revisit with D5): James turns off automatic macOS major
+  upgrades before the macOS 28 release (a human step).
 - `.gitignore` covers `*.mobileprovision`, `*.p12`, `*.cer` (added with this check, ahead of D2).
 - Run the §5 watch list monthly (fold into `clean up`); record each run as a dated comment on #16.
 - P0 never "exits"; it runs until P4 promotes. P1 starts on D1, independent of W-triggers.
 
 ### P1 — Prototype on someone else's build (no engine build of ours)
-Entry: **D1 resolved.** Do this early: P1 is the measurement that decides whether P2 is worth doing.
+Entry: **D1 resolved** — resolved 2026-10-11 as *wait*, so P1 is parked until D1 is revisited (§7).
+When it starts, do it early: P1 is the measurement that decides whether P2 is worth doing.
 - **Binary admission (before any third-party binary runs — FEX-darwin, neutron, a DXMT CI
   artifact, CrossOver Preview):**
   (a) every download needs James's explicit OK;
@@ -219,6 +221,8 @@ full table runs at the end of **P4**.
   built from source, but mostly AI-written, 1 day old at the check, its entitlement route unknown,
   and its installer re-signs `/Applications/Steam.app` ad hoc; it drops Windows Steam, so it cannot
   test our Steam UI work; (c) wait for our own build after W1.
+  **DECIDED 2026-10-11 (James): (c) wait.** No borrowed build now. Revisit at the monthly watch run if
+  W6 trips (neutron documents its entitlement route / matures) or CrossOver 27 ships.
 - **D2** — Entitlement route for P2: the free Apple account + `…-unmanaged` profile. **Disabling SIP
   is recorded as upstream context only and is not an option** (machine rule: no changes to system
   security settings). The free route is not footprint-free: an Apple ID in Xcode, a development
@@ -229,9 +233,11 @@ full table runs at the end of **P4**.
   UDID, Team ID, App ID, profile, certificate and any `codesign -d --entitlements` output stay
   outside the repo (`~/cs2-patch/`); the repo carries only a generic entitlements template.
 - **D3** — Is 70 % of today's frame rate (against the references in P1's gate) the right bar for
-  "port, not downgrade"?
+  "port, not downgrade"? **DECIDED 2026-10-11 (James): 70 % stands.**
 - **D4** — Hold the Studio on macOS 27 until P4 promotes (recommended, §1), with automatic major
-  upgrades turned off.
+  upgrades turned off. **DEFERRED 2026-10-11 (James):** macOS 27 has just shipped and 28 is ~a year
+  out, so nothing to fence yet — revisit with D5. The near-term risk is a 27.x point update removing
+  Rosetta again (C69), which P0's post-update check and launcher preflight cover, not D4.
 - **D5 — decide by 2027-05-01** (before the macOS 28 betas): if W1 has not tripped, choose one of
   (a) CrossOver ARM64 as the daily runtime, without our patches (losing the out-of-process Steam UI);
   (b) P2-alt on a public community tree + FEX-darwin; (c) an indefinite hold on macOS 27 (D4).
