@@ -72,7 +72,10 @@ look good … pretty solid"*). If looks ever outrank frames, LOD 0.25→0.5 buys
 **Re-checked 2026-10-10 on the Mac Studio (plan pass 2): P3 build-ready-with-fixes once a Studio M0
 floor exists (60 Hz panel ⇒ vsync off in every cell, B1 cap 30/60), P4/P5 needs-rework (graceful-quit
 teardown for the allocator signals; baseline + margin re-fixed on this machine; D5 closed — no High
-Power Mode).** Remaining, otherwise unchanged since 2026-08-24: P3 pacing cells (`preferredMaxFrameRate`, vsync
+Power Mode).** **2026-10-10 evening:** harness ready for P3/P4 (WM_CLOSE teardown, per-row
+`display_awake` / `locked` / `screen_shared`); **Studio M0 still owed** — two attempts were void as M0
+(display asleep under the lock; then a Screen Sharing viewer, ~10 % cost). Needs: unlocked, display
+awake, no viewer. Remaining, otherwise unchanged since 2026-08-24: P3 pacing cells (`preferredMaxFrameRate`, vsync
 decision) · P4 late-game CPU cells (M0-L baseline + boot.config levers) · P5 ship (README numbers +
 wiki draft — unblocked by the verdict, not yet done). Out of scope unchanged (DXMT rebuild,
 alternative layers, Rosetta experiments); the MoltenVK dylib update is **cancelled** (2026-08-24,
