@@ -90,9 +90,12 @@ Only P0 is current. P1–P4 are planning-only until their entry gate is met.
   it fails, James runs `softwareupdate --install-rosetta --agree-to-license` (a human step); then
   `bash scripts/boot-verify.sh` must PASS before any "the stack is broken" claim; one line in
   `~/cs2-patch/change-ledger.txt`.
-- **Launcher preflight (P0 build task):** `arch -x86_64 /usr/bin/true` at launch, failing with a
-  message that names the reinstall command. C69 failed silently ("Bad CPU type" in no visible
-  place) and nothing in `launchers/` checks for it today (0 hits).
+- **Launcher preflight — ✅ BUILT 2026-10-11.** The `>>> rosetta-preflight` block in
+  `launchers/launch-cs2-dxmt11.sh` runs the engine's own `wine64 --version` first, so a future
+  arm64 engine passes untouched. If that fails, it checks `arch -x86_64 /usr/bin/true` to decide
+  between "Rosetta 2 is not installed" (with the reinstall command) and "Wine cannot start" (with
+  wine's output). C69 had failed silently. Test: `scripts/test-rosetta-preflight.sh`, 6 cases
+  including a live run against the real engine; three mutants were observed red.
 - **D4 enforcement** (deferred 2026-10-11 — revisit with D5): James turns off automatic macOS major
   upgrades before the macOS 28 release (a human step).
 - `.gitignore` covers `*.mobileprovision`, `*.p12`, `*.cer` (added with this check, ahead of D2).

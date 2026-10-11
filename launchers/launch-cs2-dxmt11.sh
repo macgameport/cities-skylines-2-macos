@@ -70,6 +70,18 @@ export DYLD_FALLBACK_LIBRARY_PATH="$APP/Contents/Frameworks:$SS/wine/lib:/usr/li
 export WINEDEBUG="${WINEDEBUG:--all}"
 PATCH_DIR="${CS2_PATCH_DIR:-$HOME/cs2-patch}"
 
+# >>> rosetta-preflight
+# Rosetta preflight (2026-10-11, docs/plans/arm64-migration.md P0). This engine is x86_64, and a
+# macOS update can remove Rosetta silently: 27.0.1 did (C69), and every launch then died with
+# "Bad CPU type" where nobody saw it. Ask the engine itself first, so a future arm64 build passes
+# untouched; only when it cannot run, tell a missing Rosetta apart from any other failure.
+if ! wine_out="$("$WINE" --version 2>&1)"; then
+  arch -x86_64 /usr/bin/true 2>/dev/null \
+    || die "Rosetta 2 is not installed (a macOS update can remove it). In Terminal run: softwareupdate --install-rosetta --agree-to-license, then launch again."
+  die "Wine cannot start ($WINE): ${wine_out:-no output}"
+fi
+# <<< rosetta-preflight
+
 # Display profile (home/external vs mobile/built-in) — docs/plans/launcher-display-profiles.md
 # CS2_PROFILE=home|mobile|off overrides auto-detect. Never blocks a launch: missing/failing
 # helper = one warning line, boot continues untouched.

@@ -26,9 +26,9 @@
 #     log (→ FAIL), and only a run that never wrote a line leaves the previous log in place (→ VOID).
 #     Its first line carries [YYYY-MM-DD HH:MM:SS,mmm] in local time; `MainMenu reached` appears
 #     once; `GameManager destroyed` is written only on a graceful exit. Player.log has no MainMenu.
-#   - The launcher (launch-cs2-dxmt11.sh) runs Cities2.exe in the FOREGROUND (:283), then shuts
-#     Steam down itself (:286-319). Never shut Steam down from here. It always exits 0 (:323); the
-#     game's rc is only in its `Game exited (rc=N)` line (:289); `die` exits 1 (:52). With
+#   - The launcher (launch-cs2-dxmt11.sh) runs Cities2.exe in the FOREGROUND (:295), then shuts
+#     Steam down itself (:298-331). Never shut Steam down from here. It always exits 0 (:335); the
+#     game's rc is only in its `Game exited (rc=N)` line (:301); `die` exits 1 (:52). With
 #     CS2_QUIET=1 `die` shows a MODAL alert (:48) that would hang a headless run; with QUIET=0 and
 #     stdin from /dev/null its `read -n1` fails and it exits at once — so it runs QUIET=0 </dev/null.
 #   - The game window is class=UnityWndClass title=Cities: Skylines II. `win-resize-driver.exe close`
@@ -43,7 +43,7 @@
 #     down. macOS ships no `setsid`; perl's POSIX::setsid does the same job. perl and bash are both
 #     SIP-protected, so DYLD_* is purged on their exec — harmless: the launcher re-exports
 #     DYLD_FALLBACK_LIBRARY_PATH itself (:67) before wine runs. The launcher's own "never
-#     nohup/setsid" rule (:172-178) is about ITS Steam line, not about how it is started.
+#     nohup/setsid" rule (:184-190) is about ITS Steam line, not about how it is started.
 #   - A failed `close` (driver rc != 0, or no window found) goes straight to the SIGTERM fallback —
 #     nothing was posted, so there is nothing to wait 120 s for. The signal goes to the GAME pids
 #     only, never steam.exe (a TERM leaves the same .crash marker a KILL does).
