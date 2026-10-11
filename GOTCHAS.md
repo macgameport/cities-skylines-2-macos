@@ -2643,6 +2643,9 @@ mutant that flips the answer it tests. **Generalise:** when a test's "no input" 
   display, records `display_awake` + `locked` per row, and flags a dark cycle VOID. **A valid bench
   needs the session UNLOCKED** (then `caffeinate -d` holds the panel). The 18:24 C75 trio ran awake —
   WindowServer user activity at 18:22:06 — so it stands.
+- **A Screen Sharing viewer costs ~10 % on the benchmark** — 43 FPS with one connected (22:40–23:05,
+  display awake, unlocked) against 47.8 without (C75), same config. Unlocking remotely means a viewer
+  is attached; disconnect it before a measured series. perf-bench records `screen_shared`.
 - **`full-client-episodes.py` compares recording pixels with a window area in points** — fine at 1×,
   a 4× easier bar on a 2× display. Normalise before scoring anything recorded on the Studio.
 - **`gmake -n -B` is not a dry run in a wine build tree** — make still runs the makefile-remake rules,

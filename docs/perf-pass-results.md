@@ -206,3 +206,28 @@ ran a different quality profile and don't transfer.
   baseline. ⚠ The bench understates pixel cost on the GPU-bound live city (retina series: 25.4 →
   45.9 ms live for 4× pixels on the M3 Max), so the closing measurement is one live-city HUD reading
   (`CS2_HUD=1`) in James's next session.
+
+### Studio M0 attempt 2 (2026-10-10 22:40–23:05) — unlocked, display awake, but SCREEN-SHARED
+
+All five cycles: display awake, session unlocked, graceful WM_CLOSE exit — and a Screen Sharing viewer
+connected throughout (`screensharingd` "Remote user is connected" from 22:40:00). Vsync-off was applied
+before each cycle (the game writes `true` back on every graceful exit); Settings.coc restored after.
+
+| cell | vSync | avgFps | gpuMs avg | gpuBound % | cpuGameMs | 1%-low (cpuFrame p99) |
+|---|---|---|---|---|---|---|
+| studio-m0-vson-control | on | 43.24 | 22.1 | 14.6 | 12.8 | 32.6 |
+| studio-m0-vsoff-warmup | off | 43.56 | 22.6 | 2.8 | 11.6 | 36.8 |
+| studio-m0-vsoff-1 | off | 43.32 | 20.6 | 5.9 | 11.9 | 36.3 |
+| studio-m0-vsoff-2 | off | 41.22 | 26.8 | 17.5 | 14.2 | 15.6 |
+| studio-m0-vsoff-3 | off | 42.68 | 22.0 | 17.4 | 13.2 | 30.7 |
+
+- **~10 % below C75 (47.8) at the same config with the display awake** — the difference is the
+  Screen Sharing stream (C75 had none: no `screensharingd` assertion 17:00–18:45). **Not a Studio
+  M0**: it is a floor for the screen-shared condition only (vsync-off 1–3: 41.22–43.32, 2.1 FPS ≈ 5 %).
+- **Vsync has no measurable effect here**: the vsync-on control sits inside the vsync-off spread —
+  expected, a 60 FPS cap does not bind on ~23 ms frames. Whether the edit is honoured at all is still
+  unproven (no effect either way to see), so P3's vsync cell needs a scene that reaches 60.
+- `gpuBoundPercent` swings 2.8–17.5 % between identical vsync-off runs — **not a stable metric**; do
+  not use it as a regime indicator.
+- Valid M0 conditions, now recorded per row by perf-bench (`display_awake`, `locked`,
+  `screen_shared`): display awake, session unlocked, **no Screen Sharing viewer**.

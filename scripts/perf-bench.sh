@@ -44,7 +44,10 @@ main_awake() { /tmp/winlist --displays 2>/dev/null | grep -q 'main=1 .*asleep=0'
 is_locked() { ioreg -n Root -d1 -a 2>/dev/null | grep -q CGSSessionScreenIsLocked; }
 AWAKE_START=no; main_awake && AWAKE_START=yes
 LOCKED=no; is_locked && LOCKED=yes
-echo "    display awake at start: $AWAKE_START · session locked: $LOCKED"
+# A Screen Sharing viewer streams the display, which costs GPU/CPU: the same config read ~43 FPS with
+# one connected (2026-10-10 22:40-23:05) against 47.8 without (C75). Recorded, not refused.
+SHARED=no; pmset -g assertions 2>/dev/null | grep -q "Remote user is connected" && SHARED=yes
+echo "    display awake at start: $AWAKE_START · session locked: $LOCKED · screen sharing: $SHARED"
 echo "=== bench cycle: $CELL (previous Benchmark.coc mtime: $BC_BEFORE)"
 
 CS2_ARGS="-benchmark${CS2_ARGS:+ $CS2_ARGS}" bash "$SELF_DIR/perf-run.sh" "$CELL" &
@@ -110,9 +113,9 @@ cp "$PL" "$RUNDIR/$CELL-$(date '+%Y%m%d-%H%M%S')-Player.log" 2>/dev/null
 echo "  teardown=$TEARDOWN graceful=$GRACEFUL (Player.log: exit marker + allocator report $([ "$GRACEFUL" = yes ] && echo present || echo ABSENT))"
 
 if [ "$ok" = 1 ]; then
-  python3 - "$BC" "$CELL" "$RUNDIR/results.jsonl" "$TEARDOWN" "$GRACEFUL" "$DISPLAY_AWAKE" "$LOCKED" <<'PY'
+  python3 - "$BC" "$CELL" "$RUNDIR/results.jsonl" "$TEARDOWN" "$GRACEFUL" "$DISPLAY_AWAKE" "$LOCKED" "$SHARED" <<'PY'
 import json, sys, statistics, datetime
-bc, cell, out, teardown, graceful, awake, locked = sys.argv[1:8]
+bc, cell, out, teardown, graceful, awake, locked, shared = sys.argv[1:9]
 raw = open(bc, encoding='utf-8', errors='replace').read()
 d = json.loads(raw[raw.index('{'):])['latestResult']
 def series_stats(name):
@@ -135,7 +138,7 @@ row = {
     'quality': d.get('graphicsQuality'), 'resolution': d.get('screenResolution'),
     'gameVersion': d.get('gameVersion'),
     'teardown': teardown, 'graceful': graceful == 'yes',
-    'display_awake': awake == 'yes', 'locked': locked == 'yes',
+    'display_awake': awake == 'yes', 'locked': locked == 'yes', 'screen_shared': shared == 'yes',
 }
 with open(out, 'a') as f:
     f.write(json.dumps(row) + '\n')
