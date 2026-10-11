@@ -1760,8 +1760,10 @@ the ordering has to be worked out first. That is upstream wine work, unrelated t
 answers the ordering problem above from win32u, where the rects are computed: when the client
 extends past the visible rect, the window rect becomes the visible rect, so winemac's existing
 `EqualRect(window, visible)` escape fires and the caption space is no longer reserved. On the
-reproducer it removes the title bar and makes the Cocoa frame equal the Win32 window rect. Not yet
-carried into the daily engine, so the Paradox launcher still shows the offset here.
+reproducer it removes the title bar and makes the Cocoa frame equal the Win32 window rect.
+**2026-10-11: now carried** — the daily engine's `win32u.so` has it (b48d166) and `build-engine-1116.sh`
+applies it (1e2ab47). Whether the real launcher window is fixed is **not yet observed** — boot-verify never
+opens it; tracked in [#18](https://github.com/macgameport/cities-skylines-2-macos/issues/18).
 ## The Paradox launcher's PLAY: `ENOENT` is not a missing file (2026-08-31, OPEN)
 
 > **Ledger:** `SUPPORTED` — C25. Evidence: the launcher log across two attempts, one with an
