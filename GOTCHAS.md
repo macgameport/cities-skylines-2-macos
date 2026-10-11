@@ -2583,9 +2583,11 @@ hash alone cannot prove a tree is stock — `cmp` the source against the tarball
 **Corrected later 2026-10-10 — not a macOS 27 regression.** With the display held awake
 (`caffeinate -d -u`), `screencapture -x -o -l <id>` on a wine Notepad window in the CS2 prefix
 returned the real window at **2720×2048 for a 1360×1024-pt window (2×)**, under a LOCKED session,
-while `-R` on the same window failed (it composites the display, which shows the lock). That error
-string is the § "screencapture goes silently blind" display-SLEEP failure: hold the display awake
-before blaming the OS. Steam's own window is the next thing to confirm, not assume.
+while `-R` on the same window failed (it composites the display, which shows the lock). It is NOT
+the display-sleep failure either: the note above had `-R` working, so that display was awake. What
+differs is the WINDOW — the 60262 reproducer's frameless popup on the test engine, against an
+ordinary Notepad window on the installed one. So `-l` is window/build-specific, not broken on
+macOS 27; confirm it on Steam's window (display awake) before relying on it, and never assume.
 
 ## The launcher never lets Steam update the game — mods drift ahead of it (2026-10-10)
 
