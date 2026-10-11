@@ -145,11 +145,12 @@ instrument answers "what is actually happening, and can I trust the number?".
 | `regen-winemac-patches.sh` | Generate the three published `winemac.drv` patches from git. `--check` verifies them against the tree **and** asserts three structural invariants about the `stock`/`aquadran`/`core`/`main` branch model |
 
 
-> The ten `*.patch` files in this directory are **generated artifacts, not sources** — the
+> The eleven `*.patch` files in this directory are **generated artifacts, not sources** — the
 > `winemac-*` set by `regen-winemac-patches.sh` (gated by its `--check`), the `dxmt-*` and
-> `wineandaqua-*` set carried from upstream/vendor. They are indexed by their generator rather than
+> `wineandaqua-*` set carried from upstream/vendor, and `wine-6cfa941-*` (upstream wine commit
+> 6cfa941 verbatim, applied by `build-engine-1116.sh`; drop it once the engine moves to a wine release that carries it). They are indexed by their generator rather than
 > row by row, so an audit that lists "files not named in this README" will always return exactly
-> those ten; that is expected, not drift.
+> those eleven; that is expected, not drift.
 | `strip-comments.py` | Compare two revisions of a C/ObjC file for **code** equality, ignoring comments — how a comment-only edit is proven to be comment-only |
 | `make-shortcut.sh` · `make-steam-shortcut.sh` · `make-vanilla-wrapper.sh` | Build the double-clickable launchers in `~/Applications`, and a throwaway wrapper carrying vanilla wined3d |
 | `install-webhelper-shim.sh` | documented in the reproducers table above |

@@ -7,6 +7,7 @@
 #   1. checks toolchain + your existing Wine 11 + DXMT wrapper
 #   2. downloads the official wine-11.16 source from winehq.org (sha256-verified)
 #   3. applies the winemac DXMT-support patch (aquadran's, in this repo)
+#      and wine 6cfa941 (frameless-window fix, upstream but unreleased as of 11.19; wine bug 60262)
 #   4. builds wine (x86_64 + i386 PE, new-WoW64) — roughly 45-60 min on an M3 Max
 #   5. assembles the engine, reusing the DXMT binaries and x86_64 dylibs FROM YOUR OWN wrapper
 #   6. swaps it into the wrapper (old engine kept as wine.pk11.0-BAK — rollback is one `mv`)
@@ -89,6 +90,13 @@ if [ ! -f "$PATCHED/dlls/winemac.drv/dxmt_objc.m" ]; then
   fi
   cp -Rc "$SRC" "$PATCHED" 2>/dev/null || cp -R "$SRC" "$PATCHED"
   ( cd "$PATCHED" && patch -p1 < "$REPO/scripts/wineandaqua-dxmt.patch" ) || die "DXMT winemac patch did not apply — wine $WINE_VER expected"
+fi
+# Upstream wine 6cfa941 (Julliard, 2026-10-07; in no release as of wine-11.19): stops winemac giving frameless-but-
+# resizable windows (Electron/CEF — the Paradox launcher) a macOS title bar and a ~28 pt mouse offset.
+# wine bug 60262, closed as a duplicate of 42877. Applied on its own so a tree patched before
+# 2026-10-11 picks it up on a re-run; skipped once applied.
+if ! grep -q "if client rect extends into non-visible area" "$PATCHED/dlls/win32u/window.c"; then
+  ( cd "$PATCHED" && patch -p1 -F 0 < "$REPO/scripts/wine-6cfa941-win32u-visible-rect.patch" ) || die "wine 6cfa941 (win32u) patch did not apply — wine $WINE_VER expected"
 fi
 echo "  patched tree: $PATCHED"
 

@@ -9,6 +9,8 @@
 > `DYLD_FALLBACK_LIBRARY_PATH` or the font tool dies mid-build; (3) the one-time 11.16 prefix
 > update must be run *controlled* with `WINEDLLOVERRIDES="mscoree=;mshtml="` — under the launcher
 > it hangs invisibly on the wine-mono dialog and surfaces as a bogus "Steam token expired".
+> **2026-10-11:** the build also applies upstream wine 6cfa941 (`scripts/wine-6cfa941-win32u-visible-rect.patch`,
+> `patch -F 0`, idempotent; wine bug 60262) — step 1, after the DXMT patch. Measured fix: `docs/wine-bugs/R4-frameless-window-decorated.md`.
 > **Verify against:** `scripts/build-engine-1116.sh` · `docs/wine-bugs/measurement-engine1116.txt`
 > (every gate's raw numbers) · `scripts/run-minrepro3.sh` (hardened harness).
 > **Not done:** V2 log diff, V6b boot-clean, V9 borderless flip — deferred to the next launch.

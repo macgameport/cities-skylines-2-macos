@@ -1,0 +1,30 @@
+From 6cfa941df3f385ab025aa2c458753c017aa49ccc Mon Sep 17 00:00:00 2001
+From: Alexandre Julliard <julliard@winehq.org>
+Date: Wed, 7 Oct 2026 12:44:25 +0200
+Subject: [PATCH] win32u: Display the full client area if it extends into the
+ window decorations.
+
+As an alternative to !7024.
+---
+ dlls/win32u/window.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/dlls/win32u/window.c b/dlls/win32u/window.c
+index e2bde691d21..03ce3987349 100644
+--- a/dlls/win32u/window.c
++++ b/dlls/win32u/window.c
+@@ -2155,6 +2155,11 @@ static RECT get_visible_rect( HWND hwnd, BOOL shaped, UINT style, UINT ex_style,
+     if (visible_rect.top >= visible_rect.bottom) visible_rect.bottom = visible_rect.top + 1;
+     if (visible_rect.left >= visible_rect.right) visible_rect.right = visible_rect.left + 1;
+ 
++    /* if client rect extends into non-visible area, use the full window rect */
++    if (rects->client.top < visible_rect.top || rects->client.left < visible_rect.left ||
++        rects->client.bottom > visible_rect.bottom || rects->client.right > visible_rect.right)
++        visible_rect = rects->window;
++
+     TRACE( "hwnd %p, rects %s, style %#x, ex_style %#x -> visible_rect %s\n", hwnd,
+            debugstr_window_rects( rects ), style, ex_style, wine_dbgstr_rect( &visible_rect ) );
+     return visible_rect;
+-- 
+GitLab
+

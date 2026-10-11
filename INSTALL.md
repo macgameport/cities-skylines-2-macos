@@ -117,7 +117,10 @@ DLC and browse from **CS2 Steam Store.app** — licences are account-level, so p
 over immediately. One account holds one online Steam session, so opening the store while
 playing steals the session from the game's Steam; measured harmless — the game keeps running,
 and the next game launch takes the session back. Built the engine before this existed?
-`bash scripts/make-steam-shortcut.sh` retrofits the wrapper + shortcut. Cause and the full
+`bash scripts/make-steam-shortcut.sh` retrofits the wrapper + shortcut. Since 2026-10-11 the
+build also applies upstream wine commit 6cfa941, which stops frameless Electron windows (the
+Paradox launcher) getting a macOS title bar and clicks landing ~28 pt low; an engine built
+before then picks it up by re-running the script (a full rebuild and reinstall). Cause and the full
 list of attempted workarounds: [GOTCHAS.md](GOTCHAS.md) and
 [dxmt#141](https://github.com/3Shain/dxmt/issues/141).
 
