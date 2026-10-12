@@ -67,6 +67,12 @@ case "${1:-}" in
   *) echo "unknown arg: $1" >&2; exit 64 ;;
 esac
 mkdir -p "$OUT"
+# T1-T4 score captures with pixel-probe and find windows with winlist. Build both here: before
+# 2026-10-12 only shimmer-probe.sh built them, and it runs AFTER T1-T4, so on a fresh /tmp every
+# T1/T2 delta read the 999 sentinel and T3/T4 printed blank luminance -- a void run that looked
+# like a run (cw-test 20261012-140221, run A).
+[ -x /tmp/pixel-probe ] || swiftc -O "$REPO/scripts/pixel-probe.swift" -o /tmp/pixel-probe || exit 1
+[ -x /tmp/winlist ] || swiftc -O "$REPO/scripts/winlist.swift" -o /tmp/winlist || exit 1
 export WINEPREFIX="$SS/prefix"
 export DYLD_FALLBACK_LIBRARY_PATH="${CS2_WRAPPER:-$HOME/Applications/CS2dxmt11.app}/Contents/Frameworks:$SS/wine/lib:/usr/lib:/usr/local/lib"
 
