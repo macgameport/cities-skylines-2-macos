@@ -195,30 +195,26 @@ run_t1() {
   WINEDEBUG=-all "$W" "$S/steam.exe" steam://open/games >/dev/null 2>&1; sleep 12
   for C in $(hosted_candidates "$1" "$H"); do
     b=$(shot "$1-$C-before") || continue
-    # Find a column pair 120 apart with real contrast instead of assuming x=40/160 has it. Steam's
-    # pages are frequently flat at any one place, and a flat control voided the mutant runs twice.
-    X=0; nc=0
-    for x in 40 120 200 300 420 560 700 860 1020 1200 1400; do
-      local c; c=$(dchan "$(strip_at "$b" $x)" "$(strip_at "$b" $((x+120)))")
-      [ "$c" -gt "$nc" ] && { nc=$c; X=$x; }
-      [ "$nc" -gt 25 ] && break
-    done
-    [ "$nc" -le 8 ] && { echo "    $C: skipped, best control $nc over 11 column pairs (content is flat)"; continue; }
-    s40=$(strip_at "$b" $X); s160=$(strip_at "$b" $((X+120)))
-    echo "    $C: measuring at x=$X vs x=$((X+120)), control $nc"
     drv move "$C" +120,+0 >/dev/null; sleep 1
     a=$(shot "$1-$C-after") || { drv move "$C" -120,+0 >/dev/null; continue; }
-    mi=$(dchan "$(strip_at "$a" $((X+120)))" "$s40")      # did before@40 arrive at 160?
-    lo=$(dchan "$(strip_at "$a" $X)" "$s40")       # did 40 stop showing it?
-    local same40 same160
-    same40=$(dchan "$(strip_at "$a" $X)" "$s40"); same160=$(dchan "$(strip_at "$a" $((X+120)))" "$s160")
     drv move "$C" -120,+0 >/dev/null; sleep 1
-    if [ "$mi" -le 8 ] && [ "$lo" -gt 8 ]; then
-      echo "    $C: GREEN — content shifted +120 (moved-in $mi, left-old $lo, control $nc)"; verdict=GREEN; break
-    elif [ "$same40" -le 2 ] && [ "$same160" -le 2 ]; then
-      echo "    $C: RED — capture unchanged at both strips, the layer did not follow (control $nc)"; verdict=RED; break
+    # MEASURE where the changed content went (scripts/t1-shift.py) instead of comparing two fixed
+    # columns 120 px apart: on the Studio a +120 driver move lands as 72 Win32 px (144 capture px at
+    # 2x), and the old chooser checked contrast on one side of X only, so T1 read VOID on a layer that
+    # followed (2026-10-12). GREEN = the change is explained by a rightward shift clearly better than
+    # by none; RED = nothing changed, the layer stayed; anything else is this child being ambiguous.
+    local r best m m0
+    r=$(/usr/bin/python3 "$REPO/scripts/t1-shift.py" "$b" "$a" 2>/dev/null)
+    best=$(echo "$r" | sed -nE 's/.*best=(-?[0-9]+).*/\1/p'); best=${best:-0}
+    m=$(echo "$r" | sed -nE 's/.* match=([0-9.]+).*/\1/p' | tr -d .); m0=$(echo "$r" | sed -nE 's/.*match0=([0-9.]+).*/\1/p' | tr -d .)
+    m=$((10#${m:-0})); m0=$((10#${m0:-0}))
+    echo "    $C: $r"
+    if [ "$best" -ge 16 ] && [ $((m - m0)) -ge 8 ]; then
+      echo "    $C: GREEN — content shifted right by ${best} capture px (match ${m}% vs ${m0}% unshifted)"; verdict=GREEN; break
+    elif [ "$best" -eq 0 ] && [ "$m0" -ge 99 ]; then
+      echo "    $C: RED — capture unchanged after the move, the layer did not follow"; verdict=RED; break
     else
-      echo "    $C: ambiguous (moved-in $mi, left-old $lo, unchanged40 $same40, unchanged160 $same160) — layer likely behind another; next"
+      echo "    $C: ambiguous — layer likely behind another; next"
     fi
   done
   [ "$verdict" = NONE ] && echo "    VOID: no hosted child gave a decisive answer"
