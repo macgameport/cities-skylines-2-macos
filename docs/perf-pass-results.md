@@ -231,3 +231,35 @@ before each cycle (the game writes `true` back on every graceful exit); Settings
   not use it as a regime indicator.
 - Valid M0 conditions, now recorded per row by perf-bench (`display_awake`, `locked`,
   `screen_shared`): display awake, session unlocked, **no Screen Sharing viewer**.
+
+
+### Studio M0 (2026-10-12 15:20–15:52) — VALID. Floor and margins fixed (ledger C76)
+
+Conditions, recorded per row by perf-bench: display awake, session unlocked, **no Screen Sharing**,
+graceful WM_CLOSE teardown, Player.log `Window resolution: 2560x1440` on every cycle (the series
+stops otherwise). Each cycle: `"vSync": false` and `"displayMode": "FullscreenWindow"` set as
+complete-value edits with the game closed; `CS2_PROFILE=off` so the launcher profile cannot rewrite
+the baseline's DRS block; Screenmanager "Use Native"=1 written by the series (the profile's other
+half). Settings.coc restored after the series (sha256). Script: `~/cs2-patch/perf-runs/studio-m0-20261012.sh`.
+
+| cell | avgFps | gpuMs avg / p95 | cpuGameMs | cpuMs p95 | gpuBound % | cpuFrame 1%-low | simTicks |
+|---|---|---|---|---|---|---|---|
+| warm-up (daily, discarded) | 47.62 | 17.1 / 19.0 | 10.0 | 17.3 | 12.8 | 45.2 | 8338 |
+| daily-1 | 47.69 | 17.0 / 18.6 | 9.9 | 16.8 | 15.7 | 46.7 | 8310 |
+| daily-2 | 47.73 | 17.1 / 19.4 | 9.9 | 16.9 | 13.5 | 45.2 | 8330 |
+| daily-3 | 47.82 | 17.2 / 19.8 | 9.9 | 16.9 | 12.8 | 47.2 | 8309 |
+| base-1 | 44.91 | 17.2 / 20.2 | 10.2 | 19.1 | 22.8 | 40.8 | 8304 |
+| base-2 | 45.09 | 17.4 / 23.5 | 10.1 | 19.3 | 22.5 | 40.4 | 8309 |
+| base-3 | 45.06 | 17.0 / 18.8 | 10.2 | 19.2 | 24.0 | 40.7 | 8312 |
+
+- **Noise floor (avgFps max−min): daily driver 0.13 FPS (0.3 %), clean baseline 0.18 FPS (0.4 %).**
+  Both are under the plan's ~1 FPS minimum, so **KEEP margin = 1 FPS ≈ 2.2 % of the clean baseline
+  (45.02)**, and the **composed-profile margin for P5 is fixed at the same 1 FPS (2.2 %)** — the plan
+  names no separate rule for it, so the KEEP rule is applied to both (2026-10-12; revisit if P5 wants
+  a stricter bar). The M3 Max P0 floor (1.03 FPS ≈ 4.7 %) becomes the M3 Max stratum.
+- Daily driver beats the clean baseline by **+2.73 FPS (+6.1 %)**, with a better 1%-low (45–47 vs ~40.6).
+- Vsync off reads the same as C75's vsync-on 47.8: the bench never reaches the 60 FPS cap here.
+- `gpuBoundPercent` was stable this time (daily 13–16, base 22–24) — unlike the screen-shared attempt.
+- ⚠ **`CS2_PROFILE=off` is not "settings untouched":** the profile is two writes, and off also drops
+  "Use Native"=1. The game resets that to 0 on exit (after any in-game resolution change it remembers
+  the old size), so a first attempt without it ran at **1920×1080** and is VOID (TS 151106, 2 cycles).

@@ -74,9 +74,10 @@ look good … pretty solid"*). If looks ever outrank frames, LOD 0.25→0.5 buys
 floor exists (60 Hz panel ⇒ vsync off in every cell, B1 cap 30/60), P4/P5 needs-rework (graceful-quit
 teardown for the allocator signals; baseline + margin re-fixed on this machine; D5 closed — no High
 Power Mode).** **2026-10-10 evening:** harness ready for P3/P4 (WM_CLOSE teardown, per-row
-`display_awake` / `locked` / `screen_shared`); **Studio M0 still owed** — two attempts were void as M0
-(display asleep under the lock; then a Screen Sharing viewer, ~10 % cost). Needs: unlocked, display
-awake, no viewer. Remaining, otherwise unchanged since 2026-08-24: P3 pacing cells (`preferredMaxFrameRate`, vsync
+`display_awake` / `locked` / `screen_shared`). **Studio M0 DONE 2026-10-12** (ledger C76): daily
+driver 47.75 FPS, clean baseline 45.02, floors 0.13 / 0.18 FPS → KEEP and composed margin 1 FPS ≈ 2.2 %
+(`docs/perf-pass-results.md` § Studio M0); earlier attempts void (display asleep; a Screen Sharing
+viewer; `CS2_PROFILE=off` without "Use Native" → 1920×1080). **P3 may start.** Remaining, otherwise unchanged since 2026-08-24: P3 pacing cells (`preferredMaxFrameRate`, vsync
 decision) · P4 late-game CPU cells (M0-L baseline + boot.config levers) · P5 ship (README numbers +
 wiki draft — unblocked by the verdict, not yet done). Out of scope unchanged (DXMT rebuild,
 alternative layers, Rosetta experiments); the MoltenVK dylib update is **cancelled** (2026-08-24,

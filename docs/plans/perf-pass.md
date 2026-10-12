@@ -2,7 +2,8 @@
 
 > **Status: check-it'd 2026-10-10 — P3 build-ready-with-fixes, P4 + P5 needs-rework (pass 2, a
 > re-check after the move to the Mac Studio; corrections folded below, § Review corrections pass 2).
-> P3 may start once Studio M0 (§2) has run; P4/P5 need the instrument rework named there and a
+> **Studio M0 RAN 2026-10-12** (floor 0.13 / 0.18 FPS; KEEP + composed margin 1 FPS ≈ 2.2 % of the
+> clean baseline 45.02; ledger C76) — **P3 may start**. P4/P5 need the instrument rework named there and a
 > fitted re-check before building.** Pass 1: check-it'd 2026-08-23 — build-ready-with-fixes.
 > **🔧 As-built (2026-08-24):** P0–P2 executed and substantially measured — instrument = the
 > game's own `-benchmark` (structured per-frame output; autonomous cycles via
@@ -144,6 +145,10 @@ stated per row.
 - Any resolution selection must keep the main panel's refresh (**60 Hz** on the Studio Display and
   the U2720Q since 2026-10); after any resolution/vsync change, verify no mode change: display 2
   did not blank and the HUD refresh did not change.
+- **`CS2_PROFILE=off` (to keep the launcher profile off a cell's DRS block) must be paired with
+  Screenmanager "Use Native"=1 written before every cycle** — the profile is two writes, the game
+  resets Use Native to 0 on exit, and without it the cell runs at the last in-game size (1920×1080 on
+  2026-10-12, a VOID series). Gate every cycle on Player.log `Window resolution`.
 - **Pin DynamicRes off/Constant for every cell** (Automatic floats internal resolution — it
   invalidated the original 44.9 baseline as an absolute).
 - V-Sync **off** during measurement cells; re-decide vsync for the daily profile in P3.
@@ -189,6 +194,9 @@ new Metal pipeline cache), then **≥3 consecutive perf-bench runs of the curren
 vsync off**, then **≥3 of the clean baseline** (`Settings.coc.series-base`, vsync off) for P5 to
 compare against. Floor, KEEP margin and composed margin are re-fixed **in writing** from those
 runs; the P0 numbers become the M3 Max stratum.
+**✅ Ran 2026-10-12 (C76, `docs/perf-pass-results.md` § Studio M0):** daily driver 47.75 FPS (floor
+0.13), clean baseline 45.02 (floor 0.18), all at 2560×1440 with vsync off. **KEEP margin = composed
+margin = 1 FPS ≈ 2.2 % of 45.02** (floors under the 1 FPS minimum; the KEEP rule applied to both).
 
 **M1 — GPU frame capture (best-effort, NON-gating: Xcode isn't installed).**
 `MTL_CAPTURE_ENABLED=1 DXMT_CAPTURE_EXECUTABLE=Cities2` (exact — `getExeBaseName` strips `.exe`;
