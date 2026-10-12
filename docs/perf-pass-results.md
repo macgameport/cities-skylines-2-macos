@@ -263,3 +263,26 @@ half). Settings.coc restored after the series (sha256). Script: `~/cs2-patch/per
 - ⚠ **`CS2_PROFILE=off` is not "settings untouched":** the profile is two writes, and off also drops
   "Use Native"=1. The game resets that to 0 on exit (after any in-game resolution change it remembers
   the old size), so a first attempt without it ran at **1920×1080** and is VOID (TS 151106, 2 cycles).
+
+
+### P3 B1 — frame cap 30 on the bench (2026-10-12 16:20–16:30)
+
+`DXMT_CONFIG="d3d11.preferredMaxFrameRate=30"`, daily driver, same guards as Studio M0 (vsync off,
+FullscreenWindow, `CS2_PROFILE=off` + Use Native=1, `Window resolution: 2560x1440` gated, display awake,
+unlocked, not shared). Script `~/cs2-patch/perf-runs/p3-b1-cap30-20261012.sh`.
+
+| cell | avgFps | cpuFrame stdev / p99 ms / 1%-low | gpuFrame stdev / p99 ms | simTicks |
+|---|---|---|---|---|
+| p3-b1-cap30-1 | 29.99 | 4.76 / 26.1 / 38.4 | 10.86 / 31.2 | 8226 |
+| p3-b1-cap30-2 | 29.77 | 9.05 / 37.7 / 26.6 | 14.58 / 32.8 | 8036 |
+| uncapped (Studio M0 daily-1..3) | 47.69–47.82 | 3.45–3.91 / 21.2–22.1 / 45.2–47.2 | — | 8309–8330 |
+
+- **The cap engages exactly** (29.99 / 29.77) — mechanism load-verified on the Studio.
+- **Pacing is not smoother at the cap on this scene**: frame-time stdev 1.3–2.5× uncapped, p99 up, and
+  the two runs disagree (run 2 clearly worse). ⚠ Under a cap part of each frame is the deliberate present
+  wait, and the bench's frame stats may count it differently — indicative, not a verdict.
+- simTicks 1–3 % lower than uncapped over the same fixed window.
+- A cap of 60 cannot bind on a 48 FPS bench (≡ uncapped here); on 60 Hz, vsync-on ≡ cap 60 in play.
+- **B1 stays a feel decision (plan §3 B1)**, but the bench gives no reason to prefer 30: live play on
+  the Studio already holds 60 with vsync on in the cities that exist (#2). Candidate for the daily
+  profile: vsync on (= cap 60), no `preferredMaxFrameRate`.
