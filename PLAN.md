@@ -101,6 +101,12 @@ superseded, with the pointer to where the surviving content lives.
 
 ### Still real
 
+- ✅ **Test-frame retention** ([#14](https://github.com/macgameport/cities-skylines-2-macos/issues/14),
+  decided 2026-10-12): keep everything until `~` has **< 150 GB free** (277 GB on 2026-10-12), then thin
+  run dirs older than 60 days to flagged frames + every 10th — never runs named in EXPERIMENTS/GOTCHAS/
+  docs, never text files, never the evidence store. Thinning moves to the Trash; emptying it is James's.
+  `rollback-build23700737` is an APFS clone (~5 GB real, 91 G by `du`).
+
 - 📋 **`home` profile assumes a ~1080p main panel — and as of 2026-09-09 it no longer holds.**
   [#2](https://github.com/macgameport/cities-skylines-2-macos/issues/2). **The hypothetical
   arrived**: the main display is now an Apple **Studio Display** (5120×2880 backing, presented by
