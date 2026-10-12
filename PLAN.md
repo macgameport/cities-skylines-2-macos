@@ -117,8 +117,11 @@ superseded, with the pointer to where the surviving content lives.
   refresh **in-game**; editing `Settings.coc` was measured not to take.
   **Answered 2026-10-10 (C75):** (a) point space — `Window resolution: 2560x1440`; benched there
   with the daily-driver settings: **47.8 FPS · gpuMs 17.5**, well above the accepted 1080p baseline,
-  so no `home-hidpi` row is needed for performance. (b) `Player.log` reports `2560x1440x60`. Left:
-  one live-city HUD reading (`CS2_HUD=1`) by James, then close #2.
+  so no `home-hidpi` row is needed for performance. (b) `Player.log` reports `2560x1440x60`.
+  **Live HUD reading 2026-10-12 (closes #2):** `CS2_HUD=1`, 2560x1440, vsync 60 — Tallyho (~1k pop)
+  GPU 14.6 ms; **Amasa (4,834 pop, the largest save) GPU ~20 ms zoomed out, rarely above 20**, 60 FPS.
+  Under the ~25 ms bar with ~5 ms margin. Reopen if a bigger city reads GPU > ~25 ms live — the
+  `home-hidpi` row (DRS 0.5 + CAS) is the ready fix.
 - ✅ **Fullscreen-toggle cursor desync — does not reproduce on 11.16** ([#4](https://github.com/macgameport/cities-skylines-2-macos/issues/4), closed 2026-10-11).
   Fullscreen ↔ windowed toggled twice at the main menu on the daily engine: windowed gets one
   correct macOS title bar with the content view == Win32 client, fullscreen is a real exclusive mode
