@@ -33,8 +33,10 @@
 #     is large and never hosted, so moving it correctly changes nothing and proves nothing.
 #   * Among hosted children, moving one whose layer sits BEHIND another is equally invisible, and
 #     produces the same reading as a layer that failed to follow. So T1 does not trust one child:
-#     it tries each in turn and accepts only a DECISIVE answer — content shifted by exactly the
-#     delta (green), or the capture unchanged at both strips (red). Anything else is that child
+#     it tries each in turn and accepts only a DECISIVE answer — the changed content explained by a
+#     rightward shift clearly better than by none (green; scripts/t1-shift.py measures the shift,
+#     since 2026-10-12 — a +120 move lands as 72 Win32 px on the Studio), or the capture unchanged
+#     (red). Anything else is that child
 #     being invisible, and it moves on. Reporting an ambiguous child as red is how a void run got
 #     recorded as a failure and a red mutant as green.
 #   * A hosted child parked at 0x0 is the inactive browser (ledger C14); skip it.
