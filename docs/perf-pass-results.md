@@ -317,3 +317,27 @@ control** (plan §2), same guards as the cap-30 cells. Scripts `~/cs2-patch/perf
   if they bounded the spread.
 - B1 is measured at both values. The daily choice stays on feel; nothing here argues for `preferredMaxFrameRate`.
   Next in P3: B2 (in-game max-frame-latency slider), then the vsync decision.
+
+### P3 B2 — in-game Maximum frame latency 1 vs the default 2 (2026-10-13 15:19–15:38)
+
+James found the slider (Options → Graphics → Main, under VSync; it read **2**), set **1** and quit. A snapshot diff
+showed it lands in `Settings.coc` as `"maxFrameLatency": 1` beside `"vSync"` and is **written only when not the default 2**.
+Series `~/cs2-patch/perf-runs/p3-b2-20261013.sh`: lat 1 ×2 (the key as the game wrote it), then the default ×2 with the key
+removed — the bracketing control — same guards as B1 (vsync off, FullscreenWindow, `CS2_PROFILE=off` + Use Native,
+2560×1440 gated, graceful, awake, unlocked, not shared). Settings.coc restored to James's lat-1 file (sha256).
+Session control before it (14:32): 47.74 / 47.38.
+
+| cell | avgFps | cpuFrame avg / stdev / p99 ms / 1%-low | gpuFrame avg / p99 ms / 1%-low | gpuBound % | gpuMs avg | simTicks |
+|---|---|---|---|---|---|---|
+| p3-b2-lat1-1 | 41.54 | 15.13 / 3.78 / 24.3 / 41.2 | 24.03 / 36.9 / 27.1 | 99.1 | 24.03 | 8316 |
+| p3-b2-lat1-2 | 41.71 | 15.03 / 4.00 / 25.8 / 38.7 | 23.93 / 36.5 / 27.4 | 99.1 | 23.93 | 8317 |
+| p3-b2-lat2ctl-1 (default) | 47.97 | 14.41 / 3.62 / 23.3 / 43.0 | 3.96 / 22.2 / 45.1 | 21.4 | 17.26 | 8320 |
+| p3-b2-lat2ctl-2 (default) | 48.14 | 14.38 / 3.46 / 23.4 / 42.8 | 3.90 / 22.3 / 44.9 | 20.8 | 17.43 | 8340 |
+
+- **Latency 1 = −6.4 FPS (−13 %), REVERT.** Far outside the 1 FPS margin and every spread seen today; both pairs are tight.
+- The mechanism shows in the columns: at 1 the frame goes **99 % GPU-bound** and the measured GPU time rises 17.3 → 24.0 ms —
+  with one frame in flight the CPU and GPU stop overlapping, so each frame pays both in series. CPU-side times barely move.
+- Input latency would drop by about one frame (~21 ms at 48 FPS); for a city builder that is not worth 13 %.
+- **The default 2 stays.** B2 closed. ⚠ James's `Settings.coc` still carries `"maxFrameLatency": 1` until it is set back.
+- The bracketing control (47.97 / 48.14) sits at or above M0 (47.75); the 14:32 control's slow run (47.38) did not recur.
+
