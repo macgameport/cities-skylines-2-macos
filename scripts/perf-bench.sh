@@ -4,7 +4,7 @@
 # Launches the game with -benchmark through perf-run.sh (capture + caffeinate + load-signal grep),
 # waits for the game to write a NEW result into Benchmark.coc (the benchmark auto-runs a bundled
 # save at boot and returns to the main menu — measured 2026-08-23), parses the result into one
-# JSON line, then ends the session: SIGTERM to the game process at the idle menu, which lets the
+# JSON line, then ends the session at the idle menu (see Teardown below), which lets the
 # launcher run its normal graceful Steam shutdown; wineserver -k only as escalation.
 #
 # Usage:  [CELL_ENV…] CS2_HUD=1 bash scripts/perf-bench.sh <cell-name>
