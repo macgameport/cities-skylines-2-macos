@@ -282,7 +282,34 @@ unlocked, not shared). Script `~/cs2-patch/perf-runs/p3-b1-cap30-20261012.sh`.
   the two runs disagree (run 2 clearly worse). ⚠ Under a cap part of each frame is the deliberate present
   wait, and the bench's frame stats may count it differently — indicative, not a verdict.
 - simTicks 1–3 % lower than uncapped over the same fixed window.
-- A cap of 60 cannot bind on a 48 FPS bench (≡ uncapped here); on 60 Hz, vsync-on ≡ cap 60 in play.
+- ~~A cap of 60 cannot bind on a 48 FPS bench (≡ uncapped here)~~ — **measured 2026-10-13, see the next section:** the average is unchanged, but cpuFrame averages ~14 ms, so single fast frames are held and the tail moves a little. On 60 Hz, vsync-on ≡ cap 60 in play (not measured as a cell).
 - **B1 stays a feel decision (plan §3 B1)**, but the bench gives no reason to prefer 30: live play on
   the Studio already holds 60 with vsync on in the cities that exist (#2). Candidate for the daily
   profile: vsync on (= cap 60), no `preferredMaxFrameRate`.
+
+### P3 B1 — frame cap 60, with a same-session control (2026-10-13 13:32–13:51)
+
+`DXMT_CONFIG="d3d11.preferredMaxFrameRate=60"` ×2, then the **uncapped daily driver ×2 as the session
+control** (plan §2), same guards as the cap-30 cells. Scripts `~/cs2-patch/perf-runs/p3-b1-cap60-20261013.sh`,
+`p3-ctl-uncapped-20261013.sh`. ⚠ The control ran *after* the cap cells: the session opened without it
+(an omission, caught on reading the cap rows). Order would favour the cap, not the control (cooler machine first).
+
+| cell | avgFps | cpuFrame stdev / p99 ms / 1%-low | gpuFrame stdev / p99 ms / 1%-low | gpuBound % | simTicks |
+|---|---|---|---|---|---|
+| p3-b1-cap60-1 | 47.87 | 4.10 / 25.9 / 38.6 | 7.91 / 23.2 / 43.1 | 23.8 | 8301 |
+| p3-b1-cap60-2 | 47.47 | 4.75 / 26.5 / 37.8 | 8.16 / 23.8 / 42.0 | 23.8 | 8330 |
+| control uncapped-1 | 47.77 | 3.85 / 24.8 / 40.3 | 7.46 / 22.9 / 43.6 | 21.0 | 8320 |
+| control uncapped-2 | 47.91 | 3.57 / 24.1 / 41.5 | 7.21 / 22.3 / 44.8 | 19.1 | 8303 |
+| Studio M0 daily-1..3 (2026-10-12) | 47.69–47.82 | 3.45–3.91 / 21.2–22.1 / 45.2–47.2 | 5.94–6.29 / 18.1–19.0 / 52.8–55.1 | 12.8–15.7 | 8309–8330 |
+
+- **Session control passes on the average** (mean 47.84 vs M0 47.75, inside the 0.13 floor), so the cells count.
+- **But the tails drifted between days with the average flat:** today's uncapped cpuFrame p99 is 24–25 ms vs
+  21–22, 1%-low 40–42 vs 45–47, gpuBound 19–21 % vs 13–16 %. Cause unknown. **Compare tail metrics only
+  against a same-session control** — the cap-60 rows read against M0 alone looked like a 4–5 ms tail cost,
+  of which most is this drift (EXPERIMENTS C77).
+- **Cap 60 vs its own control:** average −0.17 FPS (inside the 1 FPS margin); cpuFrame p99 +1.5 ms,
+  1%-low −2.7 FPS, gpuFrame p99 +0.9 ms — small, but the two cap runs sit outside both control runs on each
+  tail metric. n = 2 a side, and the cap-30 caveat applies (the deliberate present wait may be counted
+  differently under a cap). Indicative: **a 60 cap buys nothing on this scene and may cost a little at the tail.**
+- B1 is measured at both values. The daily choice stays on feel; nothing here argues for `preferredMaxFrameRate`.
+  Next in P3: B2 (in-game max-frame-latency slider), then the vsync decision.
