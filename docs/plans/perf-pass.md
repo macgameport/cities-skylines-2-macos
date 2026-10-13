@@ -73,13 +73,13 @@ receipts); they outlive this pass:
 |---|---|---|
 | Stack | self-built stock Wine 11.16 + DXMT (PK fork v0.80-17-g79f6279), 10 patches | PLAN.md, build plan |
 | Baseline FPS / GPU ms | **44.86 / 23.1 ms** — ⚠ captured at DynamicRes=**Automatic**, so internal res was floating; **must re-baseline** (§2 M0) | V3 + research fold |
-| Bound | **GPU-bound** at baseline settings — **the M3 Max finding.** On the Studio bench the frame is mostly CPU-frame-bound: gpuBound 13–27 %, cpuFrame avg 13.4–15.2 ms against a ~21 ms frame (2026-10-12/13, pass 3) | Metal HUD, ledger, results.jsonl |
+| Bound | **GPU-bound** at baseline settings — **the M3 Max finding.** On the Studio bench the frame is mostly CPU-frame-bound: gpuBound 13–28 %, cpuFrame avg 13.4–15.2 ms against a ~21 ms frame (2026-10-12/13, pass 3) | Metal HUD, ledger, results.jsonl |
 | Baseline settings | 1080p@120Hz · Global=Custom · DynamicRes=Automatic · AA=Low SMAA · Clouds=Med · Fog=on · Volumetrics=Low · AO=Med · GI=Off · Reflections=Med · DoF=Off · MotionBlur=Off · Shadows=Low · Terrain/Water/LOD/Texture=Med · Display Mode=Fullscreen Window | V3 row, ledger |
 | Presentation | Direct; DXMT always sets `displaySyncEnabled=false` — ALL pacing is `presentDrawableAfterMinimumDuration` (`dxmt_presenter.cpp:19`) | V-session + source |
 | Unity / game build | **Unity 2022.3.71f1**, game 1.6.0f1 → **1.6.2f1 since 2026-10-10** (Unity unchanged, LegacyJobified unchanged); maintained by Iceflake Studios since the 2026 perf push (external claim) | globalgamemanagers + Player.log |
 | `WINEESYNC=1 WINEMSYNC=1` | **INERT** — stock winehq wine has never shipped esync/msync (whole-tree grep: zero hits); launcher vars were Porting-Kit habit | research, measured |
 | `gfx-enable-native-gfx-jobs=1` | **no-op on D3D11** — Player.log: `Rendering Threading Mode: LegacyJobified`; don't spend a run on it, don't turn plain gfx-jobs off | Player.log, measured |
-| Allocator telemetry | Failed fast-path (bucket) allocs in Player.log's allocator report — **session-length dependent**; read the FIRST `[ALLOC_BUCKET]` section only (one shared allocator printed four times, identically — summing all four quadruples it, the likely source of the old ~17M). Daily-driver bench sessions: 5.99–6.66 M ≈ 1020–1061 per frame (pass 3); compare per frame, same config, same session. ⚠ The report is written **only on a graceful exit** (absent from every SIGTERM'd perf-bench Player.log) | Player.log, measured |
+| Allocator telemetry | Failed fast-path (bucket) allocs in Player.log's allocator report — **session-length dependent**; read the FIRST `[ALLOC_BUCKET]` section only (one shared allocator printed four times, identically — summing all four quadruples it, the likely source of the old ~17M). Daily-driver bench sessions: 5.99–6.66 M ≈ 1020–1061 per frame (pass 3; per frame = ÷ the total of `[ALLOC_TEMP_MAIN]`'s `Peak usage frame count` histogram — process frames, ~5.7k–6.4k per run, NOT results.jsonl `framesRendered` (~4,300)); compare per frame, same config, same session. ⚠ The report is written **only on a graceful exit** (absent from every SIGTERM'd perf-bench Player.log) | Player.log, measured |
 | Refresh rate | ~~120 Hz (DELL U2424H)~~ **2026-10-10: both displays 60 Hz** (Studio Display main, U2720Q portrait); the game must keep the main panel's refresh or a mode change blanks display 2. ⚠ **At 60 Hz, in-game VSync is a 60 FPS cap**: with SyncInterval 1 DXMT's minimum present duration is 1/refresh (`d3d11_swapchain.cpp:762-766`) | GOTCHAS + source |
 | Game Mode | Off even in exclusive fullscreen — closed, negative | V5 |
 | `CS2_METALFX=1` | wired in launcher, never tested; **default factor 2.0 is a trap at 1080p** (renders a 4K drawable — §3A) | launcher + source |
@@ -151,7 +151,8 @@ stated per row.
 - **`CS2_PROFILE=off` (to keep the launcher profile off a cell's DRS block) must be paired with
   Screenmanager "Use Native"=1 written before every cycle** — the profile is two writes, the game
   resets Use Native to 0 on exit, and without it the cell runs at the last in-game size (1920×1080 on
-  2026-10-12, a VOID series). Gate every cycle on Player.log `Window resolution`.
+  2026-10-12, a VOID series). Gate every cycle on Player.log `Window resolution`. (results.jsonl's
+  `resolution` field is NOT the render size — it read `1920x1080 @60Hz` on every verified 2560×1440 run.)
 - **Pin DynamicRes off/Constant for every cell** (Automatic floats internal resolution — it
   invalidated the original 44.9 baseline as an absolute).
 - V-Sync **off** during measurement cells; re-decide vsync for the daily profile in P3.
@@ -164,7 +165,10 @@ stated per row.
   macOS point update mid-pass re-baselines: repeat M0's control before counting further cells.
 - **Session control:** every measurement session opens with a re-run of the current base config;
   if it deviates from the recorded base by more than the noise floor, resolve before counting
-  cells (thermal state, background churn, silent updates).
+  cells (thermal state, background churn, silent updates). **For control-bracketed P4 sessions (pass 3)
+  the opening pair is checked against the recorded base with the 1 FPS KEEP margin, not the floor** —
+  unmodified runs spread 0.75 FPS within one day (2026-10-13), so the 0.13 floor from M0's three runs
+  trips on ordinary noise; verdicts then use that session's controls only (§2 [CPU-sim] rule).
 - **Crash rule:** on crash, restore config, one clean relaunch of the same cell; a second crash =
   verdict **CRASH**, lever quarantined (revert applied + verified), move on. The launcher already
   clears the stale `.crash` marker.
@@ -182,9 +186,11 @@ stated per row.
 - **CRASH** — per the crash rule. **CLOSED/SKIP** — not a cell by design (cite: source-read,
   precondition failed, regime guard).
 - **[CPU-sim] rows (P4; pass 3):** the primary reading is `averageFps` against the same-session
-  bracketing controls, with the 1 FPS margin (six unmodified runs on 2026-10-13 spread 0.76 FPS).
-  Guard: `simulationTicks` stays inside the controls' range — it saturates near 8,300 whatever the
-  frame rate (latency 1 at 41.5 FPS still read 8,316) and cannot show a sim gain. `cpuGameMs` and
+  bracketing controls, with the 1 FPS margin (six unmodified runs on 2026-10-13 spread 0.75 FPS).
+  Guard: `simulationTicks` saturates near 8,300 whatever the frame rate (latency 1 at 41.5 FPS still
+  read 8,316) and cannot show a sim gain; **a lever cycle more than 60 ticks below the session controls'
+  minimum is flagged sim-slowed and cannot be a KEEP** (unmodified rows span 8,237–8,340 across three
+  days, a same-session pair 17–20; cap 30 read 8,036 / 8,226). `cpuGameMs` and
   `cpuFrame` corroborate only against same-session controls; tails are advisory (C77). A key not
   applied (signal at its default) makes the cell VOID, never DEAD.
 
@@ -275,7 +281,8 @@ on the highest-FPS artifact-free point, re-adjudicated later.
 ### 3D. Unity boot.config + host — CPU-side, late-game insurance (Phase P4)
 
 boot.config lives at **`<game dir>/Cities2_Data/boot.config`**. Discipline: game NOT running for
-any edit; `cp boot.config boot.config.bak` beside it before the first edit; verify boot after
+any edit; before the first edit record the pre-series sha256 + `build-guid` and keep a reference copy in
+`~/cs2-patch/perf-runs/` (never a restore source — rollback is the line delete, §6); verify boot after
 each change; a game update may rewrite it (a KEEP joins the launcher's repatch-style check).
 ⚠ **2026-10-10: the 1.6.2f1 update DID rewrite it** (only `build-guid` changed), and launcher step
 2b's `steam://validate` restores depot files too. Validate fires only inside `apply_game_update`
@@ -291,11 +298,11 @@ rewrites `Settings.coc` on exit). No launcher re-assert exists yet (a D-row KEEP
 P5 can ship it).
 **P4's baseline is Studio M0's scene — no separate M0-L series (pass 3, 2026-10-13).** `-benchmark`
 loads a save hard-coded by content id (`Game.dll`: `kBenchmarkSaveCid`; no save argument) — the same
-bundled save P0–P3 used — and on the Studio it is the CPU-frame-bound regime (gpuBound 13–27 %).
+bundled save P0–P3 used — and on the Studio it is the CPU-frame-bound regime (gpuBound 13–28 %).
 The graceful logs already fix the defaults every D-row's load signal is read against (29/29 logs,
-three sessions): `[ALLOC_TEMP_Job.Worker 0…16]`; `[ALLOC_TEMP_MAIN]` Initial 4.0 MB / Current 8.0 MB /
+three days: 2026-10-10, -12, -13): `[ALLOC_TEMP_Job.Worker 0…16]`; `[ALLOC_TEMP_MAIN]` Initial 4.0 MB / Current 8.0 MB /
 Overflow Count 9036; first `[ALLOC_BUCKET]` section Used Block count 1, Failed-count sum ≈ 1020–1061 per
-frame on the daily driver (the clean baseline reads 1269–1307 — compare the same config only). Tails and
+frame on the daily driver (÷ the total of `[ALLOC_TEMP_MAIN]`'s `Peak usage frame count` histogram — process frames, ~5.7k–6.4k per run, NOT results.jsonl `framesRendered` (~4,300)) (the clean baseline reads 1269–1307 — compare the same config only). Tails and
 `cpuGameMs` drift between sessions while FPS stays flat (C77; `cpuGameMs` 9.9 ms on 10-12, 10.5–11.2 on
 10-13), so **every D-session is bracketed — 2 unmodified control cycles, 2 lever cycles per value, 2
 controls (C C L L C C, or C C L L C C L L C C when levers share controls) — and verdicts compare against
@@ -321,8 +328,8 @@ field names are exact but not unique (`Overflow Count` / `Initial Block Size` in
 | # | Lever | Design + load signal | Confidence |
 |---|---|---|---|
 | D1 | **[CPU-sim]** `job-worker-count` — **values pre-registered 2026-10-13 (pass 3):** D1a = **12** (the Performance-cluster count; frees 6 of 18 cores for the main/render/Background/PhysX threads and DXMT's encoder). D1b by a rule written before any result: D1a KEEP → **6**; otherwise → **16** (a minimal cut, in case 12 starves parallelism where a small cut relieves contention); D1b not a KEEP either → D1 CLOSED. Never ≥ 17 (indistinguishable from an ignored key). ~~10, then 8 — sized for 14~~ | Default 17 workers (`[ALLOC_TEMP_Job.Worker 0…16]` in 29/29 graceful logs; PhysX 18; `hw.logicalcpu` 18 = 6 Super + 12 Performance). Fewer workers can only help by cutting contention (17 Job + 16 Background + 18 PhysX workers plus main/render on 18 cores, under Rosetta). **Load signal: the highest `[ALLOC_TEMP_Job.Worker N]` = configured − 1**, anchored on the `[ALLOC_TEMP_` prefix (unanchored, `Background Job.Worker 15` matches — mutant observed: a configured 11 misread as 15). Lowest prior: run after D2. | community |
-| D2 | **[CPU-sim]** `memorysetup-bucket-allocator-block-count=4` | Best-evidenced CPU lever: the bucket allocator is full at its single block (`Used Block count 1`, `Peak Allocated bytes 4.0 MB` = `Large Block size 4.0 MB` in every graceful log) and fails to the slow path ≈ 1020–1061 times per frame on the daily driver. +12 MB. **Load signal: `Used Block count` > 1 in the FIRST `[ALLOC_BUCKET]` section, and that section's Failed-count sum (8 size classes) per frame falls by > 4 % vs the same-session controls** (no configured-value echo; the four sections are identical copies). | measured |
-| D3 | **[CPU-sim]** ~~`memorysetup-temp-allocator-size-main=8388608`~~ **CLOSED/SKIP — precondition absent, measured (pass 3, 2026-10-13)** | `[ALLOC_TEMP_MAIN] Overflow Count` is **9036 in all 29 graceful bench logs** (every config, three sessions, 5.7k–6.5k frames) and 8964 in a 127k-frame live session: the overflows happen at boot/load, not per frame ("~1.7/frame" was a constant divided by a frame count). Steady-state main temp use is 32–64 KB; 10 frames per bench peak at 4–8 MB, and the block already grows to 8.0 MB. It cannot move averageFps, and a load-time cell (`loadingTimeSecs`, spread 30.8–36.4 s) would almost surely read DEAD. If re-opened: applied = `Initial Block Size 8.0 MB` + Overflow Count well below 9036; at 4.0 MB try the alias key `memorysetup-allocator-temp-initial-block-size-main` (also in the DLL) before calling it ignored. | measured |
+| D2 | **[CPU-sim]** `memorysetup-bucket-allocator-block-count=4` | Best-evidenced CPU lever: the bucket allocator is full at its single block (`Used Block count 1`, `Peak Allocated bytes 4.0 MB` = `Large Block size 4.0 MB` in every graceful log) and fails to the slow path ≈ 1020–1061 times per frame on the daily driver. +12 MB. **Load signal: `Used Block count` > 1 in the FIRST `[ALLOC_BUCKET]` section, and that section's Failed-count sum (8 size classes) ÷ the total of `[ALLOC_TEMP_MAIN]`'s `Peak usage frame count` histogram — process frames, ~5.7k–6.4k per run, NOT results.jsonl `framesRendered` (~4,300) falls by > 4 % vs the same-session controls** (no configured-value echo; the four sections are identical copies). | measured |
+| D3 | **[CPU-sim]** ~~`memorysetup-temp-allocator-size-main=8388608`~~ **CLOSED/SKIP — precondition absent, measured (pass 3, 2026-10-13)** | `[ALLOC_TEMP_MAIN] Overflow Count` is **9036 in all 29 graceful bench logs** (every config, three days, 5.7k–6.5k process frames) and 8964 in a 127k-frame live session: the overflows happen at boot/load, not per frame ("~1.7/frame" was a constant divided by a frame count). Steady-state main temp use is 32–64 KB; 10 frames per bench peak at 4–8 MB, and the block already grows to 8.0 MB. It cannot move averageFps, and a load-time cell (`loadingTimeSecs`, spread 30.8–36.4 s) would almost surely read DEAD. If re-opened: applied = `Initial Block Size 8.0 MB` + Overflow Count well below 9036; at 4.0 MB try the alias key `memorysetup-allocator-temp-initial-block-size-main` (also in the DLL) before calling it ignored. | measured |
 | D4 | **[GPU?]** Second display disconnected during play | Cheap A/B; plausibly 0–1 ms; may be zero (presentation is Direct). Don't re-plug mid-session (mode-change class). James unplugs the U2720Q before launch (human step); both arms assert `Player.log` `Window resolution: 2560x1440` (the U2720Q's unrotated 3840×2160 has leaked into a resolution reading before). Scheduled in P3 (§4). | speculative |
 | D5 | **[validity]** ~~High Power Mode for long sessions~~ **CLOSED/SKIP (precondition absent, 2026-10-10)** | The Mac Studio has no High Power Mode (`pmset -g cap`: `lowpowermode` only) and the desktop chassis removes the 14" thermal-sag premise. A plain 45-min soak for GPU-ms creep stays optional, recorded as a curve. | measured |
 
@@ -459,13 +466,24 @@ verdicts build-ready-with-fixes; every BLOCKER spot-checked inline. All correcti
 - Verified unchanged: boot.config path and contents (no D-key present), the three key strings in this
   `UnityPlayer.dll`, 18 cores (6 + 12), PhysX 18, the WM_CLOSE teardown 29/29, validate's trigger path.
 
+### Fold verification (same day, one fitted agent over `b9b50b0`)
+
+Verdict fold-needs-fixes, no blockers; all fixed in the next commit and spot-checked inline: the old
+"`cp boot.config boot.config.bak` beside it" survived in §3D's discipline line (→ reference copy outside
+the depot, never a restore source); "per frame" named no denominator (→ the `[ALLOC_TEMP_MAIN]` frame
+histogram total, ~6.2k, not `framesRendered` ~4.3k — measured 6,605,892 / 6,239 = 1,059); §2's session
+control still demanded the 0.13 floor (→ 1 FPS margin for bracketed P4 sessions); the sim-ticks guard had
+no tolerance (→ 60 ticks below the controls' minimum = sim-slowed, cannot KEEP); C79's tick range missed
+the 10-10 rows (8,237); 0.76 → 0.75; "three sessions" → three days; gpuBound 13–27 → 13–28 %; PLAN.md's
+"P5 unblocked" phrase; results.jsonl `resolution` is not the render size (noted in §2).
+
 ## Review log
 
 | Date | Pass | Lenses | Method | Model | Verified against | Verdict |
 |---|---|---|---|---|---|---|
 | 2026-08-23 | triple-check pass 1 | correctness · methodology · platform-facts · builder-sim · test-plan · publishability | Workflow fan-out, 6 agents, structured findings; BLOCKERs spot-checked inline | Fable 5 | `2cf8f5e` | **build-ready-with-fixes — corrections folded, build may start** |
 | 2026-10-10 | **pass 2 — re-check after the machine change** (P3–P5 only) | premises (architecture + correctness + platform-facts) · builder-simulation + test-plan (+ security/publishability in both) | 2 independent agents, read-only, ~20 tool calls each; every BLOCKER spot-checked inline | Opus 5.5 ×2 + Opus 5.5 synthesis | `9a953c1` on the Mac Studio | **P3 build-ready-with-fixes (after Studio M0) · P4 + P5 needs-rework** — corrections folded |
-| 2026-10-13 | **pass 3 — fitted re-check of P4** (P5 only where P4 touches it) | premises + correctness + architecture (+ publishability) · builder-simulation + test-plan | 2 independent agents, read-only, ~20 tool calls each; draft series dry-run + extractor over 29 logs + mutants; every BLOCKER spot-checked inline | Opus 5.5 ×2 + Opus 5.5 synthesis | `a2237f0` on the Mac Studio | **P4 build-ready-with-fixes** — corrections folded |
+| 2026-10-13 | **pass 3 — fitted re-check of P4** (P5 only where P4 touches it) | premises + correctness + architecture (+ publishability) · builder-simulation + test-plan | 2 independent agents, read-only, ~20 tool calls each; draft series dry-run + extractor over 29 logs + mutants; every BLOCKER spot-checked inline | Opus 5.5 ×2 + Opus 5.5 synthesis | `a2237f0` on the Mac Studio | **P4 build-ready-with-fixes** — corrections folded; fold verified by one fitted agent (Opus 5.5) → 8 text fixes, re-folded |
 
 Key paths: `~/cs2-patch/launch-cs2-dxmt11.sh` · `scripts/perf-run.sh` · `scripts/make-shortcut.sh` ·
 `docs/plans/build-wine1116-dxmt-engine.md` · `GOTCHAS.md` · `<game dir>/Cities2_Data/boot.config` ·
