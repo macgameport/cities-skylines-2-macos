@@ -300,6 +300,8 @@ control** (plan §2), same guards as the cap-30 cells. Scripts `~/cs2-patch/perf
 | p3-b1-cap60-2 | 47.47 | 4.75 / 26.5 / 37.8 | 8.16 / 23.8 / 42.0 | 23.8 | 8330 |
 | control uncapped-1 | 47.77 | 3.85 / 24.8 / 40.3 | 7.46 / 22.9 / 43.6 | 21.0 | 8320 |
 | control uncapped-2 | 47.91 | 3.57 / 24.1 / 41.5 | 7.21 / 22.3 / 44.8 | 19.1 | 8303 |
+| later control uncapped-1 (14:32, B2 session) | 47.74 | 4.52 / 26.0 / 38.4 | 7.64 / 22.8 / 43.8 | 20.3 | 8282 |
+| later control uncapped-2 (14:37) | 47.38 | 4.66 / 30.2 / 33.1 | 9.22 / 29.3 / 34.1 | 27.5 | 8301 |
 | Studio M0 daily-1..3 (2026-10-12) | 47.69–47.82 | 3.45–3.91 / 21.2–22.1 / 45.2–47.2 | 5.94–6.29 / 18.1–19.0 / 52.8–55.1 | 12.8–15.7 | 8309–8330 |
 
 - **Session control passes on the average** (mean 47.84 vs M0 47.75, inside the 0.13 floor), so the cells count.
@@ -307,9 +309,11 @@ control** (plan §2), same guards as the cap-30 cells. Scripts `~/cs2-patch/perf
   21–22, 1%-low 40–42 vs 45–47, gpuBound 19–21 % vs 13–16 %. Cause unknown. **Compare tail metrics only
   against a same-session control** — the cap-60 rows read against M0 alone looked like a 4–5 ms tail cost,
   of which most is this drift (EXPERIMENTS C77).
-- **Cap 60 vs its own control:** average −0.17 FPS (inside the 1 FPS margin); cpuFrame p99 +1.5 ms,
-  1%-low −2.7 FPS, gpuFrame p99 +0.9 ms — small, but the two cap runs sit outside both control runs on each
-  tail metric. n = 2 a side, and the cap-30 caveat applies (the deliberate present wait may be counted
-  differently under a cap). Indicative: **a 60 cap buys nothing on this scene and may cost a little at the tail.**
+- ~~**Cap 60 vs its own control:** … the two cap runs sit outside both control runs on each tail metric … may cost a
+  little at the tail.~~ **Withdrawn 14:41 the same day:** two more uncapped runs (the B2 session's control, rows above)
+  read cpuFrame p99 26.0 / 30.2 ms and 1%-low 38.4 / 33.1. Today's four uncapped runs span p99 24.1–30.2 and 1%-low
+  33.1–41.5; the cap runs (25.9 / 26.5, 38.6 / 37.8) sit inside that spread. **Cap 60 is indistinguishable from
+  uncapped on this scene, average and tails.** The earlier "outside both control runs" was two control runs read as
+  if they bounded the spread.
 - B1 is measured at both values. The daily choice stays on feel; nothing here argues for `preferredMaxFrameRate`.
   Next in P3: B2 (in-game max-frame-latency slider), then the vsync decision.
