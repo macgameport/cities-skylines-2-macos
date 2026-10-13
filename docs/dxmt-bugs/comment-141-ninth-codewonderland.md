@@ -1,6 +1,6 @@
 # dxmt#141 — ninth comment: re-run of codeWonderland's 89084b1 on the 5K display (2026-10-13)
 
-**Status: DRAFT — not posted. James to read.** Replies to
+**Status: ✅ POSTED 2026-10-13 17:28 UTC as `iosoceans` — [#6151319832](https://github.com/3Shain/dxmt/issues/141#issuecomment-6151319832).** James said "post it". Replies to
 [#6131867235](https://github.com/3Shain/dxmt/issues/141#issuecomment-6131867235) (codeWonderland,
 2026-10-12 20:15 UTC): `winemac-remote-metal.patch` at neutron `89084b1` (released swapchains parked
 250 ms, owner removes the old host 250 ms late, host and swapchain frames through
@@ -29,7 +29,7 @@ a real 2x display. Prior: [#6130776980](https://github.com/3Shain/dxmt/issues/14
   (`cocoa_window.m:3780`), so the new conversion in `create_remote_swapchain` applies it twice under
   RetinaMode. Change ledger 2026-10-13 01:43–09:40.
 
-## Body (draft)
+## Body (as posted)
 
 Thanks for the fix and the write-up. I re-ran the battery on the 5K Studio Display (2x backing) against 89084b1. Short version: **the resize gaps are gone in both modes, the Retina placement now matches ours, and I see no hairline at the odd size.**
 
