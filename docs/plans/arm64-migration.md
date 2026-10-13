@@ -30,7 +30,7 @@ Apple, 2026-09-01 ([developer news](https://developer.apple.com/news/?id=w5ngl9k
 for "older, unmaintained gaming titles that rely on Intel-based frameworks". Apple's page names no
 version for that subset — "macOS 28" is CodeWeavers' framing. A self-built x86_64 Wine host does not
 fit the description, and CS2 is neither older nor unmaintained. macOS 28 betas: expected ≈ June
-2027. 27.0.1 already removed Rosetta once on this machine (C69, GOTCHAS 2026-10-10).
+2027. **macOS now says so itself (2026-10-13, macOS 27.0.1):** launching `CS2dxmt11.app` from Finder raised "App Update Required — This version of “Steambuild Metal” includes a component that will not open in macOS 28, the next major release" (`Steambuild Metal` is the wrapper's `CFBundleName`). Launches that run the launcher script directly (perf-bench, boot-verify) did not raise it. So the gaming-titles exception does not cover this wrapper. 27.0.1 already removed Rosetta once on this machine (C69, GOTCHAS 2026-10-10).
 
 **The arm64 route depends on Apple too.** FEX on macOS needs the kernel's cross-architecture
 features (`os_cross_arch_is_supported`, `os/arch/arm64.h:160-185`, "the set of cross-architecture
