@@ -6,7 +6,7 @@
 with a request to check half-point snapping on Retina and to run the 520-frame resize probe.
 Prior: 6101545070 (seventh, `iosoceans`).
 
-**Reply received 2026-10-12 20:15 UTC:** codeWonderland [#6131867235](https://github.com/3Shain/dxmt/issues/141#issuecomment-6131867235) reports both findings reproduced and fixed in `winemac-remote-metal.patch` at neutron `89084b1` (released swapchains parked 250 ms in the sending process; host and swapchain frames through `cgrect_mac_from_win()`), and asks for a re-run of `hosting-layer-tests.sh` and `shimmer-probe.sh` on the 5K display. Not yet tested here.
+**Reply received 2026-10-12 20:15 UTC:** codeWonderland [#6131867235](https://github.com/3Shain/dxmt/issues/141#issuecomment-6131867235) reports both findings reproduced and fixed in `winemac-remote-metal.patch` at neutron `89084b1` (released swapchains parked 250 ms in the sending process; host and swapchain frames through `cgrect_mac_from_win()`), and asks for a re-run of `hosting-layer-tests.sh` and `shimmer-probe.sh` on the 5K display. Re-run 2026-10-13: draft reply in `comment-141-ninth-codewonderland.md`.
 
 ## How the measurements were taken
 
