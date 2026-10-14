@@ -341,3 +341,29 @@ Session control before it (14:32): 47.74 / 47.38.
 - **The default 2 stays.** B2 closed. ⚠ James's `Settings.coc` still carries `"maxFrameLatency": 1` until it is set back.
 - The bracketing control (47.97 / 48.14) sits at or above M0 (47.75); the 14:32 control's slow run (47.38) did not recur.
 
+### P4 D2 — `memorysetup-bucket-allocator-block-count=4` (2026-10-13 20:00–20:27)
+
+First P4 cell, run as plan §3D pass 3 specifies: `~/cs2-patch/perf-runs/p4-series.sh d2` — C C L L C C, daily-driver
+Settings.coc (vsync off, FullscreenWindow, `CS2_PROFILE=off` + Use Native), `CS2_UPDATE=skip`, boot.config key count +
+`build-guid` asserted before and after every cycle, each cycle gated on 2560×1440 and on `scripts/p4-signals.py`.
+The line was appended after c2 and deleted after l2 (sha256 back to the pre-series hash); Settings.coc restored (sha256).
+All six cycles graceful, display awake, unlocked, not shared.
+
+| cycle | avgFps | cpuGameMs avg | cpuFrame avg / stdev / p99 / 1%-low | gpuBound % | simTicks | bucket Used Blocks | failed / frame |
+|---|---|---|---|---|---|---|---|
+| c1 | 47.39 | 10.69 | 14.42 / 8.30 / 24.5 / 40.9 | 19.6 | 8213 | 1 | 1038.3 |
+| c2 | 48.00 | 10.66 | 14.38 / 3.59 / 23.6 / 42.4 | 19.4 | 8314 | 1 | 1040.1 |
+| **l1** | **48.02** | 10.49 | 14.27 / 3.58 / 24.0 / 41.7 | 21.5 | 8321 | **4** | **852.7** |
+| **l2** | **48.07** | 10.52 | 14.29 / 3.37 / 23.8 / 42.0 | 20.9 | 8330 | **4** | **843.2** |
+| c3 | 47.98 | 10.48 | 14.23 / 3.50 / 23.7 / 42.1 | 19.6 | 8318 | 1 | 1057.9 |
+| c4 | 47.53 | 10.61 | 14.38 / 3.86 / 24.5 / 40.7 | 18.5 | 8323 | 1 | 1058.2 |
+
+- **Load-verified:** Used Block count 1 → 4 on both lever cycles, back to 1 on c3/c4; slow-path failures per frame
+  −18 % (848 vs 1,039–1,058). The key is honoured and does what it says.
+- **Verdict DEAD** (plan §2 [CPU-sim] rule): lever mean 48.04 vs control mean 47.72 = **+0.32 FPS**, inside the 1 FPS
+  margin. Both lever cycles sit at the top of the control range (max control 48.00) — a hint of a sub-margin gain, not a
+  measurable one. cpuGameMs and cpuFrame match the controls; simTicks guard clear (lever 8,321 / 8,330 vs controls' min 8,213).
+- Not kept: a sub-margin gain does not justify a launcher boot.config re-assert (plan §3D/P5). Closed.
+- c1, the session's first cycle, again carried the session's worst tail (cpuFrame stdev 8.30, simTicks 8,213) — the
+  same first-run pattern as the 14:32 control. The bracket absorbs it; worth watching in D1.
+
