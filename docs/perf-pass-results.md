@@ -389,3 +389,38 @@ D1a is the first pre-registered D1 value (plan §3D, pass 3).
   the frame time (~21 ms) is set elsewhere than the CPU work the benchmark measures (~14 ms). Corroboration, not a verdict.
 - **Pre-registered next step:** D1a is not a KEEP → **D1b = 16**; if D1b is not a KEEP either, D1 closes.
 
+### P4 D1b — `job-worker-count=16` (2026-10-15 15:25–15:52) — D1 and P4 closed
+
+Same series and gates (`p4-series.sh d1 16`). All six cycles graceful at 2560×1440, awake, unlocked, not shared;
+boot.config and Settings.coc back to their pre-series sha256.
+
+| cycle | avgFps | cpuGameMs avg | cpuFrame avg / stdev / p99 / 1%-low | gpuBound % | simTicks | highest Job.Worker |
+|---|---|---|---|---|---|---|
+| c1 | 48.08 | 10.27 | 13.97 / 3.96 / 23.1 / 43.3 | 19.1 | 8337 | 16 |
+| c2 | 48.19 | 10.19 | 13.89 / 3.28 / 22.4 / 44.7 | 19.6 | 8333 | 16 |
+| **l1** | **47.97** | **9.82** | 13.53 / 4.10 / 22.0 / 45.5 | 16.7 | 8321 | **15** |
+| **l2** | **48.07** | **9.76** | 13.44 / 3.54 / 21.9 / 45.6 | 15.2 | 8326 | **15** |
+| c3 | 48.05 | 10.39 | 14.13 / 3.81 / 25.0 / 39.9 | 21.2 | 8307 | 16 |
+| c4 | 47.89 | 10.00 | 13.69 / 3.77 / 21.4 / 46.7 | 16.3 | 8331 | 16 |
+
+- **Load-verified** (16 → 15 → 16). **Verdict DEAD:** lever mean 48.02 vs control mean 48.05 = **−0.04 FPS**.
+- **D1 CLOSED** by the pre-registered rule (D1a DEAD → D1b = 16 → DEAD). Neither value is kept.
+- **Both D1 values lower the game's CPU time by the same ~0.4 ms** (cpuGameMs 9.76–9.85 at 12 and at 16 vs 10.00–10.45 in
+  their controls) — so one fewer job worker than the default 17 on 18 cores already removes whatever contention there is —
+  **and neither moves FPS.**
+
+## P4 summary (2026-10-13 … 15)
+
+| row | verdict | load signal |
+|---|---|---|
+| D1 `job-worker-count` 12, 16 | **DEAD** (−0.15, −0.04 FPS) · CLOSED | highest Job.Worker 11 / 15 ✅ |
+| D2 `memorysetup-bucket-allocator-block-count=4` | **DEAD** (+0.32 FPS) | Used Blocks 4, failures −18 %/frame ✅ |
+| D3 `memorysetup-temp-allocator-size-main` | **CLOSED/SKIP** — precondition absent (overflow is a load-time constant) | — |
+| D5 High Power Mode | **CLOSED/SKIP** — no such mode on the Studio | — |
+
+**What P4 established:** on the Studio benchmark the frame takes ~21 ms while the CPU work the game measures takes ~14 ms
+(cpuFrame avg), and making that CPU work 5 % cheaper (D1) or cutting allocator slow paths 18 % (D2) leaves FPS where it was.
+The frame is bounded outside the game's own CPU and GPU timings — presentation/pacing through Wine + DXMT + Metal under
+Rosetta, or main-thread waits the benchmark does not count. No Unity boot.config lever reaches that; nothing from P4 goes into P5,
+so no launcher re-assert is needed.
+
