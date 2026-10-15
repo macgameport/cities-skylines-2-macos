@@ -367,3 +367,25 @@ All six cycles graceful, display awake, unlocked, not shared.
 - c1, the session's first cycle, again carried the session's worst tail (cpuFrame stdev 8.30, simTicks 8,213) — the
   same first-run pattern as the 14:32 control. The bracket absorbs it; worth watching in D1.
 
+### P4 D1a — `job-worker-count=12` (2026-10-14 19:32–19:59)
+
+Same series and gates as D2 (`p4-series.sh d1 12`; C C L L C C; boot.config line appended after c2, deleted after l2, sha256
+back to the pre-series hash; Settings.coc restored). All six cycles graceful at 2560×1440, display awake, unlocked, not shared.
+D1a is the first pre-registered D1 value (plan §3D, pass 3).
+
+| cycle | avgFps | cpuGameMs avg | cpuFrame avg / stdev / p99 / 1%-low | gpuBound % | simTicks | highest Job.Worker |
+|---|---|---|---|---|---|---|
+| c1 | 47.77 | 10.45 | 14.23 / 3.83 / 23.6 / 42.5 | 20.3 | 8329 | 16 |
+| c2 | 48.09 | 10.37 | 14.08 / 4.10 / 22.4 / 44.7 | 19.2 | 8319 | 16 |
+| **l1** | **47.86** | **9.81** | 13.52 / 4.21 / 22.1 / 45.2 | **14.3** | 8310 | **11** |
+| **l2** | **47.87** | **9.85** | 13.61 / 3.98 / 22.5 / 44.5 | **15.3** | 8307 | **11** |
+| c3 | 48.12 | 10.29 | 14.04 / 3.86 / 22.3 / 44.8 | 20.0 | 8313 | 16 |
+| c4 | 48.06 | 10.14 | 13.92 / 3.37 / 22.2 / 45.0 | 19.9 | 8316 | 16 |
+
+- **Load-verified:** highest `[ALLOC_TEMP_Job.Worker N]` 16 → 11 → 16 (12 workers on the lever cycles).
+- **Verdict DEAD:** lever mean 47.86 vs control mean 48.01 = **−0.15 FPS**, inside the 1 FPS margin; simTicks guard clear.
+- **The CPU side did get cheaper** — cpuGameMs 9.81 / 9.85 vs 10.14–10.45 (−5 %), cpuFrame avg 13.5–13.6 vs 13.9–14.2,
+  gpuBound 14–15 % vs 19–20 % — **yet FPS did not move**, so job-thread contention is not what bounds the frame here:
+  the frame time (~21 ms) is set elsewhere than the CPU work the benchmark measures (~14 ms). Corroboration, not a verdict.
+- **Pre-registered next step:** D1a is not a KEEP → **D1b = 16**; if D1b is not a KEEP either, D1 closes.
+
