@@ -33,7 +33,7 @@ breakdown.
   11.0, R2 disproven; table in `docs/wine-bugs/README.md`). Its closing line, *"nothing is left to
   file against Wine"*, has been **false since 2026-08-31**: the later filings
   [60262](https://bugs.winehq.org/show_bug.cgi?id=60262) (frameless-window decoration; closed 2026-10-11 as a
-  duplicate of 42877, fixed upstream by 6cfa941) and
+  duplicate of 42877, fixed upstream by 6cfa941 — released in wine-11.20, 2026-10-16) and
   [60263](https://bugs.winehq.org/show_bug.cgi?id=60263) (cross-process child-window Metal
   swapchains) are tracked in `docs/wine-bugs/README.md`.
 
