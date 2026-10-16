@@ -77,8 +77,7 @@ Power Mode).** **2026-10-10 evening:** harness ready for P3/P4 (WM_CLOSE teardow
 `display_awake` / `locked` / `screen_shared`). **Studio M0 DONE 2026-10-12** (ledger C76): daily
 driver 47.75 FPS, clean baseline 45.02, floors 0.13 / 0.18 FPS → KEEP and composed margin 1 FPS ≈ 2.2 %
 (`docs/perf-pass-results.md` § Studio M0); earlier attempts void (display asleep; a Screen Sharing
-viewer; `CS2_PROFILE=off` without "Use Native" → 1920×1080). **P3 may start.** **P3 2026-10-12/13:** B1 cap 30 and cap 60 and B2 frame latency 1 measured — **no lever kept** (cap 30 no better, cap 60 ≡ uncapped, latency 1 = −13 %, C78; results § P3). Remaining, otherwise unchanged since 2026-08-24: P3 vsync decision (feel) + D4 (display 2 unplugged) · P4 CPU cells — **DONE 2026-10-15, no lever kept** (D2 DEAD, D1 12/16 DEAD, D3 closed by measurement; C79–C81: the frame is bounded outside the game's CPU/GPU timings) · P5 ship (README numbers +
-wiki draft — ship list re-checked before P5 starts; not yet done). Out of scope unchanged (DXMT rebuild,
+viewer; `CS2_PROFILE=off` without "Use Native" → 1920×1080). **P3 may start.** **P3 2026-10-12/13:** B1 cap 30 and cap 60 and B2 frame latency 1 measured — **no lever kept** (cap 30 no better, cap 60 ≡ uncapped, latency 1 = −13 %, C78; results § P3). Remaining, otherwise unchanged since 2026-08-24: P3 vsync decision (feel) + D4 (display 2 unplugged) · P4 CPU cells — **DONE 2026-10-15, no lever kept** (D2 DEAD, D1 12/16 DEAD, D3 closed by measurement; C79–C81: the frame is bounded outside the game's CPU/GPU timings) · P5 — **shipped 2026-10-16** (README § Performance, AGW draft footnote, GOTCHAS; the pass's standing ethos is `docs/plans/perf-pass.md` §0 — read it before any future tuning). **Open: P3 vsync-by-feel + D4**. Out of scope unchanged (DXMT rebuild,
 alternative layers, Rosetta experiments); the MoltenVK dylib update is **cancelled** (2026-08-24,
 disproven outright by the A/B against pk110).
 

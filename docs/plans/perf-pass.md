@@ -8,6 +8,17 @@
 > **Studio M0 RAN 2026-10-12** (floor 0.13 / 0.18 FPS; KEEP + composed margin 1 FPS ≈ 2.2 % of the
 > clean baseline 45.02; ledger C76) — **P3 may start**. **P3 2026-10-12/13: B1 (cap 30, cap 60) and B2 (latency 1) measured, no lever kept (C77 tail drift, C78); remaining P3: the vsync decision on feel, and D4.** P5 was re-checked only where P4 touches it
 > (one scene; the boot.config re-assert and its off-switch) — re-check P5's ship list before P5 starts. Pass 1: check-it'd 2026-08-23 — build-ready-with-fixes.
+> **🔧 As-built (2026-10-16): P0–P4 executed, P5 shipped except two P3 rows that need James.** P3 (Studio M0 +
+> B1 cap 30/60 + B2 latency 1) and P4 (D2, D1 12/16; D3/D5 closed) kept **no lever**; the composed profile is the
+> 2026-08-24 daily driver unchanged — Studio M0 measured it +2.73 FPS (+6.1 %) over the clean baseline in one session
+> (C76), above the 1 FPS margin, and 16 daily-driver runs since read 47.38–48.19. P5 ship list: README numbers +
+> settings table, machine-labelled (`README.md` § Performance) · AGW draft second footnote (posting is James's) ·
+> launcher defaults: none new · boot.config re-assert: not needed · GOTCHAS 2026-10-16 (boot.config, slider key) ·
+> PLAN.md pointer to §0. **Open: P3's vsync decision (feel) and D4 (display 2 unplugged)** — exit criterion 2 waits on
+> D4. Aspiration ≥25 % not met: on the Studio the frame is bounded outside the game's CPU/GPU timings (C81).
+> Deviations: no M0-L series (pass 3); sessions control-bracketed (C77); D-cells gated on `scripts/p4-signals.py`.
+> Verify against: docs/perf-pass-results.md · scripts/perf-bench.sh · scripts/p4-signals.py ·
+> ~/cs2-patch/perf-runs/p4-series.sh · README.md § Performance · EXPERIMENTS C76–C81.
 > **🔧 As-built (2026-08-24):** P0–P2 executed and substantially measured — instrument = the
 > game's own `-benchmark` (structured per-frame output; autonomous cycles via
 > `scripts/perf-bench.sh`); settings cells went fully autonomous after the Settings.coc
@@ -361,7 +372,7 @@ field names are exact but not unique (`Overflow Count` / `Initial Block Size` in
 | **P2** | Settings matrix C1–C5 on top of the chosen P1 point | all C-rows verdicts |
 | **P3** | **Studio M0 first (§2)**, then pacing & experience: B1 (cap 30 / 60), B2 (slider present), vsync decision, D4 — every cell vsync off unless vsync is the lever | pacing chosen on feel + frame-time consistency |
 | **P4** | Graceful-quit teardown (built 2026-10-10) · **pass-3 build:** the section-scoped load-signal extractor + its mutants, and a series script from the P3 template (boot.config append / assert / line-delete, `CS2_UPDATE=skip`, extractor gate) · then **D2**, then **D1a = 12 → D1b by the pre-registered rule**, each in a control-bracketed session · D3 CLOSED/SKIP · ~~M0-L series~~ (retired: same scene as Studio M0) · ~~D5 soak~~ CLOSED | verdicts or explicit CLOSED/SKIP, each D-cell load-verified — **✅ 2026-10-15: D1 DEAD/CLOSED, D2 DEAD, D3 + D5 CLOSED/SKIP; nothing carried into P5** |
-| **P5** | **Compose + re-measure**: baseline + every KEEP as one profile, ≥2 runs; re-measured on the bench scene against the Studio clean baseline (one scene since pass 3; a user late-game save is an optional James-run HUD cross-check); ship | composed profile beats the **Studio** clean baseline by the margin fixed at **Studio M0** |
+| **P5** | **Compose + re-measure**: baseline + every KEEP as one profile, ≥2 runs; re-measured on the bench scene against the Studio clean baseline (one scene since pass 3; a user late-game save is an optional James-run HUD cross-check); ship | composed profile beats the **Studio** clean baseline by the margin fixed at **Studio M0** — **✅ 2026-10-16: composed = daily driver (no P3/P4 KEEP), +2.73 FPS in Studio M0's same-session runs (C76); ship list done except the AGW post (James)** |
 
 **P5 ships:** launcher defaults for unconditional KEEPs (same override pattern as `CS2_HUD`) ·
 README numbers + settings table (**every number labelled with its machine**; reduced numbers only, no raw logs, no SteamID-named paths) · as-built header here · AppleGamingWiki draft (**a draft in the repo — posting it is James's manual step**) · a launcher re-assert for any boot.config KEEP (an idempotent line-add inside `ensure_patches()` — launcher `:147`, re-run by step 2b after an update — never a file copy, with an env off-switch in the `CS2_HUD` pattern that also removes the line) · PLAN.md pointer

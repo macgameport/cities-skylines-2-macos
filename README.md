@@ -1,13 +1,14 @@
 # Cities: Skylines II on macOS (Apple Silicon) — free, no CrossOver
 
-Field notes from getting **Cities: Skylines II** running on an **M3 Max / macOS 26**, on a
-fully free stack, **including working in-game Paradox Mods downloads** — which was the hard part
+Field notes from getting **Cities: Skylines II** running on Apple Silicon — first an **M3 Max / macOS 26**,
+now a **Mac Studio M5 Max / macOS 27** — on a fully free stack, **including working in-game Paradox Mods downloads** — which was the hard part
 and, as far as I can tell, isn't documented anywhere else.
 
-**Status (2026-08-23):** Playable. Renders, saves, mods download *and* load — and the last
+**Status (2026-10-16):** Playable — **47.8 FPS on the built-in benchmark at 2560×1440** on the Mac Studio, and a
+steady 60 (vsync) in a 4.8k-population city ([Performance](#performance)). Renders, saves, mods download *and* load — and the last
 real defect (the alt-tab / exclusive-fullscreen freeze) is **fixed** by an optional self-built
 stock wine 11.16 engine ([INSTALL §6](INSTALL.md#6-recommended-build-the-wine-1116-engine-kills-the-alt-tab-freeze)):
-~45 FPS, Direct presentation, freeze gone.
+~45 FPS on the M3 Max, Direct presentation, freeze gone.
 
 ![Cities: Skylines II running on macOS via Wine + DXMT](docs/images/cs2-on-macos.png)
 
@@ -44,14 +45,14 @@ signature defect upstream ([the measurement](docs/wine-bugs/FINDING-wine11-fixes
 | Patches | **10** | **10** — the 6 errno patches AND the licence bypass are unnecessary | **17** |
 | Alt-tab in exclusive fullscreen | **works** | freezes ([dxmt#206](https://github.com/3Shain/dxmt/issues/206)) — use borderless | mild misbehaviour |
 | Steam's **visible storefront** | **renders** with patched wine+DXMT (2026-08-31); **black** on the stock stack — shop via **CS2 Steam Store.app** | **renders** | renders |
-| Measured | **44.9 FPS**, GPU 23.1 ms, presentation `Direct` | 42.7 FPS, GPU ~26 ms, `Composited` | — |
+| Measured | **M3 Max, 1080p:** 44.9 FPS, GPU 23.1 ms, presentation `Direct` · **Mac Studio M5 Max, 2560×1440, benchmark:** 47.8 FPS ([Performance](#performance)) | M3 Max, 1080p: 42.7 FPS, GPU ~26 ms, `Composited` | — |
 | Proven by | a full validated session: mods delete+redownload, alt-tab cycles, city play | boots, mods load + download, Steam UI, DLC | a 1h40m session, saved city, long-run stability |
 
 The 11.16 engine is the recommended setup and takes about an hour to build ([INSTALL §6](INSTALL.md#6-recommended-build-the-wine-1116-engine-kills-the-alt-tab-freeze)).
 It needs the Wine 11.0 + DXMT stack installed first — it reuses that engine's DXMT binaries and
 x86_64 support libraries, and redistributes nothing.
 
-Both run CS2 `1.6.0f1 (419.d6c6)` via Steam in-prefix at `Direct3D 11.0 [level 11.1]` — no MoltenVK
+Both ran CS2 `1.6.0f1 (419.d6c6)` (the 11.16 engine runs `1.6.2f1` since 2026-10-10) via Steam in-prefix at `Direct3D 11.0 [level 11.1]` — no MoltenVK
 device-loss lottery, no OpenGL. The one serious defect — an alt-tab "freeze" in exclusive
 fullscreen — was diagnosed here, reproduced in a standalone ~150-line program, and reported
 upstream as [dxmt#206](https://github.com/3Shain/dxmt/issues/206) (presents to an HWND's
@@ -62,6 +63,28 @@ and `docs/dxmt-bugs/`.
 
 > An earlier attempt on **Wine 11 + DXVK + private-API MoltenVK** also rendered, but device-lost
 > roughly 1 run in 8 — playable by dice roll. D3DMetal is stable. Notes kept in `archive/`.
+
+## Performance
+
+Every number is labelled with its machine; the full method and every run are in
+[`docs/perf-pass-results.md`](docs/perf-pass-results.md) (plan: [`docs/plans/perf-pass.md`](docs/plans/perf-pass.md)).
+
+| Machine | Scene | Settings | Result |
+|---|---|---|---|
+| **Mac Studio M5 Max**, macOS 27.0.1, Studio Display 60 Hz | built-in benchmark (`-benchmark`), 2560×1440, vsync off | daily driver (below) | **47.8 FPS** (clean defaults: 45.0 — the daily driver is +6.1 %); noise between runs ~0.1–0.8 FPS |
+| Mac Studio M5 Max | a 4.8k-population city, zoomed out | daily driver, vsync on | **60 FPS held**, GPU ~20 ms |
+| M3 Max, macOS 26, 1080p @ 120 Hz | benchmark stress scene | daily driver | 26.8 FPS (+11.6 % over the base config, 1 %-low +55 %) |
+| M3 Max | city view, 1080p | base config, 11.16 engine | 44.9 FPS, GPU 23.1 ms |
+
+**The daily driver** (accepted 2026-08-24): Display Mode **Fullscreen Window**, **native resolution** (the launcher's
+display profile sets it), Dynamic Resolution **Disabled**, Anti-aliasing **High SMAA**, Level of Detail **0.25**,
+mip bias **0**, VSync **on**, Maximum frame latency **2** (the default); the rest as in the results doc's lean block.
+
+**What was measured and did not help** (Mac Studio, 2026-10-12…15): a DXMT frame cap at 30 or 60, Maximum frame
+latency 1 (**−13 %** — leave it at 2), and Unity `boot.config` tuning (job-worker count, allocator sizes). On the
+Studio a benchmark frame takes ~21 ms while the CPU work the game measures takes ~14 ms; making that work cheaper
+moved nothing, so the remaining limit sits outside the game's own timings (presentation through Wine + DXMT + Metal
+under Rosetta is the likely place — not measured).
 
 ## Three things worth knowing before you start
 

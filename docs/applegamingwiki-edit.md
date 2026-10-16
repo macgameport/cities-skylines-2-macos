@@ -69,6 +69,22 @@ Resolution: 1920 x 1080 @ 120Hz Fullscreen Window
 Framerate: 42.7 FPS (1080p, Custom: Volumetrics/Shadows/Reflections Low, DoF and Motion Blur off)
 ```
 
+**Second footnote — the current machine and engine (added 2026-10-16 from the perf pass; use either or both):**
+
+```
+Verified by User:<your wiki account> on 2026-10-12
+Device: Mac Studio M5 Max 64GB RAM
+OS: macOS 27.0.1
+Method: self-built Wine 11.16 + DXMT v0.80, patches from cities-skylines-2-macos
+Game version: 1.6.2f1
+Resolution: 2560 x 1440 @ 60Hz Fullscreen Window
+Framerate: 47.8 FPS on the built-in benchmark (vsync off); 60 FPS held with vsync in a 4.8k-population city
+```
+
+> ⚠ **macOS 28:** macOS 27.0.1 now warns that this wrapper "will not open in macOS 28" (Rosetta's end; the
+> project's arm64 plan, issue #16). Worth one clause in the row's notes once the wiki allows it — the method
+> is macOS 26–27 only until an arm64 route exists.
+
 ## Proposed change 2 — qualify the existing Wine (Whisky) row
 
 Do not delete it; date-scope it so readers know why it disagrees with the new row. Suggested

@@ -424,3 +424,17 @@ The frame is bounded outside the game's own CPU and GPU timings — presentation
 Rosetta, or main-thread waits the benchmark does not count. No Unity boot.config lever reaches that; nothing from P4 goes into P5,
 so no launcher re-assert is needed.
 
+## P5 — pass outcome (2026-10-16)
+
+- **Composed profile = the 2026-08-24 daily driver, unchanged** (P3 and P4 kept nothing). Its gate measurement is
+  Studio M0's same-session series: daily driver 47.69 / 47.73 / 47.82 vs clean baseline 44.91 / 45.09 / 45.06 —
+  **+2.73 FPS (+6.1 %)**, beyond the 1 FPS composed margin. Sixteen daily-driver runs since (controls in P3/P4
+  sessions, 2026-10-13…15) read 47.38–48.19, so the profile has not drifted.
+- **Aspiration (≥25 %) not met, and why:** on the Mac Studio the benchmark frame (~21 ms) is bounded outside the
+  ~14 ms of CPU work the game measures (C81): cheaper game CPU (D1), fewer allocator slow paths (D2), frame caps (B1)
+  and frame-queue depth (B2) all left FPS where it was or lowered it. On the M3 Max (GPU-bound at 1080p) the same
+  profile gave +11.6 % on the stress scene. The next lever is below the game — presentation through Wine + DXMT +
+  Metal under Rosetta — and outside this pass's scope.
+- **Shipped:** `README.md` § Performance (machine-labelled), AGW draft second footnote, GOTCHAS 2026-10-16.
+  **Still open:** P3's vsync decision (by feel) and D4 (second display unplugged).
+

@@ -2711,3 +2711,26 @@ launcher sat in its licence wait; its log then matched the previous run line for
   launcher. The running bash keeps reading its old inode; the next launch gets the new file.
 - Check first: `pgrep -f launch-cs2-dxmt11.sh` (and `boot-verify.sh`) before touching
   `~/cs2-patch/launch-cs2-dxmt11.sh`, the copy every launch actually runs.
+
+## `boot.config` and the in-game frame-latency slider: where the settings really live (2026-10-16)
+
+Two settings-storage facts the perf pass (P3/P4) had wrong, both found by measuring what changed on disk.
+
+- **The in-game "Maximum frame latency" slider IS in `Settings.coc`** — as `"maxFrameLatency": N` beside
+  `"vSync"` — but the game **writes the key only when the value is not the default 2**. A config at the default
+  shows no key, which is why the plan recorded "no Settings.coc key, set it in-game". Found by snapshotting the
+  candidate files before and after moving the slider 2 → 1. So latency cells are file edits (remove the line =
+  back to 2). Measured: 1 costs 13 % on the benchmark (C78) — leave it at 2.
+- **`<game dir>/Cities2_Data/boot.config` is a depot file.** The 1.6.2f1 update rewrote it (only `build-guid`
+  changed, 2026-10-10), and the launcher's `steam://validate` (step 2b, `apply_game_update`) restores it.
+  Validate fires only when an update is pending AND the answer is "update" — `CS2_UPDATE=skip` rules it out.
+  Edit it only with the game not running; add a key by **appending** `key=value\n` (the file's last line ends in
+  CRLF — do not normalise it); remove it by deleting exactly that line and check the sha256 is back; keep any
+  reference copy outside the depot dir and never copy a `.bak` back (after an update it would plant a stale
+  `build-guid`). `~/cs2-patch/perf-runs/p4-series.sh` does all of this mechanically.
+- **Every boot.config key in this Unity build is honoured but none pays on the Studio** (C80, C81): Unity ignores
+  unknown keys silently, so prove a key applied from the graceful-exit allocator report
+  (`scripts/p4-signals.py`) — never from the FPS — before calling a result DEAD.
+- **Python text-mode edits normalise CRLF.** `open(p).read()` / `write()` turns the CRLFs in `Settings.coc`'s
+  section boundaries (10 of them) and boot.config's last line into LF. The game reads either, but a "one-line"
+  edit then diffs on 10+ lines and a sha256 restore check fails. Edit live files in binary mode.
