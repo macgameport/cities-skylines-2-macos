@@ -10,6 +10,12 @@ real defect (the alt-tab / exclusive-fullscreen freeze) is **fixed** by an optio
 stock wine 11.16 engine ([INSTALL §6](INSTALL.md#6-recommended-build-the-wine-1116-engine-kills-the-alt-tab-freeze)):
 ~45 FPS on the M3 Max, Direct presentation, freeze gone.
 
+> ⚠ **macOS 28:** this setup runs Intel (x86-64) Wine under Rosetta, and Apple has said macOS 27 is the last release
+> with general Rosetta support. macOS 27.0.1 already warns, when you open the app, that it "will not open in macOS 28".
+> **Don't move a Mac you play on to macOS 28** until an arm64 route works — the plan and progress are in
+> [issue #16](https://github.com/macgameport/cities-skylines-2-macos/issues/16) and
+> [`docs/plans/arm64-migration.md`](docs/plans/arm64-migration.md).
+
 ![Cities: Skylines II running on macOS via Wine + DXMT](docs/images/cs2-on-macos.png)
 
 *The game on macOS 26 (M3 Max), x86-64 under Rosetta, rendering through Metal via DXMT — 42.7 FPS
