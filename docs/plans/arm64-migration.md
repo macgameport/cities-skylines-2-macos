@@ -169,6 +169,15 @@ community tree — neutron, `willfaust/wine` — plus FEX-darwin).
 Entry: P2 smoke ladder green.
 - Replace `wineandaqua-dxmt.patch` with the tree's own DXMT hooks; rebase the winemac cross-process
   patches onto them; rebuild; re-run `scripts/hosting-layer-tests.sh`.
+  **Checked 2026-10-18 — "the tree's own DXMT hooks" do not exist upstream.** Every winemac.drv file at
+  wine-11.16 … 11.20 was read (GitLab raw): no `macdrv_functions` table, no `external_*` interface; DXMT's hooks
+  are always a third-party winemac patch — aquadran's for 11.16 (ours, 9 files, +299/−1) or neutron's MIT
+  `winemac-dxmt.patch` for 11.18 (150 lines, 3 files, `external_get_win_data` … — the interface codeWonderland's
+  dxmt#141 patch targets). Upstream also renamed winemac's types in 11.18 (`macdrv_window` → `WineWindow *`,
+  `macdrv_metal_swapchain` → `WineMetalSwapChain_id`; both present in 11.20), so any engine past 11.17 re-types
+  all 2,538 lines of our four winemac patches, and P3 must budget for that whatever tree it lands on. An x86_64
+  rebase to 11.20 before P1 would buy only the dropped 6cfa941 cherry-pick (W5) and a smaller gap to whatever tree
+  arm64 lands on — not needed for function today.
 - Drop in our arm64 DXMT build (P2) — the CI artifact lacks `dxmt-remote-layer-fallback.patch`.
 - **New files, never edits to the daily launcher until P4:** `launch-cs2-arm64.sh` (wrapper path
   from a variable). The script set to make arch-aware is the 27/25-file `grep -lE
@@ -192,7 +201,7 @@ Entry: P3 complete. The x86_64 wrapper stays installed and launchable throughout
 | W2 | A DXMT release after v0.80, with arm64x DLLs and an aarch64 unix side | `gh release list -R 3Shain/dxmt` |
 | W3 | A FEX ARM64EC module for macOS works with a **public Wine tree we can build** (neutron's, `willfaust/wine`, CrossOver source) | `FEX-Emu/FEX` releases; `dbc-hbin/FEX-darwin` activity and the Wine hooks it names |
 | W4 | Apple defines the post-27 games subset of Rosetta | developer.apple.com news |
-| W5 | Wine 6cfa941 (60262) reaches a release — the daily engine's cherry-picked win32u.so (2026-10-11) can then be dropped instead of carried | wine release notes |
+| W5 | Wine 6cfa941 (60262) reaches a release — the daily engine's cherry-picked win32u.so (2026-10-11) can then be dropped instead of carried | wine release notes · **✅ FIRED 2026-10-16: wine-11.20 (tag `7298a818b7`) contains 6cfa941; 42877 closed "fixed in 11.20".** Dropping the cherry-pick needs an engine on ≥ 11.20 — the 11.16 engine keeps carrying it (its build script's grep guard skips the patch on a tree that already has it). Recorded on #16. |
 | W6 | neutron matures: a release that documents its entitlement route, or reports a Unity DX11 title at scale | `lixsldotnet/neutron`, `codeWonderland/neutron` releases |
 | W7 | `willfaust/wine` gains a macOS (not iOS) branch | its branch list |
 | W8 | The first macOS 28 beta: are the cross-arch kernel features still there? | Apple's beta release notes and the beta SDK's `os/arch/arm64.h` (the SDK comes with Xcode beta and needs no OS upgrade); reports of `os_cross_arch_is_supported(OS_CROSS_ARCH_X86_64)` and `arch -x86_64` on the beta. **Never by upgrading the Studio** (D4) |
