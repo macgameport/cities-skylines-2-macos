@@ -78,10 +78,20 @@ if ls "$L"/*-Player.log >/dev/null 2>&1; then
   n=0; bad=0
   for f in "$L"/*-Player.log; do
     /usr/bin/python3 "$X" "$f" --expect control >/dev/null; rc=$?
-    # No boot.config key has ever been set, so a log WITH a report must read as control (0) and one
-    # without (SIGTERM'd, incl. the teardown mutant and pre-2026-10-10 cycles) as VOID (2).
-    if grep -q 'Memory Statistics:' "$f"; then want=0; else want=2; fi
+    # A log without a report (SIGTERM'd: the teardown mutant, pre-2026-10-10 cycles) is VOID (2). P4's
+    # lever cycles (p4-<lever>-lN-*) carried a boot.config key, so they must FAIL the control check (3)
+    # and pass their own lever expectation (0); every other log with a report is an unmodified control (0).
+    lever=""
+    case "$(basename "$f")" in
+      p4-d2-bucket4-l[0-9]-*)          lever=bucket ;;
+      p4-d1-workers[0-9]*-l[0-9]-*)    n=$(basename "$f" | sed -E 's/^p4-d1-workers([0-9]+)-.*/\1/'); lever="workers=$n" ;;
+    esac
+    if ! grep -q 'Memory Statistics:' "$f"; then want=2; elif [ -n "$lever" ]; then want=3; else want=0; fi
     [ "$rc" = "$want" ] || { echo "FAIL live: $(basename "$f") rc $rc, want $want"; bad=$((bad + 1)); }
+    if [ -n "$lever" ]; then
+      /usr/bin/python3 "$X" "$f" --expect "$lever" >/dev/null; lrc=$?
+      [ "$lrc" = 0 ] || { echo "FAIL live: $(basename "$f") --expect $lever rc $lrc, want 0"; bad=$((bad + 1)); }
+    fi
     n=$((n + 1))
   done
   [ "$bad" = 0 ] && echo "pass live: $n real logs" || FAILS=$((FAILS + bad))
