@@ -9,7 +9,8 @@ fixes both symptoms on this reproducer — see § "Upstream fix, measured" below
 **2026-10-11: CLOSED — RESOLVED DUPLICATE of [42877](https://bugs.winehq.org/show_bug.cgi?id=42877)** (SumatraPDF tabs under
 the title bar, winex11, 2017), which Jactry Zeng marked FIXED by 6cfa941 on 2026-10-10. Not yet in a release:
 no tag contains 6cfa941 as of 2026-10-11 (latest wine-11.19, 2026-10-02), so expect wine-11.20. **2026-10-16: released — wine-11.20 (tag `7298a818b7`, 2026-10-16) contains 6cfa941, and Julliard
-CLOSED 42877 ("Closing bugs fixed in 11.20").** A build on 11.20 or later needs no cherry-pick; ours stays on 11.16 + the patch.
+CLOSED 42877 ("Closing bugs fixed in 11.20").** A build on 11.20 or later needs no cherry-pick; ours stays on 11.16 + the patch. **2026-10-22: 60262 CLOSED** (RESOLVED DUPLICATE → CLOSED, "Closing duplicate",
+Alistair Leslie-Hughes, comment #6) — the bug's lifecycle is complete.
 **2026-10-11: the project's daily engine carries it** — the measured win32u.so (stock 11.16 + 6cfa941) swapped
 into the wrapper; boot-verify PASS. The public `scripts/build-engine-1116.sh` applies it too (same day,
 `scripts/wine-6cfa941-win32u-visible-rect.patch`).
