@@ -2564,8 +2564,11 @@ the loss sat undetected for 16 days.
   `win32u.so`/`winemac.so` relink is possible — only single `.o` compiles, because the native clang
   cross-compiles. And every memory/doc claim that the stack "runs" is a pre-upgrade claim until the
   first post-upgrade `boot-verify.sh` PASS.
-- **Generalise:** after any major macOS upgrade, the first check is the Rosetta tell above, before
-  believing any "wine is broken" symptom.
+- **Generalise:** after **any** macOS update, the first check is the Rosetta tell above, before
+  believing any "wine is broken" symptom. *Was "any major upgrade" — falsified 2026-10-30 on the
+  MacBook: the **point** update 27.0.1 → 27.2 (26B123) removed it again (no `pkgutil` receipt,
+  `/Library/Apple/usr/share/rosetta` gone, `oahd` not running, `arch -x86_64 /bin/ls /` → "Bad CPU
+  type"). Two removals in two updates on macOS 27, so expect it on every one.*
 
 ## `DYLD_FALLBACK_LIBRARY_PATH` into the wrapper bundle makes Gatekeeper verify all 90 GB of it (2026-10-10)
 
