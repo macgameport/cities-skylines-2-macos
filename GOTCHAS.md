@@ -2755,3 +2755,24 @@ frames are all unnamed `ntdll.so` under `_pthread_start`.
 - **Rule:** any tool run into a live S734M prefix exports the same `WINEESYNC`/`WINEMSYNC` as the
   launcher that started its wineserver. Not tested on the dxmt11 wrappers (their launchers set their
   own flags; match whatever the running launcher used).
+
+## A frameless fullscreen window can keep a stale frame, and every click lands sideways (2026-11-01)
+
+**Measured on Surviving Mars: Relaunched, not on CS2**, in the S734M wrapper (Wine 10 Sikarugir +
+D3DMetal 2.1). Recorded here because it is a wine window-management mechanism with a cheap test, and
+CS2 on the same stack once showed "cursor desync" on alt-tab (§ focus-loss freeze, above). Whether
+that was this mechanism was **not** tested.
+
+- **The state:** the window is 1512×982 with style `0x160a0000` (no `WS_CAPTION`, no `WS_THICKFRAME`),
+  but `GetClientRect` says **1506×950**: a 3 px side and 32 px top-to-bottom allowance left over from
+  the style the window was created with. Every click lands a constant distance sideways of the pointer.
+  It reproduced on every launch tried (3) and is present 1 s after the window appears.
+- **The fix:** `SetWindowPos(h, 0, 0,0,0,0, SWP_NOMOVE|SWP_NOSIZE|SWP_NOZORDER|SWP_NOACTIVATE|
+  SWP_FRAMECHANGED)` from any process in the prefix → client 1512×982, clicks land under the pointer
+  (confirmed by hand, live, and again on a fresh launch). Toggling window mode twice in-game does the
+  same; that is the workaround Proton players report for this game, so it is likely wine-wide.
+- **Injected Alt+Enter did nothing:** `SendInput` from another process reached the queue (4/4 events)
+  but the game did not toggle, so a keystroke-injection fix is not a substitute for `SWP_FRAMECHANGED`.
+- **The test, for any window-related input bug:** compare `GetWindowRect` with `GetClientRect` on a
+  frameless window. Different sizes = this bug. Tool: `~/sm-patch/tools/frame-fix.c` (`--dry` prints both,
+  `--once` fixes; run it with the launcher's `WINEESYNC`/`WINEMSYNC`, see the next-but-one section up).
