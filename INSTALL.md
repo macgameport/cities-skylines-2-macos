@@ -114,7 +114,10 @@ build script handles this for you: it preserves the wine 11.0 wrapper as `CS2dxm
 (an APFS clone — under a minute, ~no extra disk, the game install stripped from the clone) and
 installs **CS2 Steam Store.app** in `~/Applications`. Play from **Cities Skylines II.app**; buy
 DLC and browse from **CS2 Steam Store.app** — licences are account-level, so purchases cross
-over immediately. One account holds one online Steam session, so opening the store while
+over immediately. The store wrapper has no game install, so its library always shows CS2 as
+not installed; DLC with content downloads in the game's own Steam the next time it signs in
+(measured 2026-11-01: a 437 MB set, finished within a minute, no game update needed). One
+account holds one online Steam session, so opening the store while
 playing steals the session from the game's Steam; measured harmless — the game keeps running,
 and the next game launch takes the session back. Built the engine before this existed?
 `bash scripts/make-steam-shortcut.sh` retrofits the wrapper + shortcut. Since 2026-10-11 the

@@ -153,8 +153,9 @@ under Rosetta is the likely place — not measured).
    preserves your wine 11.0 wrapper as `CS2dxmt11-pk110.app` (an APFS clone: under a minute,
    ~no extra disk, the game install stripped from the clone) and installs **CS2 Steam
    Store.app** beside the game shortcut. Double-click it to buy DLC or browse; **Steam
-   licences are account-level**, so a purchase there is immediately playable in the game
-   wrapper. Built the engine before this existed? `bash scripts/make-steam-shortcut.sh`
+   licences are account-level**, so a purchase there carries over to the game wrapper. Its
+   library always shows CS2 as not installed (the game lives in the other wrapper); DLC content
+   downloads in the game's own Steam on its next sign-in, within a minute for a 437 MB set. Built the engine before this existed? `bash scripts/make-steam-shortcut.sh`
    retrofits both pieces. (Or just use another device, or the Steam website.)
 
    One account holds one online session (measured 2026-08-24): opening the store while the
