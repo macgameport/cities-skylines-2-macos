@@ -2775,4 +2775,4 @@ that was this mechanism was **not** tested.
   but the game did not toggle, so a keystroke-injection fix is not a substitute for `SWP_FRAMECHANGED`.
 - **The test, for any window-related input bug:** compare `GetWindowRect` with `GetClientRect` on a
   frameless window. Different sizes = this bug. Tool: `~/sm-patch/tools/frame-fix.c` (`--dry` prints both,
-  `--once` fixes; run it with the launcher's `WINEESYNC`/`WINEMSYNC`, see the next-but-one section up).
+  `--once` fixes; run it with the launcher's `WINEESYNC`/`WINEMSYNC`, see the section directly above).
