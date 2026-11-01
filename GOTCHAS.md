@@ -2579,6 +2579,15 @@ triggers Gatekeeper's first-run verification of the **whole bundle**, and this o
 91 GB game prefix. The engine's own `libfreetype`-less run is fine for geometry work — the warning
 is cosmetic. Never point a dyld search path into a wrapper bundle for a throwaway run.
 
+- **Launchers do it too, so the first launch after a long gap pays once** (2026-11-01, Studio,
+  S734M, idle since 2026-08-22): `launch-relaunched.sh` sets the path into the bundle the way every
+  wrapper launcher does, and the sheet *"Verifying S734M.app…"* held the first `wine64` for ~4 min,
+  with only dyld and the Rosetta runtime open and `XprotectService` near 95 % CPU. The launcher's
+  120 s sign-in wait expired first and reported *"Steam did not sign in"*, which misnames it. Wine
+  carried on by itself once the sheet closed; the next launch was not re-verified. **Tell:**
+  `osascript -e 'tell application "System Events" to get value of every static text of every window of process "CoreServicesUIAgent"'`.
+  Don't click Cancel; wait, then relaunch.
+
 ## Wine's per-directory Makefile is a stub: `gmake -C dlls/win32u win32u.so` is always "up to date" (2026-10-10)
 
 The build tree's `dlls/<x>/Makefile` forwards to the top-level Makefile, and the forwarded target
