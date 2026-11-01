@@ -20,6 +20,7 @@ Durable record = this repo + its issues + `~/cs2-patch/change-ledger.txt`.
 | Webhelper shim (**in the daily prefix**) | `<prefix>/drive_c/Program Files (x86)/Steam/bin/cef/`**`cef.win64`**`/steamwebhelper.exe`, original kept beside it as `steamwebhelper_real.exe`. Compiled default is **empty** — installed is NOT armed; a cell asks for switches via `SHIM_ARGS`. A Steam client update restores the original and silently un-shims it. Install/revert: `scripts/install-webhelper-shim.sh [--revert]` |
 | Game prefix (default) | `~/Applications/CS2dxmt11.app/Contents/SharedSupport/prefix` |
 | Game prefix (fallback) | `~/Applications/S734M.app/Contents/SharedSupport/prefix` |
+| Other tenant of these wrappers (2026-10-31) | **Surviving Mars: Relaunched** is installed in the *storefront* wrapper's Steam library (`steamapps/common/Project Spark`, ~11 GB) and runs under **S734M**'s wine + D3DMetal via `~/sm-patch/launch-relaunched.sh` (repo `~/sm-patch`, hub `studio:git/sm-patch.git`). Deleting or re-cloning either wrapper takes the game, its saves (S734M prefix) or its launcher with it |
 | Game logs | `<prefix>/drive_c/users/Wineskin/AppData/LocalLow/Colossal Order/Cities Skylines II/` (the other user dirs in the prefix are symlinks to `Wineskin`) |
 | Agent brief | `docs/agent-brief.md` — hand to every subagent; they inherit no auto-loaded memory |
 | Experiment ledger | `EXPERIMENTS.md` — conclusions register + run index. Read the register at `wake up`; `python3 scripts/check-experiments.py` at `button up` |
