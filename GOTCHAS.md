@@ -2737,3 +2737,21 @@ Two settings-storage facts the perf pass (P3/P4) had wrong, both found by measur
 - **Python text-mode edits normalise CRLF.** `open(p).read()` / `write()` turns the CRLFs in `Settings.coc`'s
   section boundaries (10 of them) and boot.config's last line into LF. The game reads either, but a "one-line"
   edit then diffs on 10+ lines and a sha256 restore check fails. Edit live files in binary mode.
+
+## A wine client whose sync flags differ from the wineserver's dies with SIGFPE at start (2026-11-01)
+
+**Stack: S734M (Wine 10 Sikarugir + D3DMetal).** `launch-cs2.sh` starts Steam with `WINEESYNC=1
+WINEMSYNC=1`, so the prefix's wineserver runs in that sync mode. Any later client started **without**
+the same flags (a probe, `win-resize-driver.exe`, a one-off helper) is killed by SIGFPE about 0.1 s after
+start, before `main` prints anything: exit 136, and a `wine64-<time>.ips` with `EXC_ARITHMETIC` whose
+frames are all unnamed `ntdll.so` under `_pthread_start`.
+
+- **Measured** (Surviving Mars: Relaunched session, same prefix): `win-resize-driver.exe list`/`cursor`
+  and a new SendInput helper each crashed this way 3 of 3 times without the flags; the helper ran
+  cleanly (rc 0, found the game window) with `WINEESYNC=1 WINEMSYNC=1`. Which of the two flags matters
+  was not separated.
+- **The trap is misattribution.** The `.ips` names only `wine64`, so it looks like the game or wine
+  crashed. Check its `procLaunch` against the crash time: a process that lived 0.1 s is the probe.
+- **Rule:** any tool run into a live S734M prefix exports the same `WINEESYNC`/`WINEMSYNC` as the
+  launcher that started its wineserver. Not tested on the dxmt11 wrappers (their launchers set their
+  own flags; match whatever the running launcher used).
