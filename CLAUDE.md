@@ -43,7 +43,9 @@ Durable record = this repo + its issues + `~/cs2-patch/change-ledger.txt`.
   the reference (prefix, not wine dir — an engine can serve a foreign prefix).
 - **Same-account Steams swap ONE online session** ("Session Replaced"); the running game survives
   the swap and takes the session back on its next launch (GOTCHAS 2026-08-24). A store wrapper
-  showing NO CONNECTION mid-game is correct behavior, not a bug.
+  showing NO CONNECTION mid-game is correct behavior, not a bug. The other order costs something:
+  a store opened AFTER the game starts replaces the game's Steam, which then skips the game's
+  Steam Cloud upload at exit (GOTCHAS 2026-11-01).
 - **Never `kill -9` Steam.** It leaves a 0-byte `.crash` marker that makes the next launch exit 1.
   Use `steam.exe -shutdown`; fall back to `WINEPREFIX=<prefix> wineserver -k`. The launcher clears
   a stale `.crash` on startup.

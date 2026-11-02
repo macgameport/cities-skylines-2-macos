@@ -1109,6 +1109,13 @@ game launch logs in and kicks the store back to cached mode (21:48:39, same sess
 **Untested edge:** a Paradox Mods download in flight at the moment of a steal (different
 auth/CDN — expected unaffected, not measured).
 
+**⚠ The game survives a steal; its Steam Cloud save does not (2026-11-01, Surviving Mars:
+Relaunched in S734M).** The replaced client stays offline until the game exits, so its Auto-Cloud
+exit upload logs `Starting sync (AC Exit,Sync Disabled,)` → `Failed sync … [login=false]` and
+that session's saves stay on the Mac. Opening the store wrapper mid-game is harmless to the game
+and wrong for its cloud saves. The measurements above still stand; only "non-event" was too broad.
+See § `steam.exe -shutdown` right after the game exits, below.
+
 ## Prefix-scoped `lsof` attribution has TWO blind spots, and both leave processes running (2026-08-30)
 
 The standing rule — attribute a wine process by open files against the **prefix**, never by command
@@ -2785,3 +2792,29 @@ that was this mechanism was **not** tested.
 - **The test, for any window-related input bug:** compare `GetWindowRect` with `GetClientRect` on a
   frameless window. Different sizes = this bug. Tool: `~/sm-patch/tools/frame-fix.c` (`--dry` prints both,
   `--once` fixes; run it with the launcher's `WINEESYNC`/`WINEMSYNC`, see the section directly above).
+
+## `steam.exe -shutdown` right after the game exits cancels Steam Cloud's exit upload (2026-11-01)
+
+**Measured on Surviving Mars: Relaunched, not on CS2**, in the S734M wrapper. The game is launched
+directly (`Mars.exe` + `steam_appid.txt`, the same recipe as `launch-cs2.sh`), so Steam logs `No launch
+record found` and runs Auto-Cloud as a full scan when it sees the game exit (`Starting sync (up,AC
+Exit,)`). Uploads happen **only** then, and the launcher sent `-shutdown` as soon as the game exited.
+
+- **Measured:** two 3 KB files uploaded in ~3 s and made it. A 31.8 MB save was 24 s into its upload
+  when the logoff landed: `Upload Timeout` → `Failed to send CompleteAppUploadBatch notification (No
+  Connection / OK)` → `Job Canceled`. The batch never committed and the save never reached the cloud.
+- **How to tell a save never left the Mac:** in `Steam/userdata/<id>/<appid>/remotecache.vdf` the
+  file's entry has `"remotetime" "0"` and `"syncstate" "3"`. Uploaded files show the upload time and `1`.
+- **Exit-sync verdict lines** (`logs/cloud_log.txt`, after the `AC Exit` line, filtered by `[AppID n]`):
+  `Upload complete, result OK` or `Upload complete in build list` (nothing to upload) = done;
+  `Upload Timeout` / `Job Canceled` / `Failed sync` = failed; `Sync Disabled` = Steam was offline
+  (a session steal, § Same-account Steam sessions SWAP, above).
+- **Read the log by line offset, never by timestamp.** That night crossed the DST change: the session
+  started at 01:43 and ended at 01:32 in the same file.
+- **Fix:** `~/sm-patch/launch-relaunched.sh` waits up to 5 min for that verdict before `-shutdown`, and
+  reports when the saves stayed local. Replayed against the real log slices (ok ×2, offline, failed,
+  pending, none) with three mutants, each observed red. Not yet exercised in a live exit.
+- **CS2 launchers deliberately unchanged.** `launch-cs2-dxmt11.sh` and `launch-cs2.sh` have the same
+  shape (`-shutdown` straight after the game), but across the three wrappers' `cloud_log.txt` CS2's
+  37 exit syncs show **0** `Upload Timeout`/`Job Canceled`; they are almost all "nothing to upload".
+  Revisit if one ever appears.
