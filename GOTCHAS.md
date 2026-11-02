@@ -2802,18 +2802,31 @@ Exit,)`). Uploads happen **only** then, and the launcher sent `-shutdown` as soo
 
 - **Measured:** two 3 KB files uploaded in ~3 s and made it. A 31.8 MB save was 24 s into its upload
   when the logoff landed: `Upload Timeout` → `Failed to send CompleteAppUploadBatch notification (No
-  Connection / OK)` → `Job Canceled`. The batch never committed and the save never reached the cloud.
+  Connection / OK)` → `Job Canceled`. ⚠ Corrected 2026-11-02: the batch did **not** fail whole. The
+  two small files still landed as cloud change 3 (the Studio downloaded them, and the MacBook's next
+  sync started from local change 3). Only the save was lost.
 - **How to tell a save never left the Mac:** in `Steam/userdata/<id>/<appid>/remotecache.vdf` the
   file's entry has `"remotetime" "0"` and `"syncstate" "3"`. Uploaded files show the upload time and `1`.
 - **Exit-sync verdict lines** (`logs/cloud_log.txt`, after the `AC Exit` line, filtered by `[AppID n]`):
   `Upload complete, result OK` or `Upload complete in build list` (nothing to upload) = done;
   `Upload Timeout` / `Job Canceled` / `Failed sync` = failed; `Sync Disabled` = Steam was offline
-  (a session steal, § Same-account Steam sessions SWAP, above).
+  (a session steal, § Same-account Steam sessions SWAP, above); `Sync conflict for file …` then
+  `Upload failed due to conflicts in build list` = a conflict. Steam asks "keep local or cloud?" only
+  when Steam itself launches the game, so a directly launched game's conflict fails every exit
+  without a word (the Studio, six exits on 2026-11-01; mechanism and recovery in the launcher's header).
+- **A pending upload runs at the next sign-in, not the next exit.** On 2026-11-02 the MacBook's Steam,
+  holding the cancelled save, ran a sync right after sign-in, before the game started. It pulled the
+  other Mac's saves (change 4) and pushed the stranded one (change 5). Without a pending upload this
+  wrapper's Steam runs no sync before launch (the game is not installed in it), so another Mac's newer
+  `account.dat` arrives as a conflict at the next exit instead.
 - **Read the log by line offset, never by timestamp.** That night crossed the DST change: the session
   started at 01:43 and ended at 01:32 in the same file.
-- **Fix:** `~/sm-patch/launch-relaunched.sh` waits up to 5 min for that verdict before `-shutdown`, and
-  reports when the saves stayed local. Replayed against the real log slices (ok ×2, offline, failed,
-  pending, none) with three mutants, each observed red. Not yet exercised in a live exit.
+- **Fix:** `~/sm-patch/launch-relaunched.sh` reads the verdict with `cloud_outcome` and waits up to
+  5 min for it before `-shutdown`, then reports when the saves stayed local (sm-patch `657dfb7` from
+  the Studio, merged with the MacBook's cancel and offline cases in `44dcbd8`). Test:
+  `tools/test-cloud-outcome.sh`, 9 cases from real logs, with mutants. Each Mac's own version had a
+  live clean exit on 2026-11-02 that logged `Upload complete, result OK`; the merge itself is tested
+  only against those log fixtures.
 - **CS2 launchers deliberately unchanged.** `launch-cs2-dxmt11.sh` and `launch-cs2.sh` have the same
   shape (`-shutdown` straight after the game), but across the three wrappers' `cloud_log.txt` CS2's
   37 exit syncs show **0** `Upload Timeout`/`Job Canceled`; they are almost all "nothing to upload".
