@@ -2816,9 +2816,25 @@ Exit,)`). Uploads happen **only** then, and the launcher sent `-shutdown` as soo
   without a word (the Studio, six exits on 2026-11-01; mechanism and recovery in the launcher's header).
 - **A pending upload runs at the next sign-in, not the next exit.** On 2026-11-02 the MacBook's Steam,
   holding the cancelled save, ran a sync right after sign-in, before the game started. It pulled the
-  other Mac's saves (change 4) and pushed the stranded one (change 5). Without a pending upload this
-  wrapper's Steam runs no sync before launch (the game is not installed in it), so another Mac's newer
-  `account.dat` arrives as a conflict at the next exit instead.
+  other Mac's saves (change 4) and pushed the stranded one (change 5). Without a pending upload,
+  Steam ran no sync before launch while the game was not installed in it, so another Mac's newer
+  `account.dat` arrived as a conflict at the next exit.
+- **⭐ Steam syncs a game's cloud saves at sign-in only if the game is INSTALLED in that Steam.** A
+  game run from another wrapper's library gets no pull before play. Measured on the MacBook,
+  2026-11-02, with one cloud save missing locally and unknown to the cache: with the game
+  **registered** in S734M's Steam (a symlink `steamapps/common/<installdir>` to the other wrapper's
+  game folder, plus a copy of its `appmanifest_<appid>.acf`), Steam downloaded the save 0–3 s after
+  sign-in, byte-identical, with the manifest and game files untouched. **Unregistered**, from the same
+  state: no sync for the app in 2.5 min. The same applies to any game this repo runs from a library
+  its Steam does not own.
+  - **The registration's own traps.** Two manifests over one folder means two possible updaters: set
+    the copy's `AutoUpdateBehavior` to `1` (update only on launch) and re-make it when its build
+    drifts. A manifest whose folder is missing makes that Steam re-download the game (~10 GB here),
+    so never leave one behind a dangling link. "Uninstall" in the registered Steam deletes through
+    the link.
+  - **`cloud_log.txt` is CRLF** (every line). A classifier that extracts text from it, such as file
+    names for an alert, must strip the `\r`. Substring matches are unaffected, so tests fed LF
+    fixtures pass while the alert prints garbled.
 - **Read the log by line offset, never by timestamp.** That night crossed the DST change: the session
   started at 01:43 and ended at 01:32 in the same file.
 - **Fix:** `~/sm-patch/launch-relaunched.sh` reads the verdict with `cloud_outcome` and waits up to
@@ -2826,7 +2842,12 @@ Exit,)`). Uploads happen **only** then, and the launcher sent `-shutdown` as soo
   the Studio, merged with the MacBook's cancel and offline cases in `44dcbd8`). Test:
   `tools/test-cloud-outcome.sh`, 9 cases from real logs, with mutants. Each Mac's own version had a
   live clean exit on 2026-11-02 that logged `Upload complete, result OK`; the merge itself is tested
-  only against those log fixtures.
+  only against those log fixtures. **Pull before play** (sm-patch `f111e96`): the launcher registers the
+  game as above before starting Steam, waits for the sign-in sync, and refuses to start on a conflict.
+  Test: `tools/test-signin-sync.sh`, 43 cases (`MUTANT=1` fails 25; the commit message says 41/23,
+  counted before the last two cases were added). Live, before the review fixes: registered by the
+  launcher, the missing save was pulled at sign-in, and the exit uploaded change 7. The post-review
+  classifier was run on the real CRLF log, not live.
 - **CS2 launchers deliberately unchanged.** `launch-cs2-dxmt11.sh` and `launch-cs2.sh` have the same
   shape (`-shutdown` straight after the game), but across the three wrappers' `cloud_log.txt` CS2's
   37 exit syncs show **0** `Upload Timeout`/`Job Canceled`; they are almost all "nothing to upload".
