@@ -73,8 +73,9 @@ python3 "$HERE/patch_asset_database.py" "$GAME"
 # So the `dxmt11` target below needs no bypass, and every patch it *does* need is in this repo.
 # THE CORRECT FIX WAS ALWAYS IN WINE — see docs/wine-bugs/R3-*.md.
 if [ "$COHTML_LICENSE" = 1 ]; then
-  echo "  !! wine 10 target: this stack needs the unpublished cohtml licence bypass (see above)."
-  echo "     Expect 'Invalid License key used!' and no main menu. Use the wine 11 target instead."
+  echo "  !! wine 10 target: builds before 25127643 need the unpublished cohtml licence bypass (see above)."
+  echo "     25127643 reached the main menu without it (2026-11-03, GOTCHAS). If you see"
+  echo "     'Invalid License key used!' and no main menu, use the wine 11 target instead."
 fi
 # ───────────────────────────────────────────────────────────────────────────────────────────────
 
