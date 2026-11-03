@@ -2846,9 +2846,35 @@ Exit,)`). Uploads happen **only** then, and the launcher sent `-shutdown` as soo
   game as above before starting Steam, waits for the sign-in sync, and refuses to start on a conflict.
   Test: `tools/test-signin-sync.sh`, 43 cases (`MUTANT=1` fails 25; the commit message says 41/23,
   counted before the last two cases were added). Live, before the review fixes: registered by the
-  launcher, the missing save was pulled at sign-in, and the exit uploaded change 7. The post-review
-  classifier was run on the real CRLF log, not live.
+  launcher, the missing save was pulled at sign-in, and the exit uploaded change 7. Live after them,
+  on the Studio 2026-11-02 22:43 (sm-patch `a4460f6`, first launch there): the launcher made the link
+  and manifest, Steam pulled cloud changes 5–7 (`account.dat`, `account.dat.bak`, a save the Studio
+  had never seen) 4 s after sign-in, `Successfully synced to ChangeNumber 7`, no conflict, and the
+  launcher printed `Steam Cloud: saves up to date.` before starting the game.
 - **CS2 launchers deliberately unchanged.** `launch-cs2-dxmt11.sh` and `launch-cs2.sh` have the same
   shape (`-shutdown` straight after the game), but across the three wrappers' `cloud_log.txt` CS2's
   37 exit syncs show **0** `Upload Timeout`/`Job Canceled`; they are almost all "nothing to upload".
   Revisit if one ever appears.
+
+## A Steam started for another game updates CS2 in the same prefix, and the update removes the patches (2026-11-02)
+
+**Measured in the S734M wrapper (the fallback stack).** S734M's `appmanifest_949230.acf` has
+`AutoUpdateBehavior 0` (always keep updated). `launch-cs2.sh` never gives that Steam an idle window,
+because it shuts Steam down as soon as the game exits (§ The launcher never lets Steam update the game).
+But `~/sm-patch/launch-relaunched.sh` runs the same Steam for hours of Surviving Mars, and that gave
+it the window. In S734M's `logs/content_log.txt`, the update to 949230 started 2026-11-01 07:34 and
+was suspended at a Steam shutdown. It resumed in the next session and finished at 10:32:
+5.5 GB downloaded, `BuildID 25127643`, up from 23700737, the July build.
+
+- **The update overwrote the patched binaries.** Five of the six files with a `.bak` beside them in
+  `Cities2_Data` now carry the update's mtime (2026-11-01 07:23 or 10:32): `PDX.SDK.dll`,
+  `Colossal.IO.dll`, `Colossal.IO.AssetDatabase.dll`, `cohtml_unity3dplugin.dll` and
+  `cohtml.WindowsDesktop.dll`. Only `mscorlib.dll` kept its 2026-08-22 mtime. The manifest reads
+  `StateFlags 4` with matching build ids, so `launch-cs2.sh`'s update check sees nothing pending.
+- **Tell:** a patched file newer than its `.bak`. **Fix:** before relying on the fallback, run
+  `repatch.sh "<S734M game dir>"`. The game-dir form keeps the Wine 10 patch set; see the header
+  for which patches apply. Then boot-verify.
+- **Left on for now.** Staying current is what this repo wants (the 2026-10-10 entry).
+  Only the re-patch is manual. If it keeps coming up, set that manifest's `AutoUpdateBehavior` to `1`
+  (update only on launch). Any long-running Steam in a prefix that also holds CS2 has the same
+  effect.
