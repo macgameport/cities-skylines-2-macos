@@ -2871,9 +2871,18 @@ was suspended at a Steam shutdown. It resumed in the next session and finished a
   `Colossal.IO.dll`, `Colossal.IO.AssetDatabase.dll`, `cohtml_unity3dplugin.dll` and
   `cohtml.WindowsDesktop.dll`. Only `mscorlib.dll` kept its 2026-08-22 mtime. The manifest reads
   `StateFlags 4` with matching build ids, so `launch-cs2.sh`'s update check sees nothing pending.
-- **Tell:** a patched file newer than its `.bak`. **Fix:** before relying on the fallback, run
-  `repatch.sh "<S734M game dir>"`. The game-dir form keeps the Wine 10 patch set; see the header
-  for which patches apply. Then boot-verify.
+- **Tell:** a patched file whose mtime is Steam's write time in `content_log.txt` rather than the
+  last re-patch. ~~A patched file newer than its `.bak`~~ is not a tell (corrected 2026-11-03): the
+  patchers back up with `shutil.copy2`, which keeps the vendor mtime, so every patched file is newer
+  than its `.bak`, and `mscorlib.dll`, still patched, is too.
+- **Fix (#19): `repatch.sh` alone is not enough.** S734M is Wine 10, so its game-dir form applies the
+  Wine 10 set and only *warns* about the cohtml licence bypass, and the update replaced
+  `cohtml.WindowsDesktop.dll`, which held it. Also run the unpublished
+  `~/cs2-patch/old-patchers/patch_cohtml_license.py`, fingerprinted on 1.6.0f1, so it may not match.
+  Before either, move `PDX.SDK.dll.bak` and `cohtml.WindowsDesktop.dll.bak` aside: those patchers
+  write a `.bak` only if absent, so the July copies would survive as the "pristine" backup of a
+  November build. Then boot-verify with `CS2_WRAPPER=~/Applications/S734M.app
+  CS2_LAUNCHER=~/cs2-patch/launch-cs2.sh`.
 - **Left on for now.** Staying current is what this repo wants (the 2026-10-10 entry).
   Only the re-patch is manual. If it keeps coming up, set that manifest's `AutoUpdateBehavior` to `1`
   (update only on launch). Any long-running Steam in a prefix that also holds CS2 has the same
