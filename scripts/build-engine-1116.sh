@@ -15,6 +15,9 @@
 #
 # Usage:  bash scripts/build-engine-1116.sh            # build + install
 #         CS2_WRAPPER=/path/to/Wrapper.app bash scripts/build-engine-1116.sh
+#         CS2_BUILD_ONLY=1 ...      stop once the engine is assembled in $CS2_BUILD_DIR/engine-1116:
+#                                   no install, no prefix update, no storefront (a probe engine)
+#         CS2_EXTRA_PATCHES="<patch> ..."  further -p1 patches for the tree, each skipped once applied
 #
 # Every non-obvious flag below was earned by a live failure on 2026-08-23 — see
 # docs/plans/build-wine1116-dxmt-engine.md for the full story.
@@ -98,6 +101,12 @@ fi
 if ! grep -q "if client rect extends into non-visible area" "$PATCHED/dlls/win32u/window.c"; then
   ( cd "$PATCHED" && patch -p1 -F 0 < "$REPO/scripts/wine-6cfa941-win32u-visible-rect.patch" ) || die "wine 6cfa941 (win32u) patch did not apply — wine $WINE_VER expected"
 fi
+# Extra patches, e.g. scripts/wine-ntdll-unix-call-export.patch for the unified-stack probe (2026-11-07):
+# Wine 11 dropped the ntdll export that prebuilt D3DMetal DLLs import.
+for _p in ${CS2_EXTRA_PATCHES:-}; do
+  ( cd "$PATCHED" && patch -p1 -R --dry-run -s -f < "$_p" >/dev/null 2>&1 ) && { echo "  already applied: ${_p##*/}"; continue; }
+  ( cd "$PATCHED" && patch -p1 -F 0 < "$_p" ) || die "extra patch did not apply: $_p"
+done
 echo "  patched tree: $PATCHED"
 
 # ---------------------------------------------------------------- 2. configure (gate G0)
@@ -176,6 +185,11 @@ for m in win32u dwrite crypt32 secur32; do
   codesign -f -s - "$so" 2>/dev/null   # add_rpath invalidates the ad-hoc signature
   echo "  $m.so: rpath added"
 done
+
+if [ "${CS2_BUILD_ONLY:-0}" = 1 ]; then
+  echo; echo "=== built (CS2_BUILD_ONLY=1): $E"; echo "    no wrapper was changed: no install, no prefix update, no storefront"
+  exit 0
+fi
 
 # ---------------------------------------------------------------- 5. swap into the wrapper
 step "install into the wrapper"
