@@ -59,6 +59,37 @@ die() {   # fatal: alert dialog when quiet, pause-on-keypress otherwise
 
 echo "949230" > "$GDIR/steam_appid.txt"
 
+# Cities2.exe running in THIS prefix? Attributed by open files, never by command line (GOTCHAS 2026-08-24).
+game_running() { local p; for p in $(pgrep -f 'Cities2\.exe' 2>/dev/null); do lsof -p "$p" 2>/dev/null | grep -q "$WINEPREFIX" && return 0; done; return 1; }
+# One launcher per Wine prefix, for its whole run: every launcher that uses this prefix's Steam takes
+# the same lock (S734M's prefix is shared by cs2's launch-cs2.sh and sm-patch's launch-relaunched.sh).
+# A launch while the previous launcher was still closing Steam found Steam "already running", reused
+# it, and the game died as that shutdown finished: `CClientPipe::BWriteAndReadResult: BReadResult
+# failed ... Fatal assert` (sm-patch, 2026-11-07). The lock is a symlink whose target is the holder's
+# PID: creating one is atomic, and a launcher that died leaves a link to a dead PID, which the next
+# launch clears. The functions are identical in cs2's two launchers and sm-patch's (original:
+# sm-patch); test-launch-lock.sh in either repo runs them and checks the copies still match.
+LOCK="$WINEPREFIX/.launcher.lock"
+lock_holder() { readlink "$LOCK" 2>/dev/null; }
+acquire_lock() {   # <tries, 2 s apart> -- 0 = this launcher holds the lock; needs note, die, game_running
+  local i h
+  for i in $(seq 1 "$1"); do
+    ln -s "$$" "$LOCK" 2>/dev/null && return 0
+    h=$(lock_holder)
+    if [ -n "$h" ] && ! kill -0 "$h" 2>/dev/null; then   # left by a launcher that died
+      [ "$(lock_holder)" = "$h" ] && rm -f "$LOCK"
+      ln -s "$$" "$LOCK" 2>/dev/null && return 0
+    fi
+    [ "$i" = 1 ] && note "Another launch in this wrapper is still running or closing Steam. Waiting for it…"
+    game_running && die "The game is already running."
+    sleep 2
+  done
+  return 1
+}
+release_lock() { [ "$(lock_holder)" = "$$" ] && rm -f "$LOCK"; return 0; }
+acquire_lock 90 || die "Another launch in this wrapper is still running (pid $(lock_holder)). Wait for it to finish, then try again."
+trap release_lock EXIT
+
 # 0) Ensure all binary patches are applied (a game update reverts them; all idempotent).
 #    repatch.sh now takes a target: "free" = this wrapper. 16 patches incl. the cohtml licence
 #    bypass (REQUIRED on Sikarugir — its bcrypt fails Gameface's signature check) and lockleak.
