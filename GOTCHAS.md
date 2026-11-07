@@ -2844,6 +2844,9 @@ Exit,)`). Uploads happen **only** then, and the launcher sent `-shutdown` as soo
   live clean exit on 2026-11-02 that logged `Upload complete, result OK`; the merge itself is tested
   only against those log fixtures. **Pull before play** (sm-patch `f111e96`): the launcher registers the
   game as above before starting Steam, waits for the sign-in sync, and refuses to start on a conflict.
+  ⚠ **Superseded 2026-11-07** (sm-patch `7bec509`, plan `docs/plans/one-wrapper-per-game.md`): the game
+  now has its own wrapper, `SurvivingMars.app`, with the game installed in its own Steam, so nothing is
+  registered anywhere. The measurements below stay as the evidence that an installed game pulls at sign-in.
   Test: `tools/test-signin-sync.sh`, 43 cases (`MUTANT=1` fails 25; the commit message says 41/23,
   counted before the last two cases were added). Live, before the review fixes: registered by the
   launcher, the missing save was pulled at sign-in, and the exit uploaded change 7. Live after them,
