@@ -1,6 +1,8 @@
 #!/bin/bash
 # CS2 launcher — Kegworks/WineskinNavy "Steambuild Metal" wrapper
-#   Engine: Wine 10.0 Sikarugir + D3DMetal v2.1 (the free CrossOver-equivalent D3DMetal path)
+#   Engine: Wine 10.0 Sikarugir + D3DMetal v2.1 (the free CrossOver-equivalent D3DMetal path).
+#   CS2_ENGINE=<wine dir> runs another engine on the same prefix, e.g. sm-patch's D3DMetal 3.0 copy
+#   (~/sm-patch/engine/wine-d3dm30, built by sm-patch tools/make-engine.sh).
 # Recipe: patches -> Steam login -> licence sync -> Cities2.exe DIRECTLY -> graceful shutdown.
 # Steam's "Play" button routes via the Paradox Launcher / -applaunch and does NOT work; this does.
 #
@@ -29,10 +31,11 @@ if [ -z "$APP" ]; then
 fi
 APPTAG="$(basename "$APP")"
 SS="$APP/Contents/SharedSupport"
-export WINE="$SS/wine/bin/wine64"
+ENGINE="${CS2_ENGINE:-$SS/wine}"
+export WINE="$ENGINE/bin/wine64"
 export WINEPREFIX="$SS/prefix"
-export PATH="$SS/wine/bin:$PATH"
-export DYLD_FALLBACK_LIBRARY_PATH="$APP/Contents/Frameworks:$SS/wine/lib:/usr/lib:/usr/local/lib"
+export PATH="$ENGINE/bin:$PATH"
+export DYLD_FALLBACK_LIBRARY_PATH="$APP/Contents/Frameworks:$ENGINE/lib:/usr/lib:/usr/local/lib"
 export WINEESYNC=1 WINEMSYNC=1 D3DMETAL=1 D3DMETAL_FORCE=1 WINEDEBUG=-all
 export SteamAppId=949230 SteamGameId=949230 SteamOverlayGameId=949230
 export WINEDLLOVERRIDES="gameoverlayrenderer64=d;gameoverlayrenderer=d;winemenubuilder.exe=d"
@@ -186,7 +189,7 @@ done
 # exported or wineserver targets the default prefix and silently does nothing (caught 2026-08-22).
 if steam_exe_up; then
   echo "  Steam still resident — ending the wine session for this prefix."
-  WINEPREFIX="$WINEPREFIX" "$SS/wine/bin/wineserver" -k >/dev/null 2>&1
+  WINEPREFIX="$WINEPREFIX" "$ENGINE/bin/wineserver" -k >/dev/null 2>&1
   for i in $(seq 1 10); do
     steam_exe_up || break
     sleep 1
@@ -196,7 +199,7 @@ fi
 # cmdline check — measured 2026-08-24). Sweep the whole family by prefix attribution.
 _strays="$(steam_family)"
 if [ -n "$_strays" ]; then
-  WINEPREFIX="$WINEPREFIX" "$SS/wine/bin/wineserver" -k >/dev/null 2>&1
+  WINEPREFIX="$WINEPREFIX" "$ENGINE/bin/wineserver" -k >/dev/null 2>&1
   sleep 2
   _strays="$(steam_family)"
   [ -n "$_strays" ] && kill $_strays 2>/dev/null   # plain TERM — NEVER kill -9 steam
@@ -204,7 +207,7 @@ fi
 # wineserver exits on its own once its clients are gone; nudge it only if it lingers
 if pgrep -f "$APPTAG.*wineserver" >/dev/null 2>&1; then
   sleep 2
-  WINEPREFIX="$WINEPREFIX" "$SS/wine/bin/wineserver" -k >/dev/null 2>&1
+  WINEPREFIX="$WINEPREFIX" "$ENGINE/bin/wineserver" -k >/dev/null 2>&1
 fi
 # Report what, if anything, is still holding memory — THIS wrapper only (the dxmt11 wrapper
 # legitimately keeps its own Steam resident; don't count it as residue).
