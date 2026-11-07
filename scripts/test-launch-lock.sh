@@ -2,8 +2,8 @@
 # test-launch-lock.sh [<launcher> ...] -- fixtures for the one-launcher-per-Wine-prefix lock
 # (LOCK, lock_holder, acquire_lock, release_lock). The functions are copied out of each launcher and
 # run in throwaway bash processes against a temporary lock path: no game, no Steam. Then every copy of
-# them must be identical, including the sibling repo's when it is on this Mac, because S734M's prefix
-# is shared by cs2's launch-cs2.sh and sm-patch's launch-relaunched.sh and they lock each other out.
+# them must be identical, including the sibling repo's when it is on this Mac: one implementation, three
+# launchers (S734M's prefix was shared by cs2's launch-cs2.sh and sm-patch's launcher until 2026-11-07).
 # The same file lives in both repos (sm-patch tools/, cs2 scripts/): keep the two copies identical.
 #   bash <dir>/test-launch-lock.sh            exit 0 = every case passed
 #   MUTANT=1 bash <dir>/test-launch-lock.sh   acquire_lock always succeeds (no lock); must exit 1

@@ -144,7 +144,8 @@ echo "Engine: $("$WINE" --version 2>/dev/null)"
 # Cities2.exe running in THIS prefix? Attributed by open files, never by command line (GOTCHAS 2026-08-24).
 game_running() { local p; for p in $(pgrep -f 'Cities2\.exe' 2>/dev/null); do lsof -p "$p" 2>/dev/null | grep -q "$WINEPREFIX" && return 0; done; return 1; }
 # One launcher per Wine prefix, for its whole run: every launcher that uses this prefix's Steam takes
-# the same lock (S734M's prefix is shared by cs2's launch-cs2.sh and sm-patch's launch-relaunched.sh).
+# the same lock (until 2026-11-07 S734M's prefix was shared with sm-patch's launch-relaunched.sh; Surviving Mars
+# now has its own wrapper, so the lock serialises this prefix's own launches).
 # A launch while the previous launcher was still closing Steam found Steam "already running", reused
 # it, and the game died as that shutdown finished: `CClientPipe::BWriteAndReadResult: BReadResult
 # failed ... Fatal assert` (sm-patch, 2026-11-07). The lock is a symlink whose target is the holder's

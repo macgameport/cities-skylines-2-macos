@@ -2868,6 +2868,9 @@ But `~/sm-patch/launch-relaunched.sh` runs the same Steam for hours of Surviving
 it the window. In S734M's `logs/content_log.txt`, the update to 949230 started 2026-11-01 07:34 and
 was suspended at a Steam shutdown. It resumed in the next session and finished at 10:32:
 5.5 GB downloaded, `BuildID 25127643`, up from 23700737, the July build.
+- **Since 2026-11-07 Surviving Mars no longer runs S734M's Steam** (its own wrapper, sm-patch
+  `7bec509`), so that route to an unpatched fallback is closed. The mechanism stands for any
+  long-running Steam in a prefix that holds CS2.
 
 - **The update overwrote the patched binaries.** Five of the six files with a `.bak` beside them in
   `Cities2_Data` now carry the update's mtime (2026-11-01 07:23 or 10:32): `PDX.SDK.dll`,
