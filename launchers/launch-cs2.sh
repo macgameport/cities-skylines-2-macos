@@ -94,8 +94,10 @@ acquire_lock 90 || die "Another launch in this wrapper is still running (pid $(l
 trap release_lock EXIT
 
 # 0) Ensure all binary patches are applied (a game update reverts them; all idempotent).
-#    repatch.sh now takes a target: "free" = this wrapper. 16 patches incl. the cohtml licence
-#    bypass (REQUIRED on Sikarugir — its bcrypt fails Gameface's signature check) and lockleak.
+#    ⚠ As written this patches nothing on S734M: repatch.sh's "free" target is ~/Applications/CS2.app,
+#    which no longer exists, so it exits early and this prints the WARNING (checked 2026-11-07). Patch
+#    S734M by hand: PATH=~/cs2-patch/revenv/bin:$PATH bash repatch.sh "<its game dir>" (#19). That set
+#    is 16 patches; the cohtml licence bypass is not among them and build 25127643 does not need it.
 if [ -x "${CS2_PATCH_DIR:-$HOME/cs2-patch}/repatch.sh" ]; then
   bash "${CS2_PATCH_DIR:-$HOME/cs2-patch}/repatch.sh" free >/dev/null 2>&1 && echo "Patches ensured (16)." \
     || echo "WARNING: repatch reported an issue — continuing (patches are idempotent)."
