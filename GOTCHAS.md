@@ -2888,7 +2888,19 @@ was suspended at a Steam shutdown. It resumed in the next session and finished a
      backups and the stock November DLLs are kept in `~/cs2-patch/s734m-repatch-20261103/`.
   2. `PATH=~/cs2-patch/revenv/bin:$PATH bash ~/cs2-patch/repatch.sh "<S734M game dir>"`. The `PDX.SDK.dll`
      patchers import `dnfile`, which Homebrew's `python3` lacks. All 16 applied or were already
-     applied; none refused.
+     applied; none refused. *The `PATH` prefix is harmless but not needed (measured 2026-11-07,
+     MacBook): since `4107c69` (2026-10-10) each of the five re-execs itself under
+     `~/cs2-patch/revenv/bin/python3` when `dnfile` will not import. Homebrew `python3` patched a
+     stock 25127643 copy that way, and the dxmt11 launcher's own step 0 printed `Patches ensured`
+     with no revenv on `PATH`.*
+     - **Same re-patch on the MacBook, 2026-11-07:** its S734M had the same update (Steam commit
+       2026-11-02 15:14:45, during a Surviving Mars session) and the same five files replaced. Steps
+       1–2 as above; backups in `~/cs2-patch/s734m-repatch-20261107/`. Its **daily** prefix (still
+       build 23700737) carried July's broken `createfile` relocation (§ A relocated IL body must land
+       inside a section's RAW range), which the current patcher refuses with *"maps to no section"*.
+       Fix: restore `PDX.SDK.dll` from its July `.bak`, then `repatch.sh dxmt11`. A Mac whose game
+       never took the 1.6.2f1 update still has that relocation. Boot-verify PASS on both afterwards
+       (`20261107-203407` daily, `20261107-203831` S734M, run dirs on the MacBook).
   3. **The licence bypass is not needed on build 25127643.**
      `old-patchers/patch_cohtml_license.py` found no fingerprint in the November
      `cohtml.WindowsDesktop.dll` and wrote nothing. The stock DLL then reached `MainMenu` on
