@@ -193,6 +193,9 @@ maintenance" dialog, or suppress via `HKCU\Software\Wine\WineDbg\ShowCrashDialog
 `[SceneFlow] platform service integration failed` → 100k+ NullReferenceException → `fatal://error`.
 Looks like a game bug; it's a **Steam license-sync RACE**. SteamAPI can't verify ownership until Steam has
 ~40–60s of uptime after login. **Fix: sleep 40s after `[U:1:<nonzero>]` appears in connection_log, THEN launch.**
+Measured from the other side (sm-patch, 2026-11-08, `tools/licence-wait-probe.sh`): Surviving Mars started
+31 s after sign-in does not crash, it blocks in its loading screen until sign-in + 48 s (5/5 runs), the same
+moment a 45 s wait reaches — so the margin is real, Steam-side, and silent: no log line, no file write.
 Add an auto-retry if `platform service integration failed` shows in the first ~12s.
 
 ### 12. Disable the Steam overlay — it crashes the game under Wine
