@@ -4,8 +4,9 @@
 **Stack (default):** self-built stock Wine 11.16 + DXMT (`~/Applications/CS2dxmt11.app`) — needs
 **10** of these patches and **no licence bypass**; every one of the 10 is published here
 **Stack (fallback):** Kegworks/WineskinNavy wrapper (`~/Applications/S734M.app`) — Wine 10.0
-Sikarugir + D3DMetal v2.1 — runs all **16** published patches, and still needs the unpublished
-licence bypass (#5), so it cannot reach a main menu from this repo alone
+Sikarugir + D3DMetal v2.1 — runs all **16** published patches. Game builds before Steam build
+25127643 also needed the unpublished licence bypass (#5) there; build 25127643 reached the main menu
+without it (two boots, 2026-11-03, `GOTCHAS.md`: one build on one engine)
 **Applied by:** `~/cs2-patch/repatch.sh dxmt11` (default) · `~/cs2-patch/repatch.sh free`
 (fallback) — idempotent, self-verifying (byte pattern, or by-name method lookup for the PDX.SDK five), each writes a `.bak`
 **Last verified:** 2026-10-10 — 1.6.2f1 re-derivation: all 10 dxmt11 patches + badge applied, boot-verify PASS ×3 and a forced mod re-download (C73); before that 2026-09-03, when targets and patch counts were re-measured against `repatch.sh`; the

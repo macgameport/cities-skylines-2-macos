@@ -4,11 +4,20 @@ Getting **Cities: Skylines II** running on an Apple Silicon Mac, free — no Cro
 Mods included.
 
 **Time:** about 20 minutes of clicking, plus however long the game takes to download.
-**You need:** an Apple Silicon Mac (M1 or newer) on macOS 13+, the game already owned on Steam, and
-roughly 40 GB free.
+**You need:**
+
+- An Apple Silicon Mac (M1 or newer) on **macOS 26 or 27**. Those are the releases this is tested on;
+  older ones are not expected to work, and macOS 28 will not. Details: [Compatibility](../README.md#compatibility).
+- **Rosetta 2.** If you are not sure it is installed, paste this into Terminal:
+  `softwareupdate --install-rosetta --agree-to-license`
+- The game already owned on Steam.
+- Disk space for the game. With its DLC it takes 96 GB on the test Mac.
+- Step 4 uses **Terminal** (in Applications → Utilities). The first time you run a `git` command, macOS
+  offers to install Apple's Command Line Tools: accept, wait for it to finish, and run the command again.
 
 > Tested on an M3 Max running macOS 26 with game version 1.6.0f1, and on an M5 Max running macOS 27.0.1
-> with 1.6.2f1 (2026-10-10). Intel Macs are untested. On macOS 27, check Rosetta is still installed
+> with 1.6.2f1 (2026-10-10); booted to the main menu on an M3 Max on macOS 27.2 (2026-11-07). Intel Macs
+> are not supported. On macOS 27, check Rosetta is still installed
 > after every update (`arch -x86_64 /bin/ls /`); the launcher also checks, and if Rosetta is gone it
 > stops with the reinstall command (`softwareupdate --install-rosetta --agree-to-license`). A game
 > update can move the patch offsets — see [After a game update](#after-a-game-update).
@@ -49,9 +58,13 @@ because they publish that engine.*
 Steam has to live **inside** the wrapper's Windows prefix, not your Mac's Steam.
 
 1. Download the Windows Steam installer (`SteamSetup.exe`).
-2. Run it inside the wrapper (Porting Kit's "Install software into wrapper", or from a terminal:
-   `WINEPREFIX=~/Applications/CS2dxmt11.app/Contents/SharedSupport/prefix \
-    ~/Applications/CS2dxmt11.app/Contents/SharedSupport/wine/bin/wine64 ~/Downloads/SteamSetup.exe`)
+2. Run it inside the wrapper: Porting Kit's "Install software into wrapper", or this one line in
+   Terminal:
+
+   ```bash
+   WINEPREFIX=~/Applications/CS2dxmt11.app/Contents/SharedSupport/prefix ~/Applications/CS2dxmt11.app/Contents/SharedSupport/wine/bin/wine64 ~/Downloads/SteamSetup.exe
+   ```
+
 3. Launch Steam inside the wrapper and **sign in**, letting the library finish loading. Tick "remember
    me" so later launches sign in on their own.
 
@@ -68,8 +81,15 @@ game executable directly, which is the whole trick.
 ```bash
 git clone https://github.com/macgameport/1launcher.git
 cd 1launcher/cities-skylines-2
+mkdir -p ~/cs2-patch && python3 -m venv ~/cs2-patch/revenv && ~/cs2-patch/revenv/bin/pip install dnfile capstone pefile
 bash scripts/setup.sh
 ```
+
+> **About the third line.** Five of the ten patches, the ones that make in-game mod downloads work,
+> need a small Python package (`dnfile`), and `setup.sh` does not install it for you yet. Without that
+> line setup stops after the first five patches, still prints "setup complete", and mods will not
+> download. If mods do not download after an earlier setup, run that line and then
+> `bash scripts/setup.sh` again.
 
 That checks your prerequisites, installs the launcher into `~/cs2-patch/`, applies the binary
 patches, and builds a double-clickable **Cities Skylines II.app** in `~/Applications` using the
@@ -177,7 +197,7 @@ on 11.16 too. If you want Direct, switch to exclusive Fullscreen, which this eng
 [#15](https://github.com/macgameport/1launcher/issues/15)). You also get **CS2 Steam Store.app** — the
 storefront, one double-click away in the preserved 11.0 wrapper.
 
-Validated on one machine so far — if it misbehaves on yours, roll back and open an issue with
+Validated on three Macs so far (an M3 Max, an M5 Max, and a user's M4 Pro) — if it misbehaves on yours, roll back and open an issue with
 `~/Library/Logs/cs2-launcher.log`.
 
 ## Display profiles (laptop panel vs external monitor)

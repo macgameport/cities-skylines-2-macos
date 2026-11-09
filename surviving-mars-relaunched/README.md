@@ -36,7 +36,12 @@ answer is to run the game in CrossOver. What transfers to any setup is the *find
 
 ## What it assumes
 
-- Apple Silicon, macOS 27, Rosetta installed (`softwareupdate --install-rosetta`).
+- Apple Silicon and Rosetta 2 (`softwareupdate --install-rosetta`). Tested on macOS 27.2 only; the
+  wrapper it starts from needs macOS 14.6 or later, and macOS 28 will not run it. See
+  [Compatibility](../README.md#compatibility).
+- **A Mac that already runs the Cities: Skylines II port.** There is no from-scratch install yet: the
+  setup below builds this game's wrapper out of two wrappers that port creates, so on a Mac without
+  them it cannot be followed.
 - The game's own wrapper, `~/Applications/SurvivingMars.app` (not to be confused with
   `Surviving Mars Relaunched.app`, the double-click launcher `make-app.sh` builds). It is made once by
   `tools/split-wrapper.sh` from two cs2 wrappers: a Kegworks/Sikarugir "Steambuild Metal" wrapper

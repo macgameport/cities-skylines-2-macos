@@ -29,6 +29,7 @@ Own the game on Steam, on an Apple Silicon Mac? Roughly 20 minutes:
 ```bash
 git clone https://github.com/macgameport/1launcher.git
 cd 1launcher/cities-skylines-2
+mkdir -p ~/cs2-patch && python3 -m venv ~/cs2-patch/revenv && ~/cs2-patch/revenv/bin/pip install dnfile capstone pefile   # once: see INSTALL step 4
 bash scripts/setup.sh
 ```
 
@@ -48,7 +49,7 @@ signature defect upstream ([the measurement](docs/wine-bugs/FINDING-wine11-fixes
 | Wrapper | the Porting Kit bundle, engine swapped | Porting Kit app bundle | Kegworks / WineskinNavy bundle |
 | Wine | **stock 11.16**, built by [`scripts/build-engine-1116.sh`](scripts/build-engine-1116.sh) | **Wine 11.0** (`WS12Wine11.0_DXMT-v0.80`) | **Wine 10.0 Sikarugir** |
 | Graphics | **DXMT v0.80** — PE side is Porting Kit's build (`v0.80-17-g79f6279`, a commit not in 3Shain/dxmt), `winemetal.so` rebuilt here from tag `v0.80` + [the remote-layer patch](scripts/dxmt-remote-layer-fallback.patch); [mixed vintage, deliberately](INSTALL.md#the-dxmt-halves-are-different-vintages-deliberately) | **DXMT v0.80** — reports the real GPU | **D3DMetal v2.1** — reports `AMD Compatibility Mode` |
-| Patches | **10** | **10** — the 6 errno patches AND the licence bypass are unnecessary | **17** |
+| Patches | **10** | **10** — the 6 errno patches AND the licence bypass are unnecessary | **16** published; game builds before 25127643 also needed a 17th that is not published (below) |
 | Alt-tab in exclusive fullscreen | **works** | freezes ([dxmt#206](https://github.com/3Shain/dxmt/issues/206)) — use borderless | mild misbehaviour |
 | Steam's **visible storefront** | **renders** with patched wine+DXMT (2026-08-31); **black** on the stock stack — shop via **CS2 Steam Store.app** | **renders** | renders |
 | Measured | **M3 Max, 1080p:** 44.9 FPS, GPU 23.1 ms, presentation `Direct` · **Mac Studio M5 Max, 2560×1440, benchmark:** 47.8 FPS ([Performance](#performance)) | M3 Max, 1080p: 42.7 FPS, GPU ~26 ms, `Composited` | — |
@@ -203,8 +204,9 @@ under Rosetta is the likely place — not measured).
 > ECDSA signature correctly and the game reaches the main menu and loads a city with zero licence
 > errors. So the one patch this repo withholds — a signature-check bypass, withheld because
 > publishing one reads as circumvention regardless of intent — **is not needed on the default
-> stack**. It remains necessary on the Wine 10 + D3DMetal fallback, which is therefore the
-> incomplete path here (16 of its 17). See `docs/wine-bugs/R3-*.md`. No game or middleware binary
+> stack**. On the Wine 10 + D3DMetal fallback it was necessary on game builds before Steam build
+> 25127643; that build reached the main menu there without it (two boots, 2026-11-03: one build on one
+> engine, so the fallback stays the unproven path here). See `docs/wine-bugs/R3-*.md`. No game or middleware binary
 > is redistributed.
 
 ## The real finding: the bug is real, and Wine 11 already fixed it

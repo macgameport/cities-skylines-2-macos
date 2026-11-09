@@ -4,8 +4,9 @@ This repository holds one folder per game. The notes below were earned on Cities
 
 Mostly a personal field log, but corrections and confirmations are welcome — especially:
 
-- **Different hardware / macOS versions.** Everything here is verified on one M3 Max. Whether it
-  holds on M1/M2/M4 or other macOS releases is genuinely unknown.
+- **Different hardware / macOS versions.** Everything here is verified on two Macs, an M3 Max and an
+  M5 Max, on macOS 26 and 27, plus one user's report from an M4 Pro (see Compatibility in the root
+  `README.md`). Whether it holds on M1 or M2, or on older macOS releases, is unknown.
 - **Upstream fixes.** If a Wine release fixes R1/R2/R3 (see `cities-skylines-2/README.md`), that retires patches —
   please say so and I'll mark them obsolete rather than leaving dead workarounds documented as live.
 - **Game updates.** A CS2 update moves IL offsets. Every patch pattern-matches and refuses rather

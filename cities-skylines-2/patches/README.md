@@ -6,21 +6,31 @@ Paradox SDK — see [`../docs/patch-inventory.md`](../docs/patch-inventory.md) f
 fixes and who owns the real bug.
 
 ```sh
-bash ../repatch.sh /path/to/steamapps/common/Cities\ Skylines\ II
-# or
-CS2_GAME_DIR="/path/to/Cities Skylines II" bash ../repatch.sh
+# the default stack (Wine 11 + DXMT): the ten patches it needs, and only those
+bash ../repatch.sh dxmt11
+# a game folder somewhere else
+CS2_GAME_DIR="/path/to/Cities Skylines II" bash ../repatch.sh dxmt11
 ```
 
-## ⚠️ Read this before you start
+`setup.sh` and the launcher run exactly this. A bare folder path instead of `dxmt11` selects all 16,
+which is the Wine 10 set: do not use it on Wine 11 (`repatch.sh` says how to undo it).
 
-**These will not, on their own, get the game to the main menu.** A 17th patch — bypassing the
-Coherent Gameface licence signature check — is **deliberately not published here**. CS2's embedded
-Gameface licence is valid; Wine's `BCryptVerifySignature` simply fails on it (root cause **R3**), so
-cohtml aborts with `Invalid License key used!` before the menu.
+## Which patches the game needs
 
-A signature-check bypass for commercial middleware reads as circumvention whatever the intent, so
-it isn't in this repo and PRs adding it will be declined. **The correct fix is in Wine** — see
-[`../docs/wine-bugs/`](../docs/wine-bugs/). Fix R3 and the 17th patch stops being necessary at all.
+**On the default stack (Wine 11) these ten are everything the game needs.** With them it reaches
+the main menu, loads a city and downloads mods (boot-verified on 1.6.2f1, 2026-10-10). Nothing
+unpublished is involved.
+
+The other six patches, and the rest of this section, concern the older **Wine 10 fallback** only.
+Wine 10's `BCryptVerifySignature` fails on a valid signature (root cause **R3**), so on that engine
+the game's UI middleware, Coherent Gameface, rejected its own valid embedded licence and aborted with
+`Invalid License key used!` before the menu. Getting past that on Wine 10 took a 17th patch that
+skipped the signature check. That patch has never been in this repository: a signature-check bypass
+for commercial middleware reads as circumvention whatever the intent, and PRs adding one will be
+declined. **The correct fix was in Wine**, and Wine 11 has it (measured 2026-08-22, see
+[`../docs/wine-bugs/`](../docs/wine-bugs/)). On the current game build the Wine 10 fallback reached
+the main menu without it as well (Steam build 25127643, two boots, 2026-11-03), which covers one
+build on one engine.
 
 ## Safety properties
 
