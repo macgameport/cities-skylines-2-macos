@@ -103,7 +103,7 @@ superseded, with the pointer to where the surviving content lives.
   decided 2026-10-12): keep everything until `~` has **< 150 GB free** (277 GB on 2026-10-12), then thin
   run dirs older than 60 days to flagged frames + every 10th — never runs named in EXPERIMENTS/GOTCHAS/
   docs, never text files, never the evidence store. Thinning moves to the Trash; emptying it is James's.
-  `rollback-build23700737` is an APFS clone (~5 GB real, 91 G by `du`).
+  `rollback-build23700737` was an APFS clone (~5 GB real, 91 G by `du`); the game copy in it was removed on 2026-11-09, and its manifest and hash list stay for `scripts/test-update-check.sh`.
 
 - 📋 **`home` profile assumes a ~1080p main panel — and as of 2026-09-09 it no longer holds.**
   [#2](https://github.com/macgameport/1launcher/issues/2). **The hypothetical
