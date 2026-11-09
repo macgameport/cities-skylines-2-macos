@@ -4,7 +4,8 @@
 > fitted re-check the same day, no blocker, its 10 fixes folded).** O9 was amended on 2026-11-09 for `engine/`
 > and the amendment re-checked by a fitted pass the same day (third-pass block). Section 8 was answered on
 > 2026-11-08 ("Ok go ahead with recs"). Phase 3 was re-checked against the renamed tree before its build by a
-> fourth fitted pass on 2026-11-09 (1 blocker, folded with 12 other fixes; fourth-pass block).
+> fourth fitted pass on 2026-11-09 (1 blocker, folded with five other findings and a group of thirteen
+> smaller ones; fourth-pass block).
 > Written 2026-11-08. Tracking: issue #22.
 > **🔧 As-built (2026-11-08):** PARTIAL. Phases 0, 1 and 2 are built (Phase 2 on 2026-11-09); Phase 3 is built and its exit criteria pass (2026-11-09), with
 > retirement (3.7) still to do; Phase 4 is not started.
@@ -390,5 +391,6 @@ Measured on the scratch build: T1 0 unresolved; T6 0 on the Surviving Mars tree 
 | 2026-11-08 | 2 (fitted) | fold verification: each correction's normative home · every new fact · the renames re-run · read as the builder | 1 agent; its findings spot-checked inline, then folded and audited two-sided, not re-checked by a third pass | Fable 5.1 | this repo `6df9d08` · Surviving Mars `14df074` | build-ready-with-fixes |
 | 2026-11-09 | 3 (fitted, the O9 amendment) | the seven changed sentences against the Surviving Mars code · the rest of this plan for anything stale · consistency with the layout plan · two-sided audit | 1 agent; findings folded and audited two-sided inline | Fable 5.1 | this repo `997a91b` · Surviving Mars `14df074` | build-ready-with-fixes |
 | 2026-11-09 | 4 (fitted, Phase 3 before its build) | every cite of Phase 3 in both trees · what the rename made stale · builder simulation of 3.1 to 3.4 and 3.6 on a scratch clone with the gates and the Wine-free tests run, mutants included | 1 agent; the blocker re-read inline; folded and audited two-sided inline; the build is the check of the fold | Opus 5.5 | this repo `1e870f5` (scratch build at `0e5317a`) · Surviving Mars `14df074` | build-ready-with-fixes |
+| 2026-11-09 | 4b (re-read of the fourth pass's fold) | the fold of pass 4 against the tree as built, and against itself | inline: the fold was written while the session was on another model, and a fold is a judgment surface. One defect: the status line counted "12 other fixes" where the block lists five findings and thirteen smaller ones | Fable 5.2 | this repo `1840c08` | no change to the verdict |
 
 Key paths: `scripts/setup.sh` · `scripts/make-shortcut.sh` · `scripts/check-experiments.py` · `scripts/test-launch-lock.sh` · `scripts/cell-fingerprint.sh` · `launchers/` · `.gitignore` · `LICENSE` · `README.md` · `INSTALL.md` · `CLAUDE.md` · `docs/agent-brief.md` · Surviving Mars: `launch-relaunched.sh`, `make-app.sh`, `tools/`.
