@@ -27,10 +27,10 @@ connection_log*.txt
 # Deliberately excluded: screenshots have historically carried account names. Images intended for
 # the docs are opted in explicitly, one path at a time, after being eyeballed for personal info.
 *.png
-!docs/images/*.png
-!docs/images/*.jpg
+!cities-skylines-2/docs/images/*.png
 *.jpg
 *.jpeg
+!cities-skylines-2/docs/images/*.jpg
 login*.png
 qr*.png
 

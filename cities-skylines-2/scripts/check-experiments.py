@@ -308,7 +308,7 @@ def main():
     # nested repo is not on this machine (a collaborator's clone) — a note, not drift.
     import subprocess
     r = subprocess.run(["bash", "scripts/regen-winemac-patches.sh", "--check"],
-                       capture_output=True, text=True)
+                       capture_output=True, text=True, cwd=REPO)
     if r.returncode == 64:
         notes.append("winemac patch gate skipped: %s" % (r.stderr.strip().splitlines() or ["nested repo absent"])[-1])
     elif r.returncode != 0:

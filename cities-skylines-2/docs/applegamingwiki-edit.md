@@ -34,7 +34,7 @@ Placed directly under the existing **Wine** row. Rating: **Playable**.
 >
 > 1. Install a Wine 11.0 + DXMT wrapper. Porting Kit ships one (`WS12Wine11.0_DXMT-v0.80`).
 > 2. Install Steam inside the wrapper, sign in, then install Cities: Skylines II inside it.
-> 3. Clone https://github.com/macgameport/cities-skylines-2-macos and run `bash scripts/setup.sh`.
+> 3. Clone https://github.com/macgameport/cities-skylines-2-macos then `cd cities-skylines-2-macos/cities-skylines-2` and run `bash scripts/setup.sh`.
 >    It checks prerequisites, applies the binary patches, installs a launcher and builds a
 >    double-clickable app. Full walkthrough in the repository's `INSTALL.md`.
 >

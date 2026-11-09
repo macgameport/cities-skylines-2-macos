@@ -28,7 +28,7 @@ Own the game on Steam, on an Apple Silicon Mac? Roughly 20 minutes:
 
 ```bash
 git clone https://github.com/macgameport/cities-skylines-2-macos.git
-cd cities-skylines-2-macos
+cd cities-skylines-2-macos/cities-skylines-2
 bash scripts/setup.sh
 ```
 

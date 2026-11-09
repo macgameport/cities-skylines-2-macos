@@ -67,7 +67,7 @@ game executable directly, which is the whole trick.
 
 ```bash
 git clone https://github.com/macgameport/cities-skylines-2-macos.git
-cd cities-skylines-2-macos
+cd cities-skylines-2-macos/cities-skylines-2
 bash scripts/setup.sh
 ```
 
@@ -262,7 +262,7 @@ which updates first), quit Steam, then re-apply the fixes, because the update re
 DLLs:
 
 ```bash
-cd cities-skylines-2-macos && git pull && bash scripts/setup.sh
+cd cities-skylines-2-macos && git pull && cd cities-skylines-2 && bash scripts/setup.sh
 ```
 
 Each patch finds its target by name or by a byte pattern and refuses to write if what it finds is

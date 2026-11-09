@@ -1,6 +1,6 @@
 MIT License
 
-Copyright (c) 2026 the cities-skylines-2-macos contributors
+Copyright (c) 2026 the 1launcher contributors
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -19,11 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
----
-
-NOTE: This licence covers the scripts, notes and documentation in this
-repository ONLY. It does not, and cannot, grant any rights in Cities: Skylines
-II, its binaries, Coherent Gameface, the Paradox SDK, Wine, DXMT, D3DMetal or
-any other third-party software referenced here. Those remain the property of
-their respective owners under their own terms.

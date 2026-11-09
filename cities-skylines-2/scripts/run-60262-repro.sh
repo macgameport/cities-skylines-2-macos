@@ -9,11 +9,11 @@
 # whole 90 GB bundle and wineboot hangs behind the sheet (GOTCHAS 2026-10-10). The FreeType warning
 # the engine prints without it is harmless for geometry. Window capture uses -R (region) because
 # `screencapture -l` fails for wine windows on macOS 27. (macgameport, 2026-10-10)
-E=$1; TAG=$2; OUT=/Users/js/cs2-patch/evidence/60262-6cfa941
-export WINEPREFIX=/Users/js/cs2-patch/stock-prefix WINEDLLOVERRIDES="mscoree,mshtml=d" WINEDEBUG=-all
+E=$1; TAG=$2; OUT=$HOME/cs2-patch/evidence/60262-6cfa941
+export WINEPREFIX=$HOME/cs2-patch/stock-prefix WINEDLLOVERRIDES="mscoree,mshtml=d" WINEDEBUG=-all
 unset DYLD_FALLBACK_LIBRARY_PATH
 echo "=== $TAG  ($E)  win32u.so $(shasum -a 256 $E/lib/wine/x86_64-unix/win32u.so | cut -c1-16)"
-$E/bin/wine /Users/js/cs2-patch/frameless-repro.exe > $OUT/$TAG-stdout.txt 2>&1 &
+$E/bin/wine $HOME/cs2-patch/frameless-repro.exe > $OUT/$TAG-stdout.txt 2>&1 &
 ID=""; for i in $(seq 1 60); do sleep 0.5; L=$(/tmp/winlist | grep -i 'title=frameless repro'); [ -n "$L" ] && { ID=$(echo "$L" | head -1 | sed -E 's/.*id=([0-9]+).*/\1/'); break; }; done
 [ -z "$ID" ] && { echo "window NOT FOUND"; sleep 12; $E/bin/wineserver -k; exit 1; }
 sleep 2; /tmp/winlist | grep -i 'title=frameless repro' | tee $OUT/$TAG-winlist.txt

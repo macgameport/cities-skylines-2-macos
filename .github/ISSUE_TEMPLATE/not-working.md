@@ -15,7 +15,7 @@ labels: ''
 **Output of the setup check:**
 
 ```
-bash scripts/setup.sh --check
+cd cities-skylines-2 && bash scripts/setup.sh --check
 ```
 
 <!-- paste the output above -->
@@ -28,9 +28,9 @@ bash scripts/setup.sh --check
 
 <!--
 Before filing, worth a look:
-  INSTALL.md  — troubleshooting table covers the common ones (Steam login, black screen,
+  cities-skylines-2/INSTALL.md  — troubleshooting table covers the common ones (Steam login, black screen,
                 the IOEXCEPTION settings dialog, alt-tab freeze, mod ⚠ badges)
-  GOTCHAS.md  — every trap hit during development, each with its root cause
+  cities-skylines-2/GOTCHAS.md  — every trap hit during development, each with its root cause
 
 If a patch reported that it couldn't find its pattern, say which one — that usually means a game
 update moved it, and it's useful to know quickly.

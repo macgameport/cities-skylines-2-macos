@@ -1,0 +1,2 @@
+Moved: this patch is now cities-skylines-2/scripts/winemac-crossprocess-remote-layer.patch in this repository (one folder per game, 2026-11).
+This file is a pointer, not a patch: git apply refuses it.

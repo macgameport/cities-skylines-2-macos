@@ -1,10 +1,12 @@
 # Contributing
 
+This repository holds one folder per game. The notes below were earned on Cities: Skylines II.
+
 Mostly a personal field log, but corrections and confirmations are welcome — especially:
 
 - **Different hardware / macOS versions.** Everything here is verified on one M3 Max. Whether it
   holds on M1/M2/M4 or other macOS releases is genuinely unknown.
-- **Upstream fixes.** If a Wine release fixes R1/R2/R3 (see `README.md`), that retires patches —
+- **Upstream fixes.** If a Wine release fixes R1/R2/R3 (see `cities-skylines-2/README.md`), that retires patches —
   please say so and I'll mark them obsolete rather than leaving dead workarounds documented as live.
 - **Game updates.** A CS2 update moves IL offsets. Every patch pattern-matches and refuses rather
   than corrupting, so the failure is loud — but the offsets then need re-deriving.

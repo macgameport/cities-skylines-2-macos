@@ -3,7 +3,21 @@
 > **Status: Triple-checked 2026-11-08 — build-ready-with-fixes (pass 1, 4 lenses, 5 blockers folded;
 > fitted re-check the same day, no blocker, its 10 fixes folded).** The build still waits on section 8:
 > decisions O3, O6, O9 and O10 change what gets built.
-> Written 2026-11-08. Tracking: none yet (opening an issue is a public post; decision O5).
+> Written 2026-11-08. Tracking: issue #22.
+> **🔧 As-built (2026-11-08):** PARTIAL. Phase 0 and Phase 1 are built; Phases 2 to 4 are not started.
+> Phase 1 is commit `270ca2a` (211 renames at 100%, nothing else) and the commit that adds this line.
+> Measured on the real checkout after both: T1 0 of 107 · T2 22 of 22 and `setup.sh --check` exit 0 ·
+> T3 every gate exit 0, lock test 17 PASS, 102 files syntax-clean · T4 · T6 9 · T11 · T13 · T15 5 of 5 ·
+> every mutant applied and seen red. Deviations: (1) **T12 was not run.** The headless `claude` command on
+> the Studio is not signed in, so the fresh-session check of the `CLAUDE.md` import waits for James.
+> (2) The accepted identifier residual is 9 lines, not 6: the scan also counts three mentions of the
+> placeholder Steam display name in `docs/images/AUDIT.md`, which is public by design; it skips a computer
+> name that is only the product name, and `[U:1:0]`, Steam's logged-off id. (3) `setup.sh`'s own usage text
+> (`:8-10,141`) is unchanged: it reads correctly from the game folder. (4) The community-watch task was
+> switched back on after this session with its paths corrected, instead of staying off until 2.2; it must
+> be disabled again before the folder is renamed. (5) The separate Surviving Mars repo is private (O2).
+> Verify against: `common/` · root `scripts/` · `cities-skylines-2/scripts/check-experiments.py` ·
+> `.gitignore` · `LICENSE` · root `README.md`, `INSTALL.md`, `CLAUDE.md`.
 > File and line references are as of `cc66a90`; after Phase 1 every CS2 path gains the prefix
 > `cities-skylines-2/`. Surviving Mars references are to its public commit `14df074`.
 
@@ -210,7 +224,7 @@ Candidates, by measurement: the lock (identical three times), Steam attribution 
 | T3 | CS2 gates from the new paths, counts as in Phase 1's exit criteria | all exit 0 with those counts | delete one row of `docs/images/AUDIT.md` in a scratch tree: `check-experiments.py` exits 1. Remove `cwd=REPO`: it exits 1 from `/tmp` |
 | T4 | For `README.md`, `INSTALL.md`, `CLAUDE.md`, `GOTCHAS.md` and `scripts/setup.sh` at their new paths: the oldest commit that `git log --follow --format=%h` prints | it is the file's first commit from before the move (`a162423` for `README.md`, `CLAUDE.md` and `GOTCHAS.md`; `831cce6` for `INSTALL.md` and `setup.sh`). Straight after commit A each count is the old one plus 1 (34, 20, 40, 154 and 4 before); later commits add to it. `git blame` on the moved README shows more than one commit | drop `--follow`: the oldest commit printed is commit A |
 | T5 | Identity gate (2.2 step 4) | every value names the project identity | a scratch clone outside the keyed paths with no repo-local include: the gate names the other identity |
-| T6 | `common/check-identifiers.sh` (written in Phase 0, committed in Phase 1): reads the real identifiers from the machine at run time (Steam ID64, login and display name from a wrapper's `config/loginusers.vdf`; the account id from its `userdata/` folder, also as `[U:1:n]`; the personal GitHub login and addresses from the global git config; the short user name from `id -un`, as `/Users/<name>`; host names from `scutil` and the ssh config) plus the pattern `7656119[0-9]{10}`; scans a tree, its file names and a commit message; prints counts only | 0 hits on the staged Surviving Mars tree; on the whole repo, only the hits O11 accepts (4 files, 6 lines) | plant one literal of each class in a scratch copy: 1 hit each. (A bare 17-digit pattern is wrong: `tools/frame-fix.c:11` holds an 18-digit forum thread number) |
+| T6 | `common/check-identifiers.sh` (written in Phase 0, committed in Phase 1): reads the real identifiers from the machine at run time (Steam ID64, login and display name from a wrapper's `config/loginusers.vdf`; the account id from its `userdata/` folder, also as `[U:1:n]`; the personal GitHub login and addresses from the global git config; the short user name from `id -un`, as `/Users/<name>`; host names from `scutil` and the ssh config) plus the pattern `7656119[0-9]{10}`; scans a tree, its file names and a commit message; prints counts only | 0 hits on the staged Surviving Mars tree; on the whole repo, only the hits O11 accepts (9 lines; run it with `ACCEPT=9`) | plant one literal of each class in a scratch copy: 1 hit each. (A bare 17-digit pattern is wrong: `tools/frame-fix.c:11` holds an 18-digit forum thread number) |
 | T7 | Surviving Mars's seven test files from `surviving-mars-relaunched/` | each exits 0 | each file's own `MUTANT=1`: exits 1 |
 | T8 | `common/test-launch-lock.sh` | 24 PASS: 21 cases and 3 parity lines | `MUTANT=1`: exits 1. Alter `acquire_lock` in one launcher of a scratch copy: a parity line differs. Remove one launcher: exits 2 |
 | T9 | Under O3 (a) or (b): the shim with the launcher in a subfolder of a repo | the log's `scripts:` line says current or updated | restore the old guard: no `scripts:` line |
@@ -229,7 +243,9 @@ Where the two checkouts are and whether either is under `~/Documents`; `git -C <
 
 Measured on 2026-11-07: Surviving Mars is DirectX 12 only and needs D3DMetal 3.0; D3DMetal 3.0 does not run on this repo's Wine 11.16 engine (`EXPERIMENTS.md` C83); CS2 on Wine 10 with D3DMetal 3.0 reaches the main menu, with a loaded city, performance and long sessions untested (C82), and that engine is not the free route this repo documents. So the repo, the layout and later the launcher code unify; the engine stays a per-game choice until a loaded-city run on a shared engine says otherwise.
 
-## 8. Open decisions (James)
+## 8. Decisions (James)
+
+**Decided 2026-11-08, in his words "Ok go ahead with recs": every recommendation in this table is accepted.**
 
 | # | Question | Recommendation |
 |---|---|---|
@@ -243,7 +259,7 @@ Measured on 2026-11-07: Surviving Mars is DirectX 12 only and needs D3DMetal 3.0
 | O8 | When | Phase 1 rewrites every CS2 path, so not while other CS2 work is in flight |
 | O9 | Where Surviving Mars's local state lives: saves and Steam manifests in `backup/`, logs in `runs/`, a vendor's graphics library in `engine/` | Outside the checkout, in `~/Library/Application Support/1launcher/surviving-mars-relaunched/`. Inside the game folder, a `.gitignore` would be the only thing between them and a public repo; CS2 keeps its evidence outside the repo for the same reason |
 | O10 | Compatibility files at old paths: the forwarding `scripts/setup.sh`, three pointer files and a root `INSTALL.md` pointer | Keep them for now. The alternative is a cleaner root and broken links for 128 recent cloners and one upstream thread |
-| O11 | Personal identifiers already in this repo: the personal GitHub login in four files (three kept records of upstream comments and the September hygiene plan, which lists them as an accepted residual), and an absolute home path in `scripts/run-60262-repro.sh` | Leave the accepted four; replace the home path with `$HOME` in Phase 1 |
+| O11 | Personal identifiers already in this repo: the personal GitHub login in four files (three kept records of upstream comments and the September hygiene plan, which lists them as an accepted residual), and an absolute home path in `scripts/run-60262-repro.sh` | Leave the accepted four; replace the home path with `$HOME` in Phase 1. As built the scan reads 9 lines: those six, plus three mentions of the placeholder Steam display name in `docs/images/AUDIT.md`, public by design |
 
 ## Review corrections (triple-check 2026-11-08)
 
