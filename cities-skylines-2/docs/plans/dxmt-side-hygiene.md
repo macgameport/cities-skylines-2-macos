@@ -1,7 +1,7 @@
 # DXMT side — record the mixed vintage, close the review nits, generate the patch from git
 
 **Status: BUILT 2026-09-03 · check-it'd 2026-09-03 — build-ready-with-fixes (pass 3, fitted re-check after the instruments build at `cc62ff8`; four facts corrected — the unixlib table is 132 entries, T5 in boot-verify's contract, §4's codesign step removed, boot-verify exists — no design change). Pass 2: check-it'd 2026-09-02 — build-ready-with-fixes (corrections folded, re-checked).** Umbrella:
-[issue #1](https://github.com/macgameport/cities-skylines-2-macos/issues/1). Baseline: commit
+[issue #1](https://github.com/macgameport/1launcher/issues/1). Baseline: commit
 `c94d9e9`; scratch tree `~/cs2-patch/dxmt-v080` (git, tag `v0.80` checked out, uncommitted diff).
 
 > **🔧 As-built (2026-09-03): BUILT.** Ledger **C33**. Rebuilt `winemetal.so` `81b94bbf1e6fe598`

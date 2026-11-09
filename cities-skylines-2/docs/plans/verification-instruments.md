@@ -1,7 +1,7 @@
 # Verification instruments — a committed boot-verify, probe hygiene, and the live-drag re-run
 
 **Status: BUILT 2026-09-03 — I3 done 16:36 (ledger C34) · check-it'd 2026-09-02 — build-ready-with-fixes (pass 2; I1 was rewritten after a needs-rework pass 1, then re-checked).** Umbrella:
-[issue #1](https://github.com/macgameport/cities-skylines-2-macos/issues/1). Baseline: commit
+[issue #1](https://github.com/macgameport/1launcher/issues/1). Baseline: commit
 `c94d9e9`.
 
 > **🔧 As-built (2026-09-03):** **built** — I3, the human live-drag step (T8), done 2026-09-03 16:36, ledger C34. Shipped in one

@@ -4,7 +4,7 @@
 > for P0, corrections folded (four lenses; § Review corrections). P1–P4 were `needs-rework` as
 > written and are corrected in this fold, but they are planning-only and **must be re-checked
 > before P1 starts** — the external facts below move weekly.
-> Tracking: [#16](https://github.com/macgameport/cities-skylines-2-macos/issues/16). Written
+> Tracking: [#16](https://github.com/macgameport/1launcher/issues/16). Written
 > 2026-10-10. Every external fact below carries the date it was checked; most of them will move
 > before this is built, so the watch list in §5 is part of the plan, not an appendix.
 

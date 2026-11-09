@@ -34,7 +34,7 @@ wrapper. What matters is the end state: **`~/Applications/CS2dxmt11.app` exists 
 > **Porting Kit 6.7.0:** creating the wrapper can fail with `ERROR: WS12WineWine11.0_1_DXMT-v0.80
 > not found`. It downloads the engine correctly, then adds the `WS12Wine` prefix a second time when
 > it looks for it. Copy the downloaded archive to the doubled name and try again (reported on
-> macOS 27.0, [#15](https://github.com/macgameport/cities-skylines-2-macos/issues/15); a Porting Kit
+> macOS 27.0, [#15](https://github.com/macgameport/1launcher/issues/15); a Porting Kit
 > bug, not this project's):
 >
 > ```bash
@@ -66,8 +66,8 @@ game executable directly, which is the whole trick.
 ## 4. Run setup
 
 ```bash
-git clone https://github.com/macgameport/cities-skylines-2-macos.git
-cd cities-skylines-2-macos/cities-skylines-2
+git clone https://github.com/macgameport/1launcher.git
+cd 1launcher/cities-skylines-2
 bash scripts/setup.sh
 ```
 
@@ -174,7 +174,7 @@ profile system both assume it. **Direct presentation only shows in exclusive Ful
 composites every borderless window, so in Fullscreen Window the Metal HUD still says `Composited`
 on 11.16 too. If you want Direct, switch to exclusive Fullscreen, which this engine makes safe
 (reported on M4 Pro / macOS 27.0, where 11.16 measured +6.1 % over 11.0 —
-[#15](https://github.com/macgameport/cities-skylines-2-macos/issues/15)). You also get **CS2 Steam Store.app** — the
+[#15](https://github.com/macgameport/1launcher/issues/15)). You also get **CS2 Steam Store.app** — the
 storefront, one double-click away in the preserved 11.0 wrapper.
 
 Validated on one machine so far — if it misbehaves on yours, roll back and open an issue with
@@ -262,7 +262,7 @@ which updates first), quit Steam, then re-apply the fixes, because the update re
 DLLs:
 
 ```bash
-cd cities-skylines-2-macos && git pull && cd cities-skylines-2 && bash scripts/setup.sh
+cd 1launcher && git pull && cd cities-skylines-2 && bash scripts/setup.sh
 ```
 
 Each patch finds its target by name or by a byte pattern and refuses to write if what it finds is

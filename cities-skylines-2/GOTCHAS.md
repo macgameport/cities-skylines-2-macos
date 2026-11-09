@@ -1537,7 +1537,7 @@ during the *transient*. Ask when a value needs to be true, not just whether it n
 > **Ledger:** `SUPPORTED` — C19. **Resolved 2026-10-11 by upstream wine 6cfa941 in the daily engine**
 > (b48d166). On the real launcher window (`Chrome_WidgetWin_1`, Win32 client offset dx=4 dy=0 — the
 > 60262 trigger) the Cocoa frame equals the Win32 window rect (1290x676 at 316,220), no macOS title bar
-> is drawn, and James confirmed by hand that hover and clicks land under the pointer ([#18](https://github.com/macgameport/cities-skylines-2-macos/issues/18)).
+> is drawn, and James confirmed by hand that hover and clicks land under the pointer ([#18](https://github.com/macgameport/1launcher/issues/18)).
 > Ownership answered: stock wine (60262, reproduced on stock 11.16), not our winemac patches.
 > Everything below is the original investigation, kept as history.
 
@@ -1778,7 +1778,7 @@ extends past the visible rect, the window rect becomes the visible rect, so wine
 reproducer it removes the title bar and makes the Cocoa frame equal the Win32 window rect.
 **2026-10-11: now carried** — the daily engine's `win32u.so` has it (b48d166) and `build-engine-1116.sh`
 applies it (1e2ab47). **Observed fixed on the real launcher window 2026-10-11** — frame == Win32 rect, no
-title bar, hover and clicks under the pointer ([#18](https://github.com/macgameport/cities-skylines-2-macos/issues/18)).
+title bar, hover and clicks under the pointer ([#18](https://github.com/macgameport/1launcher/issues/18)).
 ## The Paradox launcher's PLAY: `ENOENT` is not a missing file (2026-08-31, OPEN)
 
 > **Ledger:** `SUPPORTED` — C25. Evidence: the launcher log across two attempts, one with an
@@ -2188,7 +2188,7 @@ headers from memory, sitting directly beneath a premise reconstructed from memor
    claim inherited from a summary or a previous session.
 
 > **Ledger:** no experiment or conclusion rested on it — the damage was one wrong public issue,
-> [#8](https://github.com/macgameport/cities-skylines-2-macos/issues/8), open for ~17 hours and
+> [#8](https://github.com/macgameport/1launcher/issues/8), open for ~17 hours and
 > closed as invalid with the correction in it.
 
 ## A signal verified at the declaration is not a signal — measure the value on the path that runs (2026-09-04)

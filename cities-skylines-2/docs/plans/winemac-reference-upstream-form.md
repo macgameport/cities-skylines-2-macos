@@ -1,7 +1,7 @@
 # The wine reference implementation in upstream form — readable, split, and generated from git
 
 **Status: BUILT 2026-09-03 (exit criterion 5 held for James) · check-it'd 2026-09-03 — build-ready-with-fixes (pass 3, fitted re-check after the instruments build at `cc62ff8`; T6 restated in boot-verify's contract, §2 greps corrected, no structural change). Pass 2: check-it'd 2026-09-02 — build-ready-with-fixes (the history design was the pass-1 blocker, corrected and re-checked).** Umbrella:
-[issue #1](https://github.com/macgameport/cities-skylines-2-macos/issues/1). Baseline: commit
+[issue #1](https://github.com/macgameport/1launcher/issues/1). Baseline: commit
 `c94d9e9`; the review lens's separability table and draft commit message are preserved in the issue.
 
 > **🔧 As-built (2026-09-03): BUILT.** Commits `e32fc34` (the split, the generator and the three

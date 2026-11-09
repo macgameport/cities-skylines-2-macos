@@ -14,7 +14,7 @@ Alistair Leslie-Hughes, comment #6) — the bug's lifecycle is complete.
 **2026-10-11: the project's daily engine carries it** — the measured win32u.so (stock 11.16 + 6cfa941) swapped
 into the wrapper; boot-verify PASS. The public `scripts/build-engine-1116.sh` applies it too (same day,
 `scripts/wine-6cfa941-win32u-visible-rect.patch`).
-**2026-10-11: confirmed on the real Paradox launcher** ([#18](https://github.com/macgameport/cities-skylines-2-macos/issues/18)): Win32 client offset dx=4 dy=0, Cocoa frame ==
+**2026-10-11: confirmed on the real Paradox launcher** ([#18](https://github.com/macgameport/1launcher/issues/18)): Win32 client offset dx=4 dy=0, Cocoa frame ==
 Win32 window rect (1290x676 at 316,220), no title bar, hover and clicks land under the pointer.
 
 ## Summary

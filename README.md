@@ -14,8 +14,8 @@ Everything that used to sit at the top level of this repository is now in `citie
 Own the game on Steam, on an Apple Silicon Mac? Roughly 20 minutes:
 
 ```bash
-git clone https://github.com/macgameport/cities-skylines-2-macos.git
-cd cities-skylines-2-macos/cities-skylines-2
+git clone https://github.com/macgameport/1launcher.git
+cd 1launcher/cities-skylines-2
 bash scripts/setup.sh
 ```
 

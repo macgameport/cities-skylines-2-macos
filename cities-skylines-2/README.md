@@ -13,7 +13,7 @@ stock wine 11.16 engine ([INSTALL §6](INSTALL.md#6-recommended-build-the-wine-1
 > ⚠ **macOS 28:** this setup runs Intel (x86-64) Wine under Rosetta, and Apple has said macOS 27 is the last release
 > with general Rosetta support. macOS 27.0.1 already warns, when you open the app, that it "will not open in macOS 28".
 > **Don't move a Mac you play on to macOS 28** until an arm64 route works — the plan and progress are in
-> [issue #16](https://github.com/macgameport/cities-skylines-2-macos/issues/16) and
+> [issue #16](https://github.com/macgameport/1launcher/issues/16) and
 > [`docs/plans/arm64-migration.md`](docs/plans/arm64-migration.md).
 
 ![Cities: Skylines II running on macOS via Wine + DXMT](docs/images/cs2-on-macos.png)
@@ -27,8 +27,8 @@ overlay is Metal's own performance HUD, enabled with `CS2_HUD=1`.*
 Own the game on Steam, on an Apple Silicon Mac? Roughly 20 minutes:
 
 ```bash
-git clone https://github.com/macgameport/cities-skylines-2-macos.git
-cd cities-skylines-2-macos/cities-skylines-2
+git clone https://github.com/macgameport/1launcher.git
+cd 1launcher/cities-skylines-2
 bash scripts/setup.sh
 ```
 

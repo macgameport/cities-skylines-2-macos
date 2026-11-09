@@ -1,7 +1,7 @@
 # Repo hygiene — identity section, archive, prune, headers, ledger wording
 
 **Status: check-it'd 2026-09-03 — build-ready-with-fixes (pass 3, fitted re-check after the instruments build at `cc62ff8`; three test expectations, two H1 clauses and the `CLAUDE.md` cites corrected, no design change). Pass 2: check-it'd 2026-09-02 — build-ready-with-fixes (corrections folded, cross-plan consistency re-checked).** Umbrella:
-[issue #1](https://github.com/macgameport/cities-skylines-2-macos/issues/1). Baseline: commit
+[issue #1](https://github.com/macgameport/1launcher/issues/1). Baseline: commit
 `c94d9e9`. All items are mechanical; the plan exists so the two that carry a decision (H1, H2) are
 decided once and the rest are done in one commit.
 
@@ -31,10 +31,10 @@ decided once and the rest are done in one commit.
 > 5. **`docs/patch-inventory.md`'s `Last verified` bump is qualified**, not a blanket re-date: the
 >    targets and counts were re-measured 2026-09-03, the in-game verification behind §1 is still
 >    2026-08-22, and the header now says both.
-> 6. **The four still-real items are filed as [#2](https://github.com/macgameport/cities-skylines-2-macos/issues/2)
->    (home-hidpi profile), [#3](https://github.com/macgameport/cities-skylines-2-macos/issues/3)
->    (`scripts/README.md` drift), [#4](https://github.com/macgameport/cities-skylines-2-macos/issues/4)
->    (fullscreen-toggle cursor desync) and [#5](https://github.com/macgameport/cities-skylines-2-macos/issues/5)
+> 6. **The four still-real items are filed as [#2](https://github.com/macgameport/1launcher/issues/2)
+>    (home-hidpi profile), [#3](https://github.com/macgameport/1launcher/issues/3)
+>    (`scripts/README.md` drift), [#4](https://github.com/macgameport/1launcher/issues/4)
+>    (fullscreen-toggle cursor desync) and [#5](https://github.com/macgameport/1launcher/issues/5)
 >    (Rosetta horizon)**, linked from `PLAN.md` § Known-unresolved. The build session drafted them
 >    without GitHub write scope; the session that filed them ran T7 first and each issue's
 >    `author.login` is **`iosoceans`**.

@@ -1,7 +1,7 @@
 # Cross-process hosting layer — the two design gaps and the three heuristics
 
 **Status: BUILT 2026-09-03 · check-it'd 2026-09-03 — build-ready-with-fixes (pass 3, fitted re-check after the instruments build at `cc62ff8`; prose corrections folded, nothing in D1/D2/D3 or the test rows invalidated). Pass 2: check-it'd 2026-09-02 — build-ready-with-fixes (D1 was rewritten from a measurement after a needs-rework pass 1, then re-checked).** Umbrella:
-[issue #1](https://github.com/macgameport/cities-skylines-2-macos/issues/1). Baseline: winemac tree as of commit
+[issue #1](https://github.com/macgameport/1launcher/issues/1). Baseline: winemac tree as of commit
 `c94d9e9`; instruments at `cc62ff8`; installed module `310f13d03e27732d` (hash re-verified 2026-09-03); source tree
 `~/cs2-patch/build-1116/wine-11.16-dxmt/dlls/winemac.drv/` (line numbers below are against it).
 

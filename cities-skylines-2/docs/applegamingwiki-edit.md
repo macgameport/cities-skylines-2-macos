@@ -34,7 +34,7 @@ Placed directly under the existing **Wine** row. Rating: **Playable**.
 >
 > 1. Install a Wine 11.0 + DXMT wrapper. Porting Kit ships one (`WS12Wine11.0_DXMT-v0.80`).
 > 2. Install Steam inside the wrapper, sign in, then install Cities: Skylines II inside it.
-> 3. Clone https://github.com/macgameport/cities-skylines-2-macos then `cd cities-skylines-2-macos/cities-skylines-2` and run `bash scripts/setup.sh`.
+> 3. Clone https://github.com/macgameport/1launcher then `cd 1launcher/cities-skylines-2` and run `bash scripts/setup.sh`.
 >    It checks prerequisites, applies the binary patches, installs a launcher and builds a
 >    double-clickable app. Full walkthrough in the repository's `INSTALL.md`.
 >
@@ -63,7 +63,7 @@ Placed directly under the existing **Wine** row. Rating: **Playable**.
 Verified by User:<your wiki account> on 2026-08-23
 Device: MacBook Pro M3 Max 36GB RAM
 OS: macOS 26.5.2
-Method: Porting Kit Wine 11.0 + DXMT v0.80, patches from cities-skylines-2-macos
+Method: Porting Kit Wine 11.0 + DXMT v0.80, patches from 1launcher
 Game version: 1.6.0f1
 Resolution: 1920 x 1080 @ 120Hz Fullscreen Window
 Framerate: 42.7 FPS (1080p, Custom: Volumetrics/Shadows/Reflections Low, DoF and Motion Blur off)
@@ -75,7 +75,7 @@ Framerate: 42.7 FPS (1080p, Custom: Volumetrics/Shadows/Reflections Low, DoF and
 Verified by User:<your wiki account> on 2026-10-12
 Device: Mac Studio M5 Max 64GB RAM
 OS: macOS 27.0.1
-Method: self-built Wine 11.16 + DXMT v0.80, patches from cities-skylines-2-macos
+Method: self-built Wine 11.16 + DXMT v0.80, patches from 1launcher
 Game version: 1.6.2f1
 Resolution: 2560 x 1440 @ 60Hz Fullscreen Window
 Framerate: 47.8 FPS on the built-in benchmark (vsync off); 60 FPS held with vsync in a 4.8k-population city

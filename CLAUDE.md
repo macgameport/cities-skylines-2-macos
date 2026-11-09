@@ -85,7 +85,7 @@ asserting a 131-entry unixlib table that is really 132 — its own test gate wou
 for the wrong reason; an install step whose `codesign` contradicted the same plan's `cmp` outcome
 test; a test stating a pass condition absent from the tool's vocabulary; cites off by one after a
 table grew; five nested items missed in a census. First label use:
-[#6](https://github.com/macgameport/cities-skylines-2-macos/issues/6) — comment accuracy in the
+[#6](https://github.com/macgameport/1launcher/issues/6) — comment accuracy in the
 published winemac reference, where `strip-comments.py`, the object comparison and the whole C29
 battery all pass while saying nothing about whether the surviving comments are TRUE.
 

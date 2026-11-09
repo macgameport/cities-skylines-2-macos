@@ -99,14 +99,14 @@ superseded, with the pointer to where the surviving content lives.
 
 ### Still real
 
-- ✅ **Test-frame retention** ([#14](https://github.com/macgameport/cities-skylines-2-macos/issues/14),
+- ✅ **Test-frame retention** ([#14](https://github.com/macgameport/1launcher/issues/14),
   decided 2026-10-12): keep everything until `~` has **< 150 GB free** (277 GB on 2026-10-12), then thin
   run dirs older than 60 days to flagged frames + every 10th — never runs named in EXPERIMENTS/GOTCHAS/
   docs, never text files, never the evidence store. Thinning moves to the Trash; emptying it is James's.
   `rollback-build23700737` is an APFS clone (~5 GB real, 91 G by `du`).
 
 - 📋 **`home` profile assumes a ~1080p main panel — and as of 2026-09-09 it no longer holds.**
-  [#2](https://github.com/macgameport/cities-skylines-2-macos/issues/2). **The hypothetical
+  [#2](https://github.com/macgameport/1launcher/issues/2). **The hypothetical
   arrived**: the main display is now an Apple **Studio Display** (5120×2880 backing, presented by
   macOS at **2560×1440 HiDPI, 60 Hz**), the U2720Q is the portrait secondary, and the 1080p/120 Hz
   U2424H this profile was tuned against is **no longer attached**. `cs2-display-profile.sh` still
@@ -127,13 +127,13 @@ superseded, with the pointer to where the surviving content lives.
   GPU 14.6 ms; **Amasa (4,834 pop, the largest save) GPU ~20 ms zoomed out, rarely above 20**, 60 FPS.
   Under the ~25 ms bar with ~5 ms margin. Reopen if a bigger city reads GPU > ~25 ms live — the
   `home-hidpi` row (DRS 0.5 + CAS) is the ready fix.
-- ✅ **Fullscreen-toggle cursor desync — does not reproduce on 11.16** ([#4](https://github.com/macgameport/cities-skylines-2-macos/issues/4), closed 2026-10-11).
+- ✅ **Fullscreen-toggle cursor desync — does not reproduce on 11.16** ([#4](https://github.com/macgameport/1launcher/issues/4), closed 2026-10-11).
   Fullscreen ↔ windowed toggled twice at the main menu on the daily engine: windowed gets one
   correct macOS title bar with the content view == Win32 client, fullscreen is a real exclusive mode
   switch with no title bar, clicks accurate in every state (James), display restored on exit,
   boot-verify PASS. Measurements: evidence cell `4-fullscreen-toggle-1116` (exp_ad3998). Fullscreen Window stays
   the recommended mode in README/INSTALL; that advice is about the 11.0 freeze, not this.
-- 📋 **Rosetta horizon → [#16](https://github.com/macgameport/cities-skylines-2-macos/issues/16)** (supersedes #5, closed 2026-10-10). The stack is entirely x86-64 under
+- 📋 **Rosetta horizon → [#16](https://github.com/macgameport/1launcher/issues/16)** (supersedes #5, closed 2026-10-10). The stack is entirely x86-64 under
   Rosetta 2. Apple, 2026-09-01: macOS 27 is the last release with full Rosetta; 28 keeps an
   undefined games-only subset. The path out exists now (CodeWeavers' arm64 Wine + FEX, DXMT
   ARM64EC) — planned in `docs/plans/arm64-migration.md`, **checked 2026-10-11** (P0 = watch, build-ready;
@@ -144,7 +144,7 @@ superseded, with the pointer to where the surviving content lives.
 
 ### Closed — where each one went
 
-- ✅ **`scripts/README.md` coverage drift** — [#3](https://github.com/macgameport/cities-skylines-2-macos/issues/3)
+- ✅ **`scripts/README.md` coverage drift** — [#3](https://github.com/macgameport/1launcher/issues/3)
   **CLOSED 2026-09-04, and the condition was actually fixed**, not just filed away. Re-measured on
   `button up` 2026-09-07 with the issue's own method (every `scripts/*.{sh,py,c,swift}` filename
   `grep`ed against `scripts/README.md`): **78 source files · 70 documented · 8 unmentioned**, against
@@ -166,7 +166,7 @@ superseded, with the pointer to where the surviving content lives.
   story, with `EXPERIMENTS.md`'s register (C1–C30) as the authority on trust and
   `docs/steam-ui-investigation.md` as the raw chronology. Two bugs, not one: the font backend
   (ours, fixed) and a NULL dereference in DXMT (upstream, open). Upstream work is tracked by
-  [issue #1](https://github.com/macgameport/cities-skylines-2-macos/issues/1). Its 23 sub-items:
+  [issue #1](https://github.com/macgameport/1launcher/issues/1). Its 23 sub-items:
   - **The 2026-08-30 VOID audit** (41 of 43 render cells ran with no font library) → `EXPERIMENTS.md`
     § index (`VOID-LIBS`) and the `void-ok:` convention; `docs/agent-brief.md` carries the rule.
   - **"Our 11.16 loses FreeType/gnutls/MoltenVK only under Steam"** → root cause found: `nohup` +

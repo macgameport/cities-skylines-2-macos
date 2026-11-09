@@ -12,9 +12,9 @@ Triple-checked 2026-09-07 — build-ready-with-fixes (pass 1 needs-rework on the
 reworked in place; the fitted re-check the same day built D and found no blocker; all corrections
 folded — see § Review corrections and § Review log). Build order: § 6 instruments → S1a → S0 → the
 § 7 decision rule → D.** Tracker:
-[issue #13](https://github.com/macgameport/cities-skylines-2-macos/issues/13); the observation it
-splits from is [#12](https://github.com/macgameport/cities-skylines-2-macos/issues/12); umbrella
-[#1](https://github.com/macgameport/cities-skylines-2-macos/issues/1). Baseline: cs2 `3515efc`;
+[issue #13](https://github.com/macgameport/1launcher/issues/13); the observation it
+splits from is [#12](https://github.com/macgameport/1launcher/issues/12); umbrella
+[#1](https://github.com/macgameport/1launcher/issues/1). Baseline: cs2 `3515efc`;
 nested winemac `main` = `52789ff`, `core` = `63a0cec`, `aquadran` = `fe281fe`; pristine winehq tree
 `~/cs2-patch/build-1116/wine-11.16/`; DXMT fork `~/cs2-patch/dxmt-fork/`; installed daily driver =
 stage 1 `2a251a4b2510fb84`. Line numbers are against nested `main` and name their file; unqualified
