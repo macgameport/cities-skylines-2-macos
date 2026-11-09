@@ -6,7 +6,8 @@
 > 2026-11-08 ("Ok go ahead with recs"). Phase 3 was re-checked against the renamed tree before its build by a
 > fourth fitted pass on 2026-11-09 (1 blocker, folded with 12 other fixes; fourth-pass block).
 > Written 2026-11-08. Tracking: issue #22.
-> **🔧 As-built (2026-11-08):** PARTIAL. Phases 0, 1 and 2 are built (Phase 2 on 2026-11-09); Phases 3 and 4 are not started.
+> **🔧 As-built (2026-11-08):** PARTIAL. Phases 0, 1 and 2 are built (Phase 2 on 2026-11-09); Phase 3 is built to its live test (T10) and
+> retirement (3.7); Phase 4 is not started.
 > Phase 1 is commit `270ca2a` (211 renames at 100%, nothing else) and the commit that adds this line.
 > Measured on the real checkout after both: T1 0 of 107 · T2 22 of 22 and `setup.sh --check` exit 0 ·
 > T3 every gate exit 0, lock test 17 PASS, 102 files syntax-clean · T4 · T6 9 · T11 · T13 · T15 5 of 5 ·
@@ -45,6 +46,15 @@
 > not Phase 3's first commit, so the anonymous read-back of the author that the exit criteria ask for is
 > made on this commit. (e) 2.1 counted 42 occurrences in 17 files; the tree held 45 lines in 18 files, two
 > of the lines this plan's own.
+> **Phase 3 (2026-11-09): built to T10.** After the fourth-pass fold (`ee9c9f4`): 3.1 is `340f4ef` (26 files,
+> T6 0 on the game folder and 9 on the repo); 3.2 to 3.4 are `0e753a6`; 3.6 is `e9a6abf`. 3.5 moved `runs/`
+> (91 entries) and `backup/` (4) to the Application Support folder and `engine/` to the Developer folder,
+> sizes equal before and after, and the two helpers into `tools/`; `make-app.sh`, re-run from the new folder,
+> built a shim that names the new launcher, pulls nothing and has its icon. Measured on the real tree: T7 seven
+> of seven green, each `MUTANT=1` red; T8 24 PASS, its three mutants as written; T14 19 checks green, both
+> mutants red for the reasons the row names; T1 0 unresolved; the exit `git grep` one line; T2 22 of 22;
+> `check-experiments.py` exit 0. The bare `hub` repo holds the 42 private commits (`refs/archive/pre-public`),
+> so 3.7 loses nothing. Open: T10, one visible launch, which waits for James; then 3.7.
 > Verify against: `common/` · root `scripts/` · `cities-skylines-2/scripts/check-experiments.py` ·
 > `.gitignore` · `LICENSE` · root `README.md`, `INSTALL.md`, `CLAUDE.md`.
 > File and line references are as of `cc66a90`; after Phase 1 every CS2 path gains the prefix
