@@ -3,7 +3,7 @@
 > **Status: Triple-checked 2026-11-09 — build-ready-with-fixes (pass 1, 4 lenses, 7 blockers, the design
 > reworked in the fold; fitted re-check the same day, no blocker, its fixes folded).** Only L0 can start now: L1 to L3 follow
 > Phase 3 of the unification plan, which moves the files cited here, so they need a fitted re-check against
-> the tree as it stands then. The build also waits on section 8.
+> the tree as it stands then. Section 8: O3, O4, O5 and O7 are decided and O7 is done; O2, O6, O8 and O9 are open.
 > Written 2026-11-09. Tracking: issue #22 (the umbrella for the unification plan), four checkboxes (O9).
 > File and line references are as of `adc5900`. A path is relative to `cities-skylines-2/` unless it starts
 > with `common/`, `~` or `docs/plans/1launcher`, or is this file. Surviving Mars references are to its public
@@ -53,8 +53,8 @@ Elsewhere: `~/sm-patch` (1.6 G: the checkout plus `engine/` 0.93, `backup/` 0.57
 
 | Tree | What is in it |
 |---|---|
-| `build-1116/wine-11.16-dxmt/dlls/winemac.drv` | a git repo with no remote: 12 branches, 6 tags, 44 commits on its branches, 65 more that no branch or tag reaches, and local `diff.*` and `user.*` settings. The source of the three published winemac patches, and what the drift gate reads |
-| `dxmt-v080` | 2 commits on a local branch that no remote has |
+| `build-1116/wine-11.16-dxmt/dlls/winemac.drv` | a git repo with no remote: 12 branches, 6 tags, 44 commits on its branches, 65 more that no branch or tag reaches, and local `diff.*` and `user.*` settings. The source of the three published winemac patches, and what the drift gate reads. Mirrored since 2026-11-09 (O7) |
+| `dxmt-v080` | 2 commits on a local branch that no remote had. Mirrored since 2026-11-09 (O7) |
 | `dxmt-fork` | a shallow clone of another person's fork with 3 modified files |
 | `build-1116/wine-11.16-stockcore` | a git repo with no commit, around a copy of the vendor tree plus 4 entries |
 | `build-1116-unify` | no repo at all: two Wine source files that differ from the vendor tree, `ntdll-variants/` (two built DLLs and a patch), `probe-logs/`, build logs |
@@ -127,9 +127,9 @@ Each phase ends green before the next starts. L1 and L2 start after Phase 3 of t
 
 ### L0 — decisions, and what they change in the unification plan (no code)
 
-1. James answers section 8.
+1. James answers section 8. Done on 2026-11-09 for O3, O4, O5 and O7.
 2. Done with this plan: the unification plan's O7 row, its section 2 "Unchanged" sentence and its T2 row point here.
-3. If O4 is accepted, before Phase 3 is built: in the unification plan, `engine/` goes to `<work root>/surviving-mars-relaunched/` in the O9 row, in 3.2 (the default output at `tools/make-engine.sh:48`), in 3.5 (the move) and in T14 (which then expects `runs/` and `backup/` under the data root and `engine/` under the work root). That edit is new material in a checked plan: it is audited two-sided and re-checked by one fitted pass before Phase 3 starts.
+3. O4 is accepted, so before Phase 3 is built: in the unification plan, `engine/` goes to `<work root>/surviving-mars-relaunched/`, through a second variable `SM_WORK`, in the O9 row, in 3.2 (the default output at `tools/make-engine.sh:48`), in 3.5 (the move) and in T14 (which then expects `runs/` and `backup/` under the data root and `engine/` under the work root). Done 2026-11-09. That edit is new material in a checked plan: it is audited two-sided and re-checked by one fitted pass before Phase 3 starts.
 4. Three places where the two plans meet, and how the order settles each. The unification plan's Phase 3 exit expects one remaining `sm-patch` line at `launchers/launch-cs2.sh:5` and its 3.6 leaves the CS2 launcher comments alone: both are judged before L1, which then edits that comment. Its T2 compares against `~/cs2-patch`: from L1 on it is read as LT4, against the folder `common/paths.sh` resolves. Its Phase 4 exit on the MacBook is recorded before L3 starts in the same visit.
 
 ### L1 — the repo (public; one commit for code and tests, one for documents)
@@ -139,7 +139,7 @@ Each phase ends green before the next starts. L1 and L2 start after Phase 3 of t
 1.3 Every other script that names the old folder (23 shell scripts here and two more in 1.4, `scripts/check-experiments.py`, and comments in `scripts/dump-binding-attrs.py:21` and `scripts/win-resize-driver.c:9`): source `common/paths.sh` and take each default from `"$CS2_DATA"` (a launcher path, and the display-profile helper at `scripts/t1-spike.sh:99`) or `"$CS2_WORK"` (everything else), per the two rules of section 2 (LT15). The harness scripts' own unquoted uses are left as they are: the workspace has no space in its path.
 1.4 `scripts/setup.sh` per 3.3; `scripts/make-shortcut.sh:46,48` take their default launcher from `common/paths.sh`; the two `.command` wrappers (LT2); `common/check-deploy.sh`, the 22-file comparison as a script (LT4).
 1.5 `scripts/move-install.sh` and `scripts/test-move-install.sh` (LT16).
-1.6 Surviving Mars's five scripts take `SM_STATE` and the engine default from `common/paths.sh` in place of the identical line Phase 3 gave each (unification 3.2); T14 is run again.
+1.6 Surviving Mars's five scripts take `SM_STATE` and `SM_WORK` from `common/paths.sh` in place of the identical line Phase 3 gave each (unification 3.2); T14 is run again.
 1.7 Documents, per 3.6.
 1.8 On the Studio, the old folder still in place and nothing running (the two probes of 3.4: `pgrep -x wineserver` finds nothing, no launch lock names a live process): `bash scripts/setup.sh` from the game folder. It resolves to `~/cs2-patch` by the rule of 3.3, copies the new files, runs the idempotent patch pass and rebuilds the app. Then LT10. This is the path every existing user takes after `git pull`.
 
@@ -149,7 +149,7 @@ Each phase ends green before the next starts. L1 and L2 start after Phase 3 of t
 
 ### L2 — the Studio's folders
 
-1. Preflight. The scheduled task disabled in the scheduler. `lsof -a -d cwd | grep -c "$HOME/cs2-patch"` prints 0: this phase is run from a session in the checkout, and every session and shell in the old folder is closed first. O7's backup is done, or James has waived it. Record LT6's numbers, LT7's listing and fingerprints, and `bash scripts/move-install.sh --dry-run`.
+1. Preflight. The scheduled task disabled in the scheduler. `lsof -a -d cwd | grep -c "$HOME/cs2-patch"` prints 0: this phase is run from a session in the checkout, and every session and shell in the old folder is closed first. O7's mirrors are level with their sources (`git log --branches --not --remotes` prints nothing in either repo). Record LT6's numbers, LT7's listing and fingerprints, and `bash scripts/move-install.sh --dry-run`.
 2. `bash scripts/move-install.sh`, which repeats the refusals of 3.4. LT7. Then one line in a new `<work root>/README.txt`: this folder is not Xcode's, and its trees are the only copy of the work in them.
 3. `bash scripts/setup.sh` from the game folder: it now resolves to the runtime folder, copies the 22 files, runs the patch pass and rebuilds the app with the new launcher path. LT4, LT8, LT9.
 4. What names the old path outside the repo. The scheduled task's `SKILL.md`: its 10 lines by the two rules, and the sentence that calls the folder its working notes; then enable it. The 13 memory files in the repo's Claude project (`grep -rl cs2-patch` over its `memory/` folder); the 2 in the old folder's own project are dropped with a line in the repo's index, since no session starts there again. The 4 loose scripts and notes in the workspace that name the old path, by hand, or left with a note where dead (`queue-s2b.sh` already is); the 16 logs are records. The old folder's own `.claude/` moves with the workspace and is inert. The old folder's `.metadata_never_index` marker moves with the workspace too. Last, a document commit: the root `CLAUDE.md`'s list of allowed places.
@@ -201,12 +201,14 @@ Exit: the same criteria, measured there; both games started once from their apps
 
 - **Moving the wrappers.** `~/Applications` is the standard place; about 40 tracked files here and about 10 in Surviving Mars name a wrapper path.
 - **Regrouping what is inside the workspace**, the log paths, and making the harness scripts safe for a space.
-- **A backup for the four trees.** They are the only copy of the work listed in section 1, on a disk with no backup, before and after this plan. O7 asks for an issue.
+- **A second disk.** O7's mirrors cover the two repos that have commits of their own, and sit on the same disk as the originals. Still in one copy only: `dxmt-fork`'s 3 modified files, the two changed Wine source files and `ntdll-variants/` in `build-1116-unify`, and the 4 extra entries in the repo with no commit.
 - **Disk space.** The 91 G rollback copy moves with the workspace; the 103 G test wrapper `CS2child-test.app` stays in `~/Applications`. The Studio's disk is 90% full (O8).
 - **Rebuilding an engine** from a moved tree, and proving a Wine build at a path with a space.
 - **A launcher warning when `CS2_PATCH_DIR` points away from its own folder.** The variable is honoured today and still is.
 
 ## 8. Decisions (James)
+
+**Decided 2026-11-09.** His answers to the four questions put to him: O3, "library" and then "Follow best practices"; O7, "ok"; O4, "that's fine"; O5, "ok". O1 is the standard that D2 asks for and is read as decided with O3; that reading is the planner's. O2, O6, O8 and O9 are still recommendations.
 
 | # | Question | Recommendation |
 |---|---|---|
@@ -216,7 +218,7 @@ Exit: the same criteria, measured there; both games started once from their apps
 | O4 | Surviving Mars's `engine/` (unification O9 sends it to the data root) | The work root: it is a Wine tree, and this plan keeps those off paths with a space. `backup/` and `runs/` stay as the unification plan's O9 says |
 | O5 | When | L1 and L2 after the unification plan's Phase 3; L3 in the MacBook visit of its Phase 4 |
 | O6 | Dated records | Keep the paths they were written with and add the mapping sentence (3.6): 151 lines in 23 files stay as written |
-| O7 | The four trees are the only copy of their work | Open an issue for a backup or a private remote, and do it before L2 for the two repos with commits no remote has (the winemac repo's whole history is under 300 KB). The move itself neither helps nor hurts; the new folder's risk is the one O3 names |
+| O7 | The four trees are the only copy of their work | Open an issue for a backup or a private remote, and do it before L2 for the two repos with commits no remote has (the winemac repo's whole history is under 300 KB). The move itself neither helps nor hurts; the new folder's risk is the one O3 names. **Done 2026-11-09**, on the Studio's private git server as remote `hub`: `~/git/cs2-winemac-drv.git` (18 refs) and `~/git/cs2-dxmt-v080.git` (22 refs), each equal to its source ref for ref, and a clone of the first passes the drift gate once the two `diff.*` settings are set. No issue was opened: the root `CLAUDE.md` records the mirrors and the push that keeps them level |
 | O8 | The 91 G rollback copy and the 103 G test wrapper | Leave both to a separate decision |
 | O9 | Tracking | Four checkboxes on issue #22, one per phase, not a new issue |
 

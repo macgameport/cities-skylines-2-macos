@@ -20,6 +20,12 @@ The only places outside the repo are `~/cs2-patch` (deployed copies and evidence
 `~/Applications`, and each game's state folder under `~/Library/Application Support/1launcher/`. Anything
 else outside needs James's say-so first, and a line here saying where it is and why.
 
+**Private mirrors** (James, 2026-11-09). Two source repos inside `~/cs2-patch` hold commits that no remote of
+theirs has, so each has a private mirror on the Studio's git server, as remote `hub`:
+`~/git/cs2-winemac-drv.git` (for `build-1116/wine-11.16-dxmt/dlls/winemac.drv`) and `~/git/cs2-dxmt-v080.git`
+(for `dxmt-v080`). After a commit in either: `git push hub --all && git push hub --tags`. They are on the same
+disk as the originals: they guard against a deleted folder, not a failed disk.
+
 **Paths.** The sections below were written when Cities: Skylines II was the whole repo. A path in them,
 or in a game's own file, that does not start with a folder from the table is relative to `cities-skylines-2/`.
 
