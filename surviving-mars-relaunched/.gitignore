@@ -1,0 +1,12 @@
+# machine-local: the stock game binary (copyrighted, 11 MB) and personal game settings
+backup/
+# run logs and lldb scratch copies of the game binary
+runs/
+scratch/
+.DS_Store
+
+# built from tools/*.c (build line in each file header); not committed, same as cs2's driver
+tools/*.exe
+
+# the game's Wine engine, built by tools/make-engine.sh (a ~1 GB clone of S734M's Wine + CrossOver's D3DMetal)
+engine/

@@ -1,0 +1,4 @@
+LIBRARY d3dmu.dll
+EXPORTS
+  __wine_unix_call = d3dmu_unix_call
+  NtQueryVirtualMemory = ntdll.NtQueryVirtualMemory
