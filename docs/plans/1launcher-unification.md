@@ -9,8 +9,10 @@
 > Phase 1 is commit `270ca2a` (211 renames at 100%, nothing else) and the commit that adds this line.
 > Measured on the real checkout after both: T1 0 of 107 · T2 22 of 22 and `setup.sh --check` exit 0 ·
 > T3 every gate exit 0, lock test 17 PASS, 102 files syntax-clean · T4 · T6 9 · T11 · T13 · T15 5 of 5 ·
-> every mutant applied and seen red. Deviations: (1) **T12 was not run.** The headless `claude` command on
-> the Studio is not signed in, so the fresh-session check of the `CLAUDE.md` import waits for James.
+> every mutant applied and seen red. Deviations: (1) **T12 ran on 2026-11-09 and passed**, a day after the rest: a fresh
+> desktop session James started at the repo root and a headless `claude -p` run from the same place each
+> quoted the CS2-only line and the root-only line without reading a file, and `/context all` listed
+> `cities-skylines-2/CLAUDE.md` once (13 instruction files; 12 without the import).
 > (2) The accepted identifier residual is 9 lines, not 6: the scan also counts three mentions of the
 > placeholder Steam display name in `docs/images/AUDIT.md`, which is public by design; it skips a computer
 > name that is only the product name, and `[U:1:0]`, Steam's logged-off id. (3) `setup.sh`'s own usage text
@@ -20,8 +22,8 @@
 > (6) **The links in this repo's own issues are not yet edited**: nine links to eight plan files, in the body
 > of #1 and in comments on #7, #13 and #16. The edit was refused by the session's permission layer and waits
 > for James, so the second half of T15 is open and those links 404 on `main` until then. (7) GitHub now
-> reports the licence as MIT. **Phase 2 was not started:** Phase 1 is not green until T12 and (6) are closed,
-> and 2.2 also needs Phase 0 step 4 (the two dotfiles), which is James's.
+> reports the licence as MIT. **Phase 2 was not started:** Phase 1 is not green until (6) is closed. Phase 0
+> step 4 (the two dotfiles) was done by James on 2026-11-09 and read back: each file names the new path once.
 > Verify against: `common/` · root `scripts/` · `cities-skylines-2/scripts/check-experiments.py` ·
 > `.gitignore` · `LICENSE` · root `README.md`, `INSTALL.md`, `CLAUDE.md`.
 > File and line references are as of `cc66a90`; after Phase 1 every CS2 path gains the prefix
