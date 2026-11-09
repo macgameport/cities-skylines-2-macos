@@ -2794,7 +2794,7 @@ that was this mechanism was **not** tested.
 - **Injected Alt+Enter did nothing:** `SendInput` from another process reached the queue (4/4 events)
   but the game did not toggle, so a keystroke-injection fix is not a substitute for `SWP_FRAMECHANGED`.
 - **The test, for any window-related input bug:** compare `GetWindowRect` with `GetClientRect` on a
-  frameless window. Different sizes = this bug. Tool: `~/sm-patch/tools/frame-fix.c` (`--dry` prints both,
+  frameless window. Different sizes = this bug. Tool: `surviving-mars-relaunched/tools/frame-fix.c` (`--dry` prints both,
   `--once` fixes; run it with the launcher's `WINEESYNC`/`WINEMSYNC`, see the section directly above).
 
 ## `steam.exe -shutdown` right after the game exits cancels Steam Cloud's exit upload (2026-11-01)
@@ -2841,14 +2841,14 @@ Exit,)`). Uploads happen **only** then, and the launcher sent `-shutdown` as soo
     fixtures pass while the alert prints garbled.
 - **Read the log by line offset, never by timestamp.** That night crossed the DST change: the session
   started at 01:43 and ended at 01:32 in the same file.
-- **Fix:** `~/sm-patch/launch-relaunched.sh` reads the verdict with `cloud_outcome` and waits up to
+- **Fix:** `surviving-mars-relaunched/launch-relaunched.sh` reads the verdict with `cloud_outcome` and waits up to
   5 min for it before `-shutdown`, then reports when the saves stayed local (sm-patch `657dfb7` from
   the Studio, merged with the MacBook's cancel and offline cases in `44dcbd8`). Test:
   `tools/test-cloud-outcome.sh`, 9 cases from real logs, with mutants. Each Mac's own version had a
   live clean exit on 2026-11-02 that logged `Upload complete, result OK`; the merge itself is tested
   only against those log fixtures. **Pull before play** (sm-patch `f111e96`): the launcher registers the
   game as above before starting Steam, waits for the sign-in sync, and refuses to start on a conflict.
-  ⚠ **Superseded 2026-11-07** (sm-patch `7bec509`, plan `docs/plans/one-wrapper-per-game.md`): the game
+  ⚠ **Superseded 2026-11-07** (sm-patch `7bec509`, plan `surviving-mars-relaunched/docs/plans/one-wrapper-per-game.md`): the game
   now has its own wrapper, `SurvivingMars.app`, with the game installed in its own Steam, so nothing is
   registered anywhere. The measurements below stay as the evidence that an installed game pulls at sign-in.
   Test: `tools/test-signin-sync.sh`, 43 cases (`MUTANT=1` fails 25; the commit message says 41/23,
@@ -2868,7 +2868,7 @@ Exit,)`). Uploads happen **only** then, and the launcher sent `-shutdown` as soo
 **Measured in the S734M wrapper (the fallback stack).** S734M's `appmanifest_949230.acf` has
 `AutoUpdateBehavior 0` (always keep updated). `launch-cs2.sh` never gives that Steam an idle window,
 because it shuts Steam down as soon as the game exits (§ The launcher never lets Steam update the game).
-But `~/sm-patch/launch-relaunched.sh` runs the same Steam for hours of Surviving Mars, and that gave
+But `surviving-mars-relaunched/launch-relaunched.sh` runs the same Steam for hours of Surviving Mars, and that gave
 it the window. In S734M's `logs/content_log.txt`, the update to 949230 started 2026-11-01 07:34 and
 was suspended at a Steam shutdown. It resumed in the next session and finished at 10:32:
 5.5 GB downloaded, `BuildID 25127643`, up from 23700737, the July build.
@@ -2923,7 +2923,7 @@ was suspended at a Steam shutdown. It resumed in the next session and finished a
 
 ## A live game run judged from its log: three ways the probe lied before the game did (2026-11-08)
 
-sm-patch `tools/licence-wait-probe.sh` launches Surviving Mars five times per licence wait and judges
+`surviving-mars-relaunched/tools/licence-wait-probe.sh` launches Surviving Mars five times per licence wait and judges
 each run from the game's own log. Its first results were wrong three times over, none of them the game's doing.
 
 - **The game buffers its log until exit.** A poll for the menu line on the live file never fired: every

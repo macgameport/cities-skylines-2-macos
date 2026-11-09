@@ -1,10 +1,10 @@
-# sm-patch — Surviving Mars: Relaunched on Apple Silicon
+# Surviving Mars: Relaunched on Apple Silicon
 
 A launcher and a few tools that run the Windows build of *Surviving Mars: Relaunched* (Steam app
 3215050) on an Apple Silicon Mac, inside a Wine wrapper, with saves travelling by Steam Cloud.
 
 **This is one person's integration glue, not a product.** It grew out of the
-[cities-skylines-2-macos](https://github.com/macgameport/cities-skylines-2-macos) wrappers, and its
+[Cities: Skylines II](../cities-skylines-2/README.md) port's wrappers in this repository, and its
 one-time setup still starts from them (see *What it assumes*). If you own CrossOver 26, the simpler
 answer is to run the game in CrossOver. What transfers to any setup is the *findings* section.
 
@@ -21,16 +21,15 @@ answer is to run the game in CrossOver. What transfers to any setup is the *find
   cloud holds the latest saves, and backs up the saves and both Steam manifests first.
 - `tools/make-engine.sh --install <wrapper>` — puts D3DMetal 3.0 (taken from a local CrossOver 26
   install) into a wrapper's own Wine 10 in place of its D3DMetal 2.1, keeping the original as
-  `wine.d3dm21-BAK`. Without `--install` it builds a standalone engine (`engine/`), which the cs2
-  project uses to try its own fallback on 3.0.
+  `wine.d3dm21-BAK`. Without `--install` it builds a standalone engine in
+  `~/Library/Developer/1launcher/surviving-mars-relaunched/engine/`, which the Cities: Skylines II port uses to try its own
+  fallback on 3.0.
 - `tools/frame-fix.exe` (from `frame-fix.c`) — fixes the click offset the game starts with.
 - `tools/game-input.exe` (from `game-input.c`) — sends clicks to the game from inside its Wine
   session, for testing without a human at the keyboard.
-- `make-app.sh` — builds a double-click `Surviving Mars Relaunched.app` that runs the launcher. Each
-  launch first runs `git pull --ff-only hub main`. `hub` is a private remote of my own, which a second
-  Mac follows; a clone with no remote of that name logs `pull failed` and runs the installed scripts,
-  as it does offline. The app runs whatever it pulls, so only ever name a repo `hub` that you alone
-  control. A change to `make-app.sh` itself still needs a re-run.
+- `make-app.sh` — builds a double-click `Surviving Mars Relaunched.app` that runs the launcher. It runs
+  the scripts in this checkout and never pulls: update with `git pull` yourself. A change to
+  `make-app.sh` itself needs a re-run.
 - `tools/test-*.sh` — tests for the launcher's parsing and guards. Each has a `MUTANT=1` mode that
   must fail. `tools/licence-wait-probe.sh <s> [runs]` launches the real game that many times at a
   shorter `SM_LICENCE_WAIT` and judges each run from the game's log (plan C2).
@@ -50,28 +49,36 @@ answer is to run the game in CrossOver. What transfers to any setup is the *find
 - CrossOver 26 installed, as the local source of D3DMetal 3.0. `CX_GPTK=<dir>` points
   `make-engine.sh` at another `apple_gptk`-shaped directory (Apple's Game Porting Toolkit; untested).
 - Homebrew `mingw-w64` to build the two `.exe` helpers (build lines in their headers).
-- Optional: a checkout of the cs2 project at `~/github/cs2`. `make-app.sh` uses its
-  `scripts/pe-icon.py` for the app icon (without it the icon is generic), and
-  `tools/test-launch-lock.sh` also compares the lock code with cs2's launchers when they are there.
+- The rest of this repository beside this folder. `make-app.sh` takes the app icon from the game with
+  [`pe-icon.py`](../cities-skylines-2/scripts/pe-icon.py) (without it the icon is generic), and
+  [`common/test-launch-lock.sh`](../common/test-launch-lock.sh) checks that the launcher lock code is the
+  same here and in the Cities: Skylines II launchers.
 
-**Nothing from Apple or CodeWeavers is in this repository, and nothing built from it may be
-redistributed.** `engine/` and the built binaries are gitignored on purpose.
+**Nothing from Apple or CodeWeavers is in this repository, and the engine built from it may not be
+redistributed.** That engine is built outside the checkout, under `~/Library/Developer/1launcher/surviving-mars-relaunched/`, and the
+helper binaries are gitignored.
 
 ## Setup
 
 ```bash
-git clone https://github.com/macgameport/surviving-mars-relaunched-macos ~/sm-patch   # the scripts expect ~/sm-patch
-cd ~/sm-patch
+git clone https://github.com/macgameport/1launcher.git ~/github/1launcher
+cd ~/github/1launcher/surviving-mars-relaunched
 x86_64-w64-mingw32-gcc -O2 -Wall -o tools/frame-fix.exe tools/frame-fix.c
 bash tools/split-wrapper.sh        # once: builds ~/Applications/SurvivingMars.app (seconds; APFS clones)
 bash make-app.sh                   # ~/Applications/Surviving Mars Relaunched.app
 ```
 
-Then double-click the app, or run `bash launch-relaunched.sh` for terminal output (the terminal path
-does not pull; `git pull` yourself). Logs: `~/Library/Logs/sm-relaunched-launcher.log`
-(each launch starts with a `scripts:` line saying whether it pulled) and `runs/`.
+Then double-click the app, or run `bash launch-relaunched.sh` for terminal output. Neither pulls:
+update with `git pull` yourself. Logs: `~/Library/Logs/sm-relaunched-launcher.log` and
+`~/Library/Application Support/1launcher/surviving-mars-relaunched/runs/`.
 
-Overrides, all optional: `SM_QUIET=1` (notifications instead of terminal output),
+Keep the checkout out of `~/Documents`: macOS stops an app from running scripts there (the note at
+[`setup.sh:14-15`](../cities-skylines-2/scripts/setup.sh)), and the double-click app runs the launcher
+where it is.
+
+Overrides, all optional: `SM_STATE` (where backups and run logs go, default
+`~/Library/Application Support/1launcher/surviving-mars-relaunched`), `SM_WORK` (where `make-engine.sh` builds a standalone
+engine, default `~/Library/Developer/1launcher/surviving-mars-relaunched`), `SM_QUIET=1` (notifications instead of terminal output),
 `SM_UPDATE=ask|apply|skip` (a waiting game update; default asks), `SM_LICENCE_WAIT` (seconds after
 sign-in, default 15), `SM_WRAPPER`, `SM_ENGINE`, `SM_STEAM_ENGINE` (launcher); `ENGINE_SRC`,
 `CX_GPTK` (make-engine.sh); `SPLIT_*` (split-wrapper.sh, for its test).
@@ -97,7 +104,7 @@ After CrossOver updates its D3DMetal: `bash tools/make-engine.sh --install ~/App
   save that differs from its entry, or has none, is one the cloud does not have.
 - **D3DMetal 3.0 does not run on Wine 11.** Its DLLs import `ntdll.__wine_unix_call`, which
   Wine 11 dropped; supplying it another way gets the DLLs loaded, but the game then crashes on what
-  looks like a mismatch in winemac's per-window record. Details: cs2 `EXPERIMENTS.md` C83.
+  looks like a mismatch in winemac's per-window record. Details: [`EXPERIMENTS.md`](../cities-skylines-2/EXPERIMENTS.md) C83.
 - **One launcher per Wine prefix.** Relaunching while the previous launcher is still shutting Steam
   down reuses the dying Steam and the game crashes at start.
 - **The game does not need cs2's 45 s after sign-in.** Started 17 s or 32 s after sign-in (5 runs
@@ -118,7 +125,7 @@ After CrossOver updates its D3DMetal: `bash tools/make-engine.sh --install ~/App
 
 ## History
 
-This repository starts from a single commit on 2026-11-08. The development history before that is
-kept privately, so the commit hashes cited in `docs/plans/one-wrapper-per-game.md` and
+Surviving Mars joined this repository on 2026-11-09, from a single public commit made on 2026-11-08
+in a separate repository. The development history before that is kept privately, so the commit hashes cited in `docs/plans/one-wrapper-per-game.md` and
 `tools/archive/wine11/README.md` do not resolve here. Log lines in the test fixtures are copied from
 real Steam logs with account identifiers, save names, hashes and batch IDs replaced.

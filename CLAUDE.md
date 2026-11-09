@@ -1,7 +1,7 @@
 # Claude Instructions — macOS game ports, one folder per game
 
-One repository, one folder per game. Each game keeps its own `CLAUDE.md`; the rules in this file hold
-for all of them. Personal-tier project: **no phases, no SPEC.md**; GitHub Issues are enabled and used
+One repository, one folder per game. A game may keep its own `CLAUDE.md` (Cities: Skylines II does,
+Surviving Mars does not yet); the rules in this file hold for all of them. Personal-tier project: **no phases, no SPEC.md**; GitHub Issues are enabled and used
 for umbrella work.
 
 ## Layout
@@ -9,15 +9,18 @@ for umbrella work.
 | Path | What |
 |---|---|
 | `cities-skylines-2/` | Cities: Skylines II: notes, patches, launchers, and its own `CLAUDE.md`, `GOTCHAS.md`, `EXPERIMENTS.md` and `docs/` |
-| `common/` | checks shared by every game: `check-links.py`, `check-identifiers.sh` |
+| `surviving-mars-relaunched/` | Surviving Mars: Relaunched: launcher, tools and tests, `README.md`, `docs/plans/`; no `CLAUDE.md` of its own. Its state is outside the repo (below) |
+| `common/` | checks and tests shared by every game: `check-links.py`, `check-identifiers.sh`, `test-launch-lock.sh` (the lock code three launchers share) |
 | `docs/plans/` | repo-level plans. A game's own plans are in `<game>/docs/plans/`, so a plan audit must look in both |
 | `scripts/` | compatibility only: a forwarding `setup.sh` and pointer files at paths that older clones and outside links still use. Nothing new goes here |
 
-In progress: `docs/plans/1launcher-unification.md` (the rename to `1launcher`, and Surviving Mars joining as a second folder). Planned, not started: `docs/plans/local-files-layout.md` (moving `~/cs2-patch` and the build trees into `~/Library`).
+In progress: `docs/plans/1launcher-unification.md` (renamed `1launcher` on 2026-11-09; Surviving Mars joined as a second folder the same day; the MacBook and shared launcher code are still to come). Planned, not started: `docs/plans/local-files-layout.md` (moving `~/cs2-patch` and the build trees into `~/Library`).
 
 **A new game is a new folder in this repo:** never a new repo, never a new folder in the home directory.
 The only places outside the repo are `~/cs2-patch` (deployed copies and evidence), the wrappers in
-`~/Applications`, and each game's state folder under `~/Library/Application Support/1launcher/`. Anything
+`~/Applications`, each game's state folder under `~/Library/Application Support/1launcher/` (Surviving Mars's holds
+`backup/` and `runs/`: saves and logs kept out of a public repo), and each game's Wine trees under
+`~/Library/Developer/1launcher/` (Surviving Mars's standalone `engine/`: kept off paths with a space). Anything
 else outside needs James's say-so first, and a line here saying where it is and why.
 
 **Private mirrors** (James, 2026-11-09). Two source repos inside `~/cs2-patch` hold commits that no remote of

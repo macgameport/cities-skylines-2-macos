@@ -57,7 +57,7 @@ echo "=== fingerprint: $(basename "$APP") ==="
 # ---------------------------------------------------------------- identity
 WINEVER="$("$E/bin/wine64" --version 2>/dev/null || "$E/bin/wine" --version 2>/dev/null || echo unknown)"
 REPO_HEAD="$(git -C "$REPO" rev-parse --short HEAD 2>/dev/null || echo none)"
-REPO_DIRTY="$(git -C "$REPO" status --porcelain 2>/dev/null | wc -l | tr -d ' ')"
+REPO_DIRTY="$(git -C "$REPO" status --porcelain -- . 2>/dev/null | wc -l | tr -d ' ')"   # this game's folder only
 ENGINE_STAMP="$(stat -f '%Sm' -t '%Y-%m-%dT%H:%M:%S' "$E/bin/wine64" 2>/dev/null || echo unknown)"
 ok "engine $WINEVER  built/installed $ENGINE_STAMP"
 ok "repo $REPO_HEAD ($REPO_DIRTY uncommitted file(s))"
