@@ -1,1 +1,8 @@
 blank_issues_enabled: true
+contact_links:
+  - name: A question, or "does it work on my Mac?"
+    url: https://github.com/macgameport/1launcher/discussions/categories/q-a
+    about: Ask in Discussions first. Issues are for defects in this repository's scripts and guides.
+  - name: Report a security problem privately
+    url: https://github.com/macgameport/1launcher/security/advisories/new
+    about: Only the maintainers see it.

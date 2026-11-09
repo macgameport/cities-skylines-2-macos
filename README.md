@@ -9,8 +9,10 @@ Steam, which checks that you own it.
 
 This is an independent community project. It is not affiliated with, endorsed by or supported by
 Paradox Interactive, Colossal Order, Valve, Apple or CodeWeavers, and their names and trademarks
-belong to them. If something here breaks, [open an issue](https://github.com/macgameport/1launcher/issues)
-in this repository rather than contacting a publisher's support team: they cannot help with it.
+belong to them. If something here breaks, ask in [Discussions](https://github.com/macgameport/1launcher/discussions)
+or [open an issue](https://github.com/macgameport/1launcher/issues) in this repository rather than contacting a
+publisher's support team: they cannot help with it. See also the [security policy](SECURITY.md) and the
+[code of conduct](CODE_OF_CONDUCT.md).
 
 | Game | Folder | Stack | Status |
 |---|---|---|---|
