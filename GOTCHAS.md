@@ -2920,3 +2920,21 @@ was suspended at a Steam shutdown. It resumed in the next session and finished a
   Only the re-patch is manual. If it keeps coming up, set that manifest's `AutoUpdateBehavior` to `1`
   (update only on launch). Any long-running Steam in a prefix that also holds CS2 has the same
   effect.
+
+## A live game run judged from its log: three ways the probe lied before the game did (2026-11-08)
+
+sm-patch `tools/licence-wait-probe.sh` launches Surviving Mars five times per licence wait and judges
+each run from the game's own log. Its first results were wrong three times over, none of them the game's doing.
+
+- **The game buffers its log until exit.** A poll for the menu line on the live file never fired: every
+  run waited the full 90 s, then passed on the flushed log. Wait a fixed time for the menu, quit, judge after.
+- **Its timestamp writer can split a line.** `Available DLCs: <tab>Lua 0:00:18:046` with the list on the
+  next line read as an empty DLC list, 1 run in 5 — a "licence failure" that was not one. Strip the
+  timestamps and rejoin the line before matching.
+- **BSD `sed` has no `\t`.** `s/\t\+…//` matches a literal `t`, so the fix for the above changed nothing
+  and the re-judge still failed. awk's regex has `\t`; so does a literal tab.
+- **Two points that line up are not a mechanism.** With a 30 s wait the game's start-up stall ended at
+  sign-in + 48 s, where a 45 s wait puts the same log line, and that was written up — in #11 above, in a
+  public repo — as "the game waits for Steam until + 48 s, nothing to gain below 30". The 15 s runs
+  stalled the same 13.5 s and finished at + 33 s. The third point cost 12 minutes; it belonged before
+  the claim, not after it.
