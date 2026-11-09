@@ -6,8 +6,8 @@
 > 2026-11-08 ("Ok go ahead with recs"). Phase 3 was re-checked against the renamed tree before its build by a
 > fourth fitted pass on 2026-11-09 (1 blocker, folded with 12 other fixes; fourth-pass block).
 > Written 2026-11-08. Tracking: issue #22.
-> **🔧 As-built (2026-11-08):** PARTIAL. Phases 0, 1 and 2 are built (Phase 2 on 2026-11-09); Phase 3 is built to its live test (T10) and
-> retirement (3.7); Phase 4 is not started.
+> **🔧 As-built (2026-11-08):** PARTIAL. Phases 0, 1 and 2 are built (Phase 2 on 2026-11-09); Phase 3 is built and its exit criteria pass (2026-11-09), with
+> retirement (3.7) still to do; Phase 4 is not started.
 > Phase 1 is commit `270ca2a` (211 renames at 100%, nothing else) and the commit that adds this line.
 > Measured on the real checkout after both: T1 0 of 107 · T2 22 of 22 and `setup.sh --check` exit 0 ·
 > T3 every gate exit 0, lock test 17 PASS, 102 files syntax-clean · T4 · T6 9 · T11 · T13 · T15 5 of 5 ·
@@ -54,7 +54,12 @@
 > of seven green, each `MUTANT=1` red; T8 24 PASS, its three mutants as written; T14 19 checks green, both
 > mutants red for the reasons the row names; T1 0 unresolved; the exit `git grep` one line; T2 22 of 22;
 > `check-experiments.py` exit 0. The bare `hub` repo holds the 42 private commits (`refs/archive/pre-public`),
-> so 3.7 loses nothing. Open: T10, one visible launch, which waits for James; then 3.7.
+> so 3.7 loses nothing. **T10 passed the same day:** James launched the game from the rebuilt app on the
+> Studio with the MacBook's Steam closed, and it ran. The app's log shows sign-in, "saves up to date", the
+> launch, exit code 0 and "saves uploaded"; the run log and its `.frame-fix` companion (one fix, at 2.7 s) are
+> under the new state folder; the old checkout's `runs/` was not recreated; the app has its icon; the shim
+> names the new launcher. With that every exit criterion of Phase 3 passes. Open: 3.7, retiring the old
+> checkout (James's approval) and the separate GitHub repo (his click).
 > Verify against: `common/` · root `scripts/` · `cities-skylines-2/scripts/check-experiments.py` ·
 > `.gitignore` · `LICENSE` · root `README.md`, `INSTALL.md`, `CLAUDE.md`.
 > File and line references are as of `cc66a90`; after Phase 1 every CS2 path gains the prefix
