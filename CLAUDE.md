@@ -15,6 +15,11 @@ for umbrella work.
 
 In progress: `docs/plans/1launcher-unification.md` (the rename to `1launcher`, and Surviving Mars joining as a second folder).
 
+**A new game is a new folder in this repo:** never a new repo, never a new folder in the home directory.
+The only places outside the repo are `~/cs2-patch` (deployed copies and evidence), the wrappers in
+`~/Applications`, and each game's state folder under `~/Library/Application Support/1launcher/`. Anything
+else outside needs James's say-so first, and a line here saying where it is and why.
+
 **Paths.** The sections below were written when Cities: Skylines II was the whole repo. A path in them,
 or in a game's own file, that does not start with a folder from the table is relative to `cities-skylines-2/`.
 
