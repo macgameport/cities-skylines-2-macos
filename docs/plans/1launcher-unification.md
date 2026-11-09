@@ -87,7 +87,7 @@ macgameport/1launcher            (this repo, renamed: same issues, stars and his
 └── surviving-mars-relaunched/   sm-patch's files, internal layout unchanged
 ```
 
-Local checkout: `~/github/1launcher` on both Macs. Surviving Mars's local state (`runs/`, `backup/`, `engine/`) lives outside the checkout (O9). Unchanged: `~/cs2-patch` (name, place, role), the wrappers in `~/Applications`, one wrapper per game, both engines, CS2's deploy model, and **every deployed CS2 byte**: no CS2 launcher, patch or helper is edited in Phases 1 to 4, so the 22-file comparison (T2) must read 22 of 22 at the end of every phase.
+Local checkout: `~/github/1launcher` on both Macs. Surviving Mars's local state (`runs/`, `backup/`, `engine/`) lives outside the checkout (O9). Unchanged: `~/cs2-patch` (name, place, role), the wrappers in `~/Applications`, one wrapper per game, both engines, CS2's deploy model, and **every deployed CS2 byte**: no CS2 launcher, patch or helper is edited in Phases 1 to 4, so the 22-file comparison (T2) must read 22 of 22 at the end of every phase. `~/cs2-patch` moves later, under `docs/plans/local-files-layout.md`: that plan follows Phase 3, is the first to edit a deployed CS2 file, and redeploys them, so T2 reads 22 of 22 again when each of its phases ends.
 
 ## 3. Phases
 
@@ -260,7 +260,7 @@ Measured on 2026-11-07: Surviving Mars is DirectX 12 only and needs D3DMetal 3.0
 | O4 | Licence | One MIT licence for the repo; Surviving Mars's code becomes MIT by moving in. GitHub reports this repo's licence as unrecognised today because of the note appended to `LICENSE`: move the note to the root README and rename the holder line (1.5); then extend the note to Surviving Mars's third parties and reword the Surviving Mars README's "nothing built from it may be redistributed" so it names the engine only (3.6) |
 | O5 | A public tracking issue for this plan | Yes, this repo's practice for umbrella work |
 | O6 | Go ahead with the rename and the index front page, given the audience in section 1? The alternative is to leave this repo's name and front page alone and start `1launcher` as a new repo for Surviving Mars and later games | Go ahead, with the mitigations in section 4. The cost that remains is a possible drop in search ranking, which nothing here can measure in advance |
-| O7 | `~/cs2-patch` (153 G, in the home folder) | Out of scope; Phase 5's plan decides |
+| O7 | `~/cs2-patch` (153 G, in the home folder) | Superseded 2026-11-09: it moves out of the home folder under its own plan, `docs/plans/local-files-layout.md`. Not part of this plan's phases |
 | O8 | When | Phase 1 rewrites every CS2 path, so not while other CS2 work is in flight |
 | O9 | Where Surviving Mars's local state lives: saves and Steam manifests in `backup/`, logs in `runs/`, a vendor's graphics library in `engine/` | Outside the checkout, in `~/Library/Application Support/1launcher/surviving-mars-relaunched/`. Inside the game folder, a `.gitignore` would be the only thing between them and a public repo; CS2 keeps its evidence outside the repo for the same reason |
 | O10 | Compatibility files at old paths: the forwarding `scripts/setup.sh`, three pointer files and a root `INSTALL.md` pointer | Keep them for now. The alternative is a cleaner root and broken links for 128 recent cloners and one upstream thread |

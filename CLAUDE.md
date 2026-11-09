@@ -13,7 +13,7 @@ for umbrella work.
 | `docs/plans/` | repo-level plans. A game's own plans are in `<game>/docs/plans/`, so a plan audit must look in both |
 | `scripts/` | compatibility only: a forwarding `setup.sh` and pointer files at paths that older clones and outside links still use. Nothing new goes here |
 
-In progress: `docs/plans/1launcher-unification.md` (the rename to `1launcher`, and Surviving Mars joining as a second folder).
+In progress: `docs/plans/1launcher-unification.md` (the rename to `1launcher`, and Surviving Mars joining as a second folder). Planned, not started: `docs/plans/local-files-layout.md` (moving `~/cs2-patch` and the build trees into `~/Library`).
 
 **A new game is a new folder in this repo:** never a new repo, never a new folder in the home directory.
 The only places outside the repo are `~/cs2-patch` (deployed copies and evidence), the wrappers in
