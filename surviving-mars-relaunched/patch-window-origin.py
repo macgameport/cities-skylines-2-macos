@@ -49,7 +49,8 @@ import sys
 DEFAULT = os.path.expanduser(
     "~/Library/Application Support/Steam/steamapps/common/Surviving Mars/"
     "MarsSteam.app/Contents/MacOS/MarsSteam")
-BACKUP_DIR = os.path.expanduser("~/sm-patch/backup")
+BACKUP_DIR = os.path.join(os.environ.get("SM_STATE") or os.path.expanduser(
+    "~/Library/Application Support/1launcher/surviving-mars-relaunched"), "backup")
 
 OFF = 0x5dee2f
 BEFORE = bytes.fromhex("488b3541642200")  # movq selector(initWithContentRect:...),%rsi

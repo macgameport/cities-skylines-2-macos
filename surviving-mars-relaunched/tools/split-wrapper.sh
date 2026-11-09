@@ -5,12 +5,12 @@
 #       store's game folder is real and its manifest reads StateFlags 4, the donor's copy is the expected
 #       symlink, the last exit upload for the game was ok, and if Steam synced after it, every save still
 #       matches Steam's last-synced copy; then back up both manifests, the saves and the donor's
-#       userdata/<acct>/3215050 into backup/ (gitignored).
+#       userdata/<acct>/3215050 into $SM_STATE/backup/ (SM_STATE as in launch-relaunched.sh).
 #   A1  cp -Rc the donor to the new wrapper (APFS clone); drop its copied lock and .crash marker.
 #   A2  strip Cities: Skylines II from the clone (tree + manifest + shader cache + userdata, together).
 #   A3  tools/make-engine.sh --install the clone (D3DMetal 3.0 in place, the 2.1 Wine kept as a BAK).
 #   A4  unlink the clone's symlink, mv the store's game folder into its place, move the store's manifest
-#       aside to runs/; A4b unlink the donor's (now dangling) symlink and move its manifest aside too, or
+#       aside to $SM_STATE/runs/; A4b unlink the donor's (now dangling) symlink and move its manifest aside too, or
 #       its Steam re-downloads the game (cs2 GOTCHAS: a manifest over a missing folder).
 #
 # Never deletes through a symlink: links go with unlink, and rm -r refuses a link and anything outside
@@ -19,11 +19,12 @@
 # and SPLIT_SKIP_ENGINE=1 skips A3, for tools/test-split-wrapper.sh.
 set -eu
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
+SM_STATE="${SM_STATE:-$HOME/Library/Application Support/1launcher/surviving-mars-relaunched}"
 DONOR="${SPLIT_DONOR:-$HOME/Applications/S734M.app}"
 STORE="${SPLIT_STORE:-$HOME/Applications/CS2dxmt11-pk110.app}"
 CLONE="${SPLIT_CLONE:-$HOME/Applications/SurvivingMars.app}"
-RUNS="${SPLIT_RUNS:-$HERE/runs}"
-BACKUP="${SPLIT_BACKUP:-$HERE/backup/one-wrapper-$(date +%Y%m%d-%H%M%S)}"
+RUNS="${SPLIT_RUNS:-$SM_STATE/runs}"
+BACKUP="${SPLIT_BACKUP:-$SM_STATE/backup/one-wrapper-$(date +%Y%m%d-%H%M%S)}"
 LAUNCHER="${SPLIT_LAUNCHER:-$HERE/launch-relaunched.sh}"
 APPID=3215050
 STEAMREL="drive_c/Program Files (x86)/Steam"

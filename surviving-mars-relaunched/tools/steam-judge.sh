@@ -4,11 +4,12 @@
 # 2026-10-30), judge: CRASH (new .ips) | ALIVE (process up after dwell) | NO-LAUNCH, then quit an
 # ALIVE game (AppleEvent, then TERM, then KILL -- it is the game, not Steam). ALIVE means "past the
 # launch-time window trap", which fires in under a second; it does NOT mean the menu rendered.
-# Output: ~/sm-patch/runs/<label>/ (no screenshots: they capture whatever app is in front).
+# Output: $SM_STATE/runs/<label>/, SM_STATE as in launch-relaunched.sh (no screenshots: they capture whatever app is in front).
 set -u
+SM_STATE="${SM_STATE:-$HOME/Library/Application Support/1launcher/surviving-mars-relaunched}"
 LABEL=$1; DWELL=${2:-10}
 BIN="$HOME/Library/Application Support/Steam/steamapps/common/Surviving Mars/MarsSteam.app/Contents/MacOS/MarsSteam"
-OUT="$HOME/sm-patch/runs/$LABEL"; mkdir -p "$OUT"
+OUT="$SM_STATE/runs/$LABEL"; mkdir -p "$OUT"
 REP="$HOME/Library/Logs/DiagnosticReports"
 arch -x86_64 /usr/bin/true 2>/dev/null || { echo "REFUSED: Rosetta missing (softwareupdate --install-rosetta --agree-to-license)"; exit 2; }
 echo "label=$LABEL sha=$(shasum -a 256 "$BIN" | cut -c1-16)"

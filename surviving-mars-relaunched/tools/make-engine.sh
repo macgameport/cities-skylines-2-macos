@@ -1,6 +1,6 @@
 #!/bin/bash
 # make-engine.sh --install <wrapper.app> [--rebuild]   put D3DMetal 3.0 into the wrapper's own Wine
-# make-engine.sh [<out-dir>]                            build a standalone engine (default engine/wine-d3dm30)
+# make-engine.sh [<out-dir>]                            build a standalone engine (default $SM_WORK/engine/wine-d3dm30)
 #
 # Builds the Wine engine the game runs on: a copy of a Wine 10 Sikarugir engine with D3DMetal 3.0 (taken
 # from CrossOver 26) in place of its D3DMetal 2.1. --install builds from the wrapper's own wine/, moves that
@@ -22,6 +22,7 @@
 # separate d3d12.so/dxgi.so/... per DLL, 3.0 links all of them to one libd3dshared.dylib.
 # Rebuild after the S734M wrapper's Wine or CrossOver is updated: it replaces <out-dir>.
 set -eu
+SM_WORK="${SM_WORK:-$HOME/Library/Developer/1launcher/surviving-mars-relaunched}"
 # ENGINE_SRC=<wine dir> clones another engine instead (the unified-stack probe used the daily CS2
 # wrapper's Wine 11.16, which exports the same macdrv_functions table D3DMetal reaches Wine through).
 INSTALL=""
@@ -45,7 +46,7 @@ if [ "${1:-}" = --install ]; then
   OUT="$T/wine.new"
 else
   SRC="${ENGINE_SRC:-$HOME/Applications/S734M.app/Contents/SharedSupport/wine}"
-  OUT="${1:-$HOME/sm-patch/engine/wine-d3dm30}"
+  OUT="${1:-$SM_WORK/engine/wine-d3dm30}"
 fi
 GPTK=""
 for c in "${CX_GPTK:-}" "$HOME/Applications/CrossOver.app" "/Applications/CrossOver.app"; do

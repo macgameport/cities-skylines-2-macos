@@ -5,11 +5,13 @@
 # the value into the uninitialised origin.y slot under lldb, and expects:
 #   stock   -> TRAPPED  in _NSViewValidateGeometry <- NSViewValidateRect (the 2026-10-30 crash chain)
 #   patched -> ACCEPTED (initWithContentRect: returns)
-# Full logs: ~/sm-patch/runs/inject-<arm>-<val>.log
+# Full logs: $SM_STATE/runs/inject-<arm>-<val>.log (SM_STATE: ~/Library/Application Support/1launcher/surviving-mars-relaunched)
 set -u
 VAL=${1:-inf}
 G="$HOME/Library/Application Support/Steam/steamapps/common/Surviving Mars"
-S="$HOME/sm-patch/scratch"; R="$HOME/sm-patch/runs"; T="$HOME/sm-patch/tools"
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+SM_STATE="${SM_STATE:-$HOME/Library/Application Support/1launcher/surviving-mars-relaunched}"
+S="$SM_STATE/scratch"; R="$SM_STATE/runs"; T="$HERE/tools"
 PY=/Applications/Xcode.app/Contents/Developer/usr/bin/python3
 arch -x86_64 /usr/bin/true 2>/dev/null || { echo "REFUSED: Rosetta missing (softwareupdate --install-rosetta --agree-to-license)"; exit 2; }
 pgrep -f 'MarsSteam.app/Contents/MacOS/MarsSteam' >/dev/null && { echo "REFUSED: a MarsSteam is running"; exit 2; }
@@ -20,8 +22,8 @@ for arm in stock patched; do
   for e in DLC Licenses Local Movies Packs; do ln -s "$G/$e" "$d/$e"; done
   echo 464920 > "$d/steam_appid.txt"
 done
-python3 "$HOME/sm-patch/patch-window-origin.py" "$S/stock/MarsSteam.app/Contents/MacOS/MarsSteam" | tail -1
-python3 "$HOME/sm-patch/patch-window-origin.py" apply "$S/patched/MarsSteam.app/Contents/MacOS/MarsSteam" | tail -1
+python3 "$HERE/patch-window-origin.py" "$S/stock/MarsSteam.app/Contents/MacOS/MarsSteam" | tail -1
+python3 "$HERE/patch-window-origin.py" apply "$S/patched/MarsSteam.app/Contents/MacOS/MarsSteam" | tail -1
 rc=0
 for arm in stock patched; do
   log="$R/inject-$arm-$VAL.log"

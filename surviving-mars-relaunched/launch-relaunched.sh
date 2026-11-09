@@ -65,11 +65,13 @@
 #   "Account storage loaded" (10/10 of those runs, 7 of 23 at 45 s); cause not identified, README.
 # SM_UPDATE=ask|apply|skip -> what to do when Steam has a game update waiting (default ask; see 2b).
 set -u
+HERE="$(cd "$(dirname "$0")" && pwd)"
+SM_STATE="${SM_STATE:-$HOME/Library/Application Support/1launcher/surviving-mars-relaunched}"
 APP="${SM_WRAPPER:-$HOME/Applications/SurvivingMars.app}"   # the wrapper whose prefix, Steam and game this is
 SS="$APP/Contents/SharedSupport"
 GAME="$SS/prefix/drive_c/Program Files (x86)/Steam/steamapps/common/Project Spark"
-HELPER="$HOME/sm-patch/tools/frame-fix.exe"
-RUNS="$HOME/sm-patch/runs"
+HELPER="$HERE/tools/frame-fix.exe"
+RUNS="$SM_STATE/runs"
 ENGINE="${SM_ENGINE:-$SS/wine}"
 export WINEPREFIX="$SS/prefix"
 export PATH="$ENGINE/bin:$PATH"
@@ -100,14 +102,14 @@ die() {
 }
 
 arch -x86_64 /usr/bin/true 2>/dev/null || die "Rosetta is missing (a macOS update removes it). Run: softwareupdate --install-rosetta --agree-to-license"
-[ -d "$WINEPREFIX" ] || die "The game's wrapper is missing: $APP. Build it: bash ~/sm-patch/tools/split-wrapper.sh"
+[ -d "$WINEPREFIX" ] || die "The game's wrapper is missing: $APP. Build it: bash $HERE/tools/split-wrapper.sh"
 [ -x "$WINE" ] || die "The game's Wine engine is missing: $ENGINE."
 # D3DMetal 2.1 blacks out the map whenever a landscaping project exists (header). Refuse it out loud.
 D3DM_VER=$(plutil -extract CFBundleShortVersionString raw "$ENGINE/lib/external/D3DMetal.framework/Versions/A/Resources/Info.plist" 2>/dev/null \
   || plutil -extract CFBundleShortVersionString raw "$ENGINE/lib/external/D3DMetal.framework/Resources/Info.plist" 2>/dev/null || echo none)
 case "$D3DM_VER" in
   [3-9].*) ;;
-  *) die "This Wine has D3DMetal $D3DM_VER, not 3.0, and landscaping turns the map black on it. Run: bash ~/sm-patch/tools/make-engine.sh --install \"$APP\"" ;;
+  *) die "This Wine has D3DMetal $D3DM_VER, not 3.0, and landscaping turns the map black on it. Run: bash $HERE/tools/make-engine.sh --install \"$APP\"" ;;
 esac
 [ -f "$GAME/Mars.exe" ] || die "Mars.exe not found in $(basename "$APP" .app). Reinstall it with this wrapper's Steam (steam://install/3215050; see the header)."
 # The game's command line STARTS with its own path (wine shows the unix path it was given, or a
@@ -130,8 +132,8 @@ game_running && die "The game is already running."
 # died as that shutdown finished: `CClientPipe::BWriteAndReadResult: BReadResult failed ... Fatal
 # assert` (2026-11-07). The lock is a symlink whose target is the holder's PID: creating one is atomic,
 # and a launcher that died leaves a link to a dead PID, which the next launch clears. The functions are
-# identical in cs2's two launchers and sm-patch's (original: sm-patch); test-launch-lock.sh in either
-# repo runs them and checks the copies still match.
+# identical in the Cities: Skylines II launchers and this one (original: this one); common/test-launch-lock.sh
+# runs them and checks the copies still match.
 LOCK="$WINEPREFIX/.launcher.lock"
 lock_holder() { readlink "$LOCK" 2>/dev/null; }
 acquire_lock() {   # <tries, 2 s apart> -- 0 = this launcher holds the lock; needs note, die, game_running

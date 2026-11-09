@@ -26,10 +26,11 @@
 # The game is fullscreen on this Mac's screen for ~30 s per run. Refuses while the game, a Steam of this
 # wrapper or a launcher lock exists. The quit is Wine's taskkill without /F (WM_CLOSE; the game logs
 # `WM_QUIT` and exits by itself), SIGTERM to the game's pids after 20 s if not -- never steam.exe.
-# Output: runs/licence-<seconds>/run-N.launcher.log + run-N.game.log, one summary line per run;
+# Output: $SM_STATE/runs/licence-<seconds>/ (SM_STATE as in launch-relaunched.sh), run-N.launcher.log + run-N.game.log, one summary line per run;
 # exit 0 = every run passed.
 set -u
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
+SM_STATE="${SM_STATE:-$HOME/Library/Application Support/1launcher/surviving-mars-relaunched}"
 L="$HERE/launch-relaunched.sh"
 
 # The game buffers its log and flushes it on exit, and its timestamp writer can land mid-line (run 2,
@@ -67,7 +68,7 @@ GLOGS=$(ls -d "$WINEPREFIX"/drive_c/users/*/AppData/Roaming/"Surviving Mars Rela
 game_running && { echo "REFUSED: the game is running"; exit 2; }
 steam_exe_up && { echo "REFUSED: this wrapper's Steam is running"; exit 2; }
 [ -L "$WINEPREFIX/.launcher.lock" ] && { echo "REFUSED: a launcher lock exists ($(readlink "$WINEPREFIX/.launcher.lock"))"; exit 2; }
-OUT="$HERE/runs/licence-$SECS"; mkdir -p "$OUT"
+OUT="$SM_STATE/runs/licence-$SECS"; mkdir -p "$OUT"
 game_pids() { for _p in $(pgrep -f 'Mars\.exe' 2>/dev/null); do case "$(ps -o command= -p "$_p" 2>/dev/null)" in "$GAME/Mars.exe"*) echo "$_p" ;; esac; done; }
 ts() { date +%H:%M:%S; }
 

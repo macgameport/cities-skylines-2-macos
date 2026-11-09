@@ -2,19 +2,24 @@
 # test-launch-lock.sh [<launcher> ...] -- fixtures for the one-launcher-per-Wine-prefix lock
 # (LOCK, lock_holder, acquire_lock, release_lock). The functions are copied out of each launcher and
 # run in throwaway bash processes against a temporary lock path: no game, no Steam. Then every copy of
-# them must be identical, including the sibling repo's when it is on this Mac: one implementation, three
-# launchers (S734M's prefix was shared by cs2's launch-cs2.sh and sm-patch's launcher until 2026-11-07).
-# The same file lives in both repos (sm-patch tools/, cs2 scripts/): keep the two copies identical.
-#   bash <dir>/test-launch-lock.sh            exit 0 = every case passed
-#   MUTANT=1 bash <dir>/test-launch-lock.sh   acquire_lock always succeeds (no lock); must exit 1
+# them must be identical: one implementation in three launchers, Cities: Skylines II's two and Surviving
+# Mars's (S734M's prefix was shared by launch-cs2.sh and the Surviving Mars launcher until 2026-11-07).
+# The functions move into shared code in Phase 5 of docs/plans/1launcher-unification.md.
+#   bash common/test-launch-lock.sh            exit 0 = every case passed; exit 2 = a launcher is missing
+#   MUTANT=1 bash common/test-launch-lock.sh   acquire_lock always succeeds (no lock); must exit 1
+# Launchers given as arguments replace the three it finds by itself; the exit-2 rule is for those three.
 set -u
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 LAUNCHERS=()
-for f in launch-relaunched.sh launchers/launch-cs2.sh launchers/launch-cs2-dxmt11.sh; do
-  [ -f "$HERE/$f" ] && LAUNCHERS+=("$HERE/$f")
-done
-[ $# -gt 0 ] && LAUNCHERS=("$@")
-[ ${#LAUNCHERS[@]} -gt 0 ] || { echo "REFUSED: no launcher found under $HERE"; exit 2; }
+if [ $# -gt 0 ]; then
+  LAUNCHERS=("$@")
+else
+  for f in surviving-mars-relaunched/launch-relaunched.sh \
+           cities-skylines-2/launchers/launch-cs2.sh cities-skylines-2/launchers/launch-cs2-dxmt11.sh; do
+    [ -f "$HERE/$f" ] || { echo "REFUSED: $f not found under $HERE"; exit 2; }
+    LAUNCHERS+=("$HERE/$f")
+  done
+fi
 T="$(mktemp -d /tmp/launch-lock-test.XXXX)"
 trap 'rm -rf "$T"' EXIT
 
@@ -68,11 +73,8 @@ for L in "${LAUNCHERS[@]}"; do
   check "$tag first launcher had the lock" "$(cat "$D/a.out")" GOT
 done
 
-# parity: every copy of the lock code, here and in the sibling repo, is identical
+# parity: every copy of the lock code is identical
 ALL=("${LAUNCHERS[@]}")
-for f in "$HOME/sm-patch/launch-relaunched.sh" "$HOME/github/cs2/launchers/launch-cs2.sh" "$HOME/github/cs2/launchers/launch-cs2-dxmt11.sh"; do
-  [ -f "$f" ] && ALL+=("$f")
-done
 ref="$(lock_code "${ALL[0]}")"
 for f in "${ALL[@]}"; do
   [ "$(lock_code "$f")" = "$ref" ] && check "parity: lock code in $f" same same || check "parity: lock code in $f" differs "same as ${ALL[0]}"
