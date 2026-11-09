@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Neuter CS2's per-boot mod keybinding-conflict ⚠ badges (Options rows/tabs).
+"""Hide CS2's per-boot mod keybinding-conflict ⚠ badges (Options rows/tabs). Opt-in: setup.sh --hide-mod-badges.
 
 Mechanism (disassembled 2026-08-27, game 1.6.0f1): during boot each mod's
 AddActions triggers InputManager.CheckConflicts BEFORE the per-user .coc
@@ -12,7 +12,7 @@ stale state:
       "KeyBindingConflict" notification (menu notification center).
   P2  InputBindingField.get_warning — per-keybind-row widget warning =
       (binding.hasConflicts & mask) != 0; the Options tab ⚠ and mod-row ⚠
-      aggregate from these rows. THIS is the badge James sees.
+      aggregate from these rows. THIS is the badge a player sees.
 
 Opening a badged section re-runs CheckConflicts against the settled (clean)
 bindings, which is why badges clear on view and re-arm every launch.

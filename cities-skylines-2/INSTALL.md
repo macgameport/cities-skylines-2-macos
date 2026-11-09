@@ -227,12 +227,23 @@ clears the moment you open that section, without changing anything. It is not re
 collision: during startup each mod registers its *factory-default* chords before your saved
 rebinds are applied, and the badge is that stale snapshot.
 
-`setup.sh` installs `patch-modconflict-badge.py`, and the dxmt11 launcher re-ensures it before
-every boot, so the badges stay gone across game updates (which replace `Game.dll`). It's
-cosmetic-only and fail-open: a failed check prints one warning and the boot continues. To run it
-by hand — `~/cs2-patch/revenv/bin/python3 ~/cs2-patch/patch-modconflict-badge.py` verifies (safe
-any time), `… apply` patches (refuses while the game is running, and backs up `Game.dll` first).
-Real conflicts still surface normally when you rebind a key that's already taken.
+**Hiding them is optional and off by default.** It is a preference, not something the game needs to run:
+it edits two small values in the game's own `Game.dll`. To turn it on:
+
+```bash
+bash scripts/setup.sh --hide-mod-badges
+```
+
+It takes effect at the next launch. From then on the launcher re-applies it before every boot, so the
+badges stay gone across game updates (which replace `Game.dll`); a failed check prints one warning and the
+boot continues. It backs up `Game.dll` before the first edit and refuses while the game is running. Real
+conflicts still surface normally when you rebind a key that's already taken.
+
+To turn it off again, `bash scripts/setup.sh --show-mod-badges`. That stops the launcher re-applying it;
+to put back a `Game.dll` it has already edited, use Steam's *Verify integrity of game files*.
+
+To look without changing anything: `~/cs2-patch/revenv/bin/python3 ~/cs2-patch/patch-modconflict-badge.py`
+says whether the two edits are present.
 
 ## Measuring performance
 
@@ -300,7 +311,7 @@ now resolve their methods by name, so later updates should not break them the sa
 | Mods won't download ("Preparing 2%", IO errors) | You're on Wine 10 rather than Wine 11, or the patches aren't applied. Wine 11 fixes the underlying bug — check the wrapper's engine. |
 | Screen freezes after alt-tab | Exclusive Fullscreen. Switch to Fullscreen Window (see step 5). |
 | "IOEXCEPTION — Failed to read settings file with GUID ... Invalid handle to path [Unknown]" | **Cosmetic — press Continue.** The game asks for optional settings files that were never created; on Wine an absent file surfaces as an invalid handle instead of a clean not-found, so the game shows its error dialog. Your settings are still applied and saved. Most common right after changing graphics options or at boot. |
-| Mods show a ⚠ badge | Keybinding conflicts, not a port problem — same on Windows. Options → Keybinds. |
+| Mods show a ⚠ badge | Usually not a real conflict, and the same on Windows: it clears when you open that Options section. The section "Mod keybinding ⚠ badges" above says what it is and how to hide it. |
 | Second display goes black | Refresh-rate mismatch. Match both displays' refresh rates. |
 | Steam's store/library window is black (game still works) | Expected on the wine 11.16 engine — upstream limitation ([dxmt#141](https://github.com/3Shain/dxmt/issues/141)), not a setup error. Double-click **CS2 Steam Store.app** (installed by the engine build; retrofit with `bash scripts/make-steam-shortcut.sh`) — it opens Steam in the preserved wine 11.0 wrapper; licences are account-level so purchases apply to both. See README "Three things worth knowing". |
 

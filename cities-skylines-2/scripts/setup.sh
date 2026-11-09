@@ -8,6 +8,8 @@
 #   bash scripts/setup.sh              # check, install, patch, build shortcut
 #   bash scripts/setup.sh --check      # preflight only, change nothing
 #   bash scripts/setup.sh --stack d3dmetal
+#   bash scripts/setup.sh --hide-mod-badges   # opt in to the mod badge patch (INSTALL.md)
+#   bash scripts/setup.sh --show-mod-badges   # opt out again
 #
 # What it does:
 #   1. verifies the wrapper, Steam and the game are where they should be
@@ -20,6 +22,7 @@ set -u
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 STACK="dxmt11"
 CHECK_ONLY=0
+BADGES=""
 DEST="${CS2_PATCH_DIR:-$HOME/cs2-patch}"
 
 while [ $# -gt 0 ]; do
@@ -27,7 +30,11 @@ while [ $# -gt 0 ]; do
     --check)   CHECK_ONLY=1; shift ;;
     --stack)   STACK="${2:-}"; shift 2 ;;
     --dest)    DEST="${2:-}"; shift 2 ;;
-    -h|--help) sed -n '2,18p' "$0"; exit 0 ;;
+    --hide-mod-badges|--show-mod-badges)
+      _b="${1#--}"; _b="${_b%-mod-badges}"
+      [ -z "$BADGES" ] || [ "$BADGES" = "$_b" ] || { echo "--hide-mod-badges and --show-mod-badges cannot both be given"; exit 2; }
+      BADGES="$_b"; shift ;;
+    -h|--help) sed -n '2,20p' "$0"; exit 0 ;;
     *) echo "unknown option: $1 (try --help)"; exit 2 ;;
   esac
 done
@@ -105,9 +112,43 @@ fi
 cp "$LAUNCHER_SRC" "$DEST/" && echo "  launcher:  $_lname"
 cp "$REPO/repatch.sh" "$DEST/" && echo "  repatch.sh"
 cp "$REPO/scripts/cs2-display-profile.sh" "$DEST/" 2>/dev/null && echo "  cs2-display-profile.sh (home/mobile display profiles)"
-cp "$REPO/scripts/patch-modconflict-badge.py" "$DEST/" 2>/dev/null && echo "  patch-modconflict-badge.py (mod keybind ⚠ badges; needs revenv — see scripts/README.md)"
 mkdir -p "$DEST/patches" && cp "$REPO"/patches/*.py "$DEST/patches/" 2>/dev/null && \
   echo "  patches:   $(ls "$DEST/patches"/*.py 2>/dev/null | wc -l | tr -d ' ') scripts"
+
+# --- the mod badge patch is opt-in. It edits the game's Game.dll to hide a keybinding badge, which is a
+#     preference and not a compatibility fix (INSTALL.md, "Mod keybinding badges"). The launcher applies it
+#     wherever the installed copy exists, so the installed copy is the switch; the marker records that the
+#     player asked, and sits inside patches/ so that it travels with that folder.
+BADGE_SRC="$REPO/scripts/patch-modconflict-badge.py"
+BADGE_DST="$DEST/patch-modconflict-badge.py"
+BADGE_MARK="$DEST/patches/.mod-badges-on"
+# the script edits this wrapper's Game.dll and no other, whatever CS2_WRAPPER says
+BADGE_DLL_DIR="$HOME/Applications/CS2dxmt11.app/Contents/SharedSupport/prefix/drive_c/Program Files (x86)/Steam/steamapps/common/Cities Skylines II/Cities2_Data/Managed"
+badge_has_run() { ls "$BADGE_DLL_DIR"/Game.dll.bak-modconflict-* >/dev/null 2>&1; }
+badge_install() { cp "$BADGE_SRC" "$BADGE_DST" && : > "$BADGE_MARK"; }
+case "$BADGES" in
+  hide)
+    badge_install && echo "  mod badge patch: on. It takes effect at the next launch; --show-mod-badges turns it off"
+    [ "$WRAPPER" = "$HOME/Applications/CS2dxmt11.app" ] \
+      || echo "  !! the badge patch only knows ~/Applications/CS2dxmt11.app. Your wrapper is $WRAPPER, so it will not find your game."
+    ;;
+  show)
+    rm -f "$BADGE_DST" "$BADGE_MARK"
+    echo "  mod badge patch: off. If it has already edited Game.dll, put the file back with Steam: right-click the"
+    echo "     game, Properties, Installed Files, Verify integrity of game files. A Game.dll.bak-modconflict-* file"
+    echo "     beside Game.dll is the right one only if it was made on the game build that is installed now."
+    ;;
+  *)
+    if [ -f "$BADGE_MARK" ]; then
+      badge_install && echo "  mod badge patch: on (--show-mod-badges turns it off)"
+    elif [ -f "$BADGE_DST" ] && badge_has_run; then      # it ran here before the patch became opt-in
+      badge_install && echo "  mod badge patch: on, as before (--show-mod-badges turns it off)"
+    elif [ -f "$BADGE_DST" ]; then                        # copied by an older setup, never ran
+      rm -f "$BADGE_DST"
+      echo "  mod badge patch: off (it has never run here); --hide-mod-badges turns it on"
+    fi
+    ;;
+esac
 chmod +x "$DEST"/*.sh 2>/dev/null
 
 echo
