@@ -5,7 +5,7 @@
 > and the amendment re-checked by a fitted pass the same day (third-pass block). The build still waits on section 8:
 > decisions O3, O6, O9 and O10 change what gets built.
 > Written 2026-11-08. Tracking: issue #22.
-> **🔧 As-built (2026-11-08):** PARTIAL. Phase 0 and Phase 1 are built; Phases 2 to 4 are not started.
+> **🔧 As-built (2026-11-08):** PARTIAL. Phases 0, 1 and 2 are built (Phase 2 on 2026-11-09); Phases 3 and 4 are not started.
 > Phase 1 is commit `270ca2a` (211 renames at 100%, nothing else) and the commit that adds this line.
 > Measured on the real checkout after both: T1 0 of 107 · T2 22 of 22 and `setup.sh --check` exit 0 ·
 > T3 every gate exit 0, lock test 17 PASS, 102 files syntax-clean · T4 · T6 9 · T11 · T13 · T15 5 of 5 ·
@@ -19,11 +19,31 @@
 > (`:8-10,141`) is unchanged: it reads correctly from the game folder. (4) The community-watch task was
 > switched back on after this session with its paths corrected, instead of staying off until 2.2; it must
 > be disabled again before the folder is renamed. (5) The separate Surviving Mars repo is private (O2).
-> (6) **The links in this repo's own issues are not yet edited**: nine links to eight plan files, in the body
-> of #1 and in comments on #7, #13 and #16. The edit was refused by the session's permission layer and waits
-> for James, so the second half of T15 is open and those links 404 on `main` until then. (7) GitHub now
-> reports the licence as MIT. **Phase 2 was not started:** Phase 1 is not green until (6) is closed. Phase 0
-> step 4 (the two dotfiles) was done by James on 2026-11-09 and read back: each file names the new path once.
+> (6) The nine links in this repo's own issues (the body of #1, four comments on #7, #13 and #16) were
+> first refused by the session's permission layer and were edited on 2026-11-09 with James's OK: the old
+> form reads 0 and the new form 9, and T15's second half reads 8 of 8. (7) GitHub now
+> reports the licence as MIT. Phase 0 step 4 (the two dotfiles) was done by James on
+> 2026-11-09 and read back: each file names the new path once.
+> **Phase 2 (2026-11-09): built.** 2.1: the repo is `macgameport/1launcher`; the old address answers
+> `git ls-remote` and its web page redirects (301); description and topics updated, the game's name kept in
+> both; `1a8973f`, pushed from the old folder, changes 43 occurrences of the old name in 16 files and leaves
+> three lines as written (this plan's two and the posted DXMT comment record). 2.2: repo-local include added;
+> folder renamed; T5 passed from the new path, all five values the project identity, and its mutant (a
+> scratch clone outside the keyed paths) named the other identity; `user.name` lists the project value from
+> the path-keyed include and from the repo-local one; T2 22 of 22 and `setup.sh --check` exit 0; 24 memory
+> files copied, two rewritten, the pointer note updated; a headless session started at the new path loads
+> the memory index from the new project directory and both `CLAUDE.md` files; the community-watch task,
+> paused for the phase, has its six lines edited and is enabled again. Deviations: (a) the move ran with one
+> idle terminal session still open in the checkout, against Phase 0 step 2: it had been asked closed and
+> waited on for 30 minutes, held nothing in the tree but its working directory, and had last written its
+> transcript 43 minutes earlier. (b) An empty folder at the new path, made that morning by something other
+> than this build, was removed with `rmdir` first. (c) The bare-`gh` half of T5 ran in a fresh interactive
+> shell: the building session's tool shell carries a copy of the shell profile from before the Phase 0
+> step 4 edit, so its own bare `gh` at the new path still names the other account and it keeps passing the
+> project config directory. (d) The commit that adds this paragraph is the first push from the new path,
+> not Phase 3's first commit, so the anonymous read-back of the author that the exit criteria ask for is
+> made on this commit. (e) 2.1 counted 42 occurrences in 17 files; the tree held 45 lines in 18 files, two
+> of the lines this plan's own.
 > Verify against: `common/` · root `scripts/` · `cities-skylines-2/scripts/check-experiments.py` ·
 > `.gitignore` · `LICENSE` · root `README.md`, `INSTALL.md`, `CLAUDE.md`.
 > File and line references are as of `cc66a90`; after Phase 1 every CS2 path gains the prefix
