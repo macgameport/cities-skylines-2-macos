@@ -16,6 +16,11 @@
 > (`:8-10,141`) is unchanged: it reads correctly from the game folder. (4) The community-watch task was
 > switched back on after this session with its paths corrected, instead of staying off until 2.2; it must
 > be disabled again before the folder is renamed. (5) The separate Surviving Mars repo is private (O2).
+> (6) **The links in this repo's own issues are not yet edited**: nine links to eight plan files, in the body
+> of #1 and in comments on #7, #13 and #16. The edit was refused by the session's permission layer and waits
+> for James, so the second half of T15 is open and those links 404 on `main` until then. (7) GitHub now
+> reports the licence as MIT. **Phase 2 was not started:** Phase 1 is not green until T12 and (6) are closed,
+> and 2.2 also needs Phase 0 step 4 (the two dotfiles), which is James's.
 > Verify against: `common/` · root `scripts/` · `cities-skylines-2/scripts/check-experiments.py` ·
 > `.gitignore` · `LICENSE` · root `README.md`, `INSTALL.md`, `CLAUDE.md`.
 > File and line references are as of `cc66a90`; after Phase 1 every CS2 path gains the prefix
