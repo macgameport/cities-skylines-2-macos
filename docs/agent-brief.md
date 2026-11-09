@@ -55,9 +55,11 @@ Patch scripts live in `~/cs2-patch/`, deliberately outside the repo.
 
 ## If you run `gh`
 
-Claude's Bash tool runs **bash** and does not source `~/.zshrc`, so bare `gh` posts as the wrong
-identity. Always: `GH_CONFIG_DIR="$HOME/.config/gh-cs2" gh …`, and verify with `gh auth status`
-before anything public.
+Do not rely on the shell's `gh` wrapper. Whether it is active depends on the harness: in the
+desktop app's tool shell it **is** (measured 2026-11-08: bare `gh` inside this checkout is the
+project account, anywhere else it is not), in a plain bash tool shell it is not, and it is keyed
+to this checkout's path either way. Always: `GH_CONFIG_DIR="$HOME/.config/gh-cs2" gh …`, and
+verify with `gh api user --jq .login` before anything public.
 
 No `CLAUDE.local.md` at the repo root is not a broken checkout: it is gitignored, so it exists
 only in the worktree that created it — you are on a fresh clone or a **git worktree** (this
