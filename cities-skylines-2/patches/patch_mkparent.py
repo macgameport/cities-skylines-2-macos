@@ -27,19 +27,14 @@ the body, the slack and every token are resolved BY NAME through dnfile at run t
 whole original IL is matched instruction-by-instruction (tokens must resolve to the expected
 names) before anything is written. 1.6.0f1: MethodDef#278, slack file 0x191868 (RVA 0x193668).
 1.6.2f1: MethodDef#280, slack file 0x192da8 (RVA 0x194ba8).
-Usage: patch_mkparent.py <PDX.SDK.dll | game-dir>   (needs dnfile; re-execs under ~/cs2-patch/revenv)
+Usage: patch_mkparent.py <PDX.SDK.dll | game-dir>   (dnfile comes from _vendor, beside this script)
 """
 # ---- shared by-name resolver + strict IL checker (identical in all five PDX patchers) ----
 import sys, os, re, shutil, struct
 
-_REVENV = os.path.expanduser("~/cs2-patch/revenv/bin/python3")
-try:
-    import dnfile
-except ImportError:  # repatch.sh calls plain `python3`; dnfile lives in the revenv
-    if os.path.exists(_REVENV) and not os.environ.get("PDXPATCH_REEXEC"):
-        os.environ["PDXPATCH_REEXEC"] = "1"
-        os.execv(_REVENV, [_REVENV] + sys.argv)
-    sys.exit("ERROR: needs dnfile — run with ~/cs2-patch/revenv/bin/python3")
+sys.dont_write_bytecode = True  # dnfile ships beside this script, in _vendor: leave no __pycache__ in it
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "_vendor"))
+import dnfile
 
 
 def die(msg):

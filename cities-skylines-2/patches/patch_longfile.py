@@ -75,7 +75,7 @@ def main():
     if not matches:
         print("  WARNING: GetFileHandle throw pattern not found — game may have")
         print("  updated its LongFile IL. No change made.")
-        return
+        sys.exit(1)  # neither the original bytes nor the patched ones: the patch is NOT in place
     if len(matches) != EXPECTED_MATCHES:
         print(f"  WARNING: expected {EXPECTED_MATCHES} match, found {len(matches)}; patching all.")
 

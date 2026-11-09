@@ -10,6 +10,7 @@
 #   bash scripts/setup.sh --stack d3dmetal
 #   bash scripts/setup.sh --hide-mod-badges   # opt in to the mod badge patch (INSTALL.md)
 #   bash scripts/setup.sh --show-mod-badges   # opt out again
+#   bash scripts/setup.sh --yes        # do not stop to ask when this Mac is outside what has been tested
 #
 # What it does:
 #   1. verifies the wrapper, Steam and the game are where they should be
@@ -22,19 +23,24 @@ set -u
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 STACK="dxmt11"
 CHECK_ONLY=0
+ASSUME_YES=0
 BADGES=""
 DEST="${CS2_PATCH_DIR:-$HOME/cs2-patch}"
 
+need_value() {   # <option> [<value> ...]: an option that takes a value must be given a non-empty one
+  if [ $# -lt 2 ] || [ -z "$2" ]; then echo "$1 needs a value"; exit 2; fi
+}
 while [ $# -gt 0 ]; do
   case "$1" in
     --check)   CHECK_ONLY=1; shift ;;
-    --stack)   STACK="${2:-}"; shift 2 ;;
-    --dest)    DEST="${2:-}"; shift 2 ;;
+    --yes)     ASSUME_YES=1; shift ;;
+    --stack)   need_value "$@"; STACK="$2"; shift 2 ;;
+    --dest)    need_value "$@"; DEST="$2"; shift 2 ;;
     --hide-mod-badges|--show-mod-badges)
       _b="${1#--}"; _b="${_b%-mod-badges}"
       [ -z "$BADGES" ] || [ "$BADGES" = "$_b" ] || { echo "--hide-mod-badges and --show-mod-badges cannot both be given"; exit 2; }
       BADGES="$_b"; shift ;;
-    -h|--help) sed -n '2,20p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,/^set -u$/p' "$0" | sed '$d'; exit 0 ;;
     *) echo "unknown option: $1 (try --help)"; exit 2 ;;
   esac
 done
@@ -45,21 +51,39 @@ case "$STACK" in
   *) echo "unknown --stack '$STACK' (use dxmt11 or d3dmetal)"; exit 2 ;;
 esac
 
-ok=0; bad=0
+ok=0; bad=0; cautions=0; problems=0
 say()  { printf "  %-52s %s\n" "$1" "$2"; }
 good() { say "$1" "OK";   ok=$((ok+1)); }
 fail() { say "$1" "MISSING"; echo "      -> $2"; bad=$((bad+1)); }
+# a CAUTION is not a failure: this Mac is outside what has been tested, and the player may go on
+caution() { say "$1" "CAUTION"; echo "      -> $2"; cautions=$((cautions+1)); }
 
 echo "=== Cities: Skylines II on macOS — setup ($STACK) ==="
 echo "repo: $REPO"
 echo
 echo "Preflight:"
 
-# --- machine
+# --- this Mac, against what has been tested (the root README.md, "Compatibility")
 [ "$(uname -s)" = "Darwin" ] || { echo "  This only runs on macOS."; exit 1; }
-case "$(uname -m)" in
-  arm64) good "Apple Silicon" ;;
-  *)     say  "Apple Silicon" "NO — Intel is untested, continuing anyway" ;;
+# sysctl, not uname -m: in a shell that itself runs under Rosetta, uname says x86_64 on Apple Silicon
+if [ "$(sysctl -n hw.optional.arm64 2>/dev/null)" = 1 ]; then
+  good "Apple Silicon"
+  if arch -x86_64 /usr/bin/true 2>/dev/null; then good "Rosetta 2"
+  else fail "Rosetta 2" "nothing here runs without it. Install it:  softwareupdate --install-rosetta --agree-to-license"; fi
+else
+  caution "Apple Silicon" "an Intel Mac. Not supported: nothing here has been run on one."
+fi
+OSV="$(sw_vers -productVersion 2>/dev/null)"; OSMAJ="${OSV%%.*}"
+case "$OSMAJ" in
+  26|27) say "macOS $OSV" "OK (tested)"; ok=$((ok+1)) ;;
+  ''|*[!0-9]*) caution "macOS version" "it could not be read, so this Mac cannot be compared with what has been tested." ;;
+  *) if [ "$OSMAJ" -ge 28 ]; then
+       caution "macOS $OSV" "newer than anything this has been run on. Apple has said macOS 27 is the last release with general Rosetta support."
+     elif [ "$OSMAJ" -ge 14 ]; then
+       caution "macOS $OSV" "older than anything this has been run on. The engine's graphics library is built for macOS 26 and may not load."
+     else
+       caution "macOS $OSV" "below the minimum of DXMT, the graphics layer (macOS 14)."
+     fi ;;
 esac
 
 # --- the wrapper
@@ -88,9 +112,10 @@ else fail "Steam inside the wrapper" "INSTALL.md step 2 — install Steam into t
 if [ -n "$WRAPPER" ] && [ -f "$GDIR/Cities2.exe" ]; then good "Cities: Skylines II installed"
 else fail "Cities: Skylines II installed" "INSTALL.md step 3 — install the game via Steam inside the wrapper"; fi
 
-# --- optional niceties
-command -v python3 >/dev/null 2>&1 && good "python3 (patches + icon extraction)" \
-  || fail "python3" "install Xcode Command Line Tools:  xcode-select --install"
+# --- python3 that really runs (Apple's stub answers to the name before the Command Line Tools are installed)
+if python3 -c 'import sys; raise SystemExit(sys.version_info < (3, 8))' >/dev/null 2>&1; then
+  good "python3 (patches + icon extraction)"
+else fail "python3, version 3.8 or newer" "install Apple's Command Line Tools:  xcode-select --install"; fi
 
 echo
 if [ "$bad" -gt 0 ]; then
@@ -99,7 +124,17 @@ if [ "$bad" -gt 0 ]; then
   exit 1
 fi
 echo "All $ok checks passed."
+if [ "$cautions" -gt 0 ]; then
+  echo
+  echo "$cautions caution(s): this Mac is outside what this project has been tested on (README.md, \"Compatibility\")."
+  echo "Setup can go on from here. It changes only what INSTALL.md names, and INSTALL.md's Uninstall section undoes it."
+  echo "The game may still not start on this Mac. Either way, a note in the project's Discussions helps the next person."
+fi
 [ "$CHECK_ONLY" = 1 ] && { echo "(--check: stopping before making changes)"; exit 0; }
+if [ "$cautions" -gt 0 ] && [ "$ASSUME_YES" = 0 ] && [ -t 0 ]; then
+  printf 'Press Return to continue, or Control-C to stop. (--yes skips this question.) '
+  read -r _ || true
+fi
 
 # ---------------------------------------------------------------- install
 echo
@@ -114,6 +149,10 @@ cp "$REPO/repatch.sh" "$DEST/" && echo "  repatch.sh"
 cp "$REPO/scripts/cs2-display-profile.sh" "$DEST/" 2>/dev/null && echo "  cs2-display-profile.sh (home/mobile display profiles)"
 mkdir -p "$DEST/patches" && cp "$REPO"/patches/*.py "$DEST/patches/" 2>/dev/null && \
   echo "  patches:   $(ls "$DEST/patches"/*.py 2>/dev/null | wc -l | tr -d ' ') scripts"
+# the two Python libraries the patch scripts use ship with them (patches/_vendor/README.md). Remove, then copy:
+# cp -R onto an existing folder merges, and would keep a file a newer version no longer has.
+rm -rf "$DEST/patches/_vendor" && cp -R "$REPO/patches/_vendor" "$DEST/patches/_vendor" \
+  && echo "  patches/_vendor (dnfile and pefile, which the patch scripts use)"
 
 # --- the mod badge patch is opt-in. It edits the game's Game.dll to hide a keybinding badge, which is a
 #     preference and not a compatibility fix (INSTALL.md, "Mod keybinding badges"). The launcher applies it
@@ -154,16 +193,27 @@ chmod +x "$DEST"/*.sh 2>/dev/null
 echo
 echo "Applying binary patches (idempotent — safe to re-run after every game update):"
 if CS2_GAME_DIR="$GDIR" bash "$DEST/repatch.sh" "$STACK"; then
-  echo "  patches applied."
+  echo "  every patch script finished without error."
 else
-  echo "  !! repatch reported a problem. If the game updated recently a pattern may have moved —"
-  echo "     see docs/patch-inventory.md. The patches refuse to write rather than corrupt a file."
+  problems=$((problems+1))
+  echo "  !! not every patch is in place: the FAILED line above names the ones that are not. They refuse to write"
+  echo "     rather than corrupt a file. If the game has just updated, a pattern may have moved: update this"
+  echo "     checkout (git pull), run setup again, and see INSTALL.md, 'After a game update'."
 fi
 
 echo
 echo "Building the double-clickable app:"
-bash "$REPO/scripts/make-shortcut.sh" --stack "$STACK" --launcher "$DEST/$(basename "$LAUNCHER_SRC")" \
-  --game "$GDIR/Cities2.exe"
+if ! bash "$REPO/scripts/make-shortcut.sh" --stack "$STACK" --launcher "$DEST/$(basename "$LAUNCHER_SRC")" \
+  --game "$GDIR/Cities2.exe"; then
+  problems=$((problems+1))
+  echo "  !! the app was not built: the lines above say why."
+fi
+
+if [ "$problems" -gt 0 ]; then
+  echo
+  echo "=== setup finished with $problems problem(s): see the lines marked !! above ==="
+  exit 1
+fi
 
 cat << DONE
 

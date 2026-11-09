@@ -38,7 +38,7 @@ Usage:
   python3 patch-modconflict-badge.py            # verify only (safe while game runs)
   python3 patch-modconflict-badge.py apply      # backup + patch (game must be down)
 
-Run via ~/cs2-patch/revenv/bin/python3 (needs dnfile). Re-run after any CS2
+Run with python3 (dnfile comes from patches/_vendor). Re-run after any CS2
 game update (Steam replaces Game.dll; methods are re-resolved by name).
 """
 import struct
@@ -47,6 +47,12 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+sys.dont_write_bytecode = True  # dnfile ships in patches/_vendor: leave no __pycache__ in it
+_here = Path(__file__).resolve().parent
+for _v in (_here / "patches" / "_vendor", _here.parent / "patches" / "_vendor"):  # an install folder, a checkout
+    if _v.is_dir():
+        sys.path.insert(0, str(_v))
+        break
 import dnfile
 
 GAME_DLL = Path.home() / (

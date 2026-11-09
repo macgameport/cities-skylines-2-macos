@@ -12,6 +12,9 @@ Mods included.
   `softwareupdate --install-rosetta --agree-to-license`
 - The game already owned on Steam.
 - Disk space for the game. With its DLC it takes 96 GB on the test Mac.
+- Setup checks all of this for you and says so line by line. `OK` is fine. `CAUTION` means this Mac is
+  outside what has been tested: setup explains why, asks you to press Return, and goes on. `MISSING` means
+  something it cannot work without, with the command that fixes it.
 - Step 4 uses **Terminal** (in Applications → Utilities). The first time you run a `git` command, macOS
   offers to install Apple's Command Line Tools: accept, wait for it to finish, and run the command again.
 
@@ -81,14 +84,16 @@ game executable directly, which is the whole trick.
 ```bash
 git clone https://github.com/macgameport/1launcher.git
 cd 1launcher/cities-skylines-2
-mkdir -p ~/cs2-patch && python3 -m venv ~/cs2-patch/revenv && ~/cs2-patch/revenv/bin/pip install dnfile capstone pefile
 bash scripts/setup.sh
 ```
 
-> **About the third line.** Five of the ten patches, the ones that make in-game mod downloads work,
-> need a small Python package (`dnfile`), and `setup.sh` does not install it for you yet. Without that
-> line setup stops after the first five patches, still prints "setup complete", and mods will not
-> download. If mods do not download after an earlier setup, run that line and then
+Setup needs no network and installs nothing with `pip`: the two small Python libraries the patch scripts
+use ship with them. Its last lines say how many of the ten patch scripts finished, and it ends with
+`=== setup complete ===` only when all of them did and the app was built.
+
+> **Mods did not download after an earlier setup?** Setups made between 2026-10-10 and 2026-11-09 applied
+> only five of the ten patches without saying so
+> ([#23](https://github.com/macgameport/1launcher/issues/23)). Update the checkout (`git pull`) and run
 > `bash scripts/setup.sh` again.
 
 That checks your prerequisites, installs the launcher into `~/cs2-patch/`, applies the binary
@@ -242,8 +247,8 @@ conflicts still surface normally when you rebind a key that's already taken.
 To turn it off again, `bash scripts/setup.sh --show-mod-badges`. That stops the launcher re-applying it;
 to put back a `Game.dll` it has already edited, use Steam's *Verify integrity of game files*.
 
-To look without changing anything: `~/cs2-patch/revenv/bin/python3 ~/cs2-patch/patch-modconflict-badge.py`
-says whether the two edits are present.
+To look without changing anything: `python3 ~/cs2-patch/patch-modconflict-badge.py` says whether the two
+edits are present.
 
 ## Measuring performance
 

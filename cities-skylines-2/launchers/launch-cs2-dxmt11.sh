@@ -82,6 +82,20 @@ if ! wine_out="$("$WINE" --version 2>&1)"; then
 fi
 # <<< rosetta-preflight
 
+# >>> compat-note
+# Outside the macOS releases this has been run on (the README's "Compatibility"), say so once per release.
+# Never fatal: setup.sh already asked. The marker sits in patches/, so that it travels with that folder; where
+# it cannot be written the note simply repeats.
+_osv="$(sw_vers -productVersion 2>/dev/null)"; _osmaj="${_osv%%.*}"
+case "$_osmaj" in
+  26|27|''|*[!0-9]*) ;;
+  *) if [ ! -e "$PATCH_DIR/patches/.compat-noted-$_osmaj" ]; then
+       note "This Mac runs macOS $_osv, which this has not been tested on. See the README's Compatibility section."
+       touch "$PATCH_DIR/patches/.compat-noted-$_osmaj" 2>/dev/null || true
+     fi ;;
+esac
+# <<< compat-note
+
 # Display profile (home/external vs mobile/built-in) — docs/plans/launcher-display-profiles.md
 # CS2_PROFILE=home|mobile|off overrides auto-detect. Never blocks a launch: missing/failing
 # helper = one warning line, boot continues untouched.
@@ -179,24 +193,24 @@ trap release_lock EXIT
 ensure_patches() {
   local rc=0
   if [ -x "$PATCH_DIR/repatch.sh" ]; then
-    if CS2_GAME_DIR="$GDIR" bash "$PATCH_DIR/repatch.sh" dxmt11 >/dev/null 2>&1; then
+    if RP_OUT=$(CS2_GAME_DIR="$GDIR" bash "$PATCH_DIR/repatch.sh" dxmt11 2>&1); then
       echo "Patches ensured (10, dxmt11 target)."
     else
-      echo "WARNING: repatch reported an issue — continuing (patches are idempotent)."; rc=1
+      echo "WARNING: repatch reported an issue — continuing (patches are idempotent). $(printf '%s\n' "$RP_OUT" | grep '^FAILED:' || printf '%s\n' "$RP_OUT" | tail -1)"; rc=1
     fi
   else
     echo "NOTE: no repatch.sh in $PATCH_DIR — skipping the patch check. Run scripts/setup.sh to install it."
   fi
   # 0b) Badge patch (Game.dll): re-ensure after game updates — Steam replaces Game.dll and
   #     repatch.sh does not cover it (see patch-modconflict-badge.py; fail-open by design).
-  if [ -x "$PATCH_DIR/revenv/bin/python3" ] && [ -f "$PATCH_DIR/patch-modconflict-badge.py" ]; then
-    BP_OUT=$("$PATCH_DIR/revenv/bin/python3" "$PATCH_DIR/patch-modconflict-badge.py" apply 2>&1) \
+  if [ -f "$PATCH_DIR/patch-modconflict-badge.py" ]; then   # installed only where the player asked: setup.sh --hide-mod-badges
+    BP_OUT=$(python3 "$PATCH_DIR/patch-modconflict-badge.py" apply 2>&1) \
       && echo "Badge patch: $(printf '%s' "$BP_OUT" | tail -1)" \
       || echo "WARNING: badge-patch check failed — continuing (cosmetic). $(printf '%s' "$BP_OUT" | head -1)"
   fi
   return $rc
 }
-ensure_patches
+ensure_patches || note "Some patches could not be applied. Update and run setup: INSTALL.md, After a game update."
 
 # 1) Steam up + FRESHLY logged in — scoped to THIS wrapper. Two wrappers can each have a Steam
 #    resident, and `pgrep steamwebhelper` cannot tell them apart: webhelper children carry

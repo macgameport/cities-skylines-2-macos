@@ -48,6 +48,19 @@ if [ -n "${CS2_ERRNO_PATCHES:-}" ]; then
 fi
 [ -f "$GAME/Cities2.exe" ] || { echo "ERROR: no Cities2.exe under: $GAME"; exit 1; }
 echo "Target game dir: $GAME"
+
+# Every patch script is run, counted, and named if it fails. One failure does not stop the others: the bytes each
+# writes do not depend on the rest (measured on copies of the game's files, in reverse order too), and stopping at
+# the first left a game update that moved one pattern with every later fix unapplied. The ORDER still matters for
+# one backup: patch_colossal_io refreshes Colossal.IO.dll.bak from the live file, so it runs before patch_longfile.
+EXPECTED=10
+if [ "$ERRNO_PATCHES" = 1 ]; then EXPECTED=16; fi
+RAN_OK=0
+FAILED=""
+run() {   # <patch script> <its arguments>
+  local p="$1"; shift
+  if python3 "$HERE/$p" "$@"; then RAN_OK=$((RAN_OK + 1)); else FAILED="$FAILED $p"; fi
+}
 # Derive the wine user dir from the prefix (CrossOver bottle = 'crossover', Kegworks wrapper = 'js').
 PREFIX_ROOT="${GAME%%/drive_c/*}"
 WUSER=""
@@ -56,10 +69,10 @@ for u in crossover js "$USER"; do
 done
 
 echo "== Re-applying CS2 macOS/CrossOver patches =="
-python3 "$HERE/patch_cohtml.py"        "$GAME"
-python3 "$HERE/patch_colossal_io.py"   "$GAME"
-python3 "$HERE/patch_longfile.py"      "$GAME"
-python3 "$HERE/patch_asset_database.py" "$GAME"
+run patch_cohtml.py "$GAME"
+run patch_colossal_io.py "$GAME"
+run patch_longfile.py "$GAME"
+run patch_asset_database.py "$GAME"
 # ── cohtml Gameface licence bypass — NOT in this repository, and NOT needed on wine 11 ─────────
 # CS2's Coherent Gameface middleware validates its own embedded licence key via Windows CNG
 # (BCryptImportKeyPair -> BCryptHashData -> BCryptVerifySignature). On **wine 10** that final call
@@ -87,17 +100,17 @@ if [ "$ERRNO_PATCHES" = 1 ]; then
 # download op (PrepareFolderForPatching/CleanupTempFileStorage/CleanupAndLogResult/LocalStorage.Delete)
 # is a recursive delete; none are Move/Copy. patch_dirdel NOPs that one spurious throw so execution
 # reaches the real removal (which works). Proven via scripts/filetest_net.cs [5][6][7] under Unity mono.
-python3 "$HERE/patch_dirdel.py" "$GAME/Cities2_Data/Managed/mscorlib.dll"
+run patch_dirdel.py "$GAME/Cities2_Data/Managed/mscorlib.dll"
 # patch_dirhandle: the ACTUAL download blocker (2026-07-07). PrepareFolderForPatching → ClearFolderAndKeepPatchFile
 # → Directory.GetDirectories on the not-yet-created .downloading\<id>; Wine leaves a GARBAGE (non-deterministic)
 # GetLastError on the failed open, so CoreFX's ContinueOnDirectoryError can't recognise not-found and THROWS
 # "IOException: Success" instead of enumerating empty. Fix forces the graceful empty-enumeration path.
-python3 "$HERE/patch_dirhandle.py" "$GAME/Cities2_Data/Managed/mscorlib.dll"
+run patch_dirhandle.py "$GAME/Cities2_Data/Managed/mscorlib.dll"
 # patch_delfile: File.Delete graceful on Wine garbage-errno (was aborting downloads before the content .zip).
-python3 "$HERE/patch_delfile.py"  "$GAME/Cities2_Data/Managed/mscorlib.dll"
-python3 "$HERE/patch_delrec.py"   "$GAME/Cities2_Data/Managed/mscorlib.dll"
-python3 "$HERE/patch_dirrec_nx.py" "$GAME/Cities2_Data/Managed/mscorlib.dll"
-python3 "$HERE/patch_delchild.py" "$GAME/Cities2_Data/Managed/mscorlib.dll"
+run patch_delfile.py "$GAME/Cities2_Data/Managed/mscorlib.dll"
+run patch_delrec.py "$GAME/Cities2_Data/Managed/mscorlib.dll"
+run patch_dirrec_nx.py "$GAME/Cities2_Data/Managed/mscorlib.dll"
+run patch_delchild.py "$GAME/Cities2_Data/Managed/mscorlib.dll"
 else
   echo "  (errno-tolerance six skipped: Wine 11 target)"
 fi
@@ -108,21 +121,21 @@ fi
 # Colossal.IO's own throw in LongFile.GetFileHandle, but mscorlib validates the handle AGAIN.
 # Scoped to FileStream deliberately (NOT SafeHandleZeroOrMinusOneIsInvalid.get_IsInvalid, which has
 # 6 subclasses incl. registry/wait/buffer handles). Verified 2026-08-22: 6 errors -> 0, boot clean.
-python3 "$HERE/patch_fshandle.py" "$GAME/Cities2_Data/Managed/mscorlib.dll"
+run patch_fshandle.py "$GAME/Cities2_Data/Managed/mscorlib.dll"
 # patch_mkparent: in-process Directory.CreateDirectory before CreateFileStream writes (kills the DirectoryNotFound
 # cascade so nested mod-download writes land). PDX.SDK.dll (relocated method body).
-python3 "$HERE/patch_mkparent.py" "$GAME/Cities2_Data/Managed/PDX.SDK.dll"
+run patch_mkparent.py "$GAME/Cities2_Data/Managed/PDX.SDK.dll"
 # patch_lockbypass: PdxSdk AsyncReaderWriterLock fails "UNKNOWN" under Wine threading (SemaphoreSlim.WaitAsync throws),
 # blocking the content .zip download. Force AcquireLockResult.GetError to return null so the caller proceeds past the
 # lock-failure check. (PDX.SDK.dll.)
-python3 "$HERE/patch_lockbypass.py" "$GAME/Cities2_Data/Managed/PDX.SDK.dll"
-python3 "$HERE/patch_longdelete.py" "$GAME/Cities2_Data/Managed/PDX.SDK.dll"
+run patch_lockbypass.py "$GAME/Cities2_Data/Managed/PDX.SDK.dll"
+run patch_longdelete.py "$GAME/Cities2_Data/Managed/PDX.SDK.dll"
 # patch_createfile: PdxSdk LongPathFileExists/DirectoryExists test existence by OPENING the file
 # (CreateFile/OPEN_EXISTING + SafeHandle.IsInvalid) instead of querying attrs (GetFileAttributesW/FindFirstFile),
 # which under Wine concurrency return garbage "exists" for a missing file -> PathExists false-positive ->
 # CheckIntegrity reads the not-yet-downloaded .zip -> abort before download. Opening is reliable; querying is not.
 # BEATS the false-positive; content downloads. (Supersedes patch_attrsguard, which missed.) See change-ledger.txt.
-python3 "$HERE/patch_createfile.py" "$GAME/Cities2_Data/Managed/PDX.SDK.dll"
+run patch_createfile.py "$GAME/Cities2_Data/Managed/PDX.SDK.dll"
 # patch_lockleak: the content .zip WRITE blocker. CORRECTS the old "reader->writer upgrade deadlock" theory —
 # <CreateFileStream>d__25 acquires reader XOR writer (IL 0x6c-0x87 is an if/else on FileAccess), so there is no
 # upgrade and no self-deadlock. The real defect: the method has TWO catch clauses and NO finally, and the
@@ -135,7 +148,7 @@ python3 "$HERE/patch_createfile.py" "$GAME/Cities2_Data/Managed/PDX.SDK.dll"
 # why this is safe where the 4 global neuters were not.
 # Do NOT add patch_locksem/writenowait/readerinit/readerskip — all 4 chased the phantom upgrade-deadlock and were
 # reverted (they break SDK init / the fetch / boot asset-DB caching respectively).
-python3 "$HERE/patch_lockleak.py" "$GAME/Cities2_Data/Managed/PDX.SDK.dll"
+run patch_lockleak.py "$GAME/Cities2_Data/Managed/PDX.SDK.dll"
 # NOTE: patch_pdxsdk_io.py is DELIBERATELY NOT run — it force-returns Success=true, which MASKS the
 # failure (the dir is never actually deleted) and BREAKS BOOT on empty mod-state (NRE in PdxSdk.Initialize,
 # GOTCHAS #18b). patch_dirdel is the correct layer. Do not re-add patch_pdxsdk_io.
@@ -145,3 +158,7 @@ TB="$PREFIX_ROOT/drive_c/users/${WUSER:-crossover}/AppData/Local/JetBrains/Toolb
 mkdir -p "$TB"; printf '{}' > "$TB/.settings.json"
 echo "JetBrains Toolbox stub: written"
 echo "== Done. Patched: $GAME (wine user: ${WUSER:-crossover}) =="
+# "finished without error", not "applied": two of the scripts cannot tell an applied patch from a moved pattern.
+echo "$RAN_OK of $EXPECTED patch scripts finished without error"
+if [ -n "$FAILED" ]; then echo "FAILED:$FAILED"; exit 1; fi
+if [ "$RAN_OK" != "$EXPECTED" ]; then echo "FAILED: $RAN_OK patch scripts ran where $EXPECTED were expected"; exit 1; fi

@@ -19,14 +19,9 @@ Reversible via .bak. Usage: patch_lockbypass.py <PDX.SDK.dll | game-dir>"""
 # ---- shared by-name resolver + strict IL checker (identical in all five PDX patchers) ----
 import sys, os, re, shutil, struct
 
-_REVENV = os.path.expanduser("~/cs2-patch/revenv/bin/python3")
-try:
-    import dnfile
-except ImportError:  # repatch.sh calls plain `python3`; dnfile lives in the revenv
-    if os.path.exists(_REVENV) and not os.environ.get("PDXPATCH_REEXEC"):
-        os.environ["PDXPATCH_REEXEC"] = "1"
-        os.execv(_REVENV, [_REVENV] + sys.argv)
-    sys.exit("ERROR: needs dnfile — run with ~/cs2-patch/revenv/bin/python3")
+sys.dont_write_bytecode = True  # dnfile ships beside this script, in _vendor: leave no __pycache__ in it
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "_vendor"))
+import dnfile
 
 
 def die(msg):

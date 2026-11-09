@@ -29,7 +29,6 @@ Own the game on Steam, on an Apple Silicon Mac? Roughly 20 minutes:
 ```bash
 git clone https://github.com/macgameport/1launcher.git
 cd 1launcher/cities-skylines-2
-mkdir -p ~/cs2-patch && python3 -m venv ~/cs2-patch/revenv && ~/cs2-patch/revenv/bin/pip install dnfile capstone pefile   # once: see INSTALL step 4
 bash scripts/setup.sh
 ```
 

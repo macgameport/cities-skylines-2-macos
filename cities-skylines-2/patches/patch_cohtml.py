@@ -152,7 +152,8 @@ def main():
     with open(dll_path, 'rb') as f:
         check_data = f.read()
 
-    needs_patch = classify(check_data)[0] == "unpatched"
+    state = classify(check_data)[0]
+    needs_patch = state == "unpatched"
 
     if needs_patch:
         had_backup = os.path.exists(backup_path)
@@ -165,8 +166,10 @@ def main():
 
     if patch_dll(dll_path):
         print("\nSuccess! cohtml_Unity3DPlugin.dll has been patched.")
-    else:
+    elif state == "patched":
         print("\nNo changes needed.")
+    else:  # notfound or ambiguous: neither the original bytes nor the patched ones, so the patch is NOT in place
+        sys.exit(1)
 
 
 if __name__ == '__main__':

@@ -48,9 +48,11 @@ build on one engine.
 Offsets need re-deriving. `dis_pdx.py` is the IL disassembler used to find them:
 
 ```sh
-python3 -m venv revenv && ./revenv/bin/pip install dnfile capstone pefile
-./revenv/bin/python3 dis_pdx.py <path/to/PDX.SDK.dll> '<CreateFileStream>d__25' MoveNext
+python3 dis_pdx.py <path/to/PDX.SDK.dll> '<CreateFileStream>d__25' MoveNext
 ```
+
+It reads the file with `dnfile`, which ships in [`_vendor/`](_vendor/README.md) beside the patch scripts: no
+virtual environment and no `pip`.
 
 Method rules that kept this from going wrong, the hard way:
 

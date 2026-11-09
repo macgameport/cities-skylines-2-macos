@@ -7,3 +7,4 @@
 *.dll binary
 *.exe binary
 *.png binary
+cities-skylines-2/patches/_vendor/** -text

@@ -123,4 +123,4 @@ Ranked by how many patches it retires:
   "Invalid IL at IL_xxxx" at runtime, not at patch time.
 - **Boot-verify after any `mscorlib` change** — it is on the boot path.
 - Re-derive offsets after a game update with
-  `~/cs2-patch/revenv/bin/python3 ~/cs2-patch/dis_pdx.py <dll> <Type> <Method>`.
+  `python3 patches/dis_pdx.py <dll> <Type> <Method>`.

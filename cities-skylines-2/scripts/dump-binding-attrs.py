@@ -18,11 +18,14 @@ BindingMouse enum value->name maps. Bool args are printed positionally
 (b1/b2/b3) — calibrate their meaning against one known chord (e.g. Find It
 search = Ctrl+F) before reading modifiers off unfamiliar rows.
 
-Requires dnfile (the repo's RE venv: ~/cs2-patch/revenv). Written against
+Uses the dnfile in patches/_vendor. Written against
 dnfile 0.18, whose lazy row loading returns None for most row attributes —
 hence every name/blob below resolves through row.struct indices + the heaps.
 """
+import os
 import sys
+sys.dont_write_bytecode = True  # dnfile ships in patches/_vendor: leave no __pycache__ in it
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "patches", "_vendor"))
 import dnfile
 
 

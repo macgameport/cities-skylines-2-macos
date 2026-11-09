@@ -28,7 +28,6 @@ Own the game on Steam, on an Apple Silicon Mac? Roughly 20 minutes:
 ```bash
 git clone https://github.com/macgameport/1launcher.git
 cd 1launcher/cities-skylines-2
-mkdir -p ~/cs2-patch && python3 -m venv ~/cs2-patch/revenv && ~/cs2-patch/revenv/bin/pip install dnfile capstone pefile   # once: see INSTALL step 4
 bash scripts/setup.sh
 ```
 
@@ -76,4 +75,4 @@ from the installed libraries with `otool -l` the same day.
 
 ## Licence
 
-MIT, see [LICENSE](LICENSE). This licence covers the scripts, notes and documentation in this repository ONLY. One exception inside the tree: the seven `.patch` files against Wine in `cities-skylines-2/scripts/` are offered under LGPL-2.1-or-later, the licence of the Wine files they modify. Two of those are other people's work, kept with their authorship: `wineandaqua-dxmt.patch` (Paweł Kołodziejski) and `wine-6cfa941-win32u-visible-rect.patch` (a Wine commit). The four patches against DXMT follow DXMT's MIT licence. It does not, and cannot, grant any rights in Cities: Skylines II, Surviving Mars: Relaunched, their binaries, Coherent Gameface, the Paradox SDK, Wine, DXMT, D3DMetal, CrossOver or any other third-party software referenced here. Nothing from Apple or CodeWeavers is in this repository, and a Wine engine built with their D3DMetal may not be redistributed. Those remain the property of their respective owners under their own terms.
+MIT, see [LICENSE](LICENSE). This licence covers the scripts, notes and documentation in this repository ONLY. One exception inside the tree: the seven `.patch` files against Wine in `cities-skylines-2/scripts/` are offered under LGPL-2.1-or-later, the licence of the Wine files they modify. Two of those are other people's work, kept with their authorship: `wineandaqua-dxmt.patch` (Paweł Kołodziejski) and `wine-6cfa941-win32u-visible-rect.patch` (a Wine commit). The four patches against DXMT follow DXMT's MIT licence. `cities-skylines-2/patches/_vendor/` holds two MIT-licensed Python libraries, dnfile and pefile, unmodified and with their own licence files. It does not, and cannot, grant any rights in Cities: Skylines II, Surviving Mars: Relaunched, their binaries, Coherent Gameface, the Paradox SDK, Wine, DXMT, D3DMetal, CrossOver or any other third-party software referenced here. Nothing from Apple or CodeWeavers is in this repository, and a Wine engine built with their D3DMetal may not be redistributed. Those remain the property of their respective owners under their own terms.
