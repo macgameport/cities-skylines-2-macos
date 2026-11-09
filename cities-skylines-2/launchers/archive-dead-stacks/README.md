@@ -11,6 +11,6 @@ None of these work any more. Kept only for reference / salvage.
 | `CS2 LOGIN.command`, `CS2 Steam Login.command` | CDP/Steam login helpers for the Wine 11 CEF-black-screen workaround | prefix gone; the free stack's Steam logs in normally |
 | `Show Steam.command` | Wine 11 helper | prefix gone |
 
-**The one live launcher is `../Cities Skylines II (D3DMetal).command`**
-(Kegworks/Sikarugir Wine 10 + D3DMetal, `~/Applications/S734M.app`).
+**The one live launcher is `../Cities Skylines II (DXMT Wine 11).command`**, a thin wrapper around
+`launch-cs2-dxmt11.sh`. The Wine 10 + D3DMetal one this line used to name was retired on 2026-11-09.
 Double-clickable shortcut: `~/Applications/Cities Skylines II.app` (+ Desktop alias).

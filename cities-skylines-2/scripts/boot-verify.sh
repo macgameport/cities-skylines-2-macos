@@ -90,14 +90,14 @@ usage() { sed -n '5,7p' "$0" >&2; exit 64; }
 
 APP="${CS2_WRAPPER:-$HOME/Applications/CS2dxmt11.app}"
 SS="$APP/Contents/SharedSupport"
-ENGINE="${CS2_ENGINE:-$SS/wine}"   # same override as launch-cs2.sh: the driver joins that engine's wineserver
+ENGINE="${CS2_ENGINE:-$SS/wine}"   # an override for testing another engine: the driver joins that engine's wineserver
 LAUNCHER="${CS2_LAUNCHER:-$HOME/cs2-patch/launch-cs2-dxmt11.sh}"
 DRV="${CS2_DRIVER:-$HOME/cs2-patch/win-resize-driver.exe}"
 export WINEPREFIX="$SS/prefix" WINEDEBUG=-all
 export DYLD_FALLBACK_LIBRARY_PATH="$APP/Contents/Frameworks:$ENGINE/lib:/usr/lib:/usr/local/lib"
-# The driver joins the game's wineserver, so it needs the launcher's esync/msync flags. Against
-# launch-cs2.sh's msync server the driver without them dies with rc 136 and no output, and the
-# close step finds no window (measured 2026-11-03, S734M).
+# The driver joins the game's wineserver, so it needs the launcher's esync/msync flags. Against a
+# launcher that sets msync, the driver without them dies with rc 136 and no output, and the
+# close step finds no window (measured 2026-11-03, on the Wine 10 stack since retired).
 grep -q 'WINEMSYNC=1' "$LAUNCHER" 2>/dev/null && export WINEESYNC=1 WINEMSYNC=1
 WINE="$ENGINE/bin/wine64"
 GAMEDIR="$WINEPREFIX/drive_c/users/Wineskin/AppData/LocalLow/Colossal Order/Cities Skylines II"

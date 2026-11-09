@@ -6,31 +6,25 @@ Paradox SDK — see [`../docs/patch-inventory.md`](../docs/patch-inventory.md) f
 fixes and who owns the real bug.
 
 ```sh
-# the default stack (Wine 11 + DXMT): the ten patches it needs, and only those
-bash ../repatch.sh dxmt11
-# a game folder somewhere else
-CS2_GAME_DIR="/path/to/Cities Skylines II" bash ../repatch.sh dxmt11
+bash ../repatch.sh                                   # the default wrapper's game folder
+CS2_GAME_DIR="/path/to/Cities Skylines II" bash ../repatch.sh   # a game folder somewhere else
 ```
 
-`setup.sh` and the launcher run exactly this. A bare folder path instead of `dxmt11` selects all 16,
-which is the Wine 10 set: do not use it on Wine 11 (`repatch.sh` says how to undo it).
+`setup.sh` and the launcher run exactly this.
 
 ## Which patches the game needs
 
-**On the default stack (Wine 11) these ten are everything the game needs.** With them it reaches
-the main menu, loads a city and downloads mods (boot-verified on 1.6.2f1, 2026-10-10). Nothing
-unpublished is involved.
+**The game needs ten of these and nothing else.** With them it reaches the main menu, loads a city and
+downloads mods (boot-verified on 1.6.2f1, 2026-10-10). `setup.sh` and the launcher apply exactly those ten.
 
-The other six patches, and the rest of this section, concern the older **Wine 10 fallback** only.
-Wine 10's `BCryptVerifySignature` fails on a valid signature (root cause **R3**), so on that engine
-the game's UI middleware, Coherent Gameface, rejected its own valid embedded licence and aborted with
-`Invalid License key used!` before the menu. Getting past that on Wine 10 took a 17th patch that
-skipped the signature check. That patch has never been in this repository: a signature-check bypass
-for commercial middleware reads as circumvention whatever the intent, and PRs adding one will be
-declined. **The correct fix was in Wine**, and Wine 11 has it (measured 2026-08-22, see
-[`../docs/wine-bugs/`](../docs/wine-bugs/)). On the current game build the Wine 10 fallback reached
-the main menu without it as well (Steam build 25127643, two boots, 2026-11-03), which covers one
-build on one engine.
+The other six tolerate a file-error defect that Wine 10 had and that some third-party Wine 11 builds bring
+back. They are off by default; `CS2_ERRNO_PATCHES=1 bash ../repatch.sh` applies all sixteen.
+
+**Licence checks are out of scope.** Wine 10 also failed a valid signature in `BCryptVerifySignature` (root
+cause **R3**), so on that engine the game's UI middleware rejected its own valid licence. Wine 11 fixed that,
+and that is the fix: see [`../docs/wine-bugs/`](../docs/wine-bugs/).
+This repository has never contained a way around that check, the project keeps none, and pull requests
+adding one are declined.
 
 ## Safety properties
 

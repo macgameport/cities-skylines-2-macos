@@ -39,20 +39,21 @@ changing (Display Mode → Fullscreen Window).
 
 ## The stack that works
 
-Two stacks work. The **Wine 11 + DXMT** one is the default since 2026-08-22 because it needs
-**10 patches instead of 17** — Wine 11 fixed both the Mono garbage-errno defect *and* the bcrypt
-signature defect upstream ([the measurement](docs/wine-bugs/FINDING-wine11-fixes-it.md)).
+One stack, **Wine 11 + DXMT**, in two engine builds. It needs **10 patches**: Wine 11 fixed both the Mono
+garbage-errno defect *and* the bcrypt signature defect upstream
+([the measurement](docs/wine-bugs/FINDING-wine11-fixes-it.md)). An older Wine 10 + D3DMetal stack needed more
+and was retired from this repository on 2026-11-09.
 
-| Layer | Default — **self-built Wine 11.16 + DXMT** | Base — **Wine 11.0 + DXMT** | Fallback — **Wine 10 + D3DMetal** |
-|---|---|---|---|
-| Wrapper | the Porting Kit bundle, engine swapped | Porting Kit app bundle | Kegworks / WineskinNavy bundle |
-| Wine | **stock 11.16**, built by [`scripts/build-engine-1116.sh`](scripts/build-engine-1116.sh) | **Wine 11.0** (`WS12Wine11.0_DXMT-v0.80`) | **Wine 10.0 Sikarugir** |
-| Graphics | **DXMT v0.80** — PE side is Porting Kit's build (`v0.80-17-g79f6279`, a commit not in 3Shain/dxmt), `winemetal.so` rebuilt here from tag `v0.80` + [the remote-layer patch](scripts/dxmt-remote-layer-fallback.patch); [mixed vintage, deliberately](INSTALL.md#the-dxmt-halves-are-different-vintages-deliberately) | **DXMT v0.80** — reports the real GPU | **D3DMetal v2.1** — reports `AMD Compatibility Mode` |
-| Patches | **10** | **10** — the 6 errno patches AND the licence bypass are unnecessary | **16** published; game builds before 25127643 also needed a 17th that is not published (below) |
-| Alt-tab in exclusive fullscreen | **works** | freezes ([dxmt#206](https://github.com/3Shain/dxmt/issues/206)) — use borderless | mild misbehaviour |
-| Steam's **visible storefront** | **renders** with patched wine+DXMT (2026-08-31); **black** on the stock stack — shop via **CS2 Steam Store.app** | **renders** | renders |
-| Measured | **M3 Max, 1080p:** 44.9 FPS, GPU 23.1 ms, presentation `Direct` · **Mac Studio M5 Max, 2560×1440, benchmark:** 47.8 FPS ([Performance](#performance)) | M3 Max, 1080p: 42.7 FPS, GPU ~26 ms, `Composited` | — |
-| Proven by | a full validated session: mods delete+redownload, alt-tab cycles, city play | boots, mods load + download, Steam UI, DLC | a 1h40m session, saved city, long-run stability |
+| Layer | Default — **self-built Wine 11.16 + DXMT** | Base — **Wine 11.0 + DXMT** |
+|---|---|---|
+| Wrapper | the Porting Kit bundle, engine swapped | Porting Kit app bundle |
+| Wine | **stock 11.16**, built by [`scripts/build-engine-1116.sh`](scripts/build-engine-1116.sh) | **Wine 11.0** (`WS12Wine11.0_DXMT-v0.80`) |
+| Graphics | **DXMT v0.80** — PE side is Porting Kit's build (`v0.80-17-g79f6279`, a commit not in 3Shain/dxmt), `winemetal.so` rebuilt here from tag `v0.80` + [the remote-layer patch](scripts/dxmt-remote-layer-fallback.patch); [mixed vintage, deliberately](INSTALL.md#the-dxmt-halves-are-different-vintages-deliberately) | **DXMT v0.80** — reports the real GPU |
+| Patches | **10** | **10** — the six errno patches are unnecessary on Wine 11 |
+| Alt-tab in exclusive fullscreen | **works** | freezes ([dxmt#206](https://github.com/3Shain/dxmt/issues/206)) — use borderless |
+| Steam's **visible storefront** | **renders** with patched wine+DXMT (2026-08-31); **black** on the stock stack — shop via **CS2 Steam Store.app** | **renders** |
+| Measured | **M3 Max, 1080p:** 44.9 FPS, GPU 23.1 ms, presentation `Direct` · **Mac Studio M5 Max, 2560×1440, benchmark:** 47.8 FPS ([Performance](#performance)) | M3 Max, 1080p: 42.7 FPS, GPU ~26 ms, `Composited` |
+| Proven by | a full validated session: mods delete+redownload, alt-tab cycles, city play | boots, mods load + download, Steam UI, DLC |
 
 The 11.16 engine is the recommended setup and takes about an hour to build ([INSTALL §6](INSTALL.md#6-recommended-build-the-wine-1116-engine-kills-the-alt-tab-freeze)).
 It needs the Wine 11.0 + DXMT stack installed first — it reuses that engine's DXMT binaries and
@@ -184,7 +185,7 @@ under Rosetta is the likely place — not measured).
 | Path | What |
 |---|---|
 | `INSTALL.md` | **Start here to play.** Step-by-step from nothing to a working game |
-| `docs/patch-inventory.md` | All 17 patch entries — the 16 published scripts plus the one licence bypass this repo withholds — the bug each works around, and which upstream owns it |
+| `docs/patch-inventory.md` | All 16 patches: the bug each works around, and which upstream owns it |
 | `GOTCHAS.md` | Every trap hit, with root cause. Sections carrying a `> **Ledger:` banner have been audited — read it, some conclusions are withdrawn |
 | [`docs/steam-ui-findings.md`](docs/steam-ui-findings.md) | **Start here for the Steam-UI thread** — the two bugs as one causal story, what is eliminated, what is open |
 | `EXPERIMENTS.md` | **What we tested, under what config, and how much to trust it.** Conclusions register + run index. Read this before designing a test or citing a result |
@@ -195,18 +196,13 @@ under Rosetta is the likely place — not measured).
 | `PLAN.md` | Roadmap / open threads |
 | `launchers/` | The one live launcher; dead-stack scripts archived with reasons |
 | `scripts/` | Minimal reproducers, `make-shortcut.sh` (builds the double-clickable launcher app — icon extracted from your own `Cities2.exe`, plus a persistent progress window for the Steam/licence wait), and the helpers the launcher runs each boot: `cs2-display-profile.sh` (per-display retina/DRS profile) and `patch-modconflict-badge.py` (removes the mod keybinding ⚠ badges) — see `scripts/README.md` |
-| `patches/` | The 16 publishable binary patches + `repatch.sh`. The Wine 11 path needs 10 of them, **all present** |
+| `patches/` | The 16 binary patches, with the two small Python libraries they use, and `repatch.sh`. The game needs 10 of them |
 | `docs/wine-bugs/` | Ready-to-file Wine bug reports for the three root causes |
 
-> **Wine 11 needs 10 patches, and all 10 are here.** ✅ **R3 is fixed upstream** (measured
-> 2026-08-22): with the Coherent Gameface licence bypass fully removed, wine-11.0 verifies the
-> ECDSA signature correctly and the game reaches the main menu and loads a city with zero licence
-> errors. So the one patch this repo withholds — a signature-check bypass, withheld because
-> publishing one reads as circumvention regardless of intent — **is not needed on the default
-> stack**. On the Wine 10 + D3DMetal fallback it was necessary on game builds before Steam build
-> 25127643; that build reached the main menu there without it (two boots, 2026-11-03: one build on one
-> engine, so the fallback stays the unproven path here). See `docs/wine-bugs/R3-*.md`. No game or middleware binary
-> is redistributed.
+> **The game needs 10 patches, and all 10 are here.** ✅ **R3 is fixed upstream** (measured 2026-08-22):
+> Wine 11 verifies the UI middleware's ECDSA licence signature correctly, so the game reaches the main menu and
+> loads a city with zero licence errors and with that middleware untouched. What this project will and will not
+> carry is in [`patches/README.md`](patches/README.md). No game or middleware binary is redistributed.
 
 ## The real finding: the bug is real, and Wine 11 already fixed it
 
@@ -224,9 +220,9 @@ upstream. Measured 2026-08-22, same probe under Unity's Mono with a **pristine**
 | `Directory.Delete(recursive)` | throws `IOException 0x5af040a0` | OK |
 | `File.Delete(nonexistent)` | throws | OK |
 
-**On Wine 11 the applied set drops from 16 to 10** — the six errno-tolerance patches — and the
-withheld licence bypass becomes unnecessary as well; each verified by running the game with them
-removed: it boots, mods load, a
+**On Wine 11 the applied set drops from 16 to 10** — the six errno-tolerance patches — and Wine 11 also
+verifies the UI middleware's licence signature, which Wine 10 failed; each verified by running the game
+without them: it boots, mods load, a
 **fresh mod download completes** with zero IO errors, and the main menu is reached with zero
 licence errors.
 

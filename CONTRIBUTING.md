@@ -27,7 +27,7 @@ Mostly a personal field log, but corrections and confirmations are welcome — e
 
 ## Out of scope
 
-Licence-check circumvention. One patch in the private set bypasses a middleware signature check
-that fails *only* because Wine's `BCryptVerifySignature` is broken — the licence itself is valid and
-present. That tool is deliberately not published here; **fixing the Wine bug is the correct route**
-and removes the need for it. Please don't send PRs adding it.
+Ways around a licence check. Wine 10 failed a valid signature in `BCryptVerifySignature`, so on that engine
+the game's UI middleware rejected its own valid licence. Wine 11 fixed that, and that is the fix. This
+repository has never contained a way around that check and the project keeps none. Please don't send PRs
+adding one.

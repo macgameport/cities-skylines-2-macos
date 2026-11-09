@@ -162,7 +162,10 @@ check "--dest with no value: exit 2 at once" "$(run "$H" --dest):$(said "$H" '^-
 check "--dest with an empty value: exit 2 at once" "$(run "$H" --dest ''):$(said "$H" '^--dest needs a value$')" "2:1"
 check "--stack with no value: exit 2 at once" "$(run "$H" --stack):$(said "$H" '^--stack needs a value$')" "2:1"
 check "  ...none of those wrote anything" "x$(snap "$H")" "x$before"
-check "--stack dxmt11 is accepted" "$(run "$H" --stack dxmt11):$(said "$H" '^=== setup complete ===$')" "0:1"
+check "--stack d3dmetal: exit 2 and the retirement sentence, nothing written" "$(run "$H" --stack d3dmetal):$(said "$H" '^The Wine 10 + D3DMetal stack was retired on 2026-11-09\. Its last version is commit [0-9a-f]\{7,40\}\.$'):x$(snap "$H")" "2:1:x$before"
+check "--stack wine10: the same" "$(run "$H" --stack wine10):$(said "$H" 'stack was retired on 2026-11-09')" "2:1"
+check "--stack with an unknown name: exit 2" "$(run "$H" --stack vulkan):$(said "$H" "unknown --stack")" "2:1"
+check "--stack dxmt11 is still accepted" "$(run "$H" --stack dxmt11):$(said "$H" '^=== setup complete ===$')" "0:1"
 check "--help prints the usage and stops before the code" "$(run "$H" --help):$(said "$H" 'bash scripts/setup.sh --check'):$(said "$H" '^set -u$')" "0:1:0"
 
 echo "$fails failure(s)"

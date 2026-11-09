@@ -13,8 +13,7 @@
 # newest milestone, then quits itself once the game process is up.
 #
 # Usage:
-#   bash scripts/make-shortcut.sh                    # default stack (Wine 11 + DXMT)
-#   bash scripts/make-shortcut.sh --stack d3dmetal   # Wine 10 + D3DMetal fallback
+#   bash scripts/make-shortcut.sh                    # the app for the installed launcher
 #   bash scripts/make-shortcut.sh --dest /tmp/try    # build somewhere else (testing)
 #   bash scripts/make-shortcut.sh --launcher ~/path/to/launch.sh --game "/path/to/Cities2.exe"
 #
@@ -22,39 +21,42 @@
 # (Xcode Command Line Tools ships it); without it the bundle still builds, just with a generic icon.
 set -u
 
-STACK="dxmt11"
+STACK="dxmt11"   # kept for the app's bundle identifier, local.cs2.dxmt11.launcher
+RETIRED="The Wine 10 + D3DMetal stack was retired on 2026-11-09. Its last version is commit fefc1e0."
 HUD=0
 DEST="$HOME/Applications"
 APPNAME="Cities Skylines II"
 LAUNCHER=""
 GAME_EXE=""
 
+need_value() {   # <option> [<value> ...]: an option that takes a value must be given a non-empty one
+  if [ $# -lt 2 ] || [ -z "$2" ]; then echo "$1 needs a value"; exit 2; fi
+}
 while [ $# -gt 0 ]; do
   case "$1" in
-    --stack)    STACK="${2:-}"; shift 2 ;;
-    --dest)     DEST="${2:-}"; shift 2 ;;
-    --name)     APPNAME="${2:-}"; shift 2 ;;
-    --launcher) LAUNCHER="${2:-}"; shift 2 ;;
+    --stack)    need_value "$@"           # there is one stack now; its names are still accepted
+                case "$2" in
+                  dxmt11|wine11) ;;
+                  d3dmetal|wine10) echo "$RETIRED"; exit 2 ;;
+                  *) echo "unknown --stack '$2' (there is one stack now: leave the option out)"; exit 2 ;;
+                esac; shift 2 ;;
+    --dest)     need_value "$@"; DEST="$2"; shift 2 ;;
+    --name)     need_value "$@"; APPNAME="$2"; shift 2 ;;
+    --launcher) need_value "$@"; LAUNCHER="$2"; shift 2 ;;
     --hud)      HUD=1; shift ;;
-    --game)     GAME_EXE="${2:-}"; shift 2 ;;
-    -h|--help)  sed -n '2,20p' "$0"; exit 0 ;;
+    --game)     need_value "$@"; GAME_EXE="$2"; shift 2 ;;
+    -h|--help)  sed -n '2,/^set -u$/p' "$0" | sed '$d'; exit 0 ;;
     *) echo "unknown option: $1 (try --help)"; exit 2 ;;
   esac
 done
 
-case "$STACK" in
-  dxmt11|wine11) DEFAULT_LAUNCHER="$HOME/cs2-patch/launch-cs2-dxmt11.sh"
-                 DEFAULT_WRAPPER="$HOME/Applications/CS2dxmt11.app" ;;
-  d3dmetal|wine10) DEFAULT_LAUNCHER="$HOME/cs2-patch/launch-cs2.sh"
-                 DEFAULT_WRAPPER="$HOME/Applications/S734M.app" ;;
-  *) echo "unknown --stack '$STACK' (use dxmt11 or d3dmetal)"; exit 2 ;;
-esac
+DEFAULT_LAUNCHER="$HOME/cs2-patch/launch-cs2-dxmt11.sh"
+DEFAULT_WRAPPER="$HOME/Applications/CS2dxmt11.app"
 [ -n "$LAUNCHER" ] || LAUNCHER="$DEFAULT_LAUNCHER"
 [ -n "$GAME_EXE" ] || GAME_EXE="$DEFAULT_WRAPPER/Contents/SharedSupport/prefix/drive_c/Program Files (x86)/Steam/steamapps/common/Cities Skylines II/Cities2.exe"
 
 APP="$DEST/$APPNAME.app"
 echo "=== building $APP ==="
-echo "    stack:    $STACK"
 echo "    launcher: $LAUNCHER"
 
 if [ ! -f "$LAUNCHER" ]; then

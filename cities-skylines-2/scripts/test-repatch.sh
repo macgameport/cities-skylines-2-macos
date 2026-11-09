@@ -25,8 +25,9 @@ with open(os.environ["STUB_LOG"], "a") as f:
     f.write("%s\t%s\n" % (name, sys.argv[1]))
 sys.exit(1 if name in os.environ.get("STUB_FAIL", "").split() else 0)'
 for f in "$REPO"/patches/patch_*.py; do echo "$STUB" > "$I/patches/$(basename "$f")"; done
-G="$T/A.app/Contents/SharedSupport/prefix/drive_c/Program Files (x86)/Steam/steamapps/common/Cities Skylines II"
-mkdir -p "$G"; : > "$G/Cities2.exe"
+ST="Contents/SharedSupport/prefix/drive_c/Program Files (x86)/Steam/steamapps/common/Cities Skylines II"
+G="$T/A.app/$ST"; G2="$T/B.app/$ST"; mkdir -p "$G" "$G2"; : > "$G/Cities2.exe"; : > "$G2/Cities2.exe"
+SENTENCE='^The Wine 10 + D3DMetal stack was retired on 2026-11-09\. Its last version is commit [0-9a-f]\{7,40\}\.$'
 TEN="cohtml colossal_io longfile asset_database fshandle mkparent lockbypass longdelete createfile lockleak "
 SIXTEEN="cohtml colossal_io longfile asset_database dirdel dirhandle delfile delrec dirrec_nx delchild fshandle mkparent lockbypass longdelete createfile lockleak "
 
@@ -61,6 +62,16 @@ check "  ...8 of 10, both named, in the order they ran" "$(said '^8 of 10 patch 
 # --- no game there: nothing is run
 check "no Cities2.exe under the target: exit 1" "$(run CS2_GAME_DIR="$T/nowhere" bash "$I/repatch.sh" dxmt11)" 1
 check "  ...it says so, and no patch script ran" "$(said '^ERROR: no Cities2.exe under: '):$(wc -l < "$T/log" | tr -d ' ')" "1:0"
+
+# --- targets: one stack. The retired names say so and run nothing; a folder is that folder, with the ten
+for w in free FREE d3dmetal wine10; do
+  check "$w: exit 2, the retirement sentence, no patch script run" "$(run CS2_GAME_DIR="$G" bash "$I/repatch.sh" $w):$(said "$SENTENCE"):$(wc -l < "$T/log" | tr -d ' ')" "2:1:0"
+done
+check "a folder as the argument: exit 0" "$(run bash "$I/repatch.sh" "$G2")" 0
+check "  ...ten, all in that folder, and a line about the errno six" "$(names)/$(cut -f2 "$T/log" | grep -c "^$T/B.app/")/$(said 'needs CS2_ERRNO_PATCHES=1')" "$TEN/10/1"
+check "  ...and CS2_ERRNO_PATCHES=1 makes it sixteen there" "$(run CS2_ERRNO_PATCHES=1 bash "$I/repatch.sh" "$G2"):$(names)" "0:$SIXTEEN"
+check "no argument, CS2_GAME_DIR set: ten, in that folder" "$(run CS2_GAME_DIR="$G" bash "$I/repatch.sh"):$(names)/$(cut -f2 "$T/log" | grep -c "^$T/A.app/")" "0:$TEN/10"
+check "no argument and no wrapper: exit 1, naming the default wrapper's game folder" "$(run bash "$I/repatch.sh"):$(said "^ERROR: no Cities2.exe under: $T/home/Applications/CS2dxmt11.app/"):$(wc -l < "$T/log" | tr -d ' ')" "1:1:0"
 
 echo "$fails failure(s)"
 [ "$fails" = 0 ]

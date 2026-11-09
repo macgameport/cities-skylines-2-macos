@@ -164,8 +164,8 @@ game_running() { local p; for p in $(pgrep -f 'Cities2\.exe' 2>/dev/null); do ls
 # it, and the game died as that shutdown finished: `CClientPipe::BWriteAndReadResult: BReadResult
 # failed ... Fatal assert` (sm-patch, 2026-11-07). The lock is a symlink whose target is the holder's
 # PID: creating one is atomic, and a launcher that died leaves a link to a dead PID, which the next
-# launch clears. The functions are identical in cs2's two launchers and sm-patch's (original:
-# sm-patch); test-launch-lock.sh in either repo runs them and checks the copies still match.
+# launch clears. The functions are identical in this launcher and Surviving Mars's (the original);
+# common/test-launch-lock.sh runs them and checks that the two copies still match.
 LOCK="$WINEPREFIX/.launcher.lock"
 lock_holder() { readlink "$LOCK" 2>/dev/null; }
 acquire_lock() {   # <tries, 2 s apart> -- 0 = this launcher holds the lock; needs note, die, game_running

@@ -3,5 +3,5 @@
 # ~/cs2-patch/launch-cs2-dxmt11.sh because macOS TCC blocks app-bundle execution of scripts inside
 # ~/Documents ("Operation not permitted") — the .app shortcut could not run it from here.
 # Edit ~/cs2-patch/launch-cs2-dxmt11.sh, not this file.
-# The Wine 10 + D3DMetal sibling is "Cities Skylines II (D3DMetal).command".
+# (A Wine 10 + D3DMetal sibling existed until 2026-11-09.)
 exec bash "$HOME/cs2-patch/launch-cs2-dxmt11.sh" "$@"

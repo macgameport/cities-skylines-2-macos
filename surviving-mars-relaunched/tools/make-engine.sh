@@ -5,9 +5,9 @@
 # Builds the Wine engine the game runs on: a copy of a Wine 10 Sikarugir engine with D3DMetal 3.0 (taken
 # from CrossOver 26) in place of its D3DMetal 2.1. --install builds from the wrapper's own wine/, moves that
 # aside as wine.d3dm21-BAK and puts the result in its place (cs2 build-engine-1116.sh's swap). It refuses a
-# wrapper holding Cities: Skylines II (cs2's stacks are not on this engine), one with a Wine process
+# wrapper holding Cities: Skylines II (that game does not run on this engine), one with a Wine process
 # running, and one already installed unless --rebuild, which rebuilds wine/ from the BAK (never from the
-# installed 3.0 engine) and keeps the BAK. Standalone mode stays for cs2's CS2_ENGINE option (cs2 C82).
+# installed 3.0 engine) and keeps the BAK. Standalone mode builds an engine to try elsewhere (cs2 C82).
 #
 # Why (Studio, M5 Max, macOS 27.2, 2026-11-07): under D3DMetal 2.1 a landscaping project (RC Dozer:
 # Flatten, Ramp, ...) turns the whole map black with a few bright pixels flickering, and a save that holds
@@ -17,7 +17,7 @@
 # D3DM_FLUSH_POS_INF_TO_NAN=1 (no change), and Options > Video > Antialiasing = SMAA (no change; whether
 # that also took FSR 2 out of use was not verified).
 #
-# The S734M wrapper itself is not touched: cs2's fallback stack runs on its Wine and stays on 2.1.
+# The S734M wrapper itself is not touched: it stays on D3DMetal 2.1, and this script only reads it.
 # The four D3DMetal DLLs and their Mac-side libraries change layout between the versions: 2.1 has a
 # separate d3d12.so/dxgi.so/... per DLL, 3.0 links all of them to one libd3dshared.dylib.
 # Rebuild after the S734M wrapper's Wine or CrossOver is updated: it replaces <out-dir>.

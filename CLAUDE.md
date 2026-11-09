@@ -10,7 +10,7 @@ for umbrella work.
 |---|---|
 | `cities-skylines-2/` | Cities: Skylines II: notes, patches, launchers, and its own `CLAUDE.md`, `GOTCHAS.md`, `EXPERIMENTS.md` and `docs/` |
 | `surviving-mars-relaunched/` | Surviving Mars: Relaunched: launcher, tools and tests, `README.md`, `docs/plans/`; no `CLAUDE.md` of its own. Its state is outside the repo (below) |
-| `common/` | checks and tests shared by every game: `check-links.py`, `check-identifiers.sh`, `test-launch-lock.sh` (the lock code three launchers share) |
+| `common/` | checks and tests shared by every game: `check-links.py`, `check-identifiers.sh`, `test-launch-lock.sh` (the lock code two launchers share) |
 | `docs/plans/` | repo-level plans. A game's own plans are in `<game>/docs/plans/`, so a plan audit must look in both |
 | `scripts/` | compatibility only: a forwarding `setup.sh` and pointer files at paths that older clones and outside links still use. Nothing new goes here |
 
@@ -23,11 +23,9 @@ The only places outside the repo are `~/cs2-patch` (deployed copies and evidence
 `~/Library/Developer/1launcher/` (Surviving Mars's standalone `engine/`: kept off paths with a space). Anything
 else outside needs James's say-so first, and a line here saying where it is and why.
 
-**Private mirrors** (James, 2026-11-09). Two source repos inside `~/cs2-patch` hold commits that no remote of
-theirs has, so each has a private mirror on the Studio's git server, as remote `hub`:
-`~/git/cs2-winemac-drv.git` (for `build-1116/wine-11.16-dxmt/dlls/winemac.drv`) and `~/git/cs2-dxmt-v080.git`
-(for `dxmt-v080`). After a commit in either: `git push hub --all && git push hub --tags`. They are on the same
-disk as the originals: they guard against a deleted folder, not a failed disk.
+**Private mirrors.** Two source trees in the workspace hold commits no public remote has; each has a private
+mirror on the maintainer's own git server. Where, and the push that keeps them level, is in the untracked
+`CLAUDE.local.md`.
 
 **Paths.** The sections below were written when Cities: Skylines II was the whole repo. A path in them,
 or in a game's own file, that does not start with a folder from the table is relative to `cities-skylines-2/`.

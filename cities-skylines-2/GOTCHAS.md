@@ -2707,7 +2707,8 @@ always-false diagnostic that preceded it.
 copy nothing executes; installing a fixed patcher there changes nothing (the run prints the old
 patcher's own messages). Install into `patches/`, and compare against the repo's `patches/`.
 **Removed the trap 2026-10-10:** all 28 moved to `~/cs2-patch/old-patchers/` with an index (10
-identical, 6 stale, 12 the only copy — rejected experiments and the unpublished `patch_cohtml_license`).
+identical, 6 stale, 12 the only copy — rejected experiments and one workaround that was never published and
+that the project no longer keeps).
 
 ## The cohtml "crash fix" is a deliberate COM reference leak (2026-10-10)
 
@@ -2906,7 +2907,7 @@ was suspended at a Steam shutdown. It resumed in the next session and finished a
        never took the 1.6.2f1 update still has that relocation. Boot-verify PASS on both afterwards
        (`20261107-203407` daily, `20261107-203831` S734M, run dirs on the MacBook).
   3. **The licence bypass is not needed on build 25127643.**
-     `old-patchers/patch_cohtml_license.py` found no fingerprint in the November
+     The Wine 10 era's workaround, which the project no longer keeps, found no fingerprint in the November
      `cohtml.WindowsDesktop.dll` and wrote nothing. The stock DLL then reached `MainMenu` on
      `wine-sikarugir 10.0` twice, and the game logs held zero `license` lines. Root cause R3 (Wine
      10's bcrypt failing the Gameface signature) is not reached by this cohtml build on this engine.

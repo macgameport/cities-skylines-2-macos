@@ -22,8 +22,8 @@ answer is to run the game in CrossOver. What transfers to any setup is the *find
 - `tools/make-engine.sh --install <wrapper>` — puts D3DMetal 3.0 (taken from a local CrossOver 26
   install) into a wrapper's own Wine 10 in place of its D3DMetal 2.1, keeping the original as
   `wine.d3dm21-BAK`. Without `--install` it builds a standalone engine in
-  `~/Library/Developer/1launcher/surviving-mars-relaunched/engine/`, which the Cities: Skylines II port uses to try its own
-  fallback on 3.0.
+  `~/Library/Developer/1launcher/surviving-mars-relaunched/engine/`, for trying another game on
+  D3DMetal 3.0.
 - `tools/frame-fix.exe` (from `frame-fix.c`) — fixes the click offset the game starts with.
 - `tools/game-input.exe` (from `game-input.c`) — sends clicks to the game from inside its Wine
   session, for testing without a human at the keyboard.
@@ -57,7 +57,7 @@ answer is to run the game in CrossOver. What transfers to any setup is the *find
 - The rest of this repository beside this folder. `make-app.sh` takes the app icon from the game with
   [`pe-icon.py`](../cities-skylines-2/scripts/pe-icon.py) (without it the icon is generic), and
   [`common/test-launch-lock.sh`](../common/test-launch-lock.sh) checks that the launcher lock code is the
-  same here and in the Cities: Skylines II launchers.
+  same here and in the Cities: Skylines II launcher.
 
 **Nothing from Apple or CodeWeavers is in this repository, and the engine built from it may not be
 redistributed.** That engine is built outside the checkout, under `~/Library/Developer/1launcher/surviving-mars-relaunched/`, and the

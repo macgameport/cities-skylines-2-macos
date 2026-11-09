@@ -1,35 +1,30 @@
 #!/bin/bash
-# Re-apply all Cities: Skylines II macOS/Wine binary patches (idempotent).
-# Usage: bash repatch.sh [<game-dir>]   or   CS2_GAME_DIR=<dir> bash repatch.sh
-# Each patch pattern-matches and REFUSES to write if the IL moved (game update),
-# rather than corrupting the binary. Every one writes a .bak on first run.
-# Usage: bash ~/cs2-patch/repatch.sh
+# Re-apply the Cities: Skylines II binary patches (idempotent).
+#   bash repatch.sh                  the default wrapper's game folder, or CS2_GAME_DIR
+#   bash repatch.sh dxmt11           the same
+#   bash repatch.sh <game folder>    that folder
+# Each patch pattern-matches and REFUSES to write if the code moved (a game update), rather than
+# corrupting the binary. Every one writes a .bak on first run.
+# There is one stack, Wine 11 + DXMT. It needs ten of the sixteen patch scripts. The other six tolerate a
+# file-error defect that Wine 10 had and that some Wine 11 builds bring back: CS2_ERRNO_PATCHES, below.
+# patch_fshandle is among the ten: handle-0 is a separate defect that Wine 11 does not fix.
+# Wine 11 also verifies the game's UI middleware licence correctly (root cause R3, docs/wine-bugs/), which
+# Wine 10 did not. Nothing here touches that check, and nothing ever shipped here did.
 set -e
 HERE="$(cd "$(dirname "$0")/patches" && pwd)"
-# Game dir may be passed as $1 (e.g. the free Kegworks/Sikarugir wrapper prefix).
-# Default remains the CrossOver "Steam" bottle.
-CX_GAME="${CS2_GAME_DIR:-$HOME/Library/Application Support/CrossOver/Bottles/Steam/drive_c/Program Files (x86)/Steam/steamapps/common/Cities Skylines II}"
-FREE_GAME="${CS2_GAME_DIR:-$HOME/Applications/CS2.app/Contents/SharedSupport/prefix/drive_c/Program Files (x86)/Steam/steamapps/common/Cities Skylines II}"
 DXMT_GAME="${CS2_GAME_DIR:-$HOME/Applications/CS2dxmt11.app/Contents/SharedSupport/prefix/drive_c/Program Files (x86)/Steam/steamapps/common/Cities Skylines II}"
-GAME="${1:-$CX_GAME}"
-# wine-11.0 fixes the Mono P/Invoke garbage-errno defect that wine-10.0 has (measured 2026-08-22 —
-# docs/wine-bugs/FINDING-wine11-fixes-it.md), so the dxmt11 target SKIPS the 6 errno-tolerance
-# mscorlib patches, and (below) the Gameface licence bypass: 10 patches instead of 17.
-# patch_fshandle STAYS — handle-0 is a separate defect that Wine 11 does NOT fix.
-# COHTML_LICENSE=0 on wine 11: MEASURED 2026-08-22 — with cohtml.WindowsDesktop.dll restored to
-# PRISTINE (bypass removed), the game reached MainMenu and loaded a city with ZERO "Invalid License
-# key used!" errors. wine-11.0's BCryptVerifySignature verifies the Gameface ECDSA signature
-# correctly, so root cause R3 is FIXED UPSTREAM and the withheld bypass is unnecessary on this
-# target. **Every patch the wine 11 path needs is published in this repo.** Wine 10 still needs it.
-ERRNO_PATCHES=1
-COHTML_LICENSE=1
-case "$GAME" in
-  free|FREE)             GAME="$FREE_GAME" ;;
-  dxmt11|DXMT11|wine11)  GAME="$DXMT_GAME"; ERRNO_PATCHES=0; COHTML_LICENSE=0 ;;
+ERRNO_PATCHES=0
+case "${1:-dxmt11}" in
+  dxmt11|DXMT11|wine11) GAME="$DXMT_GAME" ;;
+  free|FREE|d3dmetal|wine10)
+    echo "The Wine 10 + D3DMetal stack was retired on 2026-11-09. Its last version is commit fefc1e0."
+    exit 2 ;;
+  *) GAME="$1"
+     echo "  ten patches (the Wine 11 set). An engine with the errno defect, Wine 10 included, needs CS2_ERRNO_PATCHES=1" ;;
 esac
 
-# CS2_ERRNO_PATCHES — override the target's default.
-# The six errno-tolerance mscorlib patches are skipped on the wine-11 targets because wine-11.0
+# CS2_ERRNO_PATCHES=1 — also apply the six errno-tolerance mscorlib patches.
+# They are off by default because wine-11.0
 # fixed the Mono P/Invoke garbage-errno defect (docs/wine-bugs/FINDING-wine11-fixes-it.md). Not
 # every wine-11.x BUILD is clean, though: WineForge's 11.16 reintroduces it, which breaks in-game
 # mod downloads (docs/wine-bugs/FINDING-wine11.16-tradeoff.md). If you are on an engine that needs
@@ -44,7 +39,7 @@ esac
 #   without mutating, diff the DLL against its .bak.
 if [ -n "${CS2_ERRNO_PATCHES:-}" ]; then
   ERRNO_PATCHES="$CS2_ERRNO_PATCHES"
-  echo "  (CS2_ERRNO_PATCHES=$ERRNO_PATCHES — overriding the target default)"
+  echo "  (CS2_ERRNO_PATCHES=$ERRNO_PATCHES)"
 fi
 [ -f "$GAME/Cities2.exe" ] || { echo "ERROR: no Cities2.exe under: $GAME"; exit 1; }
 echo "Target game dir: $GAME"
@@ -61,36 +56,18 @@ run() {   # <patch script> <its arguments>
   local p="$1"; shift
   if python3 "$HERE/$p" "$@"; then RAN_OK=$((RAN_OK + 1)); else FAILED="$FAILED $p"; fi
 }
-# Derive the wine user dir from the prefix (CrossOver bottle = 'crossover', Kegworks wrapper = 'js').
+# Find the Wine user's folder in the prefix: a Porting Kit wrapper's is Wineskin, others use the Mac's user name.
 PREFIX_ROOT="${GAME%%/drive_c/*}"
 WUSER=""
-for u in crossover js "$USER"; do
+for u in Wineskin "$USER" crossover; do
   [ -d "$PREFIX_ROOT/drive_c/users/$u" ] && WUSER="$u" && break
 done
 
-echo "== Re-applying CS2 macOS/CrossOver patches =="
+echo "== Re-applying the Cities: Skylines II patches =="
 run patch_cohtml.py "$GAME"
 run patch_colossal_io.py "$GAME"
 run patch_longfile.py "$GAME"
 run patch_asset_database.py "$GAME"
-# ── cohtml Gameface licence bypass — NOT in this repository, and NOT needed on wine 11 ─────────
-# CS2's Coherent Gameface middleware validates its own embedded licence key via Windows CNG
-# (BCryptImportKeyPair -> BCryptHashData -> BCryptVerifySignature). On **wine 10** that final call
-# fails on a valid signature (root cause R3), cohtml aborts with "Invalid License key used!", and
-# the game crashes before the menu — so that stack needs a bypass, which is deliberately NOT
-# published here: a ready-to-run signature-check bypass for commercial middleware reads as
-# circumvention regardless of intent.
-#
-# ✅ **On wine 11 none of that applies.** Measured 2026-08-22 with the DLL restored to pristine:
-# MainMenu reached, city loaded, zero licence errors. wine-11.0 verifies the signature correctly.
-# So the `dxmt11` target below needs no bypass, and every patch it *does* need is in this repo.
-# THE CORRECT FIX WAS ALWAYS IN WINE — see docs/wine-bugs/R3-*.md.
-if [ "$COHTML_LICENSE" = 1 ]; then
-  echo "  !! wine 10 target: builds before 25127643 need the unpublished cohtml licence bypass (see above)."
-  echo "     25127643 reached the main menu without it (2026-11-03, GOTCHAS). If you see"
-  echo "     'Invalid License key used!' and no main menu, use the wine 11 target instead."
-fi
-# ───────────────────────────────────────────────────────────────────────────────────────────────
 
 if [ "$ERRNO_PATCHES" = 1 ]; then
 # Paradox Mods download I/O fix (IOERR_101 "IOError - Success").
@@ -112,7 +89,7 @@ run patch_delrec.py "$GAME/Cities2_Data/Managed/mscorlib.dll"
 run patch_dirrec_nx.py "$GAME/Cities2_Data/Managed/mscorlib.dll"
 run patch_delchild.py "$GAME/Cities2_Data/Managed/mscorlib.dll"
 else
-  echo "  (errno-tolerance six skipped: Wine 11 target)"
+  echo "  (the six errno-tolerance patches are off; CS2_ERRNO_PATCHES=1 applies them)"
 fi
 # patch_fshandle: Wine returns file handle 0 for a VALID open file; .NET's SafeFileHandle derives
 # from SafeHandleZeroOrMinusOneIsInvalid, so IsInvalid is true and mscorlib's FileStream.Init throws

@@ -1,14 +1,10 @@
 # CS2 macOS patch inventory
 
 **Game:** Cities: Skylines II `1.6.2f1` (Steam build 25127643; re-derived 2026-10-10 — 1.6.0f1 `419.d6c6` before that)
-**Stack (default):** self-built stock Wine 11.16 + DXMT (`~/Applications/CS2dxmt11.app`) — needs
-**10** of these patches and **no licence bypass**; every one of the 10 is published here
-**Stack (fallback):** Kegworks/WineskinNavy wrapper (`~/Applications/S734M.app`) — Wine 10.0
-Sikarugir + D3DMetal v2.1 — runs all **16** published patches. Game builds before Steam build
-25127643 also needed the unpublished licence bypass (#5) there; build 25127643 reached the main menu
-without it (two boots, 2026-11-03, `GOTCHAS.md`: one build on one engine)
-**Applied by:** `~/cs2-patch/repatch.sh dxmt11` (default) · `~/cs2-patch/repatch.sh free`
-(fallback) — idempotent, self-verifying (byte pattern, or by-name method lookup for the PDX.SDK five), each writes a `.bak`
+**Stack:** self-built stock Wine 11.16 + DXMT (`~/Applications/CS2dxmt11.app`): needs **10** of these patch
+scripts. The other six are for an engine with the errno defect (`CS2_ERRNO_PATCHES=1`). An older Wine 10 +
+D3DMetal stack was retired from this repository on 2026-11-09.
+**Applied by:** `~/cs2-patch/repatch.sh dxmt11` — idempotent, self-verifying (byte pattern, or by-name method lookup for the PDX.SDK five), each writes a `.bak`
 **Last verified:** 2026-10-10 — 1.6.2f1 re-derivation: all 10 dxmt11 patches + badge applied, boot-verify PASS ×3 and a forced mod re-download (C73); before that 2026-09-03, when targets and patch counts were re-measured against `repatch.sh`; the
 in-game verification behind §1 is 2026-08-22
 
@@ -16,17 +12,14 @@ in-game verification behind §1 is 2026-08-22
 > something else. ⚠️ **The §1 root-cause analysis below was partly disproven on 2026-08-22** — see
 > [`wine-bugs/FINDING-wine11-fixes-it.md`](wine-bugs/FINDING-wine11-fixes-it.md). Measured result:
 > **moving to Wine 11 drops the applied set from 16 to 10** — the six errno-tolerance patches go —
-> and the seventh retirement, the Coherent Gameface licence bypass (#5, §4), becomes unnecessary
-> too, since Wine 11 also fixed the bcrypt defect (R3). Both verified in-game: a fresh mod
-> download, and the main menu reached with the licence bypass fully removed. `patch_fshandle` is
-> still needed there; R1 and R2 as originally stated are false.
+> and Wine 11 also fixed the bcrypt defect (R3, §4), so the game's UI middleware verifies its own licence
+> there. Both verified in-game: a fresh mod download, and the main menu reached with zero licence errors.
+> `patch_fshandle` is still needed there; R1 and R2 as originally stated are false.
 >
-> ⚠ **Two counts, both correct — do not average them.** This document numbers **17** patch
-> entries, but only **16** exist as scripts: #5 is described here and deliberately not published,
-> so `repatch.sh` can only *warn* about it. Measured 2026-09-03 against `repatch.sh`: **16**
-> `python3 … patch_*.py` invocations, **6** of them behind `ERRNO_PATCHES`, which the `dxmt11`
-> target sets to 0 — hence **10** on the default stack. A loose `patch.*\.py` grep returns 17
-> because one line is a comment about `patch_pdxsdk_io.py` being deliberately not run.
+> ⚠ **The numbers.** Entries keep the numbers 1 to 17 they have always had here, and there is no number 5:
+> it described a Wine 10 workaround for R3 that was never in this repository (§4). **16** patch scripts
+> exist. Measured 2026-09-03 against `repatch.sh`: 16 patch invocations, 6 of them behind `ERRNO_PATCHES`,
+> which is off by default: hence **10**.
 
 ## The three upstream root causes
 
@@ -34,7 +27,7 @@ in-game verification behind §1 is 2026-08-22
 |---|---|---|---|
 | **R1** | `GetLastError` / `Marshal.GetLastWin32Error()` returns **garbage** after file APIs — including on *success* and on the *non-success* return of failing calls. Callers can't distinguish "not found" from a real failure. | **Wine** (macOS) | 2, 6, 7, 8, 9, 10, 11, 15 |
 | **R2** | `CreateFile` returns **handle value 0 for a valid open file**. .NET's `SafeFileHandle` derives from `SafeHandleZeroOrMinusOneIsInvalid`, so a usable handle is judged invalid. | **Wine** (macOS) | 3, 12 |
-| **R3** | `BCryptVerifySignature` (Windows CNG) **fails on valid ECDSA signatures**. | **Wine** (macOS) | 5 |
+| **R3** | `BCryptVerifySignature` (Windows CNG) **fails on valid ECDSA signatures**. | **Wine** (macOS) | none in this repository; fixed in Wine 11 |
 
 A fourth, narrower one: under **concurrent** IO, metadata-query APIs (`GetFileAttributesW`,
 `FindFirstFile`) return a false "exists" for a missing file, while *opening* the file
@@ -66,16 +59,12 @@ A fourth, narrower one: under **concurrent** IO, metadata-query APIs (`GetFileAt
 | 2 | `patch_colossal_io` | `Colossal.IO.dll` → `EnumerateFileSystemIterator[Recursive]` | startup crash — Win32 error check after `FindNextFile` reads garbage (R1) |
 | 4 | `patch_asset_database` | `Colossal.IO.AssetDatabase.dll` → `PopulateFromDirectory` | `File.Exists` wrong under Wine → bogus `.priority` read |
 
-## 4. Wine crypto (R3) — ⚠ see licensing note
+## 4. Wine crypto (R3)
 
-| # | Patch | Target | Symptom |
-|---|---|---|---|
-| 5 | `patch_cohtml_license` | `cohtml.WindowsDesktop.dll` | Coherent Gameface rejects its own **valid embedded** licence because Wine's `BCryptVerifySignature` fails → native crash before the main menu |
-
-> **⚠ Do not publish this patch.** The licence is legitimate and present; only Wine's crypto is
-> broken. But a ready-to-run licence-check bypass for commercial middleware reads as circumvention
-> regardless of intent. **Fixing R3 in Wine removes the need for it entirely** — that is the correct
-> route. Describe the finding; don't ship the tool.
+Wine 10's `BCryptVerifySignature` failed on a valid ECDSA signature, so Coherent Gameface, the game's UI
+middleware, rejected its own valid embedded licence and the game stopped before the main menu. Wine 11
+fixed it (measured 2026-08-22), and that is the fix. No patch for it is in this repository or ever was:
+[`../patches/README.md`](../patches/README.md), "Which patches the game needs".
 
 ## 5. Paradox `PDX.SDK.dll` — mod downloads
 
@@ -106,8 +95,8 @@ Ranked by how many patches it retires:
    Deterministic reproducer already built: `scripts/monohost.c` + `scripts/filetest_net.cs` (build per `scripts/README.md`)
    (sections `[5][6][7][10]`–`[13]`), runs under CS2's exact Unity Mono with no game launch.
 2. **File a Wine bug for R2** — `CreateFile` returning handle 0 for a valid file. Retires 2.
-3. **File a Wine bug for R3** — `BCryptVerifySignature` on valid ECDSA. Retires 1, and removes the
-   only patch with a licensing problem.
+3. ~~File a Wine bug for R3~~ — `BCryptVerifySignature` on valid ECDSA is fixed in Wine 11 (measured
+   2026-08-22). Nothing to file.
 4. **Report #17 to Paradox** — the leaked lock is a real cross-platform defect with a clean fix
    (dispose the lock in the catch handler, or add a `finally`).
 

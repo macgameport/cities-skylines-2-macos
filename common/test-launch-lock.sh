@@ -2,20 +2,19 @@
 # test-launch-lock.sh [<launcher> ...] -- fixtures for the one-launcher-per-Wine-prefix lock
 # (LOCK, lock_holder, acquire_lock, release_lock). The functions are copied out of each launcher and
 # run in throwaway bash processes against a temporary lock path: no game, no Steam. Then every copy of
-# them must be identical: one implementation in three launchers, Cities: Skylines II's two and Surviving
-# Mars's (S734M's prefix was shared by launch-cs2.sh and the Surviving Mars launcher until 2026-11-07).
+# them must be identical: one implementation in two launchers, Cities: Skylines II's and Surviving Mars's
+# (a third, for a Wine 10 stack that shared a prefix with Surviving Mars, was retired on 2026-11-09).
 # The functions move into shared code in Phase 5 of docs/plans/1launcher-unification.md.
 #   bash common/test-launch-lock.sh            exit 0 = every case passed; exit 2 = a launcher is missing
 #   MUTANT=1 bash common/test-launch-lock.sh   acquire_lock always succeeds (no lock); must exit 1
-# Launchers given as arguments replace the three it finds by itself; the exit-2 rule is for those three.
+# Launchers given as arguments replace the two it finds by itself; the exit-2 rule is for those two.
 set -u
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 LAUNCHERS=()
 if [ $# -gt 0 ]; then
   LAUNCHERS=("$@")
 else
-  for f in surviving-mars-relaunched/launch-relaunched.sh \
-           cities-skylines-2/launchers/launch-cs2.sh cities-skylines-2/launchers/launch-cs2-dxmt11.sh; do
+  for f in surviving-mars-relaunched/launch-relaunched.sh cities-skylines-2/launchers/launch-cs2-dxmt11.sh; do
     [ -f "$HERE/$f" ] || { echo "REFUSED: $f not found under $HERE"; exit 2; }
     LAUNCHERS+=("$HERE/$f")
   done

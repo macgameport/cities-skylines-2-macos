@@ -16,7 +16,7 @@
 # session, and the replaced Steam skips the cloud upload at exit (MacBook, 2026-11-01). The lock below
 # covers launches in this wrapper only.
 #
-# Recipe (from cs2's launch-cs2.sh): Steam up and freshly logged in IN THIS PREFIX -> licence wait ->
+# Recipe (from the Cities: Skylines II launcher): Steam up and freshly logged in IN THIS PREFIX -> licence wait ->
 # cloud sign-in sync -> game-update check -> Mars.exe directly with steam_appid.txt, plus
 # tools/frame-fix.exe watching its window -> on exit, wait for the cloud upload, steam.exe -shutdown.
 # NEVER kill -9 Steam (0-byte .crash marker breaks the next start).
@@ -126,13 +126,13 @@ game_running() {
 game_running && die "The game is already running."
 
 # One launcher per Wine prefix, for its whole run: every launcher that uses this prefix's Steam takes
-# the same lock. Until 2026-11-07 S734M's prefix was shared by cs2's launch-cs2.sh and this launcher;
+# the same lock. Until 2026-11-07 S734M's prefix was shared by a Cities: Skylines II launcher and this one;
 # now this wrapper is the game's own and the lock serialises launches in it. A launch while the
 # previous launcher was still closing Steam found Steam "already running", reused it, and the game
 # died as that shutdown finished: `CClientPipe::BWriteAndReadResult: BReadResult failed ... Fatal
 # assert` (2026-11-07). The lock is a symlink whose target is the holder's PID: creating one is atomic,
 # and a launcher that died leaves a link to a dead PID, which the next launch clears. The functions are
-# identical in the Cities: Skylines II launchers and this one (original: this one); common/test-launch-lock.sh
+# identical in the Cities: Skylines II launcher and this one (original: this one); common/test-launch-lock.sh
 # runs them and checks the copies still match.
 LOCK="$WINEPREFIX/.launcher.lock"
 lock_holder() { readlink "$LOCK" 2>/dev/null; }

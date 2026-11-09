@@ -7,7 +7,6 @@
 #
 #   bash scripts/setup.sh              # check, install, patch, build shortcut
 #   bash scripts/setup.sh --check      # preflight only, change nothing
-#   bash scripts/setup.sh --stack d3dmetal
 #   bash scripts/setup.sh --hide-mod-badges   # opt in to the mod badge patch (INSTALL.md)
 #   bash scripts/setup.sh --show-mod-badges   # opt out again
 #   bash scripts/setup.sh --yes        # do not stop to ask when this Mac is outside what has been tested
@@ -21,7 +20,7 @@
 set -u
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
-STACK="dxmt11"
+RETIRED="The Wine 10 + D3DMetal stack was retired on 2026-11-09. Its last version is commit fefc1e0."
 CHECK_ONLY=0
 ASSUME_YES=0
 BADGES=""
@@ -34,7 +33,12 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --check)   CHECK_ONLY=1; shift ;;
     --yes)     ASSUME_YES=1; shift ;;
-    --stack)   need_value "$@"; STACK="$2"; shift 2 ;;
+    --stack)   need_value "$@"            # there is one stack now; its names are still accepted
+               case "$2" in
+                 dxmt11|wine11) ;;
+                 d3dmetal|wine10) echo "$RETIRED"; exit 2 ;;
+                 *) echo "unknown --stack '$2' (there is one stack now: leave the option out)"; exit 2 ;;
+               esac; shift 2 ;;
     --dest)    need_value "$@"; DEST="$2"; shift 2 ;;
     --hide-mod-badges|--show-mod-badges)
       _b="${1#--}"; _b="${_b%-mod-badges}"
@@ -45,11 +49,8 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-case "$STACK" in
-  dxmt11|wine11)   LAUNCHER_SRC="$REPO/launchers/launch-cs2-dxmt11.sh"; WRAPPERS="CS2dxmt11.app CS2.app" ;;
-  d3dmetal|wine10) LAUNCHER_SRC="$REPO/launchers/launch-cs2.sh";        WRAPPERS="S734M.app CS2.app" ;;
-  *) echo "unknown --stack '$STACK' (use dxmt11 or d3dmetal)"; exit 2 ;;
-esac
+LAUNCHER_SRC="$REPO/launchers/launch-cs2-dxmt11.sh"
+WRAPPERS="CS2dxmt11.app CS2.app"
 
 ok=0; bad=0; cautions=0; problems=0
 say()  { printf "  %-52s %s\n" "$1" "$2"; }
@@ -58,7 +59,7 @@ fail() { say "$1" "MISSING"; echo "      -> $2"; bad=$((bad+1)); }
 # a CAUTION is not a failure: this Mac is outside what has been tested, and the player may go on
 caution() { say "$1" "CAUTION"; echo "      -> $2"; cautions=$((cautions+1)); }
 
-echo "=== Cities: Skylines II on macOS — setup ($STACK) ==="
+echo "=== Cities: Skylines II on macOS — setup ==="
 echo "repo: $REPO"
 echo
 echo "Preflight:"
@@ -192,7 +193,7 @@ chmod +x "$DEST"/*.sh 2>/dev/null
 
 echo
 echo "Applying binary patches (idempotent — safe to re-run after every game update):"
-if CS2_GAME_DIR="$GDIR" bash "$DEST/repatch.sh" "$STACK"; then
+if CS2_GAME_DIR="$GDIR" bash "$DEST/repatch.sh" dxmt11; then
   echo "  every patch script finished without error."
 else
   problems=$((problems+1))
@@ -203,7 +204,7 @@ fi
 
 echo
 echo "Building the double-clickable app:"
-if ! bash "$REPO/scripts/make-shortcut.sh" --stack "$STACK" --launcher "$DEST/$(basename "$LAUNCHER_SRC")" \
+if ! bash "$REPO/scripts/make-shortcut.sh" --launcher "$DEST/$(basename "$LAUNCHER_SRC")" \
   --game "$GDIR/Cities2.exe"; then
   problems=$((problems+1))
   echo "  !! the app was not built: the lines above say why."
