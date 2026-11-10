@@ -313,8 +313,16 @@ times Steam's app information, a stand-in for the rewrite of the game's record; 
 rewrite itself.
 
 While the MacBook's game still has its update waiting, every run there must show the launcher's `game
-update waiting` line. That shows the update check ran. It does not measure the second job, because the
-record keeps a waiting update on disk between sessions. A run without the line is VOID.
+update waiting` line. **Corrected 2026-11-10, from conclusion C74 in `cities-skylines-2/EXPERIMENTS.md`:**
+the record does not always keep a waiting update between sessions. On 2026-11-07 the MacBook's record read
+current before launch (`StateFlags 4`, `buildid` equal to `TargetBuildID`) and the freshly started Steam
+rewrote it inside the 45 s wait. So each MacBook run first reads `StateFlags`, `buildid` and
+`TargetBuildID` from `appmanifest_949230.acf` with Steam down, and records them. Where they read current,
+the run **does** measure the second job: the line shows Steam rewrote the record within the wait, and a
+run without it is a **FAIL** of the second job, not a VOID, since a shorter wait would then hide the
+update from the player. Where they already show the update, the line shows only that the check ran, and
+a run without it is VOID. The probe does not read the record before a run: on the MacBook this is done
+by hand, or the probe gains it before those runs.
 
 The rule, written before any run:
 
