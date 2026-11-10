@@ -2939,3 +2939,20 @@ each run from the game's own log. Its first results were wrong three times over,
   public repo — as "the game waits for Steam until + 48 s, nothing to gain below 30". The 15 s runs
   stalled the same 13.5 s and finished at + 33 s. The third point cost 12 minutes; it belonged before
   the claim, not after it.
+
+## A banner check done over Screen Sharing proves nothing: no banner reached the remote viewer (2026-11-10)
+
+The launch-experience build moved start-up milestones out of macOS banners and into a progress window, so its
+live check asked the player to confirm **no banner before the game, and the closing banner after it**. The
+closing banner is the control: if it is missing too, the first answer means nothing. James ran the check from
+the MacBook, viewing the Studio by Screen Sharing. He saw the window, no banner before the game, and no
+closing banner either. Two test banners posted straight after, one with the launcher's new `on run` form and
+one with the old pasted-source form, twelve seconds apart, both exiting 0: **he saw neither**.
+
+- **`osascript … display notification` exiting 0 means macOS accepted the banner, not that anyone saw it.**
+- **Over Screen Sharing, no banner reached the viewer, whichever way it was posted.** The cause is not
+  measured. macOS has a notification setting for a display that is shared or mirrored, which may be it; it
+  was not read on this Mac.
+- **So a check whose pass condition is "no banner" needs its control in the same sitting, at the Mac
+  itself.** Without the control, an absent banner reads as a pass. Here the control caught it: the check
+  is repeated at the Studio. Recorded in `docs/plans/launch-experience.md`, as-built, live step 5.
