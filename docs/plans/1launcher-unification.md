@@ -259,9 +259,12 @@ closed until 4.8 is over: one Steam on the account at a time.
 
 4.1 **Look first, change nothing.** From the MacBook's CS2 checkout, wherever it is:
 `git fetch origin && git show origin/main:common/mac-inventory.sh | bash`. It is read-only, starts no Intel
-program, and prints nothing that identifies an account or a computer. Read it against section 6. Stop and ask
-James if it shows anything this phase does not expect: a checkout with uncommitted work, a third checkout, an
-install folder that is a symlink, a wrapper the Studio does not have.
+program, and prints nothing that identifies an account or a computer. It trusts no folder it looks into: it
+runs git inside a checkout only when that checkout's own settings file holds plain keys alone, and it never
+runs a credential helper (`common/test-mac-inventory.sh` plants programs in such settings and requires that
+none starts). Read it against section 6. Stop and ask James if it shows anything this phase does not expect: a
+checkout with uncommitted work, a third checkout, an install folder that is a symlink, a wrapper the Studio
+does not have, or a checkout marked `NOT EXAMINED FURTHER`, which names the settings that held it back.
 
 4.2 **The two dotfiles, by James** (Phase 0 step 4, for this Mac): the include for `~/github/1launcher/` and
 the pattern in the `gh` wrapper. A session may not edit those files. Additive: nothing matches until the
@@ -376,7 +379,7 @@ Candidates, by measurement: the lock (identical three times), Steam attribution 
 
 ## 6. MacBook inventory (run there; paste **redacted** output: home folder as `~`, accounts as project or personal)
 
-`common/mac-inventory.sh` prints all of this, read-only and already redacted (4.1 gives the command that runs it without touching the checkout). What it covers: where the two checkouts are and whether either is under `~/Documents`; `git -C <each> remote -v` and `status -sb`; whether `git var GIT_AUTHOR_IDENT` and the filtered credential username name the project identity in each; `whence -w gh` and the wrapper's path patterns; `git config --global --get-regexp '^includeif'`; the `SCRIPT=` line of each game's app shim; whether `~/cs2-patch` exists there and its launcher's date; any scheduled task naming either path.
+`common/mac-inventory.sh` prints all of this, read-only and already redacted (4.1 gives the command that runs it without touching the checkout). What it covers: where the two checkouts are and whether either is under `~/Documents`; `git -C <each> remote -v` and `status -sb`; whether `git var GIT_AUTHOR_IDENT` names the project identity in each, and which settings file names the GitHub credential helper there (it must be the project's identity file alone; the helper itself is never run); `whence -w gh` and the wrapper's path patterns; `git config --global --get-regexp '^includeif'`; the `SCRIPT=` line of each game's app shim; whether `~/cs2-patch` exists there and its launcher's date; any scheduled task naming either path.
 
 ## 7. Not in this plan: one engine
 

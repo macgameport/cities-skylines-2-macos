@@ -1,22 +1,47 @@
 #!/bin/bash
 # mac-inventory.sh -- what this Mac holds of the project, before anything is moved or updated on it.
 # Read-only: it changes nothing, starts no Wine, Steam, game or Intel program, and reads no file's contents
-# beyond a launcher path and a build number. Every git call here is made with file-system monitors and hooks
-# switched off and without touching the index, so a checkout's own settings cannot make this script run a
-# program; and it asks git for a push identity only where no credential helper is set by the checkout itself. The output is meant to be pasted somewhere else, so it names no
+# beyond a launcher path and a build number. The output is meant to be pasted somewhere else, so it names no
 # account, user or computer: the home folder prints as ~, and an identity prints as "project", "personal" or
 # "none". Run it from a checkout, or straight from the remote without touching one:
 #   bash common/mac-inventory.sh
 #   git fetch origin && git show origin/main:common/mac-inventory.sh | bash
+#
+# It looks into folders it did not create, so it trusts none of them. A git checkout's own settings can name
+# programs for git to run (a credential helper, a filter, a file-system monitor, a hook), and a remote address
+# is no proof of whose checkout it is. So:
+#   - which folders are checkouts of the project is read from each one's settings FILE, never by running git
+#     inside it;
+#   - git is run inside a checkout only when that file holds nothing but the plain keys in PLAIN_KEYS below,
+#     any file it includes is a .gitconfig file directly in the home folder, and the checkout does not hand
+#     its settings to another folder (a commondir file). Anything else is listed by name and not examined
+#     further;
+#   - even then git runs with monitors and hooks off, no pager, without touching the index, and without
+#     looking into repositories nested inside the checkout, whose settings were never read;
+#   - no credential helper is ever run: the script reports which settings file would supply the push
+#     credentials, not what they are.
+# What git may still start is a program named in YOUR OWN settings (a large-file filter, say), as it would in
+# any folder of yours.
 set -u
 PROJECT_LOGIN="iosoceans"          # the project's public commit identity
 t() { sed "s#$HOME#~#g"; }
 kind() { case "$1" in "") echo none ;; "$PROJECT_LOGIN") echo project ;; *) echo personal ;; esac; }
 sec() { echo; echo "== $1"; }
-G() { git --no-optional-locks -c core.fsmonitor=false -c core.hooksPath=/dev/null "$@"; }   # git, unable to run a checkout's own hooks
-# a credential helper is a program. One named by a checkout's own files is not ours to run.
-own_helper() { G -C "$1" config --show-origin --get-regexp '^credential\.(.*\.)?helper$' 2>/dev/null | awk '{print $1}' | grep -c -e '^file:\.git/' -e "^file:$1/"; }
 in_documents() { case "$1" in "$HOME/Documents"/*) echo "YES (apps cannot run scripts there)" ;; *) echo no ;; esac; }
+PLAIN_KEYS='^(core\.(repositoryformatversion|filemode|bare|logallrefupdates|ignorecase|precomposeunicode|symlinks)|remote\.[^.]+\.(url|fetch|pushurl)|branch\..+\.(remote|merge|rebase)|user\.(name|email)|pull\.(rebase|ff)|push\.(default|autosetupremote)|include\.path)$'
+own() { git config --no-includes -f "$1/.git/config" "${@:2}" 2>/dev/null; }     # reads that one file; runs nothing in the checkout
+safe() { LC_ALL=C tr -cd 'A-Za-z0-9._ #/,[]-'; }  # text taken from a checkout's settings, before it is printed
+not_plain() {   # <checkout>: prints what in its own settings is outside the plain set, or nothing
+  [ -e "$1/.git/commondir" ] && printf 'a-commondir-file '
+  own "$1" --name-only --list >/dev/null || printf 'a-settings-file-git-cannot-read '
+  own "$1" --name-only --list | grep -v -i -E "$PLAIN_KEYS" | sed 's/^\([^.]*\)\..*\.\([^.]*\)$/\1.\2/' | sort -u | tr '\n' ' ' | safe
+  own "$1" --get-all include.path | while IFS= read -r inc; do
+    case "$inc" in "~/.gitconfig"*|"$HOME/.gitconfig"*) inc="${inc#\~/}"; inc="${inc#$HOME/}"
+                     case "$inc" in */*) printf 'an-include-below-the-home-folder ' ;; esac ;;
+                   *) printf 'an-include-outside-the-home-folder ' ;; esac
+  done
+}
+G() { git --no-pager --no-optional-locks -c core.fsmonitor=false -c core.hooksPath=/dev/null "$@"; }
 
 sec "this Mac"
 echo "macOS $(sw_vers -productVersion 2>/dev/null) · Apple Silicon: $([ "$(sysctl -n hw.optional.arm64 2>/dev/null)" = 1 ] && echo yes || echo no)"
@@ -28,13 +53,14 @@ echo "free disk: $(df -h "$HOME" | awk 'NR==2{print $4}')"
 sec "checkouts of the project"
 found=0
 for g in "$HOME"/*/.git "$HOME"/*/*/.git "$HOME"/*/*/*/.git; do
-  [ -d "$g" ] || continue
+  [ -f "$g/config" ] || continue
   d="${g%/.git}"
-  urls="$(G -C "$d" remote -v 2>/dev/null | awk '{print $2}' | sort -u)"
+  urls="$(own "$d" --get-regexp '^remote\..*\.url$')"
   case "$urls" in *macgameport/*|*sm-patch.git*) ;; *) continue ;; esac
   found=$((found + 1))
   echo "$d" | t
-  G -C "$d" remote -v 2>/dev/null | awk '$3=="(fetch)"{print $1, $2}' | while read -r name url; do
+  echo "$urls" | while read -r key url; do
+    name="$(printf '%s' "${key#remote.}" | safe)"; name="${name%.url}"
     case "$url" in
       *macgameport/1launcher*) w="GitHub, current name" ;;
       *macgameport/cities-skylines-2-macos*) w="GitHub, old name (redirects)" ;;
@@ -44,15 +70,25 @@ for g in "$HOME"/*/.git "$HOME"/*/*/.git "$HOME"/*/*/*/.git; do
     esac
     echo "    remote $name: $w"
   done
-  echo "    HEAD $(G -C "$d" rev-parse --short HEAD 2>/dev/null) on $(G -C "$d" rev-parse --abbrev-ref HEAD 2>/dev/null) · $(G -C "$d" status -sb 2>/dev/null | head -1) · $(G -C "$d" status --porcelain 2>/dev/null | wc -l | tr -d ' ') changed or untracked · $(G -C "$d" status --porcelain --ignored 2>/dev/null | grep -c '^!!') ignored"
   echo "    under ~/Documents: $(in_documents "$d") · layout: $([ -d "$d/cities-skylines-2" ] && echo "one folder per game" || echo "before the restructure") · Surviving Mars folder: $([ -d "$d/surviving-mars-relaunched" ] && echo yes || echo no)"
-  an="$(G -C "$d" var GIT_AUTHOR_IDENT 2>/dev/null | sed 's/ <.*//')"
-  if [ "$(own_helper "$d")" = 0 ]; then
-    cu="$(cd "$d" && printf 'protocol=https\nhost=github.com\n\n' | GIT_TERMINAL_PROMPT=0 G credential fill 2>/dev/null | sed -n 's/^username=//p')"
-    pushes="$(kind "$cu")"
-  else pushes="not asked (this checkout's own files name a credential helper)"; fi
-  echo "    commits as: $(kind "$an") · pushes as: $pushes · repo-local identity include: $([ -n "$(G -C "$d" config --local --get-all include.path 2>/dev/null)" ] && echo yes || echo no)"
   echo "    untracked or ignored at old places: $(for f in MODS-GUIDE.md logs .env CLAUDE.local.md .claude; do [ -e "$d/$f" ] && printf '%s ' "$f"; done; ls "$d"/scripts/*.exe >/dev/null 2>&1 && printf 'scripts/*.exe(%s) ' "$(ls "$d"/scripts/*.exe | wc -l | tr -d ' ')"; echo)"
+  odd="$(not_plain "$d")"
+  if [ -n "$odd" ]; then
+    echo "    NOT EXAMINED FURTHER: its own git settings hold more than the plain set: $odd"
+    continue
+  fi
+  echo "    HEAD $(G -C "$d" rev-parse --short HEAD 2>/dev/null) on $(G -C "$d" rev-parse --abbrev-ref HEAD 2>/dev/null) · $(G -C "$d" status -sb --ignore-submodules=all 2>/dev/null | head -1 | safe) · $(G -C "$d" status --porcelain --ignore-submodules=all 2>/dev/null | wc -l | tr -d ' ') changed or untracked · $(G -C "$d" status --porcelain --ignored --ignore-submodules=all 2>/dev/null | grep -c '^!!') ignored"
+  an="$(G -C "$d" var GIT_AUTHOR_IDENT 2>/dev/null | sed 's/ <.*//')"
+  # which settings file would supply the push credentials for GitHub here: a read of settings, no helper is run
+  # git reads these in order, and an empty one clears the list so far: what is left is what a push would use
+  src="$(G -C "$d" config --show-origin --get-regexp '^credential\.(.*\.)?helper$' 2>/dev/null | awk -F'\t' '
+    { n = index($2, " "); key = n ? substr($2, 1, n - 1) : $2; val = n ? substr($2, n + 1) : ""
+      if (key != "credential.helper" && key != "credential.https://github.com.helper") next
+      if (val == "") { out = ""; next }
+      o = $1; sub(/^file:/, "", o); if (index(out, o " ") == 0) out = out o " " }
+    END { printf "%s", out }' | t)"
+  [ -n "$src" ] || src="no settings file "
+  echo "    commits as: $(kind "$an") · the GitHub credential helper is named in: $src· repo-local identity include: $([ -n "$(own "$d" --get-all include.path)" ] && echo yes || echo no)"
 done
 [ "$found" = 0 ] && echo "none found three levels under ~"
 
@@ -60,7 +96,7 @@ sec "identity by folder (the two dotfiles)"
 git config --global --get-regexp '^includeif' 2>/dev/null | awk '{print "git includeIf: " $1}' | t
 # only the folder patterns themselves: never the rest of a line of the shell profile
 echo "gh wrapper patterns: $(grep -o '"\$HOME/github/[A-Za-z0-9_-]*/"\*' "$HOME/.zshrc" 2>/dev/null | sort -u | tr '\n' ' ')"
-echo "gh in an interactive shell is: $(zsh -ic 'whence -w gh' 2>/dev/null | tail -1)"
+echo "gh in an interactive shell is: $(zsh -ic 'whence -w gh' </dev/null 2>/dev/null | tail -1)"
 
 sec "apps and wrappers in ~/Applications"
 for a in "Cities Skylines II" "CS2 Steam Store" "Surviving Mars Relaunched"; do
