@@ -264,8 +264,17 @@ James if it shows anything this phase does not expect: a checkout with uncommitt
 install folder that is a symlink, a wrapper the Studio does not have.
 
 4.2 **The two dotfiles, by James** (Phase 0 step 4, for this Mac): the include for `~/github/1launcher/` and
-the pattern in the `gh` wrapper, with the two commands the Studio used. A session may not edit those files.
-Additive: nothing matches until the folder exists.
+the pattern in the `gh` wrapper. A session may not edit those files. Additive: nothing matches until the
+folder exists. The two commands the Studio used, which assume its entries (an include keyed to
+`~/github/cs2/` and a wrapper pattern `"$HOME/github/cs2/"*`); if the inventory shows other paths here, the
+same two edits are made by hand:
+
+```bash
+git config --global "includeIf.gitdir:$HOME/github/1launcher/.path" "$HOME/.gitconfig-cs2"
+grep -q 'github/1launcher' ~/.zshrc || sed -i '' 's#"$HOME/github/cs2/"\*|#"$HOME/github/cs2/"*|"$HOME/github/1launcher/"*|#' ~/.zshrc
+```
+
+A new shell, then the inventory again: it must list the new include and the new pattern.
 
 4.3 **The checkout.** With a clean tree: `git pull` (it follows the redirect), then
 `git remote set-url origin https://github.com/macgameport/1launcher.git`. After the pull, by hand, what git
@@ -305,7 +314,14 @@ menu, then quit; Surviving Mars to its menu, then quit from the game's own menu.
 sign-in, the launch, exit code 0 and the Steam Cloud upload, and its run log is under the new state folder.
 
 4.9 **Retire, only after 4.8.** The old Surviving Mars checkout, to the Trash, on James's word. The old-path
-entries in the two dotfiles on both Macs, by James. The Studio's bare `sm-patch.git` stays: once nothing pulls
+entries in the two dotfiles on both Macs, by James, once nothing is left at the old path:
+
+```bash
+git config --global --unset "includeIf.gitdir:$HOME/github/cs2/.path"
+sed -i '' 's#"$HOME/github/cs2/"\*|##' ~/.zshrc
+```
+
+ The Studio's bare `sm-patch.git` stays: once nothing pulls
 it, it is the archive of the private history.
 
 4.10 **Record.** The as-built header of this file gains Phase 4, committed and pushed from the MacBook as the
