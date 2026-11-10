@@ -3,6 +3,31 @@
 > **Status: Triple-checked 2026-11-09 — build-ready-with-fixes (first pass, two lenses: 2 blockers and 13
 > groups of other fixes folded; a fitted re-check of that fold the same day: no blocker, 11 fixes folded).**
 > Written 2026-11-09. Tracking: issue #23 (the setup defect, F1).
+>
+> **🔧 As-built (2026-11-09):** PARTIAL. Stages B, A and C are built and pushed; the live steps are not run.
+> Stage B is `974fcda`, Stage A `fefc1e0`, Stage C `202a0fc`, which closed issue #20. Measured on the real
+> tree: `test-setup.sh` 55 cases and 5 mutants, `test-repatch.sh` 24 and 2, `test-launcher-notes.sh` 12 and 3,
+> `test-vendor.sh` 13 and 5, `common/test-launch-lock.sh` 16 PASS with `MUTANT=1` red; every mutant applied and
+> seen red. S6: the 15 vendored files are byte-identical to their members of the two wheels, whose hashes are
+> F10's. S7, on copies restored from their backups, under Apple's Python 3.9.6 and Homebrew's 3.14.7: `10 of
+> 10`, five of five files equal the installed patched ones, five backups pristine, a second run changes nothing,
+> and the real install's ten checksums are unchanged. S9: every word list reads 0 and the statement is in
+> `patches/README.md` once. The standing tests that start no Intel program are green (25 passed, ALL PASS, ALL
+> PASS, exit 0, six Surviving Mars tests); links 0 unresolved; identifiers 9.
+> Deviations: (1) **Not run yet: S10, S11, S12, and the two standing tests that start an Intel program**
+> (`test-rosetta-preflight.sh`'s fourth case and `test-make-engine-install.sh`). Each such start raises macOS's
+> Rosetta notice on the maintainer's screen, so they wait to be run once, together, when he says. Issue #23
+> stays open until S10 and S12 pass. (2) My first S7 run was void: the tool shell did not split the list of
+> five files, so nothing was restored and the checksums were of empty input. Redone as a bash script; the
+> figures above are from that. (3) Three of S9's words matched unrelated text and were narrowed: `withh` to
+> `withh[eo]ld` (it matched `initWithHwnd`), `publishable` to `publishable (binary|patch)`, and the two
+> "bypass" phrases to patterns that need a licence word beside them. (4) `docs/patch-inventory.md` keeps its
+> entry numbers 1 to 17 and says there is no 5, since other documents cite those numbers. (5)
+> `scripts/README.md` gained rows for the four tests and none for `patches/_vendor/`, which has its own
+> README. (6) `<sha>` in the retirement sentence is `fefc1e0`.
+> Verify against: `cities-skylines-2/scripts/setup.sh` · `cities-skylines-2/repatch.sh` ·
+> `cities-skylines-2/patches/_vendor/` · `cities-skylines-2/launchers/launch-cs2-dxmt11.sh` · the four
+> `cities-skylines-2/scripts/test-*.sh` named above · `cities-skylines-2/patches/README.md`.
 > Scope: Cities: Skylines II only. File and line references are as of `11ece32`, relative to
 > `cities-skylines-2/` unless they start with `common/`, `docs/plans/` or `surviving-mars-relaunched/`, or are
 > called the root's.
