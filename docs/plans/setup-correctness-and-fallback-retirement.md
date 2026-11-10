@@ -4,7 +4,8 @@
 > groups of other fixes folded; a fitted re-check of that fold the same day: no blocker, 11 fixes folded).**
 > Written 2026-11-09. Tracking: issue #23 (the setup defect, F1).
 >
-> **🔧 As-built (2026-11-09):** PARTIAL. Stages B, A and C are built and pushed; the live steps are not run.
+> **🔧 As-built (2026-11-09):** BUILT. Stages B, A and C are built and pushed, and the live steps passed on the
+> Studio the same day, which closed issue #23.
 > Stage B is `974fcda`, Stage A `fefc1e0`, Stage C `202a0fc`, which closed issue #20. Measured on the real
 > tree: `test-setup.sh` 55 cases and 5 mutants, `test-repatch.sh` 24 and 2, `test-launcher-notes.sh` 12 and 3,
 > `test-vendor.sh` 13 and 5, `common/test-launch-lock.sh` 16 PASS with `MUTANT=1` red; every mutant applied and
@@ -14,10 +15,21 @@
 > and the real install's ten checksums are unchanged. S9: every word list reads 0 and the statement is in
 > `patches/README.md` once. The standing tests that start no Intel program are green (25 passed, ALL PASS, ALL
 > PASS, exit 0, six Surviving Mars tests); links 0 unresolved; identifiers 9.
-> Deviations: (1) **Not run yet: S10, S11, S12, and the two standing tests that start an Intel program**
-> (`test-rosetta-preflight.sh`'s fourth case and `test-make-engine-install.sh`). Each such start raises macOS's
-> Rosetta notice on the maintainer's screen, so they wait to be run once, together, when he says. Issue #23
-> stays open until S10 and S12 pass. (2) My first S7 run was void: the tool shell did not split the list of
+> **The live steps, run once together on the Studio at `4ca2bcd` (macOS 27.2, game build 25127643).** Before
+> them: no game or Steam running, and no deployed file held content git had never seen. S10: `bash
+> scripts/setup.sh` exit 0; eight of eight checks, with `macOS 27.2 … OK (tested)` and `Rosetta 2 … OK`;
+> `10 of 10 patch scripts finished without error`; `=== setup complete ===`; `mod badge patch: on, as before`.
+> Then 21 found, 21 identical, and `patches/_vendor` equal to the checkout's; the badge file current and its
+> marker written; every patch was already in place, and one checksum over the game's managed DLLs read the same
+> before and after. S11, in a clone under `/tmp`: the README quick start with `--check` printed the preflight
+> and stopped, exit 0, as did the old update path from the clone's root, and `test-vendor.sh` gave 13 PASS
+> there; the real install was not touched. S12: `boot-verify.sh` said VERDICT: PASS (run `20261109-210108`:
+> the game up at +85 s, `MainMenu reached`, a graceful exit with rc=0 five seconds after the close, Steam down
+> with no crash marker, 0 InvalidProgramException; the launcher logged `Patches ensured (10, dxmt11 target)`).
+> The two standing tests that start an Intel program: `test-rosetta-preflight.sh` ALL PASS with its live case,
+> `test-make-engine-install.sh` 14 PASS and `MUTANT=1` red.
+> Deviations: (1) S10, S11, S12 and those two standing tests were held and run once, together, when the
+> maintainer said go: each start of an Intel program raises macOS's Rosetta notice on his screen. (2) My first S7 run was void: the tool shell did not split the list of
 > five files, so nothing was restored and the checksums were of empty input. Redone as a bash script; the
 > figures above are from that. (3) Three of S9's words matched unrelated text and were narrowed: `withh` to
 > `withh[eo]ld` (it matched `initWithHwnd`), `publishable` to `publishable (binary|patch)`, and the two

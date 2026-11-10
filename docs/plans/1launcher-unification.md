@@ -261,8 +261,11 @@ so one started before 4.2 runs a bare `gh` at the new path as the other account.
 first, and every other `gh` call of this phase names the project's config directory outright, as T5's second
 form does.
 
-**Before the visit.** The setup plan's live steps have passed on the Studio (its S10 to S12), so `main` is
-known to install and boot, and T2 reads `21 found, 21 identical` and `_vendor equal` there. The Studio's checkout has nothing ahead of `origin/main` (`git status -sb`), so the
+**Before the visit.** The setup plan's live steps passed on the Studio on 2026-11-09 at `4ca2bcd` (its S10 to
+S12: setup exit 0, T2 `21 found, 21 identical` and `_vendor equal`, the boot check PASS), so `main` at that
+commit is known to install and boot. If
+`git diff --stat 4ca2bcd origin/main -- cities-skylines-2/launchers cities-skylines-2/repatch.sh cities-skylines-2/scripts cities-skylines-2/patches`
+prints anything, a file setup installs or runs has changed since, and those steps are run again first. The Studio's checkout has nothing ahead of `origin/main` (`git status -sb`), so the
 script that 4.1 fetches is the tested one. The Studio's game builds, for 4.4 to compare with, read from its
 own inventory on 2026-11-09: Cities: Skylines II 25127643, Surviving Mars 25579348; if a game updates on the
 Studio before the visit, this line is corrected first. No game, Steam or launcher is running on either Mac,
@@ -630,7 +633,7 @@ Phase 4 was rewritten after the rename, the merge and the setup plan's build, so
 
 While the agent ran, the inventory script also changed for three security reviews (`709b74c`, `57ebbd5`, `8975cbf`): it reads each checkout's settings file without running git inside it, runs git there only when the keys are plain and then pinned to that `.git` folder, and never runs a credential helper. T16 is its test.
 
-Measured inline for the fold: the new 4.2 and 4.9 commands on four arrangements of the wrapper's line (new pattern present, old pattern 0 after removal, each parses); T2's commands on the Studio (`21 found, 10 identical` and no installed `_vendor`: its install folder is behind `main` until the setup plan's S10, so this shows that the commands run, not the pass values, which "Before the visit" now asks for); 4.3's listing on a scratch clone pulled from `1a48b0a` (the six planted leftovers, one of them untracked) and on the Studio's checkout (nothing); 4.5's moves in scratch under bash and zsh with no `engine/` (counts equal, nothing left behind); the six Surviving Mars tests of 4.7 on the Studio (each exit 0); T16 (54 PASS twelve runs in a row, nine mutants red; 55 since the fold check). Not measured, because only the MacBook can show it: its paths, its badge state, its game builds, and whether the Surviving Mars tests find there what they read.
+Measured inline for the fold: the new 4.2 and 4.9 commands on four arrangements of the wrapper's line (new pattern present, old pattern 0 after removal, each parses); T2's commands on the Studio (`21 found, 10 identical` and no installed `_vendor`: its install folder is behind `main` until the setup plan's S10, so this showed that the commands run, not the pass values; those were observed there after S10, later the same day: `21 found, 21 identical` and `_vendor equal`); 4.3's listing on a scratch clone pulled from `1a48b0a` (the six planted leftovers, one of them untracked) and on the Studio's checkout (nothing); 4.5's moves in scratch under bash and zsh with no `engine/` (counts equal, nothing left behind); the six Surviving Mars tests of 4.7 on the Studio (each exit 0); T16 (54 PASS twelve runs in a row, nine mutants red; 55 since the fold check). Not measured, because only the MacBook can show it: its paths, its badge state, its game builds, and whether the Surviving Mars tests find there what they read.
 
 **The fold, checked (2026-11-09).** A fold is new text, so a second agent read this one at `516e2f5` against the code and against itself, followed 4.1 to 4.10 as the MacBook session would, and tried what it doubted in scratch. No blocker. Each finding below was reproduced inline before it was folded.
 
