@@ -10,6 +10,10 @@
 #   MUTANT=3 bash scripts/test-setup.sh   "setup complete" whatever failed; must exit 1
 #   MUTANT=4 bash scripts/test-setup.sh   --dest takes no care of a missing value (it loops); must exit 1
 #   MUTANT=5 bash scripts/test-setup.sh   macOS 15 counts as tested; must exit 1
+#   MUTANT=6 bash scripts/test-setup.sh   the window builder (14unch3r) is never run; must exit 1
+#   MUTANT=7 bash scripts/test-setup.sh   a failed window build counts as a setup problem; must exit 1
+#   MUTANT=8 bash scripts/test-setup.sh   the window builder runs when the game's app was not built; must exit 1
+# The window builder is a recording stub beside the scratch repo, at $T/common, where setup.sh looks for it.
 set -u
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 T="$(mktemp -d /tmp/setup-test.XXXX)"
@@ -26,6 +30,9 @@ case "${MUTANT:-0}" in
   3) mutate 's#^if \[ "\$problems" -gt 0 \]; then$#if false; then#' '^if false; then$' ;;
   4) mutate 's#^    --dest) .*#    --dest)    DEST="${2:-}"; shift 2 ;;#' '^    --dest)    DEST="${2:-}"; shift 2 ;;$' ;;
   5) mutate 's#^  26|27) say #  15|26|27) say #' '^  15|26|27) say ' ;;
+  6) mutate 's#^  elif bash "\$WINDOW_BUILDER"; then$#  elif true; then#' '^  elif true; then$' ;;
+  7) mutate 's#^    echo "  window: not built (see the line above)"$#    problems=$((problems+1)); echo "  window: not built (see the line above)"#' '^    problems=\$((problems+1)); echo "  window: not built' ;;
+  8) perl -0pi -e 's/\nelse\n  # 14unch3r/\nfi\nif true; then\n  # 14unch3r/' "$S"; grep -q '^if true; then$' "$S" || { echo "REFUSED: mutant did not apply"; exit 2; } ;;
 esac
 for f in "$REPO"/patches/patch_*.py; do
   echo 'import os, sys; sys.exit(1 if os.environ.get("STUB_FAIL") == os.path.basename(sys.argv[0]) else 0)' > "$R/patches/$(basename "$f")"
@@ -39,6 +46,15 @@ printf '#!/bin/bash\n[ "$*" = "-n hw.optional.arm64" ] && { echo "${STUB_ARM64:-
 printf '#!/bin/bash\n[ "$1" = -x86_64 ] && exit "${STUB_ROSETTA:-0}"\nexec /usr/bin/arch "$@"\n' > "$T/bin/arch"
 chmod +x "$T/bin"/*
 mkdir -p "$T/badpy"; printf '#!/bin/bash\nexit 1\n' > "$T/badpy/python3"; chmod +x "$T/badpy/python3"
+# the window builder: a stub that records each call, and whether the game's app was there when it ran
+export WINDOW_CALLS="$T/window.calls"; : > "$WINDOW_CALLS"
+mkdir -p "$T/common"
+cat > "$T/common/make-launcher-app.sh" << 'STUB'
+#!/bin/bash
+printf 'CALL args=%s app=%s\n' "$#" "$([ -f "$HOME/Applications/Cities Skylines II.app/Contents/MacOS/launch" ] && echo there || echo missing)" >> "$WINDOW_CALLS"
+echo "stub: window builder"
+exit "${STUB_WINDOW_RC:-0}"
+STUB
 cp -R "$R" "$T/repo2"; printf '#!/bin/bash\necho "stub: no app"; exit 1\n' > "$T/repo2/scripts/make-shortcut.sh"
 BADGE="cs2-patch/patch-modconflict-badge.py"
 MARK="cs2-patch/patches/.mod-badges-on"
@@ -65,6 +81,7 @@ run() {    # <home> [setup.sh arguments]: output in <home>.out; echoes the exit 
 snap() { (cd "$1" && find . | sort | shasum | cut -c1-12); }
 said() { grep -c -- "$2" "$1.out"; }
 has()  { if [ -e "$1" ]; then echo yes; else echo no; fi; }
+lines() { wc -l < "$1" | tr -d ' '; }
 fails=0
 check() {  # <name> <got> <want>
   if [ "$2" = "$3" ]; then echo "PASS  $1"; else echo "FAIL  $1 (got '$2', want '$3')"; fails=$((fails + 1)); fi
@@ -167,6 +184,21 @@ check "--stack wine10: the same" "$(run "$H" --stack wine10):$(said "$H" 'stack 
 check "--stack with an unknown name: exit 2" "$(run "$H" --stack vulkan):$(said "$H" "unknown --stack")" "2:1"
 check "--stack dxmt11 is still accepted" "$(run "$H" --stack dxmt11):$(said "$H" '^=== setup complete ===$')" "0:1"
 check "--help prints the usage and stops before the code" "$(run "$H" --help):$(said "$H" 'bash scripts/setup.sh --check'):$(said "$H" '^set -u$')" "0:1:0"
+
+# --- 14unch3r, the window's builder (docs/plans/launcher-window.md, 2.3; W10)
+H="$T/hw"; home "$H"; : > "$WINDOW_CALLS"
+check "14unch3r: setup runs the window builder once, with no arguments, after the game's app" "$(run "$H"):$(cat "$WINDOW_CALLS")" "0:CALL args=0 app=there"
+check "  ...setup completes, and its closing lines name the window" "$(said "$H" '^=== setup complete ===$'):$(said "$H" 'or open 14unch3r')" "1:1"
+for rc in 1 3; do
+  : > "$WINDOW_CALLS"
+  check "the window builder exits $rc: setup exits 0, says so once, counts no problem, marks nothing !!" \
+    "$(STUB_WINDOW_RC=$rc run "$H"):$(said "$H" '^  window: not built (see the line above)$'):$(said "$H" '^=== setup complete ===$'):$(said "$H" 'setup finished with'):$(said "$H" '!!.*window'):$(said "$H" 'or open 14unch3r')" "0:1:1:0:0:0"
+done
+mkdir -p "$T/nocommon"; cp -R "$R" "$T/nocommon/repo"; : > "$WINDOW_CALLS"
+check "no common/ beside the checkout: setup exits 0 and says the builder is not in this checkout" \
+  "$(SETUP_REPO="$T/nocommon/repo" run "$H"):$(said "$H" '^  window: not built (common/make-launcher-app.sh is not in this checkout)$'):$(said "$H" '^=== setup complete ===$'):$(lines "$WINDOW_CALLS")" "0:1:1:0"
+: > "$WINDOW_CALLS"
+check "the game's app was not built: the window builder is not run" "$(SETUP_REPO="$T/repo2" run "$H"):$(lines "$WINDOW_CALLS")" "1:0"
 
 echo "$fails failure(s)"
 [ "$fails" = 0 ]

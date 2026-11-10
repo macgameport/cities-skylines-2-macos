@@ -176,3 +176,10 @@ touch "$APP"
 echo "built: $APP"
 if [ -n "$ICON_KEY" ]; then echo "icon:  from Mars.exe"; else echo "icon:  generic (pe-icon.py or Mars.exe not found)"; fi
 if [ -z "$PANEL_WHY" ]; then echo "progress: Swift panel built (the start-up progress window)"; else echo "progress: skipped ($PANEL_WHY): notifications only"; fi
+# 14unch3r lists every game set up on this Mac in one window. Cities: Skylines II's setup.sh builds it and this
+# builder does not (docs/plans/launcher-window.md, 2.3), so say how when it is not beside this app.
+WHERE="$(dirname "$APP")"
+if [ ! -d "$WHERE/14unch3r.app" ]; then
+  if [ "$WHERE" = "$HOME/Applications" ]; then DEST_ARG=""; else DEST_ARG=" --dest \"$WHERE\""; fi
+  echo "14unch3r: not in $WHERE. To list every game in one window, run from the repository's top folder:  bash common/make-launcher-app.sh$DEST_ARG"
+fi

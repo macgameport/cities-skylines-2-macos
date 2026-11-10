@@ -480,9 +480,31 @@ func usage() -> Never {
     exit(2)
 }
 
-func notBuilt(_ mode: String, _ step: String) -> Never {
-    FileHandle.standardError.write(Data("launcher-window: \(mode) is not built yet (step \(step))\n".utf8))
-    exit(2)
+// ------------------------------------------------------------------------------------------------ the icon
+// --icon <out.png>, plan 2.6: drawn into a bitmap of exactly 1024 by 1024 pixels, since an image drawn with
+// lockFocus at 1024 points is 2048 pixels on a Retina screen. A rounded square 824 pixels wide, centred, corner
+// radius 185, in a neutral grey that is lighter at its top edge so that it still shows on a dark Dock, and "14"
+// in white in the system's bold rounded font. common/make-launcher-app.sh packs it with sips and iconutil, as
+// the game builders pack a game's own icon. No image file is in the repository.
+func drawIcon(to path: String) -> Bool {
+    guard let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 1024, pixelsHigh: 1024, bitsPerSample: 8,
+                                     samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
+                                     bytesPerRow: 0, bitsPerPixel: 0),
+          let ctx = NSGraphicsContext(bitmapImageRep: rep) else { return false }
+    rep.size = NSSize(width: 1024, height: 1024)
+    NSGraphicsContext.saveGraphicsState()
+    NSGraphicsContext.current = ctx
+    let body = NSRect(x: 100, y: 100, width: 824, height: 824)
+    let shape = NSBezierPath(roundedRect: body, xRadius: 185, yRadius: 185)
+    NSGradient(starting: NSColor(white: 0.32, alpha: 1), ending: NSColor(white: 0.13, alpha: 1))?.draw(in: shape, angle: -90)
+    var font = NSFont.systemFont(ofSize: 440, weight: .bold)
+    if let d = font.fontDescriptor.withDesign(.rounded), let f = NSFont(descriptor: d, size: 440) { font = f }
+    let text = NSAttributedString(string: "14", attributes: [.font: font, .foregroundColor: NSColor.white])
+    // centred on the digits themselves: their baseline sits capHeight / 2 below the middle
+    text.draw(at: NSPoint(x: body.midX - text.size().width / 2, y: body.midY - font.capHeight / 2 + font.descender))
+    NSGraphicsContext.restoreGraphicsState()
+    guard let png = rep.representation(using: .png, properties: [:]) else { return false }
+    return FileManager.default.createFile(atPath: path, contents: png)
 }
 
 // -psn_ is what older systems added when Finder started an app.
@@ -524,8 +546,8 @@ if let mode = args.first, mode.hasPrefix("-"), mode != "--games" {
         guard rest.count >= 2, let id = lastID(rest[0]) else { usage() }
         print(ownership(of: id, in: Array(rest.dropFirst())))
     case "--icon":
-        guard rest.count == 1 else { usage() }
-        notBuilt(mode, "B6")
+        guard rest.count == 1, !rest[0].isEmpty else { usage() }
+        if !drawIcon(to: absolute(rest[0])) { FileHandle.standardError.write(Data("launcher-window: the icon could not be drawn or written\n".utf8)); exit(1) }
     default:
         usage()
     }

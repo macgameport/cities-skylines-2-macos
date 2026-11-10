@@ -27,6 +27,7 @@
 #   MUTANT=13 ...  SM_GAME_EXE is ignored (the real game path is recorded); must exit 1
 #   MUTANT=14 ...  a failed plutil is ignored; must exit 1
 #   MUTANT=15 ...  a trailing slash is left on SM_APP (rm -rf of link.app/ empties the bundle it points at); must exit 1
+#   MUTANT=16 ...  the hint to build 14unch3r is printed even when 14unch3r.app is beside the app; must exit 1
 set -u
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 TOP="$(cd "$HERE/.." && pwd)"
@@ -42,7 +43,7 @@ cleanup() {   # stop what the stub panels left, and only those: a recorded PID m
 trap cleanup EXIT
 M="${MUTANT:-0}"
 mutated() { echo "REFUSED: mutant did not apply"; exit 2; }
-case "$M" in 0|1|2|3|4|5|6|7|8|9|10|11|12|13|14|15) ;; *) echo "REFUSED: no mutant $M"; exit 2 ;; esac
+case "$M" in 0|1|2|3|4|5|6|7|8|9|10|11|12|13|14|15|16) ;; *) echo "REFUSED: no mutant $M"; exit 2 ;; esac
 fails=0
 check() {  # <name> <got> <want>
   if [ "$2" = "$3" ]; then echo "PASS  $1"; else echo "FAIL  $1 (got '$2', want '$3')"; fails=$((fails + 1)); fi
@@ -106,7 +107,7 @@ scratch_builder() {   # <dir> [nocommon]
   mkdir -p "$1/surviving-mars-relaunched"; cp "$HERE/make-app.sh" "$1/surviving-mars-relaunched/"
   [ "${2:-}" = nocommon ] || { mkdir -p "$1/common"; cp "$TOP/common/launch-progress.swift" "$1/common/"; }
 }
-case "$M" in 7|10|11|12|13|14|15) scratch_builder "$T/mut"; MAKE="$T/mut/surviving-mars-relaunched/make-app.sh" ;; esac
+case "$M" in 7|10|11|12|13|14|15|16) scratch_builder "$T/mut"; MAKE="$T/mut/surviving-mars-relaunched/make-app.sh" ;; esac
 case "$M" in
   7) sed -i '' 's/^elif ! xcrun swiftc \(.*\); then PANEL_WHY="the compile failed".*$/else xcrun swiftc \1/' "$MAKE"
      grep -q '^else xcrun swiftc -O -o "\$PANEL_OUT" "\$PANEL_SRC" >/dev/null 2>&1$' "$MAKE" || mutated ;;
@@ -116,6 +117,7 @@ case "$M" in
   13) sed -i '' 's|^GAME_EXE="\${SM_GAME_EXE:-\(.*\)}"$|GAME_EXE="\1"|' "$MAKE"; grep -q 'SM_GAME_EXE:-' "$MAKE" && mutated ;;
   14) sed -i '' 's/^not_built() { .*/not_built() { return 0; }/' "$MAKE"; grep -q '^not_built() { return 0; }$' "$MAKE" || mutated ;;
   15) sed -i '' '/# tested as the bundle it names$/d' "$MAKE"; grep -q 'APP="\${APP%/}"' "$MAKE" && mutated ;;
+  16) sed -i '' 's|^if \[ ! -d "\$WHERE/14unch3r.app" \]; then$|if true; then|' "$MAKE"; grep -q '^if true; then$' "$MAKE" || mutated ;;
 esac
 
 # --- the builder
@@ -283,6 +285,15 @@ own_copy "$T/own/Again.app";       replaced "a bundle this builder made" "$T/own
 fake "$T/own/Line10.app" 10 "$ID"; replaced "a bundle of this builder's shape with its marker on line 10" "$T/own/Line10.app" "$T/own/Line10.app"
 own_copy "$T/own/Slash.app";       replaced "a bundle of this builder's given with a trailing slash" "$T/own/Slash.app/" "$T/own/Slash.app"
 check "  ...and it was built in place, not inside itself" "$([ -e "$T/own/Slash.app/Slash.app" ] && echo nested)" ""
+
+# --- the hint to build 14unch3r (docs/plans/launcher-window.md, 2.3; W11)
+mkdir -p "$T/w11"
+build "$T/w11/Hint.app" "$T/launch-relaunched.sh"
+check "no 14unch3r.app beside the app: the last line says how to build it, with --dest for this folder" \
+  "$(tail -1 "$T/w11/Hint.app.make" | grep -c "^14unch3r: not in $T/w11\. .*bash common/make-launcher-app.sh --dest \"$T/w11\"$")" 1
+mkdir -p "$T/w11/14unch3r.app"
+build "$T/w11/Hint.app" "$T/launch-relaunched.sh"
+check "14unch3r.app beside the app: no such line" "$(grep -c 'make-launcher-app' "$T/w11/Hint.app.make")" 0
 
 echo "$fails failure(s)"
 [ "$fails" = 0 ]
