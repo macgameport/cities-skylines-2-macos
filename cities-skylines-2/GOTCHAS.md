@@ -2941,10 +2941,16 @@ check passed on the new build (`bv-macbook-20261110-053415`).
 
 - **So "Play anyway" does not mean the old build** when Steam holds most of an update already. A
   launch's step 1 is only a check of the files present at that moment.
-- **The backups now belong to the old build.** `PDX.SDK.dll.bak` and `cohtml.WindowsDesktop.dll.bak`
-  are July's; the other three `.bak` files were written at 04:57 from build 23700737. Each sits beside
-  a patched 25127643 file. The patched files are right; a restore from one of these `.bak` files would
-  put an old-build DLL into the new build (the trap the 2026-11-02 entry describes). Not moved.
+- **Two backups belonged to the old build; moved 2026-11-10.** `PDX.SDK.dll.bak` and
+  `cohtml.WindowsDesktop.dll.bak` were July's (build 23700737), beside new-build files, so a restore would
+  have put an old-build DLL into the new build (the 2026-11-02 entry's trap). The other three, dated 04:57,
+  were already byte-identical to the 25127643 stock copies: an earlier draft of this entry called them old
+  without checking, and why new-build files were there before the update committed is not known. All five
+  went to `~/cs2-patch/daily-bak-23700737-20261110/`. The four patched files got the stock 25127643 copies
+  in `~/cs2-patch/s734m-repatch-20261107/stock-25127643/` as their `.bak`, after a check that those copies
+  match their recorded sha256 and, patched in a scratch folder by `repatch.sh`, come out byte-identical to
+  the game's patched files. `cohtml.WindowsDesktop.dll` is no longer patched (it equals the stock copy), so
+  it keeps no `.bak`. `mscorlib.dll.bak` was right and stays.
 - **Not fixed:** nothing stops Steam updating between step 1 and the game. A re-check of the fixes
   after step 4, when the record changed during the launch, would close it.
 
