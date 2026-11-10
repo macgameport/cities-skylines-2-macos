@@ -10,8 +10,8 @@
 > that fold was checked by a second agent (no blocker; its eight findings folded).
 > Written 2026-11-08. Tracking: issue #22.
 > **🔧 As-built (2026-11-08):** PARTIAL. Phases 0, 1 and 2 are built (Phase 2 on 2026-11-09); Phase 3 is built and its exit criteria pass (2026-11-09), with
-> retirement (3.7) still to do; Phase 4 is in progress (2026-11-09): 4.1 to 4.8 are done; 4.9, which waits on
-> James's word, is not.
+> retirement (3.7) still to do; Phase 4 is in progress (2026-11-09): 4.1 to 4.8 are done, and of 4.9 the old
+> Surviving Mars checkout is gone; the old-path dotfile entries, on both Macs, are James's and still there.
 > Phase 1 is commit `270ca2a` (211 renames at 100%, nothing else) and the commit that adds this line.
 > Measured on the real checkout after both: T1 0 of 107 · T2 22 of 22 and `setup.sh --check` exit 0 ·
 > T3 every gate exit 0, lock test 17 PASS, 102 files syntax-clean · T4 · T6 9 · T11 · T13 · T15 5 of 5 ·
@@ -87,7 +87,9 @@
 > `.frame-fix` companion (1 fix); `~/sm-patch/runs` was not recreated; the app has the game's icon. James
 > also reported both games loading as expected from their desktop icons. 4.6: on James's word `patch_cohtml_license.py`
 > went from `~/cs2-patch/old-patchers/` to the Trash, that folder's `README.md` says so, and the inventory
-> reads `absent`. Open: `~/sm-patch` and the old-path dotfile entries are not retired (4.9).
+> reads `absent`. 4.9: James sent `~/sm-patch` to the Trash, `scratch/` with it; the inventory reads
+> `absent` and lists one checkout. Open: the inventory still shows the include and the `gh` wrapper pattern
+> for `~/github/cs2/` on this Mac (4.9's two commands, by James, on both Macs).
 > Verify against: `common/` · root `scripts/` · `cities-skylines-2/scripts/check-experiments.py` ·
 > `.gitignore` · `LICENSE` · root `README.md`, `INSTALL.md`, `CLAUDE.md`.
 > File and line references are as of `cc66a90`; after Phase 1 every CS2 path gains the prefix
