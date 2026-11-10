@@ -93,11 +93,41 @@ CLOUD="$WINEPREFIX/drive_c/Program Files (x86)/Steam/logs/cloud_log.txt"
 SAPPS="$WINEPREFIX/drive_c/Program Files (x86)/Steam/steamapps"
 MANIFEST="$SAPPS/appmanifest_3215050.acf"
 QUIET="${SM_QUIET:-0}"
+# >>> launch-feedback-config (this launcher's own values)
+STEPS=5
+TITLE="Surviving Mars: Relaunched"
+PANEL="${SM_PANEL:-0}"
+# <<< launch-feedback-config
+# >>> launch-feedback (the same in both launchers: common/test-launcher-parity.sh compares the copies)
+_notify() { osascript -e 'on run a' -e 'display notification (item 1 of a) with title (item 2 of a)' -e 'end run' -- "$1" "$TITLE" >/dev/null 2>&1; }
+_alert() {   # <text> [warning]: the text travels as an argument, never as AppleScript source
+  if [ "${2:-}" = warning ]; then osascript -e 'on run a' -e 'display alert (item 2 of a) message (item 1 of a) as warning' -e 'end run' -- "$1" "$TITLE" >/dev/null 2>&1
+  else osascript -e 'on run a' -e 'display alert (item 2 of a) message (item 1 of a) as critical' -e 'end run' -- "$1" "$TITLE" >/dev/null 2>&1; fi
+}
+step() {   # <n> <text>: a start-up milestone. The progress window reads these lines from the log.
+  echo "[$1/$STEPS] $2"
+  [ "$QUIET" = 1 ] && [ "$PANEL" != 1 ] && _notify "$2"
+  return 0
+}
+note() {   # something the player should see even while the progress window is up
+  echo "$1"
+  [ "$QUIET" = 1 ] && _notify "$1"
+  return 0
+}
+licence_wait() {   # <step> <seconds as set, may be empty> <default>: the wait after a fresh sign-in
+  local w
+  case "$2" in ''|*[!0-9]*|????*) w=$3 ;; *) w=$((10#$2)) ;; esac
+  echo "Licence wait: $w s"
+  while [ "$w" -gt 0 ]; do
+    step "$1" "Steam is confirming the game licence, about $w seconds left…"
+    if [ "$w" -gt 15 ]; then sleep 15; w=$((w - 15)); else sleep "$w"; w=0; fi
+  done
+}
+# <<< launch-feedback
 
-note() { echo "$1"; [ "$QUIET" = 1 ] && osascript -e "display notification \"$1\" with title \"Surviving Mars: Relaunched\"" >/dev/null 2>&1; return 0; }
 die() {
   echo "ERROR: $1"
-  [ "$QUIET" = 1 ] && osascript -e "display alert \"Surviving Mars: Relaunched\" message \"$1\" as critical" >/dev/null 2>&1
+  [ "$QUIET" = 1 ] && _alert "$1"
   exit 1
 }
 
@@ -136,7 +166,7 @@ game_running && die "The game is already running."
 # runs them and checks the copies still match.
 LOCK="$WINEPREFIX/.launcher.lock"
 lock_holder() { readlink "$LOCK" 2>/dev/null; }
-acquire_lock() {   # <tries, 2 s apart> -- 0 = this launcher holds the lock; needs note, die, game_running
+acquire_lock() {   # <tries, 2 s apart> -- 0 = this launcher holds the lock; needs step, die, game_running
   local i h
   for i in $(seq 1 "$1"); do
     ln -s "$$" "$LOCK" 2>/dev/null && return 0
@@ -145,7 +175,7 @@ acquire_lock() {   # <tries, 2 s apart> -- 0 = this launcher holds the lock; nee
       [ "$(lock_holder)" = "$h" ] && rm -f "$LOCK"
       ln -s "$$" "$LOCK" 2>/dev/null && return 0
     fi
-    [ "$i" = 1 ] && note "Another launch in this wrapper is still running or closing Steam. Waiting for it…"
+    [ "$i" = 1 ] && step 0 "Waiting for the last session to finish closing…"
     game_running && die "The game is already running."
     sleep 2
   done
@@ -201,9 +231,9 @@ stop_steam() {
 
 STARTED=0
 if steam_exe_up; then
-  note "Steam already running in the wrapper; reusing it."
+  step 1 "Steam is already running…"
 else
-  note "Starting Steam…"
+  step 1 "Starting Steam and signing in…"
   STARTED=1
   BEFORE=$(wc -l < "$CL" 2>/dev/null || echo 0)
   rm -f "$WINEPREFIX/drive_c/Program Files (x86)/Steam/.crash" 2>/dev/null
@@ -216,8 +246,7 @@ else
   done
   # A Steam left up after a failed sign-in would be "reused" by the next launch, skipping this check.
   [ "$ok" = 1 ] || { stop_steam; die "Steam did not sign in by itself. Open Steam in the $(basename "$APP" .app) wrapper, sign in, then launch again."; }
-  note "Signed in. Waiting ${SM_LICENCE_WAIT:-15} s for Steam to confirm the licence…"
-  sleep "${SM_LICENCE_WAIT:-15}"
+  licence_wait 2 "${SM_LICENCE_WAIT:-}" 15
 fi
 
 # Steam pulls this game's cloud saves right after sign-in (header: pull before play). Starting the game
@@ -225,10 +254,11 @@ fi
 # from this Steam's start (its last "Client version:" line), so a reused Steam is checked too and a
 # rotated log does not hide the sync.
 CSTART=$(grep -n 'Client version:' "$CLOUD" 2>/dev/null | tail -n 1 | cut -d: -f1)
+step 3 "Checking saves with Steam Cloud…"
 for _i in $(seq 1 150); do
   SIGNIN=$(tail -n +"${CSTART:-1}" "$CLOUD" 2>/dev/null | signin_outcome)
   [ "$SIGNIN" = busy ] || break
-  [ "$_i" = 1 ] && note "Syncing saves with Steam Cloud…"
+  [ "$_i" = 1 ] && step 3 "Syncing saves with Steam Cloud. This can take a few minutes…"
   sleep 2
 done
 _files="${SIGNIN#conflict}"
@@ -309,11 +339,12 @@ check_game_update() {
   apply_game_update
 }
 # <<< update-check
+step 4 "Checking for a game update…"
 check_game_update
 
 echo 3215050 > "$GAME/steam_appid.txt"
 mkdir -p "$RUNS"; LOG="$RUNS/launch-$(date +%Y%m%d-%H%M%S).log"
-note "Launching Surviving Mars: Relaunched…"
+step 5 "Starting Surviving Mars: Relaunched…"
 cd "$GAME" || die "cannot enter the game directory"
 CBEFORE=$(wc -l < "$CLOUD" 2>/dev/null || echo 0)
 CLBEFORE=$(wc -l < "$CL" 2>/dev/null || echo 0)
@@ -361,6 +392,6 @@ stop_steam
 note "Surviving Mars: Relaunched closed."
 if [ -n "$CLOUD_MSG" ]; then
   echo "WARNING: $CLOUD_MSG"
-  [ "$QUIET" = 1 ] && osascript -e "display alert \"Surviving Mars: Relaunched\" message \"$CLOUD_MSG\" as warning" >/dev/null 2>&1
+  [ "$QUIET" = 1 ] && _alert "$CLOUD_MSG" warning
 fi
 exit 0

@@ -48,7 +48,7 @@ for L in "${LAUNCHERS[@]}"; do
   n=$((n + 1)); D="$T/$n"; mkdir -p "$D"; FN="$D/fns.sh"; LK="$D/.launcher.lock"; tag="${L##*/}:"
   {
     echo 'LOCK="$1"'
-    echo 'note() { :; }; die() { echo "DIE $1"; exit 1; }; game_running() { return 1; }'
+    echo 'note() { :; }; step() { :; }; die() { echo "DIE $1"; exit 1; }; game_running() { return 1; }'
     for f in lock_holder acquire_lock release_lock; do
       fn "$f" "$L" | grep -q . || { echo "REFUSED: $f not found in $L" >&2; exit 2; }
       fn "$f" "$L"

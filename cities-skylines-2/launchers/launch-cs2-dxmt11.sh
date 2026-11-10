@@ -41,20 +41,46 @@ find_wrapper() {
 
 APP="$(find_wrapper)"
 QUIET="${CS2_QUIET:-0}"
+# >>> launch-feedback-config (this launcher's own values)
+STEPS=5
+TITLE="Cities: Skylines II"
+PANEL="${CS2_PANEL:-0}"
+# <<< launch-feedback-config
+# >>> launch-feedback (the same in both launchers: common/test-launcher-parity.sh compares the copies)
+_notify() { osascript -e 'on run a' -e 'display notification (item 1 of a) with title (item 2 of a)' -e 'end run' -- "$1" "$TITLE" >/dev/null 2>&1; }
+_alert() {   # <text> [warning]: the text travels as an argument, never as AppleScript source
+  if [ "${2:-}" = warning ]; then osascript -e 'on run a' -e 'display alert (item 2 of a) message (item 1 of a) as warning' -e 'end run' -- "$1" "$TITLE" >/dev/null 2>&1
+  else osascript -e 'on run a' -e 'display alert (item 2 of a) message (item 1 of a) as critical' -e 'end run' -- "$1" "$TITLE" >/dev/null 2>&1; fi
+}
+step() {   # <n> <text>: a start-up milestone. The progress window reads these lines from the log.
+  echo "[$1/$STEPS] $2"
+  [ "$QUIET" = 1 ] && [ "$PANEL" != 1 ] && _notify "$2"
+  return 0
+}
+note() {   # something the player should see even while the progress window is up
+  echo "$1"
+  [ "$QUIET" = 1 ] && _notify "$1"
+  return 0
+}
+licence_wait() {   # <step> <seconds as set, may be empty> <default>: the wait after a fresh sign-in
+  local w
+  case "$2" in ''|*[!0-9]*|????*) w=$3 ;; *) w=$((10#$2)) ;; esac
+  echo "Licence wait: $w s"
+  while [ "$w" -gt 0 ]; do
+    step "$1" "Steam is confirming the game licence, about $w seconds left…"
+    if [ "$w" -gt 15 ]; then sleep 15; w=$((w - 15)); else sleep "$w"; w=0; fi
+  done
+}
+# <<< launch-feedback
 
 die() {   # fatal: alert dialog when quiet, pause-on-keypress otherwise
   echo "ERROR: $1"
   if [ "$QUIET" = "1" ]; then
-    osascript -e "display alert \"Cities: Skylines II\" message \"$1\" as critical" >/dev/null 2>&1
+    _alert "$1"
   else
     echo "(press any key to close)"; read -n1 -r
   fi
   exit 1
-}
-note() {  # milestone: notification when quiet, plain echo otherwise
-  echo "$1"
-  [ "$QUIET" = "1" ] && osascript -e "display notification \"$1\" with title \"Cities: Skylines II\"" >/dev/null 2>&1
-  return 0
 }
 
 [ -n "$APP" ] || die "No Wine wrapper found. Install the Porting Kit Wine 11 + DXMT wrapper (see INSTALL.md), or set CS2_WRAPPER=/path/to/Wrapper.app"
@@ -168,7 +194,7 @@ game_running() { local p; for p in $(pgrep -f 'Cities2\.exe' 2>/dev/null); do ls
 # common/test-launch-lock.sh runs them and checks that the two copies still match.
 LOCK="$WINEPREFIX/.launcher.lock"
 lock_holder() { readlink "$LOCK" 2>/dev/null; }
-acquire_lock() {   # <tries, 2 s apart> -- 0 = this launcher holds the lock; needs note, die, game_running
+acquire_lock() {   # <tries, 2 s apart> -- 0 = this launcher holds the lock; needs step, die, game_running
   local i h
   for i in $(seq 1 "$1"); do
     ln -s "$$" "$LOCK" 2>/dev/null && return 0
@@ -177,7 +203,7 @@ acquire_lock() {   # <tries, 2 s apart> -- 0 = this launcher holds the lock; nee
       [ "$(lock_holder)" = "$h" ] && rm -f "$LOCK"
       ln -s "$$" "$LOCK" 2>/dev/null && return 0
     fi
-    [ "$i" = 1 ] && note "Another launch in this wrapper is still running or closing Steam. Waiting for it…"
+    [ "$i" = 1 ] && step 0 "Waiting for the last session to finish closing…"
     game_running && die "The game is already running."
     sleep 2
   done
@@ -210,6 +236,7 @@ ensure_patches() {
   fi
   return $rc
 }
+step 1 "Checking the Mac fixes for the game…"
 ensure_patches || note "Some patches could not be applied. Update and run setup: INSTALL.md, After a game update."
 
 # 1) Steam up + FRESHLY logged in — scoped to THIS wrapper. Two wrappers can each have a Steam
@@ -220,11 +247,11 @@ fresh_login() { tail -n +$((BEFORE+1)) "$CL" 2>/dev/null | grep -qE "LogOnRespon
 BEFORE=$(wc -l < "$CL" 2>/dev/null || echo 0)
 STARTED_STEAM=0
 if steam_exe_up; then
-  note "Steam already running — reusing session."
+  step 2 "Steam is already running…"
   tail -20 "$CL" 2>/dev/null | grep -qE "\[Logged On.*\[U:1:[1-9]|LogOnResponse.*'OK'" \
     || die "Steam is running but not logged in. Sign in in the Steam window, then relaunch."
 else
-  note "Starting Steam…"
+  step 2 "Starting Steam and signing in…"
   # a stale 0-byte .crash marker makes steam.exe exit 1 and never start — clear it first
   rm -f "$WINEPREFIX/drive_c/Program Files (x86)/Steam/.crash" 2>/dev/null
   # ⚠ NEVER `nohup` here (nor `env`, `setsid`, `bash -c`). macOS PURGES DYLD_* when exec'ing a
@@ -247,15 +274,9 @@ fi
 #    fresh login means SteamAPI cannot verify ownership -> platform-service failure -> NRE flood
 #    -> no main menu. If Steam was already up, licences are long since synced, so skip the wait.
 if [ "$STARTED_STEAM" = 1 ]; then
-  # 45s is conservative but it is the empirically proven margin.
-  note "Signed in — verifying licence (about 45 seconds)…"
-  for _s in 30 15; do
-    sleep 15
-    note "Almost ready — ${_s}s…"
-  done
-  sleep 15
+  licence_wait 3 "${CS2_LICENCE_WAIT:-}" 45
 else
-  echo "Steam already warm — skipping the 45s licence wait."
+  echo "Steam already warm — skipping the licence wait."
 fi
 
 # 2b) Is a game update waiting? (#17) This launcher runs Steam -silent and shuts it down the moment
@@ -330,6 +351,7 @@ check_game_update() {
   ensure_patches || note "WARNING: some fixes did not apply to the new game build — see INSTALL.md 'After a game update'."
 }
 # <<< update-check
+step 4 "Checking for a game update…"
 check_game_update
 
 # 3) Launch the game DIRECTLY — NOT via `explorer /desktop` (that eats WSAD: the keyboard goes to
@@ -337,7 +359,7 @@ check_game_update
 #    ⚠ In the game's Options, set Display Mode = FULLSCREEN WINDOW. It is immune to the alt-tab
 #    presentation freeze (dxmt#206); exclusive Fullscreen presents into a hidden swapchain after
 #    you switch away, and the screen then only updates once per alt-tab.
-note "Launching Cities: Skylines II (Wine 11 + DXMT)…"
+step 5 "Starting Cities: Skylines II. The menu takes about a minute…"
 "$WINE" "$GDIR/Cities2.exe" ${CS2_ARGS:-}
 GAME_RC=$?
 
