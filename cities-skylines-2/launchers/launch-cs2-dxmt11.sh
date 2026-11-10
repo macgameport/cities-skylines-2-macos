@@ -12,8 +12,13 @@
 # Overrides, all optional:
 #   CS2_WRAPPER=/path/to/Wrapper.app   the Wineskin/Porting Kit bundle (auto-detected otherwise)
 #   CS2_PATCH_DIR=~/cs2-patch          where repatch.sh + patches/ live
-#   CS2_QUIET=1                        no terminal expected: milestones become macOS
-#                                      notifications, failures become alert dialogs
+#   CS2_QUIET=1                        no terminal expected: start-up steps go to the app's
+#                                      progress window (or become notifications where the app
+#                                      has none), failures become alert dialogs
+#   CS2_PANEL=1                        set by the app's shim when its progress window is up, so
+#                                      that a step is not posted as a notification as well
+#   CS2_LICENCE_WAIT=<seconds>         the wait after a fresh sign-in, 0 to 999 (default 45).
+#                                      scripts/licence-wait-probe.sh measures shorter ones
 #   WINEDEBUG=...                      respected if set (scripts/diag-launch-dxmt11.sh uses it)
 #   CS2_ARGS="..."                     extra Cities2.exe arguments (e.g. -benchmark for the
 #                                      perf-pass measurement cells; unquoted expansion, so

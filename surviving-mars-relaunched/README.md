@@ -27,7 +27,9 @@ answer is to run the game in CrossOver. What transfers to any setup is the *find
 - `tools/frame-fix.exe` (from `frame-fix.c`) — fixes the click offset the game starts with.
 - `tools/game-input.exe` (from `game-input.c`) — sends clicks to the game from inside its Wine
   session, for testing without a human at the keyboard.
-- `make-app.sh` — builds a double-click `Surviving Mars Relaunched.app` that runs the launcher. It runs
+- `make-app.sh` — builds a double-click `Surviving Mars Relaunched.app` that runs the launcher and shows a
+  small progress window while the game starts (compiled from `../common/launch-progress.swift`; without the
+  Xcode Command Line Tools the app posts notifications instead). It runs
   the scripts in this checkout and never pulls: update with `git pull` yourself. A change to
   `make-app.sh` itself needs a re-run.
 - `tools/test-*.sh` — tests for the launcher's parsing and guards. Each has a `MUTANT=1` mode that
@@ -83,7 +85,7 @@ where it is.
 
 Overrides, all optional: `SM_STATE` (where backups and run logs go, default
 `~/Library/Application Support/1launcher/surviving-mars-relaunched`), `SM_WORK` (where `make-engine.sh` builds a standalone
-engine, default `~/Library/Developer/1launcher/surviving-mars-relaunched`), `SM_QUIET=1` (notifications instead of terminal output),
+engine, default `~/Library/Developer/1launcher/surviving-mars-relaunched`), `SM_QUIET=1` (alerts, and the progress window or notifications, instead of terminal output), `SM_PANEL=1` (set by the app when its progress window is up),
 `SM_UPDATE=ask|apply|skip` (a waiting game update; default asks), `SM_LICENCE_WAIT` (seconds after
 sign-in, default 15), `SM_WRAPPER`, `SM_ENGINE`, `SM_STEAM_ENGINE` (launcher); `ENGINE_SRC`,
 `CX_GPTK` (make-engine.sh); `SPLIT_*` (split-wrapper.sh, for its test).

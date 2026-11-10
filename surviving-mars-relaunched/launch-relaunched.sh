@@ -57,7 +57,8 @@
 #   - Steam's -shutdown cancels an exit upload still in flight ("Upload Timeout", "Job Canceled"): a
 #     31.8 MB save lost its upload 24 s in (MacBook, 2026-11-01). Hence the wait below.
 #
-# SM_QUIET=1 -> notifications and alert dialogs instead of terminal output.
+# SM_QUIET=1 -> alert dialogs, and the app's progress window or notifications, instead of terminal output.
+# SM_PANEL=1 -> set by the app's shim when its progress window is up: a start-up step then posts no notification.
 # SM_LICENCE_WAIT=<s> -> seconds to wait after sign-in (default 15; cs2's measured margin for SteamAPI is 45).
 #   Measured 2026-11-08 (tools/licence-wait-probe.sh, 5 runs each at 30 s and 15 s): 10/10 clean, Steam
 #   initialised and both DLCs owned every time, so the race cs2 hit does not show here. Menu at sign-in
