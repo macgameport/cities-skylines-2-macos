@@ -10,8 +10,8 @@
 > that fold was checked by a second agent (no blocker; its eight findings folded).
 > Written 2026-11-08. Tracking: issue #22.
 > **🔧 As-built (2026-11-08):** PARTIAL. Phases 0, 1 and 2 are built (Phase 2 on 2026-11-09); Phase 3 is built and its exit criteria pass (2026-11-09), with
-> retirement (3.7) still to do; Phase 4 is in progress (2026-11-09): 4.1 to 4.8 are done, and of 4.9 the old
-> Surviving Mars checkout is gone; the old-path dotfile entries are removed on the MacBook and still to remove on the Studio.
+> retirement (3.7) still to do; Phase 4 is built (2026-11-10): the MacBook is on
+> this layout, and the old-path dotfile entries are removed on both Macs.
 > Phase 1 is commit `270ca2a` (211 renames at 100%, nothing else) and the commit that adds this line.
 > Measured on the real checkout after both: T1 0 of 107 · T2 22 of 22 and `setup.sh --check` exit 0 ·
 > T3 every gate exit 0, lock test 17 PASS, 102 files syntax-clean · T4 · T6 9 · T11 · T13 · T15 5 of 5 ·
@@ -64,7 +64,7 @@
 > under the new state folder; the old checkout's `runs/` was not recreated; the app has its icon; the shim
 > names the new launcher. With that every exit criterion of Phase 3 passes. Open: 3.7, retiring the old
 > checkout (James's approval) and the separate GitHub repo (his click).
-> **Phase 4 (2026-11-09): PARTIAL.** On the MacBook at `31c6d3c`, macOS 27.2. 4.1 to
+> **Phase 4 (2026-11-09 and 2026-11-10): BUILT.** On the MacBook at `31c6d3c`, macOS 27.2. 4.1 to
 > 4.3 were already done when the session started: the inventory showed the checkout at `~/github/1launcher`,
 > level with origin, nothing to move by hand, committing as the project, and both dotfiles naming the new
 > path. 4.4: setup exit 0, eight of eight checks, `10 of 10 patch scripts finished without error` and
@@ -92,7 +92,9 @@
 > Mac: the inventory shows only the `~/github/1launcher/` entries, the `grep` prints 0, and the checkout
 > still commits as the project. 4.10: the six commits this session pushed from
 > the MacBook (`bf4be3a` to `3e4c23a`) read back anonymously from GitHub's API with the project identity as
-> author and committer. Open: the same two dotfile commands on the Studio.
+> author and committer. The Studio, 2026-11-10: James ran the same two
+> removals there. The inventory shows only the `~/github/1launcher/` entries, the `grep` prints 0, no old
+> checkout, scheduled task or launch agent names an old path, and the checkout still commits as the project.
 > Verify against: `common/` · root `scripts/` · `cities-skylines-2/scripts/check-experiments.py` ·
 > `.gitignore` · `LICENSE` · root `README.md`, `INSTALL.md`, `CLAUDE.md`.
 > File and line references are as of `cc66a90`; after Phase 1 every CS2 path gains the prefix
