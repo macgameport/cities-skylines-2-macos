@@ -271,6 +271,7 @@ either, which costs nothing (section 1).
 
 - **What it builds.** `Contents/MacOS/launcher-window` from the source; `Contents/Resources/games.tsv`
   copied from `common/games.tsv`, without which the app is built with no offers and the builder says so;
+  the copy is as old as the last build, and a pull alone does not renew it;
   the icon (2.6, from B6 on); and an `Info.plist` with `CFBundleName` and `CFBundleDisplayName` `14unch3r`,
   `CFBundleIdentifier` `local.1launcher.window`, `CFBundleExecutable` `launcher-window`,
   `CFBundlePackageType` `APPL`, `CFBundleVersion` `1.0`, `LSMinimumSystemVersion` `13.0`,
@@ -385,6 +386,10 @@ seen red and restored, and every suite that passed before still passes.
 | B5 | The offers: the reader, the child process, the third heading, the address rule | `common/launcher-window.swift`, `common/test-launcher-window.sh` |
 | B6 | The icon | `common/launcher-window.swift`, `common/make-launcher-app.sh`, `common/test-make-launcher-app.sh` |
 | B7 | Documents: the root `README.md`; the root `CLAUDE.md` (the `common/` row, the in-progress line, and the sentence on places outside the repo, which gains the generated apps in `~/Applications`, the preferences file and the donor's place, each with its reason); both games' READMEs; `cities-skylines-2/INSTALL.md`, `CLAUDE.md` and `PLAN.md` where they name the store app; `cities-skylines-2/scripts/README.md`; the comment at `surviving-mars-relaunched/launch-relaunched.sh:14`; the as-built header here | those |
+
+`docs/plans/local-files-layout.md`, not yet built, also edits `make-shortcut.sh` and `setup.sh` (its step 1.4)
+and counts every spelling of the old install folder's name in the repo (its LT12). So no new file of this
+plan spells that name, and whichever of the two plans is built second re-reads its line references first.
 
 `launch-relaunched.sh:14` is the one launcher line this plan touches, and it is a comment. No launcher
 code changes, the marked blocks that `common/test-launcher-parity.sh` compares are untouched, and nothing
