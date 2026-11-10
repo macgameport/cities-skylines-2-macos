@@ -280,6 +280,7 @@ esac
 UPDATE_POLL="${SM_UPDATE_POLL:-10}"          # seconds between manifest reads while updating
 UPDATE_TIMEOUT="${SM_UPDATE_TIMEOUT:-3600}"  # give up waiting for Steam after this long
 UPDATE_ASK_SECS="${SM_UPDATE_ASK_SECS:-120}" # unanswered question -> launch the installed build
+UPDATE_TICK="${SM_UPDATE_TICK:-60}"          # seconds between "so far" lines while updating
 acf_field() {   # first top-level "<key>" "<value>" pair; the three keys used here occur once
   sed -n "s/^[[:space:]]*\"$1\"[[:space:]]*\"\([^\"]*\)\".*/\1/p" "$MANIFEST" 2>/dev/null | head -1
 }
@@ -292,20 +293,32 @@ update_pending() {   # 0 = update waiting, 1 = current, 2 = manifest unreadable.
   [ -n "$target" ] && [ "$target" != 0 ] && [ "$target" != "$UPD_FROM" ] && return 0
   return 1
 }
+update_size() {   # <bytes downloaded> <bytes to download> -> ", 3.4 of 5.1 GB" for the player's line, or nothing
+  case "$1" in ''|*[!0-9]*) return 0 ;; esac
+  case "$2" in ''|*[!0-9]*) return 0 ;; esac
+  [ "$((10#$2))" = 0 ] && return 0                # Steam gives no total
+  [ "$((10#$1))" = "$((10#$2))" ] && return 0     # equal: what an idle manifest keeps from the last update
+  echo ", $((10#$1 / 1000000000)).$((10#$1 / 100000000 % 10)) of $((10#$2 / 1000000000)).$((10#$2 / 100000000 % 10)) GB"
+}
 apply_game_update() {
-  local waited=0 last=0 rc
-  note "Updating the game through Steam (build $UPD_FROM -> $UPD_TO)…"
+  local waited=0 last=0 rc got total size
+  # Each message is a line of detail for the log and a short step 4 for the player: an update is the
+  # longest wait of a launch, and the progress window shows steps only.
+  echo "Updating the game through Steam (build $UPD_FROM -> $UPD_TO)…"
+  step 4 "Updating the game. This can take several minutes…"
   # Forwarded to the running Steam, which validates the installed build and then runs the update.
   # No `timeout` wrapper: macOS has none, and `timeout … wine` exits 127 having done nothing.
   "$STEAM_WINE" "$STEAM" "steam://validate/3215050" >/dev/null 2>&1 & disown
   while [ "$waited" -lt "$UPDATE_TIMEOUT" ]; do
     sleep "$UPDATE_POLL"; waited=$((waited + UPDATE_POLL))
     update_pending; rc=$?
-    if [ "$rc" = 1 ]; then note "Game updated to build $UPD_FROM."; return 0; fi
+    if [ "$rc" = 1 ]; then echo "Game updated to build $UPD_FROM."; step 4 "The game is updated…"; return 0; fi
     steam_exe_up || die "Steam exited while updating the game. Open Steam inside the wrapper, let the update finish, then relaunch."
-    if [ $((waited - last)) -ge 60 ]; then
+    if [ $((waited - last)) -ge "$UPDATE_TICK" ]; then
       last=$waited
-      note "Still updating the game — $((waited / 60)) min so far (StateFlags $(acf_field StateFlags), $(acf_field BytesDownloaded) of $(acf_field BytesToDownload) bytes)."
+      got=$(acf_field BytesDownloaded); total=$(acf_field BytesToDownload); size=$(update_size "$got" "$total")
+      echo "Still updating the game — $((waited / 60)) min so far (StateFlags $(acf_field StateFlags), $got of $total bytes)."
+      step 4 "Updating the game: $((waited / 60)) min so far${size}…"
     fi
   done
   die "The game update did not finish within $((UPDATE_TIMEOUT / 60)) minutes. Steam is still running in the wrapper: let it finish, then relaunch."
