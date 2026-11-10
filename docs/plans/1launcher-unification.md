@@ -90,7 +90,9 @@
 > reads `absent`. 4.9: James sent `~/sm-patch` to the Trash, `scratch/` with it; the inventory reads
 > `absent` and lists one checkout. James then removed the old-path include and `gh` wrapper pattern on this
 > Mac: the inventory shows only the `~/github/1launcher/` entries, the `grep` prints 0, and the checkout
-> still commits as the project. Open: the same two commands on the Studio.
+> still commits as the project. 4.10: the six commits this session pushed from
+> the MacBook (`bf4be3a` to `3e4c23a`) read back anonymously from GitHub's API with the project identity as
+> author and committer. Open: the same two dotfile commands on the Studio.
 > Verify against: `common/` · root `scripts/` · `cities-skylines-2/scripts/check-experiments.py` ·
 > `.gitignore` · `LICENSE` · root `README.md`, `INSTALL.md`, `CLAUDE.md`.
 > File and line references are as of `cc66a90`; after Phase 1 every CS2 path gains the prefix
