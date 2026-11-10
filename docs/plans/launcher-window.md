@@ -32,7 +32,10 @@
 > so a key monitor maps Escape to "Don't Start". (5) W8 is its own file, `common/test-launcher-builders.sh`, so
 > that the window test's 30 mutants need no builder. (6) The Steam builder tests its target before it would
 > clone a store wrapper, and all four of its options now need a value: a bare `--name` looped for ever. (7) The
-> inventory says when a listed app is still a wrapper, as the Studio's `S734M.app` is until live step 2. Found
+> inventory says when a listed app is still a wrapper, as the Studio's `S734M.app` is until live step 2. (8) After
+> live step 2, at James's word: one click on a row starts it and the button is gone, and Return still starts the
+> selected row; the list's height is read from the table, which pads it 10 points above and below and 20 above
+> each later heading, so two games and Steam no longer scroll. Found
 > while building and not yet in the design: once the Trash is emptied, `wine.d3dm21-BAK` in `SurvivingMars.app`
 > is the only copy of that Wine, and the rollback of
 > `surviving-mars-relaunched/docs/plans/one-wrapper-per-game.md` renames it back to `wine`, after which the two
@@ -301,9 +304,9 @@ either, which costs nothing (section 1).
 - A table with one column and no header. Rows are 52 points high: the app's own icon at 32 points, the
   title in the system font at 13 points semibold, and the second line at 11 points regular in the label
   colour, not the secondary one. Headings are group rows and cannot be selected.
-- One button at the bottom right, the default button: "Play" for a game, "Open Steam" for a Steam app,
-  "Open Guide" for an offer; disabled when nothing is selected. Return, a double-click and the button
-  start the selected row. Escape and the close button quit, except in the question.
+- No button (James, after live step 2). One click on a row starts it; a click on a heading or below the
+  last row does nothing. Return starts the selected row. Escape and the close button quit, except in the
+  question. The window is as tall as its list, up to a point, so a short list never scrolls.
 - A regular app with a Dock icon while open, and a one-item menu so that Command-Q works.
 - Every colour is a system colour, so light and dark follow the system. A state is always words. Nothing
   animates. The question and a failed start are alerts attached to the window.

@@ -560,7 +560,7 @@ guard !foldersGiven.contains(where: { $0.hasPrefix("-") }) else { usage() }
 let readFrom = foldersGiven.isEmpty ? windowFolders() : foldersGiven
 let gamesTable = gamesGiven ?? ownBundle().map { $0 + "/Contents/Resources/games.tsv" }
 let readmeAddress = "https://github.com/macgameport/1launcher/blob/main/README.md"
-let windowWidth: CGFloat = 420, itemHeight: CGFloat = 52, headingHeight: CGFloat = 26, barHeight: CGFloat = 56
+let windowWidth: CGFloat = 420, itemHeight: CGFloat = 52, headingHeight: CGFloat = 26
 
 final class LauncherWindow: NSWindow {
     override func cancelOperation(_ sender: Any?) { NSApp.terminate(nil) }
@@ -619,7 +619,6 @@ final class Launcher: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTable
                                 styleMask: [.titled, .closable], backing: .buffered, defer: false)
     let table = NSTableView()
     let scroll = NSScrollView()
-    let button = NSButton(title: "Play", target: nil, action: nil)
     let empty = NSView()
     let none = NSTextField(labelWithString: "No games are set up on this Mac yet.")
     let address = NSTextField(labelWithString: readmeAddress)
@@ -648,10 +647,12 @@ final class Launcher: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTable
         table.dataSource = self
         table.delegate = self
         table.target = self
-        table.doubleAction = #selector(startChosen(_:))
+        table.action = #selector(startChosen(_:))   // one click starts a row; there is no button
         table.setAccessibilityLabel("Games")
+        table.setAccessibilityHelp("Click a row, or press Return, to start it.")
         scroll.documentView = table
         scroll.hasVerticalScroller = true
+        scroll.autohidesScrollers = true
         scroll.autoresizingMask = [.width, .height]
         content.addSubview(scroll)
 
@@ -667,15 +668,12 @@ final class Launcher: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTable
         empty.autoresizingMask = [.width, .height]
         content.addSubview(empty)
 
-        button.bezelStyle = .rounded
-        button.keyEquivalent = "\r"
-        button.target = self
-        button.action = #selector(startChosen(_:))
-        button.frame = NSRect(x: windowWidth - 20 - 130, y: 14, width: 130, height: 28)
-        button.autoresizingMask = [.minXMargin, .maxYMargin]
-        content.addSubview(button)
-
         NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [unowned self] e in
+            if e.keyCode == 36 || e.keyCode == 76 {   // Return and Enter start the selected row; a sheet has its own
+                guard case .none = self.sheet else { return e }
+                self.startChosen(nil)
+                return nil
+            }
             guard e.keyCode == 53 else { return e }   // Escape
             switch self.sheet {
             case .none: NSApp.terminate(nil)
@@ -748,33 +746,26 @@ final class Launcher: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTable
         empty.isHidden = !lines.isEmpty
         scroll.isHidden = lines.isEmpty
         fit()
-        updateButton()
     }
 
-    // The window's height follows the list, up to a point; its top edge stays where it was.
+    // The window's height follows the list, up to a point; its top edge stays where it was. The list's height is
+    // read from the table: the inset style pads it 10 points above and below and puts 20 more above each heading
+    // after the first (measured on macOS 27), which a sum of the row heights misses and the list then scrolls.
     func fit() {
-        let listHeight = lines.reduce(CGFloat(12)) { h, l in
-            if case .heading = l { return h + headingHeight + 2 } else { return h + itemHeight + 2 }
-        }
+        let listHeight = lines.isEmpty ? 0 : table.rect(ofRow: lines.count - 1).maxY + table.rect(ofRow: 0).minY
         let h = min(max(listHeight, 130), 470)
-        let frame = window.frameRect(forContentRect: NSRect(x: 0, y: 0, width: windowWidth, height: h + barHeight))
+        let frame = window.frameRect(forContentRect: NSRect(x: 0, y: 0, width: windowWidth, height: h))
         var f = window.frame
         f.origin.y += f.height - frame.height
         f.size = frame.size
         window.setFrame(f, display: true, animate: false)
         let content = window.contentView!.bounds
-        scroll.frame = NSRect(x: 0, y: barHeight, width: content.width, height: content.height - barHeight)
+        scroll.frame = content
         table.sizeLastColumnToFit()
         empty.frame = scroll.frame
         let middle = (scroll.frame.height / 2).rounded()
         none.frame = NSRect(x: 16, y: middle + 2, width: content.width - 32, height: 18)
         address.frame = NSRect(x: 16, y: middle - 20, width: content.width - 32, height: 16)
-    }
-
-    func updateButton() {
-        let r = chosen
-        button.title = r?.role == .steam ? "Open Steam" : r?.role == .offer ? "Open Guide" : "Play"
-        button.isEnabled = r != nil && !starting
     }
 
     @objc func startChosen(_ sender: Any?) {
@@ -806,13 +797,12 @@ final class Launcher: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTable
 
     func launch(_ r: Row, new: Bool) {
         starting = true
-        updateButton()
         DispatchQueue.global(qos: .userInitiated).async {
             let why = start(r.path, new: new)
             DispatchQueue.main.async {
                 self.starting = false
-                if let why = why { self.failed(r, why); self.updateButton(); return }
-                if r.role == .offer { self.updateButton(); return }   // the guide is in the browser; the list stays
+                if let why = why { self.failed(r, why); return }
+                if r.role == .offer { return }   // the guide is in the browser; the list stays
                 if r.role == .game, let id = r.appID {
                     UserDefaults.standard.set(id, forKey: "lastAppID")
                     UserDefaults.standard.synchronize()
@@ -873,8 +863,6 @@ final class Launcher: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTable
         }
         return current
     }
-
-    func tableViewSelectionDidChange(_ n: Notification) { updateButton() }
 }
 
 MainActor.assumeIsolated {
