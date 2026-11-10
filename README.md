@@ -32,7 +32,8 @@ bash scripts/setup.sh
 ```
 
 `setup.sh` checks your prerequisites, applies the patches, and builds a double-clickable app with
-the game's own icon. You need a Wine wrapper with Steam and the game inside it first:
+the game's own icon, and **14unch3r**, one small window that lists every game set up on your Mac and
+starts the one you choose. Each game's own app stays in Applications, so Spotlight finds it too. You need a Wine wrapper with Steam and the game inside it first:
 **[INSTALL.md](cities-skylines-2/INSTALL.md) walks through all of it**. The stack, the numbers and the
 story are in the game's [README](cities-skylines-2/README.md).
 
@@ -69,7 +70,7 @@ from the installed libraries with `otool -l` the same day.
 |---|---|
 | [`cities-skylines-2/`](cities-skylines-2/) | everything for Cities: Skylines II |
 | [`surviving-mars-relaunched/`](surviving-mars-relaunched/) | everything for Surviving Mars: Relaunched |
-| `common/` | checks and tests shared by every game |
+| `common/` | what every game shares: 14unch3r, the window that lists the games, its builder and its table of games; checks and tests |
 | `docs/plans/` | plans for the repository as a whole |
 | `scripts/` | compatibility only: old paths that existing clones and outside links still use |
 

@@ -47,12 +47,14 @@ answer is to run the game in CrossOver. What transfers to any setup is the *find
 - The game's own wrapper, `~/Applications/SurvivingMars.app` (not to be confused with
   `Surviving Mars Relaunched.app`, the double-click launcher `make-app.sh` builds). It is made once by
   `tools/split-wrapper.sh` from two cs2 wrappers: a Kegworks/Sikarugir "Steambuild Metal" wrapper
-  (Wine 10 + D3DMetal 2.1) at `~/Applications/S734M.app` with Steam signed in, and the storefront
+  (Wine 10 + D3DMetal 2.1) with Steam signed in, given as `SPLIT_DONOR` (until 2026-11-10 it was found at
+  `~/Applications/S734M.app`, a name the Windows Steam app now has), and the storefront
   wrapper `~/Applications/CS2dxmt11-pk110.app` whose Steam installed the game. After the split the
-  game, its Steam, saves, mods and Paradox login all live in `SurvivingMars.app`.
+  game, its Steam, saves, mods and Paradox login all live in `SurvivingMars.app`, and the donor can go: its
+  Wine is kept in `SurvivingMars.app` as `wine.d3dm21-BAK`, which `tools/make-engine.sh` builds from.
 - One Steam on this Steam account at a time, across all wrappers: a second one signing in replaces
   the first's session, and the replaced one skips the cloud upload at exit. Buy and browse in the
-  cs2 project's "CS2 Steam Store" app only while the game is closed.
+  cs2 project's `S734M.app`, the Windows Steam, only while the game is closed.
 - CrossOver 26 installed, as the local source of D3DMetal 3.0. `CX_GPTK=<dir>` points
   `make-engine.sh` at another `apple_gptk`-shaped directory (Apple's Game Porting Toolkit; untested).
 - Homebrew `mingw-w64` to build the two `.exe` helpers (build lines in their headers).

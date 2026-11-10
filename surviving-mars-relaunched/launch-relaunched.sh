@@ -11,7 +11,7 @@
 # the whole map black, and a save holding one stayed black on every load; 3.0 renders it. The launcher
 # refuses to start on 2.1. SM_WRAPPER=<.app> picks another wrapper; SM_ENGINE=<wine dir> another engine
 # (default: the wrapper's own wine/); SM_STEAM_ENGINE=<wine dir> runs Steam on a different engine of the
-# same Wine build. Buying and DLC browsing: the cs2 project's "CS2 Steam Store" app (licences are
+# same Wine build. Buying and DLC browsing: the cs2 project's S734M.app, its Windows Steam (licences are
 # account-level). Never run two Steams on this account at once: the second replaces the first's
 # session, and the replaced Steam skips the cloud upload at exit (MacBook, 2026-11-01). The lock below
 # covers launches in this wrapper only.
