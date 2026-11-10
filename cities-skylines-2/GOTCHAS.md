@@ -2927,6 +2927,27 @@ was suspended at a Steam shutdown. It resumed in the next session and finished a
   (update only on launch). Any long-running Steam in a prefix that also holds CS2 has the same
   effect.
 
+## Steam can take a waiting update in the middle of a launch, after the fixes were checked (2026-11-10)
+
+**Measured on the MacBook, daily prefix.** The launcher checks the fixes at step 1 and the update at step 4.
+At 05:22 step 4 found 23700737 -> 25127643 waiting and, the dialog's answer lost (the bash 3.2 entry), went
+on to the installed build. Steam, now signed in, ran the update itself: `content_log.txt` has it starting
+05:23:02 and committing `BuildID 25127643` at 05:23:21. Most of the 5.5 GB was already downloaded from an
+earlier session, so it took 19 s. The game started 13 s later, on the **new** build, whose replaced files
+step 1 had never seen: `Colossal.IO.dll`, `Colossal.IO.AssetDatabase.dll`, `PDX.SDK.dll` and
+`cohtml_unity3dplugin.dll` carry the next launch's re-patch time (05:31). It reached the menu and closed
+cleanly anyway. The next launch's step 1 re-applied all ten (`Patches ensured`), and setup and a boot
+check passed on the new build (`bv-macbook-20261110-053415`).
+
+- **So "Play anyway" does not mean the old build** when Steam holds most of an update already. A
+  launch's step 1 is only a check of the files present at that moment.
+- **The backups now belong to the old build.** `PDX.SDK.dll.bak` and `cohtml.WindowsDesktop.dll.bak`
+  are July's; the other three `.bak` files were written at 04:57 from build 23700737. Each sits beside
+  a patched 25127643 file. The patched files are right; a restore from one of these `.bak` files would
+  put an old-build DLL into the new build (the trap the 2026-11-02 entry describes). Not moved.
+- **Not fixed:** nothing stops Steam updating between step 1 and the game. A re-check of the fixes
+  after step 4, when the record changed during the launch, would close it.
+
 ## A live game run judged from its log: three ways the probe lied before the game did (2026-11-08)
 
 `surviving-mars-relaunched/tools/licence-wait-probe.sh` launches Surviving Mars five times per licence wait and judges
@@ -2973,6 +2994,18 @@ and the probe refused every run with "acf_field not found". Its own test caught 
   `x="$(…)"`, is left alone. As an argument (`eval "$(…)"`, `echo "$(…)"`), with a nested double-quoted
   word that holds `{a,b}`, it is brace-expanded. zsh does not do this.
 - **The fix is an assignment first, then `eval "$body"`**, with a comment saying why
-  (`cities-skylines-2/scripts/licence-wait-probe.sh`). No other script in the repo used the form.
+  (`cities-skylines-2/scripts/licence-wait-probe.sh`). ~~No other script in the repo used the form.~~
+  Wrong (corrected 2026-11-10, the same day): both launchers' update dialog used it, as an argument of `[`:
+  `[ "$(osascript -e "… buttons {\"Play anyway\", \"Update first\"} …")" = "Update first" ]`. `[` got
+  too many arguments, the test was false whatever the player clicked, and **Update first has never worked from
+  either app** since the dialog was added (`b5fb8ac`, 2026-10-10). Found by a real click on the MacBook, whose
+  launcher log read `line 357: [: too many arguments` and then launched the installed build. Every test of the
+  update check ran the terminal prompt or `CS2_UPDATE=apply`, never the dialog. Fixed by the same assignment
+  first; `test-update-check.sh` in both games now drives the dialog through a fake `osascript` under
+  `/bin/bash`, with a mutant that puts the old form back.
+- **The search that would have found it:** `grep -n '"\$(.*{' <file>` over every `.sh`, then read each hit
+  that is not the right side of an assignment. Only braces inside a **nested double-quoted** word are
+  expanded: `"$(sed -n '/^f() {/,/^}/p' …)"` and `'^[0-9]{5,}'` in single quotes are left alone (measured
+  under `/bin/bash` 3.2.57, 2026-11-10), so the Surviving Mars tools' `eval "$(sed -n '…')"` lines are safe.
 - **Run new bash under `/bin/bash`, not the shell you are typing in.** A Claude session's shell here is zsh,
   so a one-liner tried there would have passed.
