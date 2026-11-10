@@ -1,7 +1,8 @@
 # Launch experience: one progress window, no doubled pop-ups, a measured licence wait
 
-> **Status:** review pass 1 is folded (2026-11-10) and the fold is being re-checked. No build starts
-> until this line carries a dated verdict.
+> **Status:** Triple-checked 2026-11-10 — build-ready-with-fixes, corrections folded. Pass 1 was four
+> lenses; pass 1b was a fifth agent checking the fold, and its findings are folded too. The build waits
+> only for the items under "Before A1".
 > Written 2026-11-10. Tracking: issue #22. This is the first slice of Phase 5 of
 > `docs/plans/1launcher-unification.md`, whose outline holds the findings this plan starts from.
 > File and line references are as of `dc2b584`.
@@ -76,7 +77,7 @@ note() {   # something the player should see even while the progress window is u
 }
 licence_wait() {   # <step> <seconds as set, may be empty> <default>: the wait after a fresh sign-in
   local w
-  case "$2" in ''|*[!0-9]*|?????*) w=$3 ;; *) w=$((10#$2)) ;; esac
+  case "$2" in ''|*[!0-9]*|????*) w=$3 ;; *) w=$((10#$2)) ;; esac
   echo "Licence wait: $w s"
   while [ "$w" -gt 0 ]; do
     step "$1" "Steam is confirming the game licence, about $w seconds left…"
@@ -87,7 +88,7 @@ licence_wait() {   # <step> <seconds as set, may be empty> <default>: the wait a
 ```
 
 Measured on this Mac's `/bin/bash` 3.2.57 and `osascript`: a text holding `"` and `\` arrives unchanged
-through the `on run` form; both statements compile; `08` reads as 8, and `abc`, an empty value and five
+through the `on run` form; both statements compile; `08` reads as 8, and `abc`, an empty value and four
 digits or more read as the default.
 
 `die` stays as each launcher has it, because the Cities: Skylines II one pauses for a key in a terminal
@@ -110,7 +111,7 @@ Cities: Skylines II, `STEPS=5`:
 | 1 | Checking the Mac fixes for the game… | a new line of its own before `:213` | the panel matched `Wrapper:` (`:154`) |
 | 2 | Starting Steam and signing in… | `:227` | `note` |
 | 2 | Steam is already running… | `:223` | `note` |
-| 3 | Steam is confirming the game licence, about N seconds left… | `licence_wait 3 "${CS2_LICENCE_WAIT:-}" 45`, replacing `:249-259` | `note` |
+| 3 | Steam is confirming the game licence, about N seconds left… | `licence_wait 3 "${CS2_LICENCE_WAIT:-}" 45` in place of `:250-256`, inside the `if` at `:249`, which stays; the `else` line at `:258` loses its `45s` | `note` |
 | 4 | Checking for a game update… | a new line before `:333` | nothing |
 | 5 | Starting Cities: Skylines II. The menu takes about a minute… | `:340` | `note` |
 
@@ -128,7 +129,8 @@ Surviving Mars, `STEPS=5`:
 | 5 | Starting Surviving Mars: Relaunched… | `:316` | `note` |
 
 The lock functions stay identical in both launchers, so the step 0 line changes in both, and
-`common/test-launch-lock.sh:51` gains a `step` stub beside its `note` stub.
+`common/test-launch-lock.sh:51` gains a `step` stub beside its `note` stub. The comment on `acquire_lock`
+that says it needs `note` changes with it.
 
 In both update-check blocks each of the three progress messages becomes a plain `echo` of the detail,
 for the log, followed by a short `step 4` for the player:
@@ -136,7 +138,7 @@ for the log, followed by a short `step 4` for the player:
 | Today, as `note` | The log keeps, as `echo` | The player sees, as `step 4` |
 |---|---|---|
 | Updating the game through Steam (build A -> B)… | the same line | Updating the game. This can take several minutes… |
-| Still updating the game — N min so far (StateFlags …, … bytes). | the same line | Updating the game: N min so far, 3.4 of 5.1 GB… and, when Steam gives no total, Updating the game: N min so far… |
+| Still updating the game — N min so far (StateFlags …, … bytes). | the same line | Updating the game: N min so far, 3.4 of 5.1 GB… The size is left out when Steam gives no total or the two numbers are equal, which is what an idle record keeps from the last update |
 | Game updated to build B. | the same line | The game is updated… |
 
 The 60 seconds between "still updating" lines becomes a variable in both blocks,
@@ -163,15 +165,18 @@ in. The widest above measures 312 points in a 368 point label.
 2. **It parses step lines.** The session is the text after the last line that starts with `===== `, or
    the whole log if there is none. The log is decoded leniently, so one bad byte does not blank it. A
    line that starts `ERROR:` ends the window. Otherwise the last line matching
-   `^\[([0-9]{1,2})/([0-9]{1,2})\] (.*)$` with n from 0 to N sets the bar and the text. Once a step with
+   `^\[([0-9]{1,2})/([0-9]{1,2})\] (.*)$` with N from 1 to 99 and n from 0 to N sets
+   the bar and the text. Once a step with
    n equal to N has been seen, later lines are ignored: the game's own output follows it in the same log.
 3. **It ends by what the log says, with no process matching.** It closes 5 seconds after the final step,
-   at once on `ERROR:`, 15 minutes after the log last grew, 75 minutes after it started, and when its
-   parent process is no longer the shim that started it. The longest designed silence is the Surviving
+   at once on `ERROR:`, 15 minutes after the log last grew, 90 minutes after it started, and when its
+   parent process is no longer the shim that started it. A game update is allowed 60 minutes and can
+   run a little past that. The longest designed silence is the Surviving
    Mars cloud sync, 5 minutes.
 4. **Two modes for tests, both returning before any window object is made.** `--parse <log>` prints
    `<n> <N> <text>`, `error` or `0 0`. `--decide <log> <seconds since the log grew> <seconds since the
-   final step, or -1> <seconds since start>` prints `show` or `close`. The window's timer calls the same
+   final step, or -1> <seconds since start> <1 if the parent is still the starter, else 0>` prints `show`
+   or `close`. The window's timer calls the same
    two functions.
 5. **What it shows.** The bold line reads `<TITLE> is starting`, and `<TITLE> is starting: step n of N`
    once n is 1 or more, so step 4 of 5 during a long update reads as a step and not as 80 per cent done.
@@ -185,13 +190,14 @@ in. The widest above measures 312 points in a 368 point label.
 
 Both builders compile the source into `Contents/Resources/launch-progress`, each resolving `common/` from
 its own path. A builder skips the panel, and says which reason applies, when `swiftc` is missing, when
-the source is missing, or when the launcher it was given has no `# >>> launch-feedback` line. The last
+the source is missing, or when the launcher it was given has no line starting `# >>> launch-feedback (`. The last
 case is a new app over an older installed launcher: no step would ever arrive. `make-app.sh` gains the
 "skipped" line that `make-shortcut.sh:250` has, and its compile step sits inside an `if`, because it
 runs under `set -eu`.
 
 Both shims do the same thing, in this order, after the `=====` line they already write
-(`make-shortcut.sh:102`, `make-app.sh:46`):
+(`make-shortcut.sh:102`, `make-app.sh:46`). `PROGRESS` is `"$APPDIR/Resources/launch-progress"`:
+`make-shortcut.sh:105-106` has the two lines under the old name, and the `make-app.sh` shim gains both.
 
 ```bash
 PANEL=0; PANEL_PID=""
@@ -212,11 +218,12 @@ stop_panel
   `kill "$PANEL_PID"` could signal a stranger. `jobs -pr` lists a live child and not an ended one.
 - **`PANEL=1` means a window process is alive**, 0.3 seconds after its start, not that a file exists.
 - **`${HUD_ENV}` stays** (`make-shortcut.sh:76`, `:108`). In `make-shortcut.sh` the shim is written by an
-  unquoted heredoc (`:77`), so every `$` above is escaped there except `${HUD_ENV}`. The Surviving Mars
+  unquoted heredoc (`:77`), so every `$` above is escaped there except `${HUD_ENV}`. The `make-app.sh` heredoc
+  (`:22`) is unquoted too. The Surviving Mars
   line is `SM_QUIET=1 SM_PANEL=$PANEL bash "$SCRIPT" >> "$LOG" 2>&1`.
 - **One alert for one failure.** The shim's "Launch failed" alert (`make-shortcut.sh:113-116`,
-  `make-app.sh:49-52`) shows only when the session holds no `ERROR:` line, because `die` has already
-  shown its own.
+  `make-app.sh:49-52`) shows only when this session, the text after the last `=====` line, holds no
+  `ERROR:` line, because `die` has already shown its own.
 
 ### 3.5 What still pops up
 
@@ -235,8 +242,9 @@ its header (`:8`) change to match.
 `cities-skylines-2/scripts/licence-wait-probe.sh <seconds> [runs]`, default 5 runs. Each run is
 `CS2_LICENCE_WAIT=<seconds> bash scripts/boot-verify.sh --out <dir>`, with `<dir>` under
 `~/cs2-patch/boot-verify/licence-<seconds>/`, outside this public checkout. The operator starts the probe
-detached, as `boot-verify.sh:9-12` requires of a boot. It refuses when the installed launcher has no
-`launch-feedback` block, and when the game or this wrapper's Steam is running. It never stops Steam
+detached, as `boot-verify.sh:9-12` requires of a boot. It takes plain seconds from 0 to 999 with no
+leading zero. It refuses when the installed launcher has no line starting `# >>> launch-feedback (`, and
+when the game or this wrapper's Steam is running. It never stops Steam
 itself. Between runs it waits up to 30 seconds for this wrapper's Steam to be gone, and stops if it is not.
 
 `--judge <run dir> <seconds> <boot-verify exit>` gives one run's verdict with no launch, in this order:
@@ -245,20 +253,31 @@ itself. Between runs it waits up to 30 seconds for this wrapper's Steam to be go
 2. The launcher log does not hold exactly one line `Licence wait: <seconds> s`: **VOID**, with the first
    `ERROR:` line quoted as the reason.
 3. boot-verify exit 3: **VOID**.
-4. `platform service integration failed` in the run's `SceneFlow.log` or `Player.log`: **FAIL**.
+4. `platform service integration failed`, in any letter case, in the run's `SceneFlow.log` or
+   `Player.log`: **FAIL**, whatever the exit. A real failure reaches no menu, so boot-verify exits 1.
 5. boot-verify exit 1: **OTHER**, with boot-verify's reason. The boot failed for a reason that is not the
    licence.
-6. Otherwise **PASS**.
+6. boot-verify exit 0: **PASS**.
+7. Any other exit: **VOID**, with the code.
+
+No kept log holds the signature, so its spelling comes from `cities-skylines-2/GOTCHAS.md:193`. The
+control run below is also what confirms it.
 
 "5 of 5" means five PASS. A VOID run and a first OTHER run are repeated and not counted. Three VOID in a
 row, or a second OTHER, stop the probe.
 
 The wait has a second job (`launch-cs2-dxmt11.sh:261-265`): it gives Steam time to refresh the game's
-record before the update check reads it. So each run also records the seconds from Steam's logon answer
-(`connection_log.txt`) to its `UpdatesJob: finished` line (`appinfo_log.txt`); on 2026-11-09 that was 3.
-The default never goes below the largest value seen plus 5. And while the MacBook's game still has its
-update waiting, every run there must show the launcher's `game update waiting` line; a run without it is
-a FAIL of the second job.
+record before the update check reads it. So each run also records the seconds from the first
+`RecvMsgClientLogOnResponse() : … 'OK'` line of `connection_log.txt` stamped at or after the run's start
+to the last `UpdatesJob: finished OK` line of `appinfo_log.txt` in the 120 seconds after it; one sign-in
+can log several. On 2026-11-09 that was 3. None, or `finished Timeout`, is recorded as `none`, and such a
+run cannot support a lower default. The default never goes below the largest value seen plus 5. This
+times Steam's app information, a stand-in for the rewrite of the game's record; nothing here times that
+rewrite itself.
+
+While the MacBook's game still has its update waiting, every run there must show the launcher's `game
+update waiting` line. That shows the update check ran. It does not measure the second job, because the
+record keeps a waiting update on disk between sessions. A run without the line is VOID.
 
 The rule, written before any run:
 
@@ -267,7 +286,7 @@ The rule, written before any run:
    stops there for James to decide.
 2. 5 of 5 at 30 on the Studio, then 5 of 5 at 15 on the Studio, then 5 of 5 at 15 on the MacBook.
 3. All fifteen pass: the default becomes 15. A FAIL at 15 with 30 clean: the default becomes 30 after
-   5 of 5 at 30 on the MacBook. Any FAIL at 30: the default stays 45 and the failing run is recorded.
+   5 of 5 at 30 on the MacBook: ten runs in all, a failure rate below about 26 per cent. Any FAIL at 30: the default stays 45 and the failing run is recorded.
 
 A run takes about four minutes with the game on screen. The Studio's eleven runs are about 45 minutes and
 the MacBook's five about 20. Each batch is on James's word, with Steam closed on the other Mac.
@@ -276,28 +295,35 @@ What fifteen clean runs show: with 95 per cent confidence, a failure rate below 
 account and one network. The setting stays, so 45 can be put back by anyone.
 
 A change of default is its own commit. It touches the launcher's call line, the recorded default in the
-parity test, `cities-skylines-2/INSTALL.md:109` and a troubleshooting row there,
-`cities-skylines-2/scripts/setup.sh:226`, and the "cs2's … is 45" note at `launch-relaunched.sh:61`.
+parity test, `cities-skylines-2/INSTALL.md:109` and a new troubleshooting row there,
+`cities-skylines-2/scripts/setup.sh:226`, `cities-skylines-2/GOTCHAS.md:192-200`, and the "cs2's … is 45" note at `launch-relaunched.sh:61`.
 
 ### 3.7 Keeping the two launchers the same
 
 `common/test-launcher-parity.sh` fails when:
 
-1. the `launch-feedback` blocks differ by a byte;
+1. the `launch-feedback` blocks differ by a byte. Each is taken with
+   `sed -n '/^# >>> launch-feedback (/,/^# <<< launch-feedback$/p'`, because the config's markers begin
+   with the same words;
 2. the update-check blocks differ in any line that is not in the test's own list, or a listed line no
    longer differs. Both blocks are taken with `sed -n '/^# >>> update-check/,/^# <<< update-check/p'` and
    made equal with `sed -E 's/CS2_|SM_/X_/g; s/949230|3215050/APPID/g; s/Cities: Skylines II|Surviving
    Mars: Relaunched/TITLE/g; s/cs2-patch|sm-patch/DIR/g'`. The list starts as today's 15 lines, each with
    its reason;
-3. a launcher's `step` calls use a number outside 0 to `STEPS`, leave one of 1 to `STEPS` unused, or use
-   0 outside `acquire_lock`;
+3. the numbers a launcher sends to `step`, which are the first argument of each `step` call outside the
+   block and of each `licence_wait` call, include one outside 0 to `STEPS`, leave one of 1 to `STEPS`
+   unused, or use 0 outside `acquire_lock`;
 4. a `licence_wait` call line is not the recorded one: `3 "${CS2_LICENCE_WAIT:-}" 45` and
-   `2 "${SM_LICENCE_WAIT:-}" 15` today, each with the measurement behind it;
+   `2 "${SM_LICENCE_WAIT:-}" 15` today, each with the measurement behind it and each recorded with its
+   indent, so a call moved out of its `if` fails;
 5. a launcher's `note` call sites are not the test's list, so a start-up milestone cannot go back to a
    pop-up unseen;
-6. a `step` or `note` literal holds `"` or `\`, or is longer than 62 characters;
-7. a `die` does not begin by printing `ERROR: `, or a second `note` or `step` is defined outside the
-   markers;
+6. a `step` or `note` literal holds `"` or `\`, or a `step` literal is longer than 62 characters as
+   written in the source. `note` literals have no length limit; the filled-in widths are seen in the
+   rehearsal, live step 3;
+7. a `die` does not begin by printing `ERROR: `; a launcher calls `osascript` outside the block anywhere
+   but the update question (`launch-cs2-dxmt11.sh:314`, `launch-relaunched.sh:294`); or a second `note`
+   or `step` is defined outside the markers;
 8. a probe's `Licence wait:` pattern does not match the line the block prints.
 
 The test file is the table of differences kept on purpose. The lock stays in `common/test-launch-lock.sh`.
@@ -311,7 +337,9 @@ The test file is the table of differences kept on purpose. The lock stays in `co
 2. **The build happens on a branch in a second worktree**, `git worktree add /tmp/1launcher-lx -b
    launch-experience`, pushed as a branch. `main` does not move until live step 1. The Surviving Mars app
    runs the launcher in the main checkout, a launcher is never edited while it runs, and one can be
-   running for hours and then spend minutes uploading saves.
+   running for hours and then spend minutes uploading saves. The worktree has no `CLAUDE.local.md`:
+   it is copied from the main checkout before the first push (root `CLAUDE.md:35-37`). `/tmp` is emptied
+   by a restart, so each step is committed and pushed as it is finished.
 3. **The layout plan is re-checked after Phase A's last commit**, not before: both plans edit the same
    files and its line references move.
 
@@ -325,7 +353,7 @@ The test file is the table of differences kept on purpose. The lock stays in `co
 | A4 | Both builders compile the shared panel; both shims as in 3.4 | `make-shortcut.sh`, `make-app.sh`, `cities-skylines-2/scripts/test-make-shortcut.sh` (new), `surviving-mars-relaunched/tools/test-make-app.sh` |
 | A5 | The parity test | `common/test-launcher-parity.sh` |
 | A6 | The probe and the test of its judge | `cities-skylines-2/scripts/licence-wait-probe.sh`, `cities-skylines-2/scripts/test-licence-wait-probe.sh` |
-| A7 | Docs: `cities-skylines-2/README.md:198`, `cities-skylines-2/scripts/README.md`, the Surviving Mars README (the app's window, `SM_PANEL`), root `CLAUDE.md:13`, `CS2_LICENCE_WAIT` and `CS2_PANEL` in the launcher's header, the poll target at `cities-skylines-2/docs/plans/retina-swapchain-experiment.md:254-255`, the launcher line numbers in `boot-verify.sh`'s header, the as-built header here | docs |
+| A7 | Docs: `cities-skylines-2/README.md:198`, `cities-skylines-2/scripts/README.md`, the Surviving Mars README (the app's window, `SM_PANEL`), root `CLAUDE.md:13`, `CS2_LICENCE_WAIT` and `CS2_PANEL` in the launcher's header, the poll target at `cities-skylines-2/docs/plans/retina-swapchain-experiment.md:254-255`, the launcher line numbers in `boot-verify.sh`'s header, the Phase 5 outline of `docs/plans/1launcher-unification.md`, the as-built header here | docs |
 | A8 | Merge, install and live checks, section 6 | none |
 
 `test-make-app.sh` needs two edits beyond new cases: its existing mutant (`:24-25`) is keyed to the old
@@ -359,12 +387,12 @@ in place of the panel, and fake launchers that sleep one second.
 
 | # | Test | Passes when | Mutants, each must exit 1 |
 |---|---|---|---|
-| LX1 | `common/test-launch-progress.sh`: compiles the panel, then `--parse` and `--decide` on fixtures. Exit 2 with a reason if `swiftc` is missing, which is not a pass | no step: `0 0`; the last step wins; an earlier session holding a step and `ERROR:` with an empty last session: `0 0`; `ERROR:` before a later step in one session: `error`; `ERROR:` or `===== ` in mid-line: no effect; game lines such as `[UnityMemory] …` after the final step: still `5 5 text`; `[6/5] x` and `[0/0] x` ignored; `[0/5] x` accepted; no `===== ` line: the whole log; no file: `0 0`; a bad byte in an earlier session: the last still parses. `--decide`: `show`, then `close` at 5 s after the final step, on `ERROR:`, at 900 s of silence, at 4500 s since start | the first step wins; the whole file is read; `ERROR:` is ignored; n above N accepted; the final step does not latch; each of the four limits removed |
-| LX2 | `common/test-launch-feedback.sh`: the config and block of each launcher, under `set -u`, driven by `CS2_QUIET`/`CS2_PANEL` and `SM_QUIET`/`SM_PANEL`, with a recording `osascript` and `sleep` | quiet with the panel: `step` posts 0, `note` posts 1; quiet without: 1 and 1; not quiet: 0 and 0; the line reads `[n/N] text`; the title passed is that game's; a text with `"` and `\` arrives as one unchanged argument; both AppleScript statements pass `osacompile`. `licence_wait`: unset gives sleeps 15, 15, 15 and lines at 45, 30, 15; `20` gives 15, 5 and lines at 20, 5; `15` gives one of each; `0` gives the `Licence wait: 0 s` line, no step, no sleep; `08` is 8; `abc`, empty and `99999` are the default; the plain line is printed once | `step` ignores `PANEL`; `note` is silenced by `PANEL`; the `PANEL=` line deleted; `SM_PANEL` in the Cities: Skylines II launcher; the text pasted into the source again; the setting ignored; the remainder dropped; validation removed |
-| LX3 | `common/test-launcher-parity.sh` | the eight rules of 3.7 | one byte changed in one copy of the block; a new differing line in an update-check block; a listed line made equal; a step numbered past `STEPS`; a step number unused; a wait call line changed; a milestone put back to `note`; a quote added to a step text; a probe pattern changed |
-| LX4 | Both `test-update-check.sh`, with `UPDATE_TICK` at 1 and a stub `step() { echo "STEP $1: $2"; }` | `^STEP 4: Updating the game\. This`; at least one `^STEP 4: Updating the game: .* so far`; `^STEP 4: The game is updated`; no `^NOTE: ` line for any of the three; a total of 0 bytes gives the text with no size and no error; the existing assertions still pass | each of the three messages through `note` again; a division by a zero total |
-| LX5 | `test-make-shortcut.sh` (new) and `test-make-app.sh`: build into a scratch folder | the stub panel starts once, after the `=====` line, with `LP_TITLE` and `LP_LOG` set and no arguments; the launcher sees `PANEL=1`, and `CS2_HUD=1` when built with `--hud`; a stub that exits at once: the launcher sees `PANEL=0`; a stub that ended before the launcher returned: the shim signals nothing; the other game's stub is still running when this shim returns; no panel file: `PANEL=0`; stub `xcrun` exits 1, the compile fails, the source is missing, or the launcher has no block: the builder exits 0, the app is complete, the reason is printed; a fake launcher that prints `ERROR: x` and exits 1: 0 shim alerts; one that exits 1 in silence: 1 | `PANEL=1` whether or not a process is alive; a plain `kill "$PANEL_PID"`; `pkill -f launch-progress`; the panel started before the `=====` line; the title passed as an argument; `${HUD_ENV}` dropped; the compile outside its `if` in `make-app.sh`; the shim always alerts |
-| LX6 | `cities-skylines-2/scripts/test-licence-wait-probe.sh`: `--judge` on fixture run folders, and the probe against a stub `boot-verify.sh` | a log made with 45 judged at 15: VOID; no wait line plus `ERROR:`: VOID with the reason; the signature with boot-verify 0: FAIL; boot-verify 3: VOID; boot-verify 1 with no signature: OTHER; 2 or 64: the probe stops with exit 2; three VOID in a row stop it; a launcher without the block: refused | the wait line matched loosely; exit 3 counted as FAIL; exit 1 counted as FAIL |
+| LX1 | `common/test-launch-progress.sh`: compiles the panel, then `--parse` and `--decide` on fixtures. Exit 2 with a reason if `swiftc` is missing, which is not a pass | no step: `0 0`; the last step wins; an earlier session holding a step and `ERROR:` with an empty last session: `0 0`; `ERROR:` before a later step in one session: `error`; `ERROR:` or `===== ` in mid-line: no effect; game lines such as `[UnityMemory] …` after the final step: still `5 5 text`; `[6/5] x` and `[0/0] x` ignored; `[0/5] x` accepted; no `===== ` line: the whole log; no file: `0 0`; a bad byte in an earlier session: the last still parses. `--decide`: `show`, then `close` at 5 s after the final step, on `ERROR:`, at 900 s of silence, at 5400 s since start, and with the parent gone | the first step wins; the whole file is read; `ERROR:` is ignored; n above N accepted; the final step does not latch; each of the five limits removed |
+| LX2 | `common/test-launch-feedback.sh`: the `QUIET=` line, the config and the block of each launcher, under `set -u`, driven by `CS2_QUIET`/`CS2_PANEL` and `SM_QUIET`/`SM_PANEL`, with a recording `osascript` and `sleep` | quiet with the panel: `step` posts 0, `note` posts 1; quiet without: 1 and 1; not quiet: 0 and 0; the line reads `[n/N] text`; the title passed is that game's; a text with `"` and `\` arrives as one unchanged argument; both AppleScript statements pass `osacompile`. `licence_wait`: unset gives sleeps 15, 15, 15 and lines at 45, 30, 15; `20` gives 15, 5 and lines at 20, 5; `15` gives one of each; `0` gives the `Licence wait: 0 s` line, no step, no sleep; `08` is 8; `abc`, empty, `9999` and `99999` are the default; the plain line is printed once | `step` ignores `PANEL`; `note` is silenced by `PANEL`; the `PANEL=` line deleted; `SM_PANEL` in the Cities: Skylines II launcher; the text pasted into the source again; the setting ignored; the remainder dropped; validation removed |
+| LX3 | `common/test-launcher-parity.sh` | the eight rules of 3.7 | one byte changed in one copy of the block; a new differing line in an update-check block; a listed line made equal; a step numbered past `STEPS`; a step number unused; a wait call line changed; a milestone put back to `note`; a quote added to a step text; a probe pattern changed; the wait made unconditional; a `die` with no `ERROR:`; a `die` with its own `osascript` line; a second `note`; `step 0` outside `acquire_lock`; a 63-character step text |
+| LX4 | Both `test-update-check.sh`, with `UPDATE_TICK` at 1 and a stub `step() { echo "STEP $1: $2"; }` | `^STEP 4: Updating the game\. This`; at least one `^STEP 4: Updating the game: .* so far`; `^STEP 4: The game is updated`; no `^NOTE: ` line for any of the three; a total of 0 bytes gives the text with no size and no error; the existing assertions still pass | each of the three messages through `note` again; the zero-total guard removed |
+| LX5 | `test-make-shortcut.sh` (new) and `test-make-app.sh`: build into a scratch folder | the stub panel starts once, after the `=====` line, with `LP_TITLE` and `LP_LOG` set and no arguments; the launcher sees `PANEL=1`, and `CS2_HUD=1` when built with `--hud`; a stub that exits at once: the launcher sees `PANEL=0`; kills are recorded by an exported function, `kill() { echo "KILL $*" >> "$REC"; builtin kill "$@"; }; export -f kill`: no `KILL` line where the stub had ended before the launcher returned, at least one where it was alive (the `EXIT` trap can send a second); the other game's stub is still running when this shim returns; no panel file: `PANEL=0`; stub `xcrun` exits 1, the compile fails, the source is missing, or the launcher has no block: the builder exits 0, the app is complete, the reason is printed; a fake launcher that prints `ERROR: x` and exits 1: 0 shim alerts; one that exits 1 in silence: 1, also when an earlier session holds `ERROR:` | `PANEL=1` whether or not a process is alive; a plain `kill "$PANEL_PID"`; `pkill -f launch-progress`; the panel started before the `=====` line; the title passed as an argument; `${HUD_ENV}` dropped; the compile outside its `if` in `make-app.sh`; the shim always alerts; the whole log searched for `ERROR:` |
+| LX6 | `cities-skylines-2/scripts/test-licence-wait-probe.sh`: `--judge` on fixture run folders, and the probe against a stub `boot-verify.sh` | a log made with 45 judged at 15: VOID; no wait line plus `ERROR:`: VOID with the reason; the signature with boot-verify 0: FAIL; boot-verify 3: VOID; the signature with boot-verify 1: FAIL; boot-verify 1 with no signature: OTHER; exit 143 with a wait line: VOID; 2 or 64: the probe stops with exit 2; three VOID in a row stop it; a second OTHER stops it; a VOID and a first OTHER are not counted toward five; a launcher without the block, a game running, or Steam running: refused; the second-job seconds from fixture logs: 3, and `none` on `finished Timeout` | the wait line matched loosely; exit 3 counted as FAIL; exit 1 counted as FAIL; rules 4 and 5 swapped; an unknown exit counted as PASS |
 | LX7 | Every existing suite that starts nothing real, 14 of the 16 files: all of `cities-skylines-2/scripts/test-*.sh`, `surviving-mars-relaunched/tools/test-*.sh` and `common/test-*.sh` bar `test-make-engine-install.sh` and `test-rosetta-preflight.sh` | each exits 0, and each of their own mutants still exits 1, not 2 | their own |
 | LX8 | `bash -n` on every changed script; `ACCEPT=9 bash common/check-identifiers.sh`; `python3 common/check-links.py` | exit 0; the residual stays 9; 0 unresolved | none |
 | LX9 | The live steps of section 6 | as listed there | none |
@@ -377,25 +405,26 @@ in place of the panel, and fake launchers that sleep one second.
    for w in ~/Applications/CS2dxmt11.app ~/Applications/SurvivingMars.app; do h=$(readlink "$w/Contents/SharedSupport/prefix/.launcher.lock" 2>/dev/null); [ -n "$h" ] && kill -0 "$h" 2>/dev/null && echo "STOP: a launcher still runs in ${w##*/}"; done
    ```
 
-   It must print nothing. A launcher outlives its game by up to five minutes while saves upload. Then the
-   branch is merged into `main` and pushed.
-2. **Install.** `bash scripts/setup.sh`, then the 21-file comparison of `docs/plans/1launcher-unification.md`
-   step 4.4. `bash surviving-mars-relaunched/make-app.sh`. Both apps hold
+   It must print nothing. A launcher outlives its game by up to five minutes while saves upload. Then
+   `git merge --no-ff launch-experience` on `main`, and push.
+2. **Install**, after the check of step 1. `bash scripts/setup.sh`, then the file comparison of
+   `docs/plans/1launcher-unification.md` T2: 21 files with the badge patch, 20 without. `bash surviving-mars-relaunched/make-app.sh`. Both apps hold
    `Contents/Resources/launch-progress`. `test-game-running.sh` again, since it reads the installed shim.
    The two suites that start an Intel program, with one Rosetta notice each.
 3. **A rehearsal of the real window against a scripted log.** Every step text of both games, the
    `ERROR:` close and the 5 second close. I capture the window's own region in light and in dark, never
    the whole screen. James starts it once from a full-screen Space and closes it once by its button.
 4. **One boot check.** `bash scripts/boot-verify.sh`, detached: PASS. The launcher changed, so this is owed.
-5. **Each game started once from its app, by James, with Focus off.** The launcher log of the run shows
-   `[1/5]` to `[5/5]` in order. No panel process is left once the game's window exists. James confirms no
+5. **Each game started once from its app, by James, with Focus off.** On a cold start the launcher log of the run
+   shows `[1/5]` to `[5/5]` in order; with Steam already running the licence step is absent. No panel process is left once the game's window exists. James confirms no
    banner before the game and the closing banner after it; the closing banner is the control, and only he
    can see either. The gap from the window closing to the game's window appearing is recorded.
 6. **The wait probe**, per 3.6.
 7. **The MacBook.** The check of step 1, `git pull`, `bash scripts/setup.sh`, `bash
    surviving-mars-relaunched/make-app.sh`, step 5, and its probe runs. `boot-verify.sh` needs
    `~/cs2-patch/win-resize-driver.exe` there; it passed on that Mac on 2026-11-09.
-8. **After a change of default.** Setup, the 21-file comparison and one boot check on each Mac.
+8. **After a change of default**, and after the check of step 1. Setup, the file comparison and one boot
+   check on each Mac.
 
 The update path cannot be forced live. It is covered by LX4 and by the rehearsal's scripted log, and the
 MacBook's waiting update shows it for real if James takes it after step 7.
@@ -413,7 +442,7 @@ MacBook's waiting update shows it for real if James takes it after step 7.
 
 ## 8. Rollback
 
-`git revert` of the merge, then, after the check of live step 1, `bash scripts/setup.sh` and `bash
+`git revert -m 1` of the merge commit of live step 1, then, after the check of that step, `bash scripts/setup.sh` and `bash
 surviving-mars-relaunched/make-app.sh` on each Mac. `launch-cs2-dxmt11.sh.bak` is only the copy that
 setup replaced last, and not a way back by itself. No game file, save or setting is touched by this plan.
 
@@ -463,6 +492,27 @@ Not taken, with the reason:
 Reported and outside this plan: `boot-verify.sh`'s header cites launcher lines that were already stale
 (refreshed in A7 because this build moves them again).
 
+### Fold check (pass 1b, 2026-11-10)
+
+One agent checked the rewrite against the code and against itself, and tried every mechanism it
+specifies: the block under `set -u`, the shim fragment, both update-check blocks with their tests, and the
+lock test. All of them worked. Its findings were text, and each is folded with its own wording:
+
+| # | Finding | Folded into |
+|---|---|---|
+| F1 | The length rule covered `note` literals, and eight notes that stay are longer than 62 characters | rule 6 of 3.7 |
+| F2 | The step-number rule counted `step` calls only, but the licence step reaches `step` through `licence_wait` | rule 3 of 3.7 |
+| F3 | The first fold's line range for the wait took the `if` with it, so every warm start would have waited | 3.2, rule 4, an LX3 mutant |
+| F4 | The judge passed any exit it did not know, and its test lacked a real failure's shape: the signature with exit 1 | 3.6 rules 4 to 7, LX6 |
+| F5 | The second-job timing did not say which lines of two cumulative logs belong to a run, and the MacBook rule could not fail for its stated reason | 3.6 |
+| F6 | A shim that should signal nothing could not be seen doing so by a test | LX5 |
+| F7 | Nothing checked that `die` and the cloud alert call `_alert`, or that the parent check works | rule 7 of 3.7, `--decide`, LX1, LX3 |
+| F8 | The worktree has no identity file, and a fast-forward leaves no merge to revert | "Before A1" item 2, live step 1, section 8 |
+
+Smaller ones folded: `[0/0]`; the marker that is a prefix of the config's marker; `PROGRESS` undefined in
+the fragment; an older session's `ERROR:`; a stale size in an idle record; the hard limit raised and the
+setting capped at three digits; 21 files or 20; the cold-start wording of live step 5; the file lists.
+
 ## Review log
 
 Key paths: `cities-skylines-2/launchers/launch-cs2-dxmt11.sh`, `surviving-mars-relaunched/launch-relaunched.sh`,
@@ -474,3 +524,4 @@ Key paths: `cities-skylines-2/launchers/launch-cs2-dxmt11.sh`, `surviving-mars-r
 | Date | Pass | Lenses | Method | Model | Verified against | Verdict |
 |---|---|---|---|---|---|---|
 | 2026-11-10 | 1, full | correctness; architecture and security; builder simulation (A1 to A6 built in a scratch copy, 14 existing suites green before and after); tests and design | four agents, then each blocker re-run or re-read inline | Claude Fable 5.2 | `cce7efb` (code as of `dc2b584`) | build-ready-with-fixes, four times; folded |
+| 2026-11-10 | 1b, fitted | the fold: every mechanism tried in scratch, cross-references, counts, superseded ideas | one agent; its corrections folded with a two-sided audit, not re-read by a further agent | Claude Fable 5.2 | `07b69c3` (code as of `dc2b584`) | build-ready-with-fixes; folded |
