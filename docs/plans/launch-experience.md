@@ -13,12 +13,19 @@
 > and after. Live steps 1 and 2 are done on the Studio
 > (2026-11-10): merged as `a64801d` with no launcher running; setup exit 0 with both of its closing lines;
 > 21 files found and 21 identical, `_vendor` equal; both apps hold `launch-progress`; `test-game-running.sh`,
-> `test-rosetta-preflight.sh` and `test-make-engine-install.sh` pass. Live step 3 is half done: the real
-> window, run twice against a scripted log, was up before any step, still up 4 s after the final step and
-> gone by 7.5 s, ignored an `ERROR:` and game output written after the final step, and closed within 2.5 s
-> of an `ERROR:` in a fresh session. Its captures were not taken: the screen was locked, and a capture of
-> a locked screen shows nothing. Live steps 4 to 8, and the looks half of step 3, wait for James at the
-> Studio with the screen unlocked: a game started behind a lock screen is not a measurement. Deviations: (1) the widest
+> `test-rosetta-preflight.sh` and `test-make-engine-install.sh` pass. Live step 3 is done: the real window,
+> run against a scripted log, was up before any step, still up 4 s after the final step and gone by 7.5 s,
+> ignored an `ERROR:` and game output written after the final step, and closed within 2.5 s of an `ERROR:`
+> in a fresh session. Captured in dark mode, every text fits or is cut with an ellipsis. James saw it over a
+> full-screen app, and closed it by its button (gone at once). Not captured in light mode. Live step 4:
+> `boot-verify.sh` PASS, run `20261110-030513`, its log holding steps 1 to 5 in order and the 45 s wait.
+> Live step 5: James started each game from its app; both logs hold steps 1 to 5 in order, both exited
+> cleanly with Steam down, and Surviving Mars uploaded its saves. He saw the window and no banner before
+> either game, and the game's usual exit dialog (the cosmetic IO error of `cities-skylines-2/GOTCHAS.md`).
+> **The banner half of step 5 is not yet evidence**: he was using the Studio by Screen Sharing from
+> another Mac and saw neither the closing banner nor two test banners posted the old way and the new way,
+> so banners were not reaching him at all. It is repeated at the Studio itself. Live steps 6 to 8 are not
+> done. Deviations: (1) the widest
 > step text measures 357 points in the 368 point label, not the 312 this plan first said; both labels cut a
 > longer text with an ellipsis. (2) Rule 8 of 3.7 lists the Surviving Mars probe at A5 and gains the
 > Cities: Skylines II one at A6, since that probe does not exist earlier. (3) The probe stops at its first
