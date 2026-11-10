@@ -17,7 +17,7 @@
 #                                      has none), failures become alert dialogs
 #   CS2_PANEL=1                        set by the app's shim when its progress window is up, so
 #                                      that a step is not posted as a notification as well
-#   CS2_LICENCE_WAIT=<seconds>         the wait after a fresh sign-in, 0 to 999 (default 45).
+#   CS2_LICENCE_WAIT=<seconds>         the wait after a fresh sign-in, 0 to 999 (default 15).
 #                                      scripts/licence-wait-probe.sh measures shorter ones
 #   WINEDEBUG=...                      respected if set (scripts/diag-launch-dxmt11.sh uses it)
 #   CS2_ARGS="..."                     extra Cities2.exe arguments (e.g. -benchmark for the
@@ -278,8 +278,12 @@ fi
 # 2) Licence sync — ONLY needed when we just started Steam. Launching Cities2.exe too soon after a
 #    fresh login means SteamAPI cannot verify ownership -> platform-service failure -> NRE flood
 #    -> no main menu. If Steam was already up, licences are long since synced, so skip the wait.
+#    45 s until 2026-11-10, a margin with no run count. That day, on the Studio, six boots with no wait at
+#    all reached the menu with no such failure, and five at 15 s on the MacBook as well
+#    (scripts/licence-wait-probe.sh; docs/plans/launch-experience.md, 3.6). 15 keeps a margin, and leaves
+#    Steam time to refresh the game's manifest before the update check below reads it (0 or 1 s measured).
 if [ "$STARTED_STEAM" = 1 ]; then
-  licence_wait 3 "${CS2_LICENCE_WAIT:-}" 45
+  licence_wait 3 "${CS2_LICENCE_WAIT:-}" 15
 else
   echo "Steam already warm — skipping the licence wait."
 fi

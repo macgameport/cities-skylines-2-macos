@@ -60,7 +60,7 @@ case "${MUTANT:-0}" in
   3) mutate "$SM" 's/^  msg="Steam has a game update waiting (build \$UPD_FROM -> \$UPD_TO)\."$/  msg="Steam has a game update waiting (build $UPD_FROM -> $UPD_TO). Mods follow the newest game version, so the installed build can break them."/' 'so the installed build can break them."' ;;
   4) mutate "$SM" 's/^step 5 "Starting /step 6 "Starting /' 'step 6 "Starting ' ;;
   5) mutate "$CS2" 's/^step 1 "Checking the Mac fixes /step 2 "Checking the Mac fixes /' 'step 2 "Checking the Mac fixes ' ;;
-  6) mutate "$CS2" 's/^  licence_wait 3 "\${CS2_LICENCE_WAIT:-}" 45$/  licence_wait 3 "${CS2_LICENCE_WAIT:-}" 30/' '  licence_wait 3 "${CS2_LICENCE_WAIT:-}" 30' ;;
+  6) mutate "$CS2" 's/^  licence_wait 3 "\${CS2_LICENCE_WAIT:-}" 15$/  licence_wait 3 "${CS2_LICENCE_WAIT:-}" 30/' '  licence_wait 3 "${CS2_LICENCE_WAIT:-}" 30' ;;
   7) mutate "$CS2" 's/^  step 2 "Steam is already running…"$/  note "Steam is already running…"/' '  note "Steam is already running…"' ;;
   8) mutate "$SM" 's/^  step 1 "Starting Steam and signing in…"$/  step 1 "Starting \\"Steam\\" and signing in…"/' '  step 1 "Starting \"Steam\" and signing in…"' ;;
   9) mutate "$SMPROBE" 's/"^Licence wait: \$2 s/"^Licence Wait: $2 s/' '"^Licence Wait: $2 s' ;;
@@ -148,11 +148,12 @@ check "2. every line in the list still differs" "$(LC_ALL=C comm -13 "$T/uc.got"
 # --- 3. to 7. per launcher. What is recorded for each:
 #   the licence_wait call line, with its indent (two spaces: inside the `if` that skips the wait when Steam
 #   was already running, and inside the branch that started Steam), and the measurement behind its default:
-#     45: one failure signature and a 40 s fix, with no run count (cities-skylines-2/GOTCHAS.md, section 11).
-#         To be measured with cities-skylines-2/scripts/licence-wait-probe.sh (docs/plans/launch-experience.md, 3.6).
-#     15: 10 of 10 clean runs on the Studio, 2026-11-08 (surviving-mars-relaunched/tools/licence-wait-probe.sh).
+#     15 (Cities: Skylines II): 6 of 6 boots at 0 s on the Studio and 5 of 5 at 15 s on the MacBook, 2026-11-10
+#         (cities-skylines-2/scripts/licence-wait-probe.sh; docs/plans/launch-experience.md, 3.6). It was 45, a
+#         margin with no run count (cities-skylines-2/GOTCHAS.md, section 11).
+#     15 (Surviving Mars): 10 of 10 clean runs on the Studio, 2026-11-08 (surviving-mars-relaunched/tools/licence-wait-probe.sh).
 #   the note calls: everything that stays a pop-up while the progress window is up, each with what it is.
-WAIT_CS2='  licence_wait 3 "${CS2_LICENCE_WAIT:-}" 45'
+WAIT_CS2='  licence_wait 3 "${CS2_LICENCE_WAIT:-}" 15'
 WAIT_SM='  licence_wait 2 "${SM_LICENCE_WAIT:-}" 15'
 kept > "$T/notes.cs2" <<'KEPT'
 # the compat note: this macOS release is outside what has been run, said once per release

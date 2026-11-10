@@ -223,7 +223,7 @@ cat << DONE
 Play:      double-click  ~/Applications/Cities Skylines II.app
 Log:       ~/Library/Logs/cs2-launcher.log
 
-First run: Steam signs in inside the wrapper, waits ~45s for the licence to sync, then the game
+First run: Steam signs in inside the wrapper, waits ~15s for the licence to sync, then the game
            starts. That wait only happens when Steam was not already running.
 
 In-game:   Options -> Graphics -> Display Mode -> FULLSCREEN WINDOW.
