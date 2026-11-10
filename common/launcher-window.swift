@@ -6,11 +6,12 @@
 //
 //   launcher-window [--games <tsv>] [<folder>...]           the window; with no folder, those of --folders
 //   launcher-window --list [--games <tsv>] <folder>...      one line per row: role, app id or -, state,
-//                                                           title, path; tab-separated, no headings
+//                                                           title, path; tab-separated, no headings. With
+//                                                           --games, offers too, asked as the window asks
 //   launcher-window --default <last app id or -> <folder>... the path of the row selected at open, or nothing
 //   launcher-window --second <app path> <folder>...         go, or ask<TAB><title of the game in use>
 //   launcher-window --start <app path> [new]                started, or failed<TAB><sentence>; exit 0 or 1
-//   launcher-window --owned <app id> <packageinfo.vdf>...   (step B5)
+//   launcher-window --owned <app id> <packageinfo.vdf>...   owned, not-owned or unknown
 //   launcher-window --folders                               the folders the window reads, one per line
 //   launcher-window --icon <out.png>                        (step B6)
 // Every mode but the window prints and returns before any window object is made, and the window calls the
@@ -269,6 +270,201 @@ func windowFolders() -> [String] {
     return out
 }
 
+// ------------------------------------------------------------------------------------------------ offers
+// --owned reads Steam's own cache of the account's packages, <prefix>/drive_c/Program Files (x86)/Steam/
+// appcache/packageinfo.vdf, in the layout section 1 of the plan measured. Every number little-endian and
+// put together from bytes: a magic, 0x06565527 (no token) or 0x06565528 (an 8-byte token), and a universe;
+// then per package a 32-bit id, 20 bytes, a change number, the token, and one binary KeyValues tree; then
+// the id 0xFFFFFFFF and nothing after it. Every read is checked against the end, and anything else makes
+// the whole file unknown. No fixture of the tests is cut from a real file: they write their own.
+struct Reader {
+    let b: [UInt8]
+    var at = 0
+    mutating func byte() -> UInt8? {
+        guard at < b.count else { return nil }
+        at += 1
+        return b[at - 1]
+    }
+    mutating func number(_ size: Int) -> UInt64? {
+        guard b.count - at >= size else { return nil }
+        var v: UInt64 = 0
+        for k in 0..<size { v |= UInt64(b[at + k]) << UInt64(8 * k) }
+        at += size
+        return v
+    }
+    mutating func skip(_ size: Int) -> Bool {
+        guard b.count - at >= size else { return false }
+        at += size
+        return true
+    }
+    // up to a zero, within the file and within `limit` bytes, the zero included
+    mutating func zeroEnded(within limit: Int) -> ArraySlice<UInt8>? {
+        let end = b.count - at <= limit ? b.count : at + limit
+        guard let z = b[at..<end].firstIndex(of: 0) else { return nil }
+        defer { at = z + 1 }
+        return b[at..<z]
+    }
+    // The nodes after a nested node's name, up to its 8. `depth` is that node's: the document is 0, a
+    // package's root 1, and 8 the deepest allowed. Types: 0 nested, 1 string, 2 32-bit integer, 7 64-bit
+    // integer, 8 end. A package's app ids are the integer children of an `appids` node directly under its
+    // root; `appids` says this node is one.
+    mutating func children(depth: Int, appids: Bool, ids: inout Set<UInt64>) -> Bool {
+        while true {
+            guard let type = byte() else { return false }
+            if type == 8 { return true }
+            guard let name = zeroEnded(within: 256) else { return false }
+            switch type {
+            case 0:
+                guard depth < 8 else { return false }
+                guard children(depth: depth + 1, appids: depth == 1 && name.elementsEqual("appids".utf8), ids: &ids) else { return false }
+            case 1:
+                guard zeroEnded(within: Int.max) != nil else { return false }
+            case 2, 7:
+                guard let v = number(type == 2 ? 4 : 8) else { return false }
+                if appids { ids.insert(v) }
+            default:
+                return false
+            }
+        }
+    }
+}
+
+// The app ids a file lists, or nil when it is not cleanly read.
+func ownedIDs(_ data: Data) -> Set<UInt64>? {
+    var r = Reader(b: [UInt8](data))
+    guard let magic = r.number(4), magic >> 8 == 0x065655, magic & 0xFF == 0x27 || magic & 0xFF == 0x28, r.skip(4) else { return nil }
+    let token = magic & 0xFF == 0x28
+    var ids = Set<UInt64>()
+    while true {
+        guard let package = r.number(4) else { return nil }
+        if package == 0xFFFF_FFFF { return r.at == r.b.count ? ids : nil }
+        guard r.skip(20), r.skip(4) else { return nil }
+        if token { guard r.skip(8) else { return nil } }
+        guard r.children(depth: 0, appids: false, ids: &ids) else { return nil }
+    }
+}
+
+// owned: a cleanly read file lists the id. not-owned: at least one file read cleanly and none lists it.
+// unknown: no file read cleanly. A file must be plain, not a symlink, and at most 16 MiB as read.
+func ownership(of id: Int, in files: [String]) -> String {
+    var clean = false
+    for file in files {
+        guard let data = readPlainFile(file, limit: 16_777_216), let ids = ownedIDs(data) else { continue }
+        if ids.contains(UInt64(id)) { return "owned" }
+        clean = true
+    }
+    return clean ? "not-owned" : "unknown"
+}
+
+// A child in its own process group, its output read as it comes: nil unless it exited 0 within `limit`
+// seconds. At the limit the whole group is killed, so a helper's own children go too, and nothing left
+// holding the pipe can hold up the caller.
+func runChild(_ exe: String, _ argv: [String], limit: Double) -> String? {
+    var fds: [Int32] = [-1, -1]
+    guard pipe(&fds) == 0 else { return nil }
+    var actions: posix_spawn_file_actions_t? = nil
+    var attr: posix_spawnattr_t? = nil
+    posix_spawn_file_actions_init(&actions)
+    posix_spawnattr_init(&attr)
+    defer { posix_spawn_file_actions_destroy(&actions); posix_spawnattr_destroy(&attr) }
+    posix_spawn_file_actions_addopen(&actions, 0, "/dev/null", O_RDONLY, 0)
+    posix_spawn_file_actions_adddup2(&actions, fds[1], 1)
+    posix_spawn_file_actions_addopen(&actions, 2, "/dev/null", O_WRONLY, 0)
+    posix_spawnattr_setflags(&attr, Int16(POSIX_SPAWN_SETPGROUP | POSIX_SPAWN_CLOEXEC_DEFAULT))
+    posix_spawnattr_setpgroup(&attr, 0)
+    let cargs: [UnsafeMutablePointer<CChar>?] = ([exe] + argv).map { strdup($0) } + [nil]
+    let cenv: [UnsafeMutablePointer<CChar>?] = ProcessInfo.processInfo.environment.map { strdup("\($0.key)=\($0.value)") } + [nil]
+    defer { (cargs + cenv).forEach { free($0) } }
+    var pid: pid_t = 0
+    let spawned = posix_spawn(&pid, exe, &actions, &attr, cargs, cenv)
+    close(fds[1])
+    defer { close(fds[0]) }
+    guard spawned == 0 else { return nil }
+    _ = fcntl(fds[0], F_SETFL, O_NONBLOCK)
+    let deadline = Date().addingTimeInterval(limit)
+    var out = Data(), status: Int32 = 0, exited = false, ended = false
+    var buf = [UInt8](repeating: 0, count: 4096)
+    while !(exited && ended) && Date() < deadline {
+        if ended {
+            usleep(20_000)
+        } else {
+            var p = pollfd(fd: fds[0], events: Int16(POLLIN), revents: 0)
+            _ = poll(&p, 1, 20)
+            let n = read(fds[0], &buf, buf.count)
+            if n > 0 && out.count < 65536 { out.append(buf, count: n) }
+            if n == 0 { ended = true }
+        }
+        if !exited && waitpid(pid, &status, WNOHANG) == pid { exited = true }
+    }
+    if !(exited && ended) { kill(-pid, SIGKILL) }
+    if !exited { waitpid(pid, &status, 0); return nil }
+    guard ended, status & 0x7F == 0, (status >> 8) & 0xFF == 0 else { return nil }
+    return String(decoding: out, as: UTF8.self)
+}
+
+// Neither the window nor --list reads a packageinfo.vdf in its own process: each asks a child, the program
+// named by L1_OWNED_HELPER or else itself, with --owned and a 5 s limit, so that no file can stop the window
+// or hold up its list. A child that crashes, runs out of time, fails or says anything else: unknown.
+func askOwned(_ id: Int, _ files: [String]) -> String {
+    let named = ProcessInfo.processInfo.environment["L1_OWNED_HELPER"] ?? ""
+    let helper = named.isEmpty ? (Bundle.main.executablePath ?? CommandLine.arguments[0]) : named
+    guard let out = runChild(helper, ["--owned", String(id)] + files, limit: 5) else { return "unknown" }
+    let word = out.split(separator: "\n").first.map(String.init) ?? ""
+    return ["owned", "not-owned", "unknown"].contains(word) ? word : "unknown"
+}
+
+struct Ported { let id: Int; let title: String; let address: String }
+
+// common/games.tsv: app id, folder, title and set-up guide address, tab-separated, one line per game. A line
+// starting # is passed over, and so is one that is not four fields with a whole-number id and a title.
+func portedGames(_ path: String) -> [Ported] {
+    guard let data = readPlainFile(path, limit: 1_048_576) else { return [] }
+    var out: [Ported] = []
+    for line in String(decoding: data, as: UTF8.self).split(whereSeparator: { $0.isNewline }) {
+        if line.hasPrefix("#") { continue }
+        let f = line.split(separator: "\t", omittingEmptySubsequences: false).map(String.init)
+        guard f.count == 4, let id = lastID(f[0]), !f[2].isEmpty else { continue }
+        out.append(Ported(id: id, title: oneLine(f[2]), address: f[3]))
+    }
+    return out
+}
+
+final class Answers: @unchecked Sendable {
+    let lock = NSLock()
+    var words: [String]
+    init(_ n: Int) { words = Array(repeating: "unknown", count: n) }
+}
+
+// The offers (2.5): each ported game with no game row that some row's packageinfo.vdf says the account
+// owns. Only those files are read, and with no row that has a prefix there is nothing to ask. A guide
+// address must start https://github.com/. A game that is set up is never hidden (D7): this only adds rows.
+// The children are asked side by side, so the list waits at most one limit.
+func offerRows(_ table: String, _ rows: [Row]) -> [Row] {
+    let have = Set(rows.compactMap { $0.role == .game ? $0.appID : nil })
+    var files: [String] = []
+    for r in rows {
+        guard let p = r.prefix else { continue }
+        let f = p + steamDir + "/appcache/packageinfo.vdf"
+        if !files.contains(f) { files.append(f) }
+    }
+    guard !files.isEmpty else { return [] }
+    var asked: [Ported] = []
+    for g in portedGames(table) {
+        guard !have.contains(g.id) else { continue }
+        guard g.address.hasPrefix("https://github.com/") else { continue }
+        if !asked.contains(where: { $0.id == g.id }) { asked.append(g) }
+    }
+    let answers = Answers(asked.count)
+    let questions = asked, from = files
+    DispatchQueue.concurrentPerform(iterations: questions.count) { i in
+        let word = askOwned(questions[i].id, from)
+        answers.lock.lock(); answers.words[i] = word; answers.lock.unlock()
+    }
+    return ordered(zip(asked, answers.words).filter { $0.1 == "owned" }.map { g, _ in
+        Row(role: .offer, appID: g.id, title: g.title, sortTitle: g.title, path: g.address, key: "offer \(g.id)", prefix: nil, state: .owned)
+    })
+}
+
 func usage() -> Never {
     FileHandle.standardError.write(Data("""
     usage: launcher-window [--games <tsv>] [<folder>...]          the window
@@ -303,9 +499,10 @@ if let mode = args.first, mode.hasPrefix("-"), mode != "--games" {
     let rest = Array(args.dropFirst())
     switch mode {
     case "--list":
-        let (_, folders) = gamesOption(rest)   // offers: step B5
+        let (table, folders) = gamesOption(rest)
         guard !folders.isEmpty else { usage() }
-        for r in rows(in: folders) {
+        let found = rows(in: folders)
+        for r in found + (table.map { offerRows($0, found) } ?? []) {
             print([r.role.rawValue, r.appID.map(String.init) ?? "-", r.state.rawValue, r.title, r.path].joined(separator: "\t"))
         }
     case "--default":
@@ -324,7 +521,8 @@ if let mode = args.first, mode.hasPrefix("-"), mode != "--games" {
         guard rest.isEmpty else { usage() }
         for f in windowFolders() { print(f) }
     case "--owned":
-        notBuilt(mode, "B5")
+        guard rest.count >= 2, let id = lastID(rest[0]) else { usage() }
+        print(ownership(of: id, in: Array(rest.dropFirst())))
     case "--icon":
         guard rest.count == 1 else { usage() }
         notBuilt(mode, "B6")
@@ -338,7 +536,7 @@ if let mode = args.first, mode.hasPrefix("-"), mode != "--games" {
 let (gamesGiven, foldersGiven) = gamesOption(Array(args))
 guard !foldersGiven.contains(where: { $0.hasPrefix("-") }) else { usage() }
 let readFrom = foldersGiven.isEmpty ? windowFolders() : foldersGiven
-let gamesTable = gamesGiven ?? ownBundle().map { $0 + "/Contents/Resources/games.tsv" }   // offers: step B5
+let gamesTable = gamesGiven ?? ownBundle().map { $0 + "/Contents/Resources/games.tsv" }
 let readmeAddress = "https://github.com/macgameport/1launcher/blob/main/README.md"
 let windowWidth: CGFloat = 420, itemHeight: CGFloat = 52, headingHeight: CGFloat = 26, barHeight: CGFloat = 56
 
@@ -471,6 +669,22 @@ final class Launcher: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTable
         window.makeFirstResponder(table)
         if #available(macOS 14, *) { NSApp.activate() } else { NSApp.activate(ignoringOtherApps: true) }
         opened = true
+        askOffers()
+    }
+
+    // Once the window is on screen, and once: the offers come from children (offerRows), and arrive when they
+    // have answered, at most one limit later. They are kept across reloads; one whose game has since got an
+    // app is dropped by reload().
+    func askOffers() {
+        guard let table = gamesTable else { return }
+        let found = appRows
+        DispatchQueue.global(qos: .utility).async {
+            let o = offerRows(table, found)
+            DispatchQueue.main.async {
+                self.offers = o
+                if !o.isEmpty { self.reload() }
+            }
+        }
     }
 
     func applicationDidBecomeActive(_ n: Notification) { if opened && !starting { reload() } }

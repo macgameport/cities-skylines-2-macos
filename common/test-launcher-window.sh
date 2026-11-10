@@ -1,12 +1,14 @@
 #!/bin/bash
 # test-launcher-window.sh -- compiles common/launcher-window.swift (14unch3r's window) and asks its text modes
 # about fixture apps made in a scratch folder: which apps are rows, their order and states (--list, --folders),
-# the row selected when the window opens (--default), whether a start asks first (--second), and a start
+# the row selected when the window opens (--default), whether a start asks first (--second), what Steam's
+# package cache says the account owns (--owned) and the offers made of it (--list --games), and a start
 # (--start). Every one of those modes returns before any window object is made, and the window itself is never
 # started here: the program is only ever run with a mode. No game, no Steam, no Wine, no real Steam file, and
 # nothing of the preferences domain local.1launcher.window. The only apps started are this test's own fixture
 # apps under /tmp (LSUIElement, a shim that appends its process number to a file and sleeps 30 s); they are
-# stopped, and taken out of LaunchServices' list, at exit. Plan: docs/plans/launcher-window.md, W1 W2 W3 W9.
+# stopped, and taken out of LaunchServices' list, at exit. The packageinfo.vdf files are written here from fixed
+# bytes (python3 -I). Plan: docs/plans/launcher-window.md, W1 W2 W3 W7 W9.
 #   bash common/test-launcher-window.sh     exit 0 = every case passed; exit 2 = not a pass: swiftc is missing,
 #                                           a mutant did not apply, or open cannot start an app here (over ssh)
 #   MUTANT=1 ...    the role test dropped; must exit 1
@@ -29,6 +31,16 @@
 #   MUTANT=18 ...   open -n never; must exit 1
 #   MUTANT=19 ...   exit 0 on a failed open; must exit 1
 #   MUTANT=20 ...   the path passed through a shell; must exit 1
+#   MUTANT=21 ...   the appids name test dropped; must exit 1
+#   MUTANT=22 ...   ids under depotids counted; must exit 1
+#   MUTANT=23 ...   a file not read cleanly answered not-owned; must exit 1
+#   MUTANT=24 ...   the 8-byte token always read; must exit 1
+#   MUTANT=25 ...   no size limit on packageinfo.vdf; must exit 1
+#   MUTANT=26 ...   only the first file read; must exit 1
+#   MUTANT=27 ...   an offer for a game that has an app; must exit 1
+#   MUTANT=28 ...   a guide address not on https://github.com/ accepted; must exit 1
+#   MUTANT=29 ...   no time limit on the child that reads the files; must exit 1
+#   MUTANT=30 ...   the files read in the list's own process, not a child's; must exit 1
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
 SRC="$HERE/launcher-window.swift"
@@ -88,6 +100,16 @@ case "${MUTANT:-0}" in
   18) swap 'func openArguments(_ target: String, new: Bool) -> [String] { new ? ["-n", target] : [target] }' 'func openArguments(_ target: String, new: Bool) -> [String] { [target] }' ;;
   19) swap 'if p.terminationReason == .exit && p.terminationStatus == 0 { return nil }' 'return nil' ;;
   20) swap 'p.arguments = openArguments(target, new: new)' 'p.executableURL = URL(fileURLWithPath: "/bin/sh"); p.arguments = ["-c", "/usr/bin/open " + openArguments(target, new: new).joined(separator: " ")]' ;;
+  21) swap 'appids: depth == 1 && name.elementsEqual("appids".utf8), ids: &ids)' 'guard children(depth: depth + 1, appids: depth == 1, ids: &ids) else { return false }' ;;
+  22) swap 'appids: depth == 1 && name.elementsEqual("appids".utf8), ids: &ids)' 'guard children(depth: depth + 1, appids: depth == 1 && (name.elementsEqual("appids".utf8) || name.elementsEqual("depotids".utf8)), ids: &ids) else { return false }' ;;
+  23) swap 'return clean ? "not-owned" : "unknown"' 'return "not-owned"' ;;
+  24) swap 'if token { guard r.skip(8) else { return nil } }' 'guard r.skip(8) else { return nil }' ;;
+  25) swap 'readPlainFile(file, limit: 16_777_216)' 'guard let data = readPlainFile(file, limit: 1 << 40), let ids = ownedIDs(data) else { continue }' ;;
+  26) swap 'for file in files {' 'for file in files.prefix(1) {' ;;
+  27) drop 'guard !have.contains(g.id) else { continue }' ;;
+  28) drop 'guard g.address.hasPrefix("https://github.com/") else { continue }' ;;
+  29) swap 'let deadline = Date().addingTimeInterval(limit)' 'let deadline = Date.distantFuture' ;;
+  30) swap 'guard let out = runChild(helper, ["--owned", String(id)] + files, limit: 5) else { return "unknown" }' 'let out = ownership(of: id, in: files)' ;;
   *) echo "REFUSED: no mutant ${MUTANT}"; exit 2 ;;
 esac
 P="$T/launcher-window"
@@ -316,6 +338,135 @@ usage "--start <app> now" --start "$Q/busy/mars.app" now
 usage "--folders <folder>" --folders "$T"
 usage "--bogus <folder>" --bogus "$T"
 usage "--games <tsv> --list <folder> (a mode after --games)" --games "$T/games.tsv" --list "$T"
+
+# --- W7: --owned, and offers. Every packageinfo.vdf here is written by this test from fixed bytes, in the
+# layout of plan section 1; none is read, copied or cut from Steam's own.
+V="$T/w7"
+mkdir -p "$V/fuzz"
+cat > "$T/vdf.py" <<'EOF'
+import os, random, struct, sys
+out = sys.argv[1]
+def node(t, name, v=None):
+    head = bytes([t]) + name.encode() + b"\0"
+    if t == 0: return head + b"".join(v) + b"\x08"
+    if t == 1: return head + v.encode() + b"\0"
+    if t == 2: return head + struct.pack("<I", v)
+    if t == 7: return head + struct.pack("<Q", v)
+    return head + v
+def ids(*vals): return [node(2, str(i), v) for i, v in enumerate(vals)]
+def package(pid, children, token=True):
+    head = struct.pack("<I", pid) + bytes(range(20)) + struct.pack("<I", 7)
+    if token: head += struct.pack("<Q", 0x1122334455667788)
+    return head + node(0, str(pid), children) + b"\x08"
+def vdf(packages, magic=0x06565528, end=True, tail=b""):
+    return struct.pack("<II", magic, 1) + b"".join(packages) + (struct.pack("<I", 0xFFFFFFFF) if end else b"") + tail
+def write(name, data):
+    with open(os.path.join(out, name), "wb") as f: f.write(data)
+def owning(token=True, extra=()):
+    return [package(1001, [node(2, "packageid", 1001), node(1, "billingtype", "10"), *extra,
+                           node(0, "appids", ids(949230, 1111, 2222)), node(0, "depotids", ids(949231)),
+                           node(0, "extended", [node(1, "k", "v"), node(7, "big", 1 << 40)])], token),
+            package(1002, [node(0, "appids", ids(3215050))], token)]
+good = vdf(owning())
+write("own28.vdf", good)
+write("own27.vdf", vdf(owning(False), magic=0x06565527))
+write("depot.vdf", vdf([package(5, [node(0, "appids", ids(4444)), node(0, "depotids", ids(949230))])]))
+write("deep.vdf", vdf([package(5, [node(0, "appids", ids(4444)), node(0, "extended", [node(0, "appids", ids(949230))])])]))
+write("nopkg.vdf", vdf([]))
+write("trunc.vdf", good[: len(good) // 2])
+rng = random.Random(1103)
+write("noise.vdf", bytes(rng.randrange(256) for _ in range(4096)))
+write("magic.vdf", vdf(owning(), magic=0x06565529))
+write("magic2.vdf", vdf(owning(), magic=0x07565528))
+write("type3.vdf", vdf([package(5, [node(0, "appids", ids(949230)), node(3, "f", b"\0\0\0\0")])]))
+def chain(levels):   # nested nodes under a root, the deepest at depth 1 + levels
+    n = node(0, "d%d" % (levels + 1), [])
+    for d in range(levels, 1, -1): n = node(0, "d%d" % d, [n])
+    return n
+write("nest8.vdf", vdf([package(5, [node(0, "appids", ids(949230)), chain(7)])]))
+write("nest9.vdf", vdf([package(5, [node(0, "appids", ids(949230)), chain(8)])]))
+write("noend.vdf", vdf(owning(), end=False))
+write("trail.vdf", vdf(owning(), tail=b"\0"))
+def padded(total):
+    small = len(vdf(owning(extra=[node(1, "pad", "")])))
+    return vdf(owning(extra=[node(1, "pad", "x" * (total - small))]))
+write("max.vdf", padded(16777216))
+write("big.vdf", padded(16777217))
+fuzz = random.Random(20261110)
+for i in range(200):
+    b = bytearray(good)
+    at = fuzz.randrange(len(b))
+    b[at] = (b[at] + 1 + fuzz.randrange(255)) % 256
+    write("fuzz/%03d.vdf" % i, bytes(b))
+EOF
+python3 -I "$T/vdf.py" "$V" || { echo "REFUSED: the fixture files could not be written"; exit 2; }
+owned() { "$P" --owned "$@" 2>&1; }
+check "--owned: an id under a root's appids, 0x28 header: owned" "$(owned 949230 "$V/own28.vdf")" owned
+check "--owned: the same in the 0x27 header, with no token: owned" "$(owned 949230 "$V/own27.vdf")" owned
+check "--owned: an id of the second package: owned" "$(owned 3215050 "$V/own28.vdf")" owned
+check "--owned: an id in no package: not-owned" "$(owned 730 "$V/own28.vdf")" not-owned
+check "--owned: the number only under depotids: not-owned" "$(owned 949230 "$V/depot.vdf")" not-owned
+check "--owned: only under an appids one level deeper: not-owned" "$(owned 949230 "$V/deep.vdf")" not-owned
+check "--owned: a valid file with no package: not-owned" "$(owned 949230 "$V/nopkg.vdf")" not-owned
+for f in "trunc:a truncated file" "noise:a fixed block of noise" "magic:another magic (low byte 0x29)" \
+         "magic2:another magic (0x07565528)" "type3:a node of type 3" "nest9:a nesting of 9" \
+         "noend:no end mark" "trail:a byte after the end mark"; do
+  check "--owned: unknown for ${f#*:}" "$(owned 949230 "$V/${f%%:*}.vdf")" unknown
+done
+check "--owned: a nesting of 8 is read" "$(owned 949230 "$V/nest8.vdf")" owned
+check "--owned: a file of exactly 16,777,216 bytes is read" "$(wc -c < "$V/max.vdf" | tr -d ' ') $(owned 949230 "$V/max.vdf")" "16777216 owned"
+check "--owned: an owning file padded inside a string to 16,777,217 bytes: unknown" "$(wc -c < "$V/big.vdf" | tr -d ' ') $(owned 949230 "$V/big.vdf")" "16777217 unknown"
+ln -s "$V/own28.vdf" "$V/link.vdf"
+check "--owned: a symlink to a valid file: unknown" "$(owned 949230 "$V/link.vdf")" unknown
+check "--owned: no file: unknown" "$(owned 949230 "$V/absent.vdf")" unknown
+check "--owned: one bad file and one owning: owned" "$(owned 949230 "$V/trunc.vdf" "$V/own28.vdf")" owned
+check "--owned: one bad file and one clean without the id: not-owned" "$(owned 949230 "$V/trunc.vdf" "$V/depot.vdf")" not-owned
+odd=0; seen=""
+for f in "$V"/fuzz/*.vdf; do
+  out="$("$P" --owned 949230 "$f" 2>&1)"; rc=$?
+  case "$out $rc" in "owned 0"|"not-owned 0"|"unknown 0") seen="$seen $out" ;; *) odd=$((odd + 1)); echo "      $f: '$out' exit $rc" ;; esac
+done
+check "--owned: 200 single-byte changes to a valid file, fixed seed: each answer one word, exit 0" "$odd $(ls "$V"/fuzz | wc -l | tr -d ' ')" "0 200"
+echo "      (the 200: $(printf '%s\n' $seen | sort | uniq -c | tr -s ' ' | tr '\n' ',' | sed 's/,$//'))"
+usage "--owned <id> and no file" --owned 949230
+usage "--owned <id that is no number> <file>" --owned 94x "$V/own28.vdf"
+# offers: a table of five games; the account owns four of them by the Steam app's packageinfo.vdf
+printf '# app id\tfolder\ttitle\tguide\n949230\tcs2\tCities: Skylines II\thttps://github.com/example/1launcher/blob/main/cs2.md\n3215050\tsmr\tSurviving Mars: Relaunched\thttps://github.com/example/1launcher/blob/main/smr.md\n1111\tf\tA File Game\tfile:///etc/hosts\n2222\th\tAn Http Game\thttp://github.com/example/h\n4444\tn\tNot Owned\thttps://github.com/example/n\n' > "$T/games.tsv"
+O="$T/w7o"
+pso=$(prefix w7-steam); pmo=$(prefix w7-mars); pbad=$(prefix w7-bad)
+mkdir -p "$pso/drive_c/Program Files (x86)/Steam/appcache" "$pbad/drive_c/Program Files (x86)/Steam/appcache"
+cp "$V/own28.vdf" "$pso/drive_c/Program Files (x86)/Steam/appcache/packageinfo.vdf"
+cp "$V/trunc.vdf" "$pbad/drive_c/Program Files (x86)/Steam/appcache/packageinfo.vdf"
+steamapp "$O/main/s.app" S734M "$pso"; game "$O/main/mars.app" Mars 3215050 "$pmo"
+steamapp "$O/bad/s.app" S734M "$pbad"; game "$O/bad/mars.app" Mars 3215050 "$pmo"
+steamapp "$O/noprefix/s.app" S734M
+OFFER="$(line offer 949230 owned "Cities: Skylines II" https://github.com/example/1launcher/blob/main/cs2.md)"
+check "offers: an owned ported game with no app is an offer line, after the Steam apps; nothing else is offered" \
+  "$(list --games "$T/games.tsv" "$O/main")" \
+  "$(line game 3215050 absent Mars "$O/main/mars.app")
+$(line steam - absent S734M "$O/main/s.app")
+$OFFER"
+check "offers: none without --games" "$(list "$O/main" | cut -f1 | tr '\n' ' ')" "game steam "
+check "offers: none when the only file is not read cleanly (unknown)" "$(list --games "$T/games.tsv" "$O/bad" | cut -f1 | tr '\n' ' ')" "game steam "
+check "offers: none when no row has a prefix" "$(list --games "$T/games.tsv" "$O/noprefix" | cut -f1 | tr '\n' ' ')" "steam "
+printf '#!/bin/bash\nsleep 8\necho owned\n' > "$T/slow.sh"
+printf '#!/bin/bash\nexit 1\n' > "$T/fails.sh"
+printf '#!/bin/bash\necho owned\nexit 1\n' > "$T/saysfails.sh"
+printf '#!/bin/bash\necho owned\nkill -SEGV $$\n' > "$T/crashes.sh"
+chmod +x "$T/slow.sh" "$T/fails.sh" "$T/saysfails.sh" "$T/crashes.sh"
+t0=$(date +%s)
+out="$(L1_OWNED_HELPER="$T/slow.sh" "$P" --list --games "$T/games.tsv" "$O/main" 2>&1)"
+t1=$(date +%s)
+check "offers: a helper that sleeps 8 s: the rows within 7 s, and no offer" \
+  "$([ $((t1 - t0)) -lt 7 ] && echo in-time || echo "after $((t1 - t0)) s") $(printf '%s\n' "$out" | cut -f1 | tr '\n' ' ')" "in-time game steam "
+check "offers: a helper that exits 1 without a word: no offer" \
+  "$(L1_OWNED_HELPER="$T/fails.sh" "$P" --list --games "$T/games.tsv" "$O/main" 2>&1 | cut -f1 | tr '\n' ' ')" "game steam "
+check "offers: a helper that says owned and exits 1: no offer" \
+  "$(L1_OWNED_HELPER="$T/saysfails.sh" "$P" --list --games "$T/games.tsv" "$O/main" 2>&1 | cut -f1 | tr '\n' ' ')" "game steam "
+check "offers: a helper that says owned and crashes: no offer" \
+  "$(L1_OWNED_HELPER="$T/crashes.sh" "$P" --list --games "$T/games.tsv" "$O/main" 2>&1 | cut -f1 | tr '\n' ' ')" "game steam "
+check "offers: L1_OWNED_HELPER naming no program: no offer" \
+  "$(L1_OWNED_HELPER="$T/none.sh" "$P" --list --games "$T/games.tsv" "$O/main" 2>&1 | cut -f1 | tr '\n' ' ')" "game steam "
 
 # --- W9: --start, around fixture apps; last, since it needs a session that can start apps
 W="$T/w9"
