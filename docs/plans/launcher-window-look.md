@@ -3,8 +3,11 @@
 > **Status:** Triple-checked 2026-11-10 — build-ready-with-fixes, corrections folded. Pass 1 was three
 > lenses; pass 1b was a fourth agent checking the fold, and its findings are folded too. Eight decisions
 > James made the same day are in section 9. Written 2026-11-10.
-> **🔧 As-built (2026-11-10):** PARTIAL: B8 to B12 built on branch `launcher-look` (`17dd03a`, and the documents
-> commit after it), not yet merged; live steps L1 to L5 are still to come, each on James's word. Tests:
+> **🔧 As-built (2026-11-10):** PARTIAL: B8 to B12 built on branch `launcher-look` (`17dd03a` and `7ac2482`) and
+> merged as `64c06f1`. L1 done the same day on James's word: no launcher, Wine or Steam ran and no launcher lock
+> was held; `make-launcher-app.sh` exit 0; `--grid - ~/Applications` gave two games and one Steam tile at 444 by
+> 172, the pill `#0059D1` at 6.27, the lowest title, second-line and outline ratios 9.62, 9.79 and 5.06 (3.58 on
+> the plate); the packed icon holds the small form at 16 and 32 pixels. L2 to L5 are still to come. Tests:
 > `test-launcher-window.sh` 166 cases, its 40 new mutants (31 to 70) each seen red and restored;
 > `test-make-launcher-app.sh` 27, mutant 8 new; `test-setup.sh` 77, mutants 9 to 16 new; every other suite of
 > the parent's section 6 and `test-launcher-builders.sh` (W19) unchanged and green; `check-identifiers.sh`
