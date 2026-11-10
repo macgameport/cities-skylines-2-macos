@@ -1,8 +1,9 @@
 # 14unch3r: one window that lists the games
 
 > **Status:** Triple-checked 2026-11-10 — build-ready-with-fixes, corrections folded. Pass 1 was four
-> lenses; pass 1b was a fifth agent checking the fold, and its findings are folded too. Three decisions
-> James made the same day are in section 9. Nothing is built until he says go.
+> lenses; pass 1b was a fifth agent checking the fold, and its findings are folded too. Five decisions
+> James made the same day are in section 9; the two made after the check changed 2.4's last paragraph, W12
+> and live step 2, as the note at the end of the corrections says. Nothing is built until he says go.
 > Written 2026-11-10. Tracking: issue #22. This is Phase B of `docs/plans/launch-experience.md`, the second
 > slice of Phase 5 of `docs/plans/1launcher-unification.md`. It differs from the Phase B paragraph of that
 > outline in three ways, listed under D1, D2 and section 8. File and line references are as of `509bc56`;
@@ -19,6 +20,7 @@
 | J5 | "I still like 14unch3r even though you liked 1launcher better." | The app, its window and its icon are named 14unch3r. The repository and its folders keep `1launcher` (D4) |
 | J6 | "let's plan for the above and check the plan after" | This document, then `check it` |
 | J7 | "2) S734M", and "1&3 will go with for now" | D5 is decided as plain `S734M`; D1 and D8 stand for now |
+| J8 | "1) ok", and of the Studio's wrapper: "why keep it? if we have move past it, trash it, if it still serves a purpose keep it" | D10 is decided. D11: nothing still needs that wrapper, so it goes to the Trash (section 1, 2.4) |
 
 ## 1. What is true today (measured on the Studio, 2026-11-10, unless a date says otherwise)
 
@@ -48,11 +50,15 @@
   a name holding `&` gives a plist that does not parse, with exit 0.
 - **`S734M.app` is a wrapper.** On the Studio it is 101 G by `du`, last used on 2026-11-07, and nothing
   reads it when a game runs. It is the default source of three Surviving Mars tools
-  (`tools/make-engine.sh:48`, `tools/split-wrapper.sh:23`, `tools/test-make-engine-install.sh:11`), each
-  with an override, and `surviving-mars-relaunched/README.md:50` names it. Six registry lines in
+  (`tools/make-engine.sh:48`, `tools/split-wrapper.sh:23`, `tools/test-make-engine-install.sh:11`), the
+  first two with an override, and `surviving-mars-relaunched/README.md:50` names it. Six registry lines in
   its prefix name its own path, all of them font entries; the clone `SurvivingMars.app` has the same six
-  with its own path, so Wine rewrites them on a start. No symlink in any wrapper points into it, and it is
-  on one volume with `~/Library/Developer`. The MacBook's copy went to the Trash on 2026-11-10 (`docs/plans/local-files-layout.md`, O8).
+  with its own path, so Wine rewrites them on a start. No symlink in any wrapper points into it. Nothing
+  in it is the only copy any more: its Wine is in `SurvivingMars.app` as `wine.d3dm21-BAK`, 4789 files
+  and none differing; its Surviving Mars saves are all in that wrapper too; its second install of Cities:
+  Skylines II is on the build the play wrapper has; and the two autosaves of 2026-08-22 that were in its
+  prefix alone were copied to the evidence store on 2026-11-10, each file compared equal. The MacBook's
+  copy went to the Trash on 2026-11-10 (`docs/plans/local-files-layout.md`, O8).
 
 **Locks and Steam sessions**
 
@@ -314,7 +320,7 @@ either, which costs nothing (section 1).
 2. **It replaces only its own bundle**, by the test of 2.1 with `scripts/make-steam-shortcut.sh` and
    `local.cs2.steamstore`. This is what keeps a wrapper named `S734M.app` from being deleted. When the
    target fails the test and has a `Contents/SharedSupport`, the error adds: `A Wine wrapper of that name
-   is in this folder. Move it out (surviving-mars-relaunched/README.md says where), or build under another
+   is in this folder. Move or remove it (see surviving-mars-relaunched/README.md), or build under another
    name with --name.`
 3. **Its `Info.plist`** (`:166-181`) gains `L1Role` `steam` and `L1Prefix`, and its name keys are written
    by `plutil` (2.1).
@@ -331,17 +337,18 @@ either, which costs nothing (section 1).
 6. **Its header, `--help` range (`:40`) and closing lines (`:184-187`)**, and the two lines of
    `cities-skylines-2/scripts/build-engine-1116.sh` that name the app (`:227`, `:242`), follow the name.
 
-**The wrapper named `S734M.app`.** The name is free on the MacBook. On the Studio the wrapper leaves
-`~/Applications` first (live step 2, D11): it moves to
-`~/Library/Developer/1launcher/surviving-mars-relaunched/donor/S734M.app`, beside that game's `engine/`,
-where `CLAUDE.md` already puts a game's Wine trees. The three Surviving Mars tools that default to the
-old place look in the new one first and in `~/Applications/S734M.app` second, and take the second only if
-it has `Contents/SharedSupport/wine`; with a donor at neither, a tool's error names the new place;
-`ENGINE_SRC` and `SPLIT_DONOR` still override. `README.md:50` names the new place.
-`common/mac-inventory.sh` lists the new app names (`:127`); gives `14unch3r.app` a line of its own, since
-that app has no shim to read (`:128`); counts a bundle in its wrapper loop only when it has
-`Contents/SharedSupport` (`:133-136`), so that the app `S734M.app` is not reported as a wrapper; and reads
-the donor at its new place.
+**The wrapper named `S734M.app`.** The name is free on the MacBook. On the Studio the wrapper goes to the
+Trash first, in live step 2 (D11): section 1 shows that nothing in it is the only copy. Two tools took
+their Wine from it and take the kept copy once it is gone: `tools/make-engine.sh:48` and
+`tools/test-make-engine-install.sh:11` use `~/Applications/S734M.app/Contents/SharedSupport/wine` when that
+folder exists and `~/Applications/SurvivingMars.app/Contents/SharedSupport/wine.d3dm21-BAK` otherwise;
+`ENGINE_SRC` still overrides the first. `tools/split-wrapper.sh` does not change: it makes the Surviving
+Mars wrapper from a donor, and a Mac that has that wrapper has no more use for one. `README.md:50` says
+that a donor may have any name and place, given as `SPLIT_DONOR`, that it can be removed once the split is
+done, and that `S734M.app` in `~/Applications` is now the Steam app's name. `common/mac-inventory.sh`
+lists the new app names (`:127`); gives `14unch3r.app` a line of its own, since that app has no shim to
+read (`:128`); and counts a bundle in its wrapper loop only when it has `Contents/SharedSupport`
+(`:133-136`), so that the app `S734M.app` is not reported as a wrapper.
 
 What the Steam app opens does not change here: the store wrapper's Steam. Opening a game's own Steam is
 Phase C, which will rework this builder again.
@@ -400,10 +407,10 @@ seen red and restored, and every suite that passed before still passes.
 | B1 | The game builders: keys, alternate names, names and prefix through `plutil`, the name check, the own-bundle test, `SM_GAME_EXE` | `cities-skylines-2/scripts/make-shortcut.sh`, `surviving-mars-relaunched/make-app.sh`, their two tests |
 | B2 | The window without offers: folders, rows, states, order, the selected row, the question's rule, starting a row; the table of games | `common/launcher-window.swift`, `common/games.tsv`, `common/test-launcher-window.sh` |
 | B3 | The window's builder, without the icon; `setup.sh` running it; `make-app.sh`'s last line | `common/make-launcher-app.sh`, `common/test-make-launcher-app.sh`, `cities-skylines-2/scripts/setup.sh`, `cities-skylines-2/scripts/test-setup.sh`, `surviving-mars-relaunched/make-app.sh` and its test |
-| B4 | The Steam app; the engine builder's two lines; the donor wrapper's place; the inventory's lists | `cities-skylines-2/scripts/make-steam-shortcut.sh`, `cities-skylines-2/scripts/test-make-steam-shortcut.sh`, `cities-skylines-2/scripts/build-engine-1116.sh`, the three Surviving Mars tools of section 1 and a new `tools/test-donor-place.sh`, `common/mac-inventory.sh` and its test |
+| B4 | The Steam app; the engine builder's two lines; where two Surviving Mars tools take their Wine from; the inventory's lists | `cities-skylines-2/scripts/make-steam-shortcut.sh`, `cities-skylines-2/scripts/test-make-steam-shortcut.sh`, `cities-skylines-2/scripts/build-engine-1116.sh`, `surviving-mars-relaunched/tools/make-engine.sh`, `tools/test-make-engine-install.sh` and a new `tools/test-engine-source.sh`, `common/mac-inventory.sh` and its test |
 | B5 | The offers: the reader, the child process, the third heading, the address rule | `common/launcher-window.swift`, `common/test-launcher-window.sh` |
 | B6 | The icon | `common/launcher-window.swift`, `common/make-launcher-app.sh`, `common/test-make-launcher-app.sh` |
-| B7 | Documents: the root `README.md`; the root `CLAUDE.md` (the `common/` row, the in-progress line, and the sentence on places outside the repo, which gains the generated apps in `~/Applications`, the preferences file and the donor's place, each with its reason); both games' READMEs; `cities-skylines-2/INSTALL.md`, `CLAUDE.md` and `PLAN.md` where they name the store app; `cities-skylines-2/scripts/README.md`; the comment at `surviving-mars-relaunched/launch-relaunched.sh:14`; the as-built header here | those |
+| B7 | Documents: the root `README.md`; the root `CLAUDE.md` (the `common/` row, the in-progress line, and the sentence on places outside the repo, which gains the generated apps in `~/Applications` and the preferences file, each with its reason); both games' READMEs; `cities-skylines-2/INSTALL.md`, `CLAUDE.md` and `PLAN.md` where they name the store app; `cities-skylines-2/scripts/README.md`; the comment at `surviving-mars-relaunched/launch-relaunched.sh:14`; the as-built header here | those |
 
 `docs/plans/local-files-layout.md`, not yet built, also edits `make-shortcut.sh` and `setup.sh` (its step 1.4)
 and counts every spelling of the old install folder's name in the repo (its LT12). So no new file of this
@@ -431,7 +438,7 @@ that does not apply exits 2.
 | W10 | B3 | `cities-skylines-2/scripts/test-setup.sh`: added cases, with a recording stub at `common/make-launcher-app.sh` beside its scratch repo, where `setup.sh` looks (`$REPO/../common`) | The stub is run once, after the game's app. With the stub exiting 1, and exiting 3: setup exits 0, prints `=== setup complete ===`, counts no problem, and its line about the window has no `!!`. With no `common/` at all: the same, with the line of 2.3. When `make-shortcut.sh` failed, the stub is not run and the problem counts stay as `:155-157` expect | the call dropped; its failure counted as a problem; the call made when the game's app was not built |
 | W11 | B3 | `surviving-mars-relaunched/tools/test-make-app.sh`: added cases | The last line names `common/make-launcher-app.sh` when no `14unch3r.app` is beside the built app, and is not printed when one is | the line always printed |
 | W4 | B4 | `cities-skylines-2/scripts/test-make-steam-shortcut.sh`, new. Every call passes a fixture `--wrapper`, whose `wine64` is a stub printing a version, and a `--from` that does not exist | The app is built as `S734M.app` by default and under `--name`. Its plist holds the role, the prefix, the three alternate names, the name written by `plutil`, and lints. The shim passes `bash -n`, and its two `wine64` lines are byte-for-byte those of the source. With the fixture's `steam.exe` deleted and a recording `osascript` first on `PATH`, the shim exits 1 before either `wine64` line and records one alert whose title argument is exactly a name holding an apostrophe, `"`, `$(touch x)` and `&`, and no file `x` appears. A wrapper-shaped `S734M.app` at the target: exit 1, the extra sentence of 2.4, the bundle byte-identical. An old `CS2 Steam Store.app` with the marker on line 5, as the Studio's has it: removed and said; one with another identifier, and one with no marker: left and said. Built as `--name "cs2 steam store"`: the app just built is still there. An empty name, one holding `/` and one starting `-` exit 2 with nothing removed | the own-bundle test dropped; the old bundle removed without the test; the `-ef` test dropped; the title written into the heredoc; the title put into AppleScript source; `nohup` added to a start line; the role dropped; the name check after the removal |
-| W12 | B4 | `surviving-mars-relaunched/tools/test-donor-place.sh`, new, and `common/test-mac-inventory.sh`: added cases | With a scratch `HOME` and fixture bundles that hold no Wine: `make-engine.sh`, run plain, names in its `ERROR: no Wine engine at` line (`:57`) the new place when a donor is there; the old place when only that has `Contents/SharedSupport/wine`; the new place when the old one holds a shim app or nothing; and `ENGINE_SRC` when that is set. `split-wrapper.sh` names in its `no prefix in` line (`:77`) the same choice, and `SPLIT_DONOR` when that is set. The inventory reports a shim `S734M.app` as an app and not as a wrapper, `14unch3r.app` on a line of its own, and a donor at the new place as a wrapper | the old place taken without the `wine` test; the new place not looked at; `S734M` left in the inventory's wrapper list |
+| W12 | B4 | `surviving-mars-relaunched/tools/test-engine-source.sh`, new, and `common/test-mac-inventory.sh`: added cases | With a scratch `HOME` and fixture bundles that hold no Wine: `make-engine.sh`, run plain, names in its `ERROR: no Wine engine at` line (`:57`) the `wine` folder of a wrapper-shaped `S734M.app` when that is there; the kept copy in `SurvivingMars.app` when `S734M.app` is a shim app, and when it is absent; and `ENGINE_SRC` when that is set. `test-make-engine-install.sh` names the same choice in its `REFUSED` line (`:12`). The inventory reports a shim `S734M.app` as an app and not as a wrapper, and `14unch3r.app` on a line of its own | the kept copy not looked at; `ENGINE_SRC` ignored; `S734M` left in the inventory's wrapper list |
 | W7 | B5 | `common/test-launcher-window.sh`: `--owned`, offers. Files written by the test from fixed bytes, in both header forms | An id under a root's `appids` is `owned`; the same number only under `depotids`, and under an `appids` one level deeper, is `not-owned`; a valid file with no package is `not-owned`. `unknown`: a truncated file, a fixed block of noise, another magic, a node type 3, a nesting of 9, no end mark, a byte after the end mark, a valid owning file padded inside a string node past 16,777,216 bytes, a symlink to a valid file, and no file. A nesting of 8 is read. Several files: one bad and one owning is `owned`; one bad and one clean without the id is `not-owned`. A loop of 200 single-byte changes to a valid file from a fixed seed: every answer is one of the three words with exit 0. With `--games`: an owned ported game with no app is an `offer` line in the form of 2.5; a not-owned or unknown one is not; one that has an app is never; a `file:` address and an `http:` one drop the row; offers come after Steam apps. With `L1_OWNED_HELPER` naming a script that sleeps 8 s, `--list --games` prints its rows within 7 s and no offer; with one that exits 1 without a word, no offer | the `appids` name test dropped; `depotids` counted; a failed read answered `not-owned`; the token always read; the size limit dropped; only the first file read; an offer for a game that has an app; a `file:` address accepted; the time limit dropped; the files read in the list's own process |
 | W8 | B5 | same file: the builders together | Both game apps and the Steam app, built by their own builders into one scratch folder with fixture paths, come out of `--list` as two games and one Steam app, and each game's id and title equal its line in `common/games.tsv` | a game's line removed from `games.tsv`; `L1Role` renamed in one builder |
 
@@ -450,12 +457,12 @@ path. Captures go to the evidence store and are not committed; one that is needs
    and `--owned 730`, given the real `packageinfo.vdf` of each wrapper, print `owned` and `not-owned`.
 1. **Merge, on the Studio, with no launcher running.** The check of live step 1 of
    `docs/plans/launch-experience.md` prints nothing; then `git merge --no-ff`, and push.
-2. **Free the name, then build.** With no `wineserver` running, that check extended to its prefix, the two
-   folders on one volume by `stat -f %d`, and nothing yet at the destination, `mkdir -p` makes the donor's
-   folder and the wrapper `~/Applications/S734M.app` is moved into it (2.4, D11).
-   `bash surviving-mars-relaunched/tools/test-make-engine-install.sh` then exits 0 on the Studio. It starts
-   an Intel program from the moved wrapper, which macOS may hold for some minutes while it verifies it
-   (`cities-skylines-2/GOTCHAS.md:2597-2600`). Then
+2. **Free the name, then build.** With no `wineserver` running, that check extended to its prefix, and
+   nothing of its name in `~/.Trash`, the wrapper `~/Applications/S734M.app` is moved to the Trash (2.4,
+   D11). It can be put back until the Trash is emptied, and emptying it is James's.
+   `bash surviving-mars-relaunched/tools/test-make-engine-install.sh` then exits 0 on the Studio, from the
+   kept copy. It starts an Intel program from a clone of that copy, which macOS may hold for some minutes
+   while it verifies it (`cities-skylines-2/GOTCHAS.md:2597-2600`). Then
    `bash scripts/setup.sh` from `cities-skylines-2/`, which now builds the window too; T2 of
    `docs/plans/1launcher-unification.md`; `bash surviving-mars-relaunched/make-app.sh`;
    `bash cities-skylines-2/scripts/make-steam-shortcut.sh`. `~/Applications` then holds `14unch3r.app`, the
@@ -485,6 +492,8 @@ path. Captures go to the evidence store and are not committed; one that is needs
    and 5. The Steam app is built there only if that Mac has a store wrapper: without one the builder
    would clone the play wrapper to make it (`make-steam-shortcut.sh:49-70`). An app there that its builder
    refuses as not its own is moved to the Trash by hand and built again.
+   `tools/test-make-engine-install.sh` is run there too: it passes if that Mac's Surviving Mars wrapper has
+   the kept copy and exits 2 if not, and which is written down.
 
 No launcher code changes, so no boot check is owed; step 5 starts each rebuilt app once.
 
@@ -508,8 +517,9 @@ and `bash surviving-mars-relaunched/make-app.sh` on each Mac, and
 `bash cities-skylines-2/scripts/make-steam-shortcut.sh` only on a Mac that has a store wrapper, where it
 rebuilds `CS2 Steam Store.app`. By hand: `14unch3r.app` and the app `S734M.app` to the Trash, their Dock
 entries dragged out, `defaults delete local.1launcher.window` and the empty file it leaves in
-`~/Library/Preferences` removed. The Studio's donor wrapper goes back with one `mv` once the app of that
-name has left the folder. No launcher code, game file, save or setting is touched by this plan.
+`~/Library/Preferences` removed. The Studio's wrapper can be put back from the Trash, once the app of that
+name has left the folder, until the Trash is emptied; after that there is no way back for it, and by
+section 1 this plan needs none. No launcher code, game file, save or setting is touched by this plan.
 
 ## 8. Not in this plan
 
@@ -541,8 +551,8 @@ name has left the folder. No launcher code, game file, save or setting is touche
 | D7 | Can the ownership file hide a game that is set up? | Never. It only adds offers |
 | D8 | The icon | **Stands for now (2026-11-10).** Drawn by the builder, "14" on a dark rounded square, until James supplies art |
 | D9 | Is B5, the offers, built now? | Yes, last. It is what J2 asked for beyond what the rows already give, and it cannot block or delay a launch. It will show nothing on James's two Macs, and it is the one part that reads a file format of Valve's, which is why live step 0 runs it on real files before the merge |
-| D10 | Two new places outside the repo, which `CLAUDE.md` asks James's word for | `~/Applications/14unch3r.app`, a generated app beside the two that are there, and `~/Library/Preferences/local.1launcher.window.plist`, one number, where macOS keeps every app's preferences. B7 writes both into `CLAUDE.md` |
-| D11 | The Studio's wrapper `S734M.app`, whose name the Steam app now takes | Move it to `~/Library/Developer/1launcher/surviving-mars-relaunched/donor/`: one rename, nothing lost, and one wrapper fewer in Applications. The other choice is the Trash, as on the MacBook; Surviving Mars's wrapper keeps a copy of that Wine as `wine.d3dm21-BAK`, and a rebuild of the wrapper itself would need the donor made again |
+| D10 | Two new places outside the repo, which `CLAUDE.md` asks James's word for | **Decided 2026-11-10: "ok".** `~/Applications/14unch3r.app`, a generated app beside the two that are there, and `~/Library/Preferences/local.1launcher.window.plist`, one number, where macOS keeps every app's preferences. B7 writes both into `CLAUDE.md` |
+| D11 | The Studio's wrapper `S734M.app`, whose name the Steam app now takes | **Decided 2026-11-10, by James's rule:** "if we have move past it, trash it, if it still serves a purpose keep it". Measured the same day (section 1): nothing reads it when a game runs, its Wine is kept byte for byte in the Surviving Mars wrapper, and the two saves found only in it are copied out. So it goes to the Trash in live step 2, and the two tools that took their Wine from it take the kept copy |
 
 ## Review corrections (pass 1, 2026-11-10)
 
@@ -589,7 +599,7 @@ line right. Verdict: build-ready-with-fixes, no design change. Folded:
 | F1 | Blocker: W4's "no line holds `nohup`" is red on a correct build, since the shim's own comments name it | W4: the case is gone; the byte-for-byte case and its mutant stay |
 | F2 | W9's 3 s fixture ended before the cases that need it alive, and one first start took 3.09 s | W9: 30 s, a wait of up to 10 s, `kill -0` before each case |
 | F3 | The child process and its limit had no case, and `--list --games` did not say how it asks | 2.2, 2.5 (`L1_OWNED_HELPER`), W7 |
-| F4 | Two of the three donor edits were never run by any test | W12 in a new `tools/test-donor-place.sh`; live step 2 runs the engine-install test |
+| F4 | Two of the three donor edits were never run by any test | W12 in a new test file; live step 2 runs the engine-install test. Both were reworked when D11 was decided: the note below |
 | F5 | The inventory would report the app `S734M.app` as a wrapper and `14unch3r.app` as absent | 2.4, W12 |
 | F6 | "No file inside it names its own path" was false: the count came from a command that zsh never ran | Section 1 |
 | F7 | The name check was tested in one builder of three | W4, W6 |
@@ -598,6 +608,15 @@ line right. Verdict: build-ready-with-fixes, no design change. Folded:
 | F10 | Smaller: the move's `mkdir`, volume and destination checks; the marker lines frozen; an interrupted build; a trailing slash; setup's line per exit code; how an address is opened; where the table comes from; the `plutil` failure case; `test-launch-feedback.sh` in section 6; the Steam row's second line read as a status | 2.1, 2.2, 2.3, 2.5, W5, W10, live steps 2, 4 and 8, section 6 |
 
 Left as it is, and said in 2.1: the game shims' `SCRIPT=` and `GAME_EXE=` lines.
+
+### After the check: D10 and D11 decided (2026-11-10)
+
+James agreed to D10 and gave D11 a rule, and the measurements now in section 1 settled it as the Trash.
+That replaced a planned move of the wrapper to a folder under `~/Library/Developer` and took that move's
+consequences out again: no new folder, no edit to `split-wrapper.sh`, and W12 tests where two tools take
+their Wine from. The change is in section 1, 2.4's last paragraph and item 2, B4, B7, W12, live steps 2
+and 8, section 7 and D11. The planner made it after pass 1b and read it against
+`tools/make-engine.sh:28-49` and `tools/test-make-engine-install.sh:1-40`. No agent has reviewed it.
 
 ## Review log
 
