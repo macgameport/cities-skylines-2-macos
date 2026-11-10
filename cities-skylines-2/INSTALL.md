@@ -98,7 +98,12 @@ use ship with them. Its last lines say how many of the ten patch scripts finishe
 
 That checks your prerequisites, installs the launcher into `~/cs2-patch/`, applies the binary
 patches, and builds a double-clickable **Cities Skylines II.app** in `~/Applications` using the
-game's own icon.
+game's own icon, and **14unch3r**, the window that lists every game set up on this Mac.
+
+At the end it asks `Put a 14unch3r shortcut on the Desktop? [y/N]`. Pressing Return means no; type `y`
+for one. It asks only when it is run in Terminal and no shortcut is there, and it never replaces anything
+already on the Desktop by that name. `bash scripts/setup.sh --desktop` makes the shortcut without asking;
+`--yes` does not.
 
 Want to look before it touches anything? `bash scripts/setup.sh --check` runs the checks and stops.
 
@@ -333,5 +338,5 @@ defaults delete local.1launcher.window 2>/dev/null; rm -f ~/Library/Preferences/
 ```
 
 Then delete the wrappers (`~/Applications/CS2dxmt11.app`, and `~/Applications/CS2dxmt11-pk110.app`
-if the engine build created it) via Porting Kit or the Finder. Nothing is installed outside those
-paths.
+if the engine build created it) via Porting Kit or the Finder, and the **14unch3r** shortcut on the
+Desktop if you made one: move it to the Trash in the Finder. Nothing is installed outside those paths.

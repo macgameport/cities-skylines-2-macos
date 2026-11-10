@@ -13,6 +13,14 @@
 #   MUTANT=6 bash scripts/test-setup.sh   the window builder (14unch3r) is never run; must exit 1
 #   MUTANT=7 bash scripts/test-setup.sh   a failed window build counts as a setup problem; must exit 1
 #   MUTANT=8 bash scripts/test-setup.sh   the window builder runs when the game's app was not built; must exit 1
+#   MUTANT=9  ...  Return counted as yes at the Desktop question; must exit 1
+#   MUTANT=10 ...  --yes counted as yes; must exit 1
+#   MUTANT=11 ...  the Desktop looked at without a terminal; must exit 1
+#   MUTANT=12 ...  make passed when the state is other; must exit 1
+#   MUTANT=13 ...  asked when the state is have; must exit 1
+#   MUTANT=14 ...  the alias step run when the window was not built; must exit 1
+#   MUTANT=15 ...  the step run before the problems exit; must exit 1
+#   MUTANT=16 ...  the Desktop folder not tested; must exit 1
 # The window builder is a recording stub beside the scratch repo, at $T/common, where setup.sh looks for it.
 set -u
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
@@ -32,6 +40,14 @@ case "${MUTANT:-0}" in
   5) mutate 's#^  26|27) say #  15|26|27) say #' '^  15|26|27) say ' ;;
   6) mutate 's#^  elif bash "\$WINDOW_BUILDER"; then$#  elif true; then#' '^  elif true; then$' ;;
   7) mutate 's#^    echo "  window: not built (see the line above)"$#    problems=$((problems+1)); echo "  window: not built (see the line above)"#' '^    problems=\$((problems+1)); echo "  window: not built' ;;
+  9) mutate 's#^      case "\$_a" in y|Y) _want=1 ;; esac$#      case "$_a" in y|Y|"") _want=1 ;; esac#' 'y|Y|"")' ;;
+  10) mutate 's#^  if \[ "\$DESKTOP" = 1 \]; then _look=1$#  if [ "$DESKTOP" = 1 ] || [ "$ASSUME_YES" = 1 ]; then _look=1; DESKTOP=1#' 'then _look=1; DESKTOP=1$' ;;
+  11) mutate 's#^  elif \[ "\$ASSUME_YES" = 0 \] \&\& \[ -t 0 \]; then _look=1; _ask=1$#  elif [ "$ASSUME_YES" = 0 ]; then _look=1; _ask=1#' '^  elif \[ "\$ASSUME_YES" = 0 \]; then _look=1' ;;
+  12) mutate 's#^  if \[ "\$_state" = none \]; then$#  if [ "$_state" = none ] || [ "$_state" = other ]; then#' '\[ "\$_state" = other \]; then$' ;;
+  13) mutate 's#^  if \[ "\$_state" = none \]; then$#  if [ "$_state" = none ] || [ "$_state" = have ]; then#' '\[ "\$_state" = have \]; then$' ;;
+  14) mutate 's#^  \[ "\${WINDOW_BUILT:-0}" = 1 \] || return 0$#  true#' '^  true$' ;;
+  15) mutate 's#^if \[ "\$problems" -gt 0 \]; then$#desktop_step; if [ "$problems" -gt 0 ]; then#' '^desktop_step; if' ;;
+  16) mutate 's#^  \[ -d "\$HOME/Desktop" \] || return 0$#  true#' '^  true$' ;;
   8) perl -0pi -e 's/\nelse\n  # 14unch3r/\nfi\nif true; then\n  # 14unch3r/' "$S"; grep -q '^if true; then$' "$S" || { echo "REFUSED: mutant did not apply"; exit 2; } ;;
 esac
 for f in "$REPO"/patches/patch_*.py; do
@@ -53,8 +69,18 @@ cat > "$T/common/make-launcher-app.sh" << 'STUB'
 #!/bin/bash
 printf 'CALL args=%s app=%s\n' "$#" "$([ -f "$HOME/Applications/Cities Skylines II.app/Contents/MacOS/launch" ] && echo there || echo missing)" >> "$WINDOW_CALLS"
 echo "stub: window builder"
+# a recording launcher-window in the scratch HOME's 14unch3r.app: it answers --alias with $STUB_ALIAS
+mkdir -p "$HOME/Applications/14unch3r.app/Contents/MacOS"
+cat > "$HOME/Applications/14unch3r.app/Contents/MacOS/launcher-window" << 'PROG'
+#!/bin/bash
+printf 'ALIAS %s\n' "$*" >> "$ALIAS_CALLS"
+[ "${4:-}" = make ] && [ "${STUB_ALIAS:-none}" = none ] && { echo made; exit 0; }
+echo "${STUB_ALIAS:-none}"
+PROG
+chmod +x "$HOME/Applications/14unch3r.app/Contents/MacOS/launcher-window"
 exit "${STUB_WINDOW_RC:-0}"
 STUB
+export ALIAS_CALLS="$T/alias.calls"; : > "$ALIAS_CALLS"
 cp -R "$R" "$T/repo2"; printf '#!/bin/bash\necho "stub: no app"; exit 1\n' > "$T/repo2/scripts/make-shortcut.sh"
 BADGE="cs2-patch/patch-modconflict-badge.py"
 MARK="cs2-patch/patches/.mod-badges-on"
@@ -199,6 +225,46 @@ check "no common/ beside the checkout: setup exits 0 and says the builder is not
   "$(SETUP_REPO="$T/nocommon/repo" run "$H"):$(said "$H" '^  window: not built (common/make-launcher-app.sh is not in this checkout)$'):$(said "$H" '^=== setup complete ===$'):$(lines "$WINDOW_CALLS")" "0:1:1:0"
 : > "$WINDOW_CALLS"
 check "the game's app was not built: the window builder is not run" "$(SETUP_REPO="$T/repo2" run "$H"):$(lines "$WINDOW_CALLS")" "1:0"
+
+# --- the Desktop shortcut (docs/plans/launcher-window-look.md, 2.9; W18). The stub program answers --alias with
+# $STUB_ALIAS and records every call. ptya types its answer into a pipe held open, so that the read sees it and not
+# an end of file (measured: printf 'y\n' | script ... gives the read an end of file and an empty answer), on a Mac
+# inside the tested range, so that the caution question does not take it first.
+ptya() {  # <typed line> <home> [setup.sh arguments]: setup at a terminal, with <typed line> typed
+  local typed="$1" h="$2"; shift 2
+  { sleep 1; printf '%s\n' "$typed"; sleep 6; } | env -u CS2_PATCH_DIR -u CS2_WRAPPER -u CS2_GAME_DIR -u CS2_ERRNO_PATCHES -u STUB_OSV \
+    HOME="$h" PATH="$T/bin:$PATH" script -q /dev/null bash "$S" "$@" > "$h.out" 2>&1; echo $?
+}
+Q='Put a 14unch3r shortcut on the Desktop? \[y/N\]'
+TAB="$(printf '\t')"
+makes() { grep -c ' make$' "$ALIAS_CALLS"; }
+desk() {  # <home>: asked : calls : make calls : which Desktop line : setup complete
+  echo "$(said "$1" "$Q"):$(lines "$ALIAS_CALLS"):$(makes):$(sed -n 's/^Desktop:   //p' "$1.out" | tr -d '\r' | cut -c1-14):$(said "$1" '^=== setup complete ===')"
+}
+H="$T/hd"; home "$H"; mkdir -p "$H/Desktop"
+: > "$ALIAS_CALLS"; check "desktop: y at a terminal: asked once, one call and one with make, the added line" "$(ptya y "$H"):$(desk "$H")" "0:1:2:1:14unch3r short:1"
+: > "$ALIAS_CALLS"; check "desktop: an empty line: asked, no make, the no-shortcut line" "$(ptya '' "$H"):$(desk "$H")" "0:1:1:0:no shortcut ma:1"
+: > "$ALIAS_CALLS"; check "desktop: n: asked, no make, the no-shortcut line" "$(ptya n "$H"):$(desk "$H")" "0:1:1:0:no shortcut ma:1"
+: > "$ALIAS_CALLS"; check "desktop: --yes at a terminal: not asked, no call at all, the no-shortcut line" "$(ptya y "$H" --yes):$(desk "$H")" "0:0:0:0:no shortcut ma:1"
+: > "$ALIAS_CALLS"; check "desktop: --desktop with no terminal: not asked, make once" "$(run "$H" --desktop):$(desk "$H")" "0:0:2:1:14unch3r short:1"
+: > "$ALIAS_CALLS"; check "desktop: no terminal and no flag: no call at all, the no-shortcut line" "$(run "$H"):$(desk "$H")" "0:0:0:0:no shortcut ma:1"
+: > "$ALIAS_CALLS"; check "desktop: have at a terminal: not asked, no make, already there" "$(STUB_ALIAS=have ptya y "$H"):$(desk "$H")" "0:0:1:0:the 14unch3r s:1"
+: > "$ALIAS_CALLS"; check "desktop: have with --desktop at none: not asked, no make, already there" "$(STUB_ALIAS=have run "$H" --desktop):$(desk "$H")" "0:0:1:0:the 14unch3r s:1"
+: > "$ALIAS_CALLS"; check "desktop: other at a terminal: not asked, no make, left as it is" "$(STUB_ALIAS=other ptya y "$H"):$(desk "$H")" "0:0:1:0:something else:1"
+: > "$ALIAS_CALLS"; check "desktop: other with --desktop at none: not asked, no make, left as it is" "$(STUB_ALIAS=other run "$H" --desktop):$(desk "$H")" "0:0:1:0:something else:1"
+: > "$ALIAS_CALLS"
+check "desktop: failed with a sentence: the could-not-be-made line with that sentence" \
+  "$(STUB_ALIAS="failed${TAB}the disk is full" run "$H" --desktop):$(sed -n 's/^Desktop:   //p' "$H.out")" "0:the shortcut could not be made: the disk is full"
+: > "$ALIAS_CALLS"; before=$(snap "$H")
+check "desktop: --check --desktop: no call at all and nothing written" "$(run "$H" --check --desktop):$(lines "$ALIAS_CALLS"):x$(snap "$H")" "0:0:x$before"
+: > "$ALIAS_CALLS"
+check "desktop: the window builder exits 1: no call, no Desktop line" "$(STUB_WINDOW_RC=1 run "$H" --desktop):$(lines "$ALIAS_CALLS"):$(said "$H" '^Desktop:'):$(said "$H" '^=== setup complete ===$')" "0:0:0:1"
+H2="$T/hd2"; home "$H2"; : > "$ALIAS_CALLS"
+check "desktop: a home with no Desktop folder: no call, no line" "$(run "$H2" --desktop):$(lines "$ALIAS_CALLS"):$(said "$H2" '^Desktop:')" "0:0:0"
+: > "$ALIAS_CALLS"
+check "desktop: a failing patch with --desktop: exit 1 as before, not asked, no call" \
+  "$(STUB_FAIL=patch_mkparent.py run "$H" --desktop):$(said "$H" "$Q"):$(lines "$ALIAS_CALLS"):$(said "$H" '^=== setup finished with 1 problem')" "1:0:0:1"
+check "desktop: --help names --desktop" "$(bash "$S" --help | grep -c -- '--desktop')" 1
 
 echo "$fails failure(s)"
 [ "$fails" = 0 ]

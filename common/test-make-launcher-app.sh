@@ -1,6 +1,6 @@
 #!/bin/bash
 # test-make-launcher-app.sh -- common/make-launcher-app.sh builds 14unch3r.app (docs/plans/launcher-window.md,
-# 2.3 and 2.6; W6). Every build goes into a scratch folder, from a scratch copy of common/ that a mutant may
+# 2.3 and 2.6; W6; docs/plans/launcher-window-look.md, W13). Every build goes into a scratch folder, from a scratch copy of common/ that a mutant may
 # edit, with HOME at a scratch folder. The built program is only asked for --folders, --list and --icon: the
 # window itself is never opened. No game, no Steam, no Wine.
 #   bash common/test-make-launcher-app.sh            exit 0 = every case passed; exit 2 = swiftc is missing,
@@ -12,6 +12,7 @@
 #   MUTANT=5 ...   the window's own folder is not among the folders it reads; must exit 1
 #   MUTANT=6 ...   the name check is dropped (a name starting with - builds); must exit 1
 #   MUTANT=7 ...   CFBundleIconFile is written when the icon failed; must exit 1
+#   MUTANT=8 ...   the small drawing used for no size; must exit 1
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
 for f in make-launcher-app.sh launcher-window.swift games.tsv; do
@@ -39,6 +40,7 @@ case "${MUTANT:-0}" in
   6) drop "$BUILDER" 'echo "--name must not be empty' ;;
   7) sed -i '' 's|^if \[ "\$ICON_OK" = 1 \]; then plutil -replace CFBundleIconFile|if true; then plutil -replace CFBundleIconFile|' "$BUILDER"
      grep -q '^if true; then plutil -replace CFBundleIconFile' "$BUILDER" || mutated ;;
+  8) drop "$BUILDER" '"$EXE" --icon "$B/icon-small.png" small' ;;
   *) echo "REFUSED: no mutant ${MUTANT}"; exit 2 ;;
 esac
 
@@ -131,6 +133,23 @@ check "  ...drawn at exactly 1024 by 1024 pixels" "$(sips -g pixelWidth -g pixel
 mkdir -p "$T/noicon"; printf '#!/bin/bash\nexit 1\n' > "$T/noicon/iconutil"; chmod +x "$T/noicon/iconutil"
 rc=$(XPATH="$T/noicon" mk "$T/ni")
 check "iconutil fails: the app is built, its plist names no icon, and it says so" "$rc:$(px CFBundleIconFile "$T/ni/14unch3r.app"):$(said '^    icon:     skipped')" "0::1"
+
+# --- the small form (docs/plans/launcher-window-look.md, 2.6, W13): the three files of 16 and 32 pixels from it,
+# the other seven from the full drawing; and all ten from the full one when the small one cannot be drawn
+mkdir -p "$T/rec"
+printf '#!/bin/bash\nprintf "%%s\\n" "$*" >> "%s"\nexec /usr/bin/sips "$@"\n' "$T/sips.log" > "$T/rec/sips"; chmod +x "$T/rec/sips"
+sources() {   # each iconset file and the drawing it was scaled from, sorted: icon_16x16.png<icon-small.png ...
+  awk '/\.iconset\// { n = split($4, a, "/"); m = split($6, b, "/"); print b[m] "<" a[n] }' "$T/sips.log" | sort | tr '\n' ' '
+}
+: > "$T/sips.log"; rc=$(XPATH="$T/rec" mk "$T/sm")
+check "the files of 16 and 32 pixels come from the small form, the other seven from the full one" "$rc:$(sources)" \
+  "0:icon_128x128.png<icon.png icon_128x128@2x.png<icon.png icon_16x16.png<icon-small.png icon_16x16@2x.png<icon-small.png icon_256x256.png<icon.png icon_256x256@2x.png<icon.png icon_32x32.png<icon-small.png icon_32x32@2x.png<icon.png icon_512x512.png<icon.png icon_512x512@2x.png<icon.png "
+mkdir -p "$T/nosmall/common"; cp "$BUILDER" "$T/repo/common/games.tsv" "$T/nosmall/common/"
+sed 's|if !drawIcon(to: absolute(rest\[0\]), small: rest.count == 2) {|if rest.count == 2 \|\| !drawIcon(to: absolute(rest[0]), small: false) {|' "$SRC" > "$T/nosmall/common/launcher-window.swift"
+grep -q 'if rest.count == 2 || !drawIcon' "$T/nosmall/common/launcher-window.swift" || { echo "REFUSED: the program that cannot draw the small form was not made"; exit 2; }
+: > "$T/sips.log"; rc=$(HOME="$T/home" PATH="$T/rec:$PATH" /bin/bash "$T/nosmall/common/make-launcher-app.sh" --dest "$T/ns" > "$T/out" 2>&1; echo $?)
+check "the small form cannot be drawn: all ten from the full one, and the icon is still packed" \
+  "$rc:$(sources | tr ' ' '\n' | grep -c '<icon.png$'):$(px CFBundleIconFile "$T/ns/14unch3r.app")" "0:10:14unch3r.icns"
 
 echo "$fails failure(s)"
 [ "$fails" = 0 ]

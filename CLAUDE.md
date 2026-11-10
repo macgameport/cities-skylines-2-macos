@@ -12,16 +12,18 @@ for umbrella work.
 | `surviving-mars-relaunched/` | Surviving Mars: Relaunched: launcher, tools and tests, `README.md`, `docs/plans/`; no `CLAUDE.md` of its own. Its state is outside the repo (below) |
 | `common/` | checks and tests shared by every game: `check-links.py`, `check-identifiers.sh`, `test-launch-lock.sh` (the lock code two launchers share), `mac-inventory.sh` (a read-only, redacted report of what a Mac holds of the project) and its test `test-mac-inventory.sh`, `launch-progress.swift` (the start-up progress window both apps compile) with `test-launch-progress.sh`, `test-launch-feedback.sh` (the feedback block two launchers share) and `test-launcher-parity.sh` (fails when the two launchers drift apart; it is also the table of differences kept on purpose); `launcher-window.swift` (14unch3r, the window that lists the games and starts one), `make-launcher-app.sh` (builds `14unch3r.app`; `setup.sh` runs it) and `games.tsv` (every game this repo ports), with `test-launcher-window.sh`, `test-make-launcher-app.sh` and `test-launcher-builders.sh` |
 | `docs/plans/` | repo-level plans. A game's own plans are in `<game>/docs/plans/`, so a plan audit must look in both |
+| `docs/images/` | `14unch3r.svg`, the mark the root `README.md` shows. It is written by `launcher-window --svg`, and `test-launcher-window.sh` (W16) fails when the file and the program's output differ |
 | `scripts/` | compatibility only: a forwarding `setup.sh` and pointer files at paths that older clones and outside links still use. Nothing new goes here |
 
-In progress: `docs/plans/1launcher-unification.md` (renamed `1launcher` on 2026-11-09; Surviving Mars joined as a second folder the same day; the MacBook moved over on 2026-11-09 and 2026-11-10; shared launcher code is Phase 5) and its first Phase 5 slice, `docs/plans/launch-experience.md` (one progress window and step lines for both games, built and installed on both Macs on 2026-11-10, with the licence wait of Cities: Skylines II at 15 seconds; a banner check at the Studio itself and a capture in light mode are still to come). Built and installed on the Studio 2026-11-10, with Spotlight, the window rehearsal, the real games and the MacBook still to come: `docs/plans/launcher-window.md` (14unch3r, one app whose window lists the games; the Steam app becomes `S734M`). Planned, not started: `docs/plans/local-files-layout.md` (moving `~/cs2-patch` and the build trees into `~/Library`).
+In progress: `docs/plans/1launcher-unification.md` (renamed `1launcher` on 2026-11-09; Surviving Mars joined as a second folder the same day; the MacBook moved over on 2026-11-09 and 2026-11-10; shared launcher code is Phase 5) and its first Phase 5 slice, `docs/plans/launch-experience.md` (one progress window and step lines for both games, built and installed on both Macs on 2026-11-10, with the licence wait of Cities: Skylines II at 15 seconds; a banner check at the Studio itself and a capture in light mode are still to come). Built and installed on the Studio 2026-11-10, with Spotlight, the window rehearsal, the real games and the MacBook still to come: `docs/plans/launcher-window.md` (14unch3r, one app whose window lists the games; the Steam app becomes `S734M`). Built 2026-11-10, its live steps still to come: `docs/plans/launcher-window-look.md` (the window as desktop icons over a dark background with the mark, the mark as the icon and on the README, and a Desktop shortcut that setup offers). Planned, not started: `docs/plans/local-files-layout.md` (moving `~/cs2-patch` and the build trees into `~/Library`).
 
 **A new game is a new folder in this repo:** never a new repo, never a new folder in the home directory.
 The only places outside the repo are `~/cs2-patch` (deployed copies and evidence), the wrappers in
 `~/Applications` and the apps the builders generate beside them (each game's app, `S734M.app` for the Windows
 Steam and `14unch3r.app`: macOS and Spotlight look for apps there), the one preferences file of
 `14unch3r.app`, `~/Library/Preferences/local.1launcher.window.plist` (the last game started: where macOS keeps
-every app's preferences; agreed 2026-11-10), each game's state folder under `~/Library/Application Support/1launcher/` (Surviving Mars's holds
+every app's preferences; agreed 2026-11-10), one alias `~/Desktop/14unch3r`, made by `setup.sh` only when
+someone says yes (James asked for a Desktop shortcut on 2026-11-10; it is never written over anything), each game's state folder under `~/Library/Application Support/1launcher/` (Surviving Mars's holds
 `backup/` and `runs/`: saves and logs kept out of a public repo), and each game's Wine trees under
 `~/Library/Developer/1launcher/` (Surviving Mars's standalone `engine/`: kept off paths with a space). Anything
 else outside needs James's say-so first, and a line here saying where it is and why.
@@ -57,7 +59,8 @@ absolute `/Users/<name>` paths **out of committed files** — use `$HOME`, `$WIN
 - ⚠ **Committed images are gated by [`docs/images/AUDIT.md`](cities-skylines-2/docs/images/AUDIT.md)** — a row per
   image saying what is visible, plus its sha256 prefix, enforced by `check-experiments.py`. A new
   image with no row, or one replaced since its audit, fails `button up`. All **four** were audited
-  2026-08-30 and are clean.
+  2026-08-30 and are clean. The root `docs/images/14unch3r.svg` is not a capture and has no row: it is drawn
+  by the program, and W16 checks it holds no text, image, script or link.
   The two Steam captures among them are clean only because the glyph bug was active — Steam rendered
   no text, so there was no persona name to leak — and that would have expired the moment glyphs work.
 - ✅ **Handled at source 2026-08-30: the Steam persona is now a generic placeholder.** The name is a

@@ -256,6 +256,8 @@ and, for a Steam app, `<L1Prefix>/drive_c/Program Files (x86)/Steam/steam.exe`.
 | `ready` | not busy, there is a prefix, and that file is there | nothing. For a Steam app: "Steam for Windows, run under Wine" |
 | `unknown` | there is no prefix | nothing |
 
+A game now reads "Not installed in Steam. See its set-up guide." at `absent` (`docs/plans/launcher-window-look.md`, 2.4).
+
 - "Alive" is the launchers' own rule, a `kill` that succeeds. A number that now belongs to another
   user's process is not alive to either.
 - A Steam app is never `busy`: nothing locks the store wrapper.
@@ -297,7 +299,8 @@ busy row's own prefix is never asked about, and neither is an offer. This guards
 from Spotlight or Finder is not asked, and a game started while the Windows Steam is open is not asked
 either, which costs nothing (section 1).
 
-**What it looks like.**
+**What it looks like.** Superseded 2026-11-10 by `docs/plans/launcher-window-look.md`, sections 2.1 to 2.4 and
+2.7: tiles, a dark window, fixed colours. What follows is the table window as first built.
 
 - A titled, closable window, 420 points wide, centred, title "14unch3r", accessibility title "14unch3r
   game launcher". Opening the app while it is open brings this window forward.
@@ -424,6 +427,9 @@ For each line whose app id has no `game` row, the window asks whether the accoun
 
 ### 2.6 The icon
 
+Superseded 2026-11-10 by `docs/plans/launcher-window-look.md`, 2.5 and 2.6: the icon carries the mark, and one
+SVG of it is in `docs/images/`.
+
 `launcher-window --icon <out.png>` draws into a bitmap of exactly 1024 by 1024 pixels: a rounded square
 824 pixels wide, centred, corner radius 185, in a dark neutral grey that is lighter at its top edge, and
 the characters "14" in white in the system's bold rounded font. The builder turns it into an `.icns` with
@@ -506,7 +512,7 @@ path. Captures go to the evidence store and are not committed; one that is needs
 3. **Spotlight, by James.** For `launcher`, `14`, `steam`, `s734m`, `cs2` and `mars`, the app meant is in
    the list and can be told from the others by its name. What appears while a word is half typed is
    noted. Before that, `mdls -name kMDItemAlternateNames` on each of the four.
-4. **A rehearsal on stand-in apps.** The window is opened on a scratch folder of fixture apps: one whose
+4. **A rehearsal on stand-in apps.** Replaced by live step L2 of `docs/plans/launcher-window-look.md`. The window is opened on a scratch folder of fixture apps: one whose
    lock names a live `sleep`, one whose shim writes a file, one with no executable, one `absent`, and a
    table with a test-made `packageinfo.vdf` in one fixture's prefix, which together make an offer. Captured in light and in dark, the window's own region only: the list with
    every kind of second line, the offer, the question, the failed-start alert, and the empty window of an
@@ -583,7 +589,7 @@ section 1 this plan needs none. No launcher code, game file, save or setting is 
 | D5 | The Steam app's name | **Decided 2026-11-10: `S734M`.** It needs the own-bundle test of 2.1 and D11 |
 | D6 | A second game while one is in use | Ask, with "Don't Start" as the default. Not refuse. What it costs is known: the game in use keeps running and its saves of that session stay off Steam Cloud, which its launcher reports when it closes |
 | D7 | Can the ownership file hide a game that is set up? | Never. It only adds offers |
-| D8 | The icon | **Stands for now (2026-11-10).** Drawn by the builder, "14" on a dark rounded square, until James supplies art |
+| D8 | The icon | **Stands for now (2026-11-10).** Drawn by the builder, "14" on a dark rounded square, until James supplies art. See D12 and D19 of `docs/plans/launcher-window-look.md` |
 | D9 | Is B5, the offers, built now? | Yes, last. It is what J2 asked for beyond what the rows already give, and it cannot block or delay a launch. It will show nothing on James's two Macs, and it is the one part that reads a file format of Valve's, which is why live step 0 runs it on real files before the merge |
 | D10 | Two new places outside the repo, which `CLAUDE.md` asks James's word for | **Decided 2026-11-10: "ok".** `~/Applications/14unch3r.app`, a generated app beside the two that are there, and `~/Library/Preferences/local.1launcher.window.plist`, one number, where macOS keeps every app's preferences. B7 writes both into `CLAUDE.md` |
 | D11 | The Studio's wrapper `S734M.app`, whose name the Steam app now takes | **Decided 2026-11-10, by James's rule:** "if we have move past it, trash it, if it still serves a purpose keep it". Measured the same day (section 1): nothing reads it when a game runs, its Wine is kept byte for byte in the Surviving Mars wrapper, and the two saves found only in it are copied out. So it goes to the Trash in live step 2, and the two tools that took their Wine from it take the kept copy |

@@ -2,7 +2,8 @@
 // common/make-launcher-app.sh compiles it into 14unch3r.app/Contents/MacOS/launcher-window. A row is an app
 // whose Info.plist carries L1Role: each game's own app and the Steam app, as their builders write them. A
 // start opens that app with /usr/bin/open, as a double-click does, and the window quits: the app keeps its
-// own process tree, consent records and progress window. Plan: docs/plans/launcher-window.md, 2.2 and 2.5.
+// own process tree, consent records and progress window. Plans: docs/plans/launcher-window.md, 2.2 and 2.5, and
+// docs/plans/launcher-window-look.md (the tiles, the mark, the icon, the SVG and the Desktop alias).
 //
 //   launcher-window [--games <tsv>] [<folder>...]           the window; with no folder, those of --folders
 //   launcher-window --list [--games <tsv>] <folder>...      one line per row: role, app id or -, state,
@@ -13,9 +14,14 @@
 //   launcher-window --start <app path> [new]                started, or failed<TAB><sentence>; exit 0 or 1
 //   launcher-window --owned <app id> <packageinfo.vdf>...   owned, not-owned or unknown
 //   launcher-window --folders                               the folders the window reads, one per line
-//   launcher-window --icon <out.png>                        (step B6)
-// Every mode but the window prints and returns before any window object is made, and the window calls the
-// same functions. Any other use prints a usage line and exits 2. Tests: common/test-launcher-window.sh.
+//   launcher-window --icon <out.png> [small]                the icon, 1024 by 1024; small: the form for 16 and 32 px
+//   launcher-window --icon-at [small] <x,y>...              ink, body or clear, per pixel of that icon
+//   launcher-window --svg <out.svg>                         the icon form as SVG, for the README
+//   launcher-window --alias <app> <alias path> [make]       have, other or none; with make, made or failed<TAB>...
+//   launcher-window --grid [--games <tsv>] <last id or -> <folder>...   the grid's layout, text, AX and colours
+//   launcher-window --act <step,...> [--games <tsv>] <last id or -> <folder>...   what keys and clicks do to it
+// Every mode but the window prints and returns before any window is made; --grid and --act build the window's
+// own grid, with no window. Any other use prints a usage line and exits 2. Tests: common/test-launcher-window.sh.
 //
 // The list is not a boundary of trust: whoever can put an app into ~/Applications can also edit the
 // unsigned shims already there, and a start goes through LaunchServices as a double-click does.
@@ -159,7 +165,7 @@ func secondLine(_ r: Row) -> String {
     case (_, .offer): return "Not set up on this Mac. Opens the set-up guide."
     case (.busy, _): return "In use: starting, running or closing"
     case (.absent, .steam): return "Windows Steam not found. Build this app again."
-    case (.absent, _): return "Game files not found. See its set-up guide."
+    case (.absent, _): return "Not installed in Steam. See its set-up guide."
     case (.ready, .steam): return "Steam for Windows, run under Wine"
     default: return ""
     }
@@ -474,37 +480,720 @@ func usage() -> Never {
            launcher-window --start <app path> [new]
            launcher-window --owned <app id> <packageinfo.vdf>...
            launcher-window --folders
-           launcher-window --icon <out.png>
+           launcher-window --icon <out.png> [small]
+           launcher-window --icon-at [small] <x,y>...
+           launcher-window --svg <out.svg>
+           launcher-window --alias <app> <alias path> [make]
+           launcher-window --grid [--games <tsv>] <last app id or -> <folder>...
+           launcher-window --act <step,...> [--games <tsv>] <last app id or -> <folder>...
 
     """.utf8))
     exit(2)
 }
 
-// ------------------------------------------------------------------------------------------------ the icon
-// --icon <out.png>, plan 2.6: drawn into a bitmap of exactly 1024 by 1024 pixels, since an image drawn with
-// lockFocus at 1024 points is 2048 pixels on a Retina screen. A rounded square 824 pixels wide, centred, corner
-// radius 185, in a neutral grey that is lighter at its top edge so that it still shows on a dark Dock, and "14"
-// in white in the system's bold rounded font. common/make-launcher-app.sh packs it with sips and iconutil, as
-// the game builders pack a game's own icon. No image file is in the repository.
-func drawIcon(to path: String) -> Bool {
+// ------------------------------------------------------------------------------------------------ the mark
+// docs/plans/launcher-window-look.md, 2.5. In a square box, x to the right and y up, both from 0 to 1. The numbers
+// live here alone: markPath draws them and markSVG writes them, since an NSBezierPath arc cannot be read back as an
+// SVG arc.
+enum Mark {
+    static let centre = (0.5, 0.5)
+    static let radius = 0.42
+    static let from = -58.0
+    static let to = 238.0
+    static let one: [(Double, Double)] = [(0.30, 0.605), (0.455, 0.76), (0.455, 0.08)]
+    static let four: [(Double, Double)] = [(0.545, 0.08), (0.545, 0.76), (0.715, 0.585), (0.545, 0.545)]
+    static let stroke = 0.05
+    static let smallStroke = 0.085   // the form for 16 and 32 pixels: the full one is a grey blur at 16 (2.6, D24)
+}
+
+func markPath(in b: NSRect, stroke: Double = Mark.stroke) -> NSBezierPath {
+    func p(_ q: (Double, Double)) -> NSPoint { NSPoint(x: b.minX + q.0 * b.width, y: b.minY + q.1 * b.height) }
+    let path = NSBezierPath()
+    path.appendArc(withCenter: p(Mark.centre), radius: Mark.radius * b.width, startAngle: Mark.from, endAngle: Mark.to, clockwise: false)
+    for line in [Mark.one, Mark.four] {
+        path.move(to: p(line[0]))
+        for q in line.dropFirst() { path.line(to: p(q)) }
+    }
+    path.lineWidth = stroke * b.width
+    path.lineCapStyle = .round
+    path.lineJoinStyle = .round
+    return path
+}
+
+// The icon, plan 2.6: exactly 1024 by 1024 pixels, the rounded square 824 wide, the mark in a box of 640; the
+// small form's box is 704.
+let iconBody = NSRect(x: 100, y: 100, width: 824, height: 824)
+let iconBox = iconBody.insetBy(dx: 92, dy: 92)
+let smallBox = iconBody.insetBy(dx: 60, dy: 60)
+
+func iconBitmap(small: Bool) -> NSBitmapImageRep? {
     guard let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 1024, pixelsHigh: 1024, bitsPerSample: 8,
                                      samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
                                      bytesPerRow: 0, bitsPerPixel: 0),
-          let ctx = NSGraphicsContext(bitmapImageRep: rep) else { return false }
+          let ctx = NSGraphicsContext(bitmapImageRep: rep) else { return nil }
     rep.size = NSSize(width: 1024, height: 1024)
     NSGraphicsContext.saveGraphicsState()
     NSGraphicsContext.current = ctx
-    let body = NSRect(x: 100, y: 100, width: 824, height: 824)
-    let shape = NSBezierPath(roundedRect: body, xRadius: 185, yRadius: 185)
+    let shape = NSBezierPath(roundedRect: iconBody, xRadius: 185, yRadius: 185)
     NSGradient(starting: NSColor(white: 0.32, alpha: 1), ending: NSColor(white: 0.13, alpha: 1))?.draw(in: shape, angle: -90)
-    var font = NSFont.systemFont(ofSize: 440, weight: .bold)
-    if let d = font.fontDescriptor.withDesign(.rounded), let f = NSFont(descriptor: d, size: 440) { font = f }
-    let text = NSAttributedString(string: "14", attributes: [.font: font, .foregroundColor: NSColor.white])
-    // centred on the digits themselves: their baseline sits capHeight / 2 below the middle
-    text.draw(at: NSPoint(x: body.midX - text.size().width / 2, y: body.midY - font.capHeight / 2 + font.descender))
+    NSColor.white.setStroke()
+    markPath(in: small ? smallBox : iconBox, stroke: small ? Mark.smallStroke : Mark.stroke).stroke()
     NSGraphicsContext.restoreGraphicsState()
-    guard let png = rep.representation(using: .png, properties: [:]) else { return false }
+    return rep
+}
+
+func drawIcon(to path: String, small: Bool) -> Bool {
+    guard let png = iconBitmap(small: small)?.representation(using: .png, properties: [:]) else { return false }
     return FileManager.default.createFile(atPath: path, contents: png)
+}
+
+// --icon-at, plan 2.6: x and y from the top left. Alpha under 0.5 is clear, red over 0.9 is ink, else body.
+func iconKind(_ rep: NSBitmapImageRep, _ x: Int, _ y: Int) -> String {
+    guard x >= 0, y >= 0, x < 1024, y < 1024, let c = rep.colorAt(x: x, y: y) else { return "clear" }
+    return c.alphaComponent < 0.5 ? "clear" : c.redComponent > 0.9 ? "ink" : "body"
+}
+
+// --svg, plan 2.8: the icon form, five lines. The path's numbers come from Mark; the rest is literal.
+func markSVG() -> String {
+    func f(_ v: Double) -> String { String(format: "%.2f", v) }
+    let side = Double(iconBox.width), left = Double(iconBox.minX), top = Double(iconBox.maxY)
+    func pt(_ q: (Double, Double)) -> String { f(left + side * q.0) + " " + f(top - side * q.1) }
+    func on(_ degrees: Double) -> (Double, Double) {
+        (Mark.centre.0 + Mark.radius * cos(degrees * .pi / 180), Mark.centre.1 + Mark.radius * sin(degrees * .pi / 180))
+    }
+    let r = f(side * Mark.radius)
+    var d = "M" + pt(on(Mark.from)) + "A\(r) \(r) 0 \(Mark.to - Mark.from > 180 ? 1 : 0) 0 " + pt(on(Mark.to))
+    for line in [Mark.one, Mark.four] { d += "M" + line.map(pt).joined(separator: "L") }
+    return """
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="100 100 824 824" role="img" aria-label="14unch3r">
+    <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#525252"/><stop offset="1" stop-color="#212121"/></linearGradient></defs>
+    <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#g)"/>
+    <path d="\(d)" fill="none" stroke="#FFFFFF" stroke-width="\(f(side * Mark.stroke))" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+
+    """
+}
+
+// ------------------------------------------------------------------------------------------------ the alias
+// --alias, plan 2.9: have, other or none, from lstat first. An existing path is never written: writeBookmarkData
+// would overwrite it, so it is called only when nothing is there.
+func aliasState(_ app: String, _ path: String) -> String {
+    var st = stat()
+    guard lstat(path, &st) == 0 else { return "none" }
+    guard (st.st_mode & S_IFMT) == S_IFREG else { return "other" }
+    let u = URL(fileURLWithPath: path)
+    guard (try? u.resourceValues(forKeys: [.isAliasFileKey]))?.isAliasFile == true,
+          let to = try? URL(resolvingAliasFileAt: u, options: [.withoutUI, .withoutMounting]),
+          let a = realPath(to.path), let b = realPath(app) else { return "other" }
+    return a == b ? "have" : "other"
+}
+
+func makeAlias(_ app: String, _ path: String) -> String? {   // nil when written, else the system's sentence
+    do {
+        let d = try URL(fileURLWithPath: app).bookmarkData(options: .suitableForBookmarkFile, includingResourceValuesForKeys: nil, relativeTo: nil)
+        try URL.writeBookmarkData(d, to: URL(fileURLWithPath: path))
+        return nil
+    } catch { return oneLine(error.localizedDescription) }
+}
+
+// ------------------------------------------------------------------------------------------------ the grid
+// Plan 2.1 to 2.4: every size, colour and alpha of the window, read by the drawing and by --grid's paint lines.
+// Statics, so that the text modes above the window can use them.
+enum Look {
+    static let tileW: CGFloat = 120, tileH: CGFloat = 146, margin: CGFloat = 24, gap: CGFloat = 8, rowGap: CGFloat = 8
+    static let perRow = 4
+    static let groupGap: CGFloat = 28
+    static let least: CGFloat = 444
+    static let most: CGFloat = 600
+    static let top: CGFloat = 4, bottom: CGFloat = 22, labelAbove: CGFloat = 8, labelH: CGFloat = 16, labelBelow: CGFloat = 4
+    static let icon: CGFloat = 64, iconTop: CGFloat = 6, titleGap: CGFloat = 9, secondGap: CGFloat = 4
+    static let textW: CGFloat = 112
+    static let titleLines = 2
+    static let secondLines = 2
+    static let titleLine: CGFloat = 15, secondLine: CGFloat = 13
+    static let titleFont = NSFont.systemFont(ofSize: 12, weight: .semibold)
+    static let secondFont = NSFont.systemFont(ofSize: 10.5)
+    static let labelFont = NSFont.systemFont(ofSize: 11, weight: .semibold)
+    static let secondAlpha: CGFloat = 0.88
+    static let labelAlpha: CGFloat = 0.88
+    static let shadowAlpha: CGFloat = 0.75, shadowBlur: CGFloat = 3
+    static let pill = NSColor(srgbRed: 0, green: 0x59 / 255.0, blue: 0xD1 / 255.0, alpha: 1)   // not the accent (D15)
+    static let plateFill: CGFloat = 0.16, hoverFill: CGFloat = 0.08
+    static let outlineAlpha: CGFloat = 0.75
+    static let outlineWidth: CGFloat = 1.5   // shows the selection by lightness, where the pill shows it by hue (D16)
+    static let dimAlpha: CGFloat = 0.5
+    static let topWhite: CGFloat = 0.24, bottomWhite: CGFloat = 0.09
+    static let glow = NSColor(calibratedRed: 0.35, green: 0.45, blue: 0.75, alpha: 0.22)
+    static let markAlpha: CGFloat = 0.075
+    static let startOnPress = false
+    static let noGames = "No games are set up on this Mac yet."
+    static let readme = "https://github.com/macgameport/1launcher/blob/main/README.md"
+    static let label = "You also own"
+}
+
+// The title bar's height, from a plain titled window: 32 on macOS 27, 28 before. With .fullSizeContentView,
+// frameRect(forContentRect:) adds nothing (plan 2.2).
+func titleBar() -> CGFloat {
+    NSWindow.frameRect(forContentRect: NSRect(x: 0, y: 0, width: 100, height: 100), styleMask: [.titled, .closable]).height - 100
+}
+
+struct Layout {
+    var size = NSSize.zero
+    var frames: [NSRect] = []
+    var cells: [(Int, Int)] = []   // row and column, from 1
+    var label: NSPoint? = nil
+}
+
+// Plan 2.1: games and Steam apps are one block, offers another; within a block the rows share one left edge, and
+// each block is centred, so a game does not move when the offers arrive and the window widens about its middle.
+func gridLayout(_ apps: [Row], _ offers: [Row]) -> Layout {
+    var out = Layout(), blocks: [[(y: CGFloat, xs: [CGFloat], w: CGFloat)]] = [[], []]
+    var y = Look.top, rows = 0, labelY: CGFloat? = nil
+    for (bi, group) in [apps, offers].enumerated() {
+        for start in stride(from: 0, to: group.count, by: Look.perRow) {
+            let part = Array(group[start..<min(start + Look.perRow, group.count)])
+            if bi == 1 && start == 0 {
+                if rows > 0 { y += Look.labelAbove }
+                labelY = y
+                y += Look.labelH + Look.labelBelow
+            } else if rows > 0 { y += Look.rowGap }
+            var x: CGFloat = 0, xs: [CGFloat] = []
+            for (i, r) in part.enumerated() {
+                if i > 0 { x += r.role == .steam && part[i - 1].role == .game ? Look.groupGap : Look.gap }
+                xs.append(x)
+                x += Look.tileW
+            }
+            blocks[bi].append((y, xs, x))
+            rows += 1
+            y += Look.tileH
+        }
+    }
+    let widest = blocks.joined().map { $0.w }.max() ?? 0
+    let width = max(widest + 2 * Look.margin, Look.least)
+    for (bi, block) in blocks.enumerated() {
+        let blockW = block.map { $0.w }.max() ?? 0
+        let left = ((width - blockW) / 2).rounded()
+        for line in block {
+            let row = out.cells.last.map { $0.0 + 1 } ?? 1
+            for (ci, x) in line.xs.enumerated() {
+                out.frames.append(NSRect(x: left + x, y: line.y, width: Look.tileW, height: Look.tileH))
+                out.cells.append((row, ci + 1))
+            }
+        }
+        if bi == 1, let ly = labelY { out.label = NSPoint(x: left, y: ly) }
+    }
+    out.size = NSSize(width: width, height: (rows == 0 ? Look.top + Look.tileH : y) + Look.bottom)
+    return out
+}
+
+// The mark behind the tiles, plan 2.5, in a view whose y runs up from its bottom edge: a side of 0.75 of the width,
+// its left edge not rounded, its bottom 0.08 of its side below the window's bottom edge.
+func markBox(width: CGFloat) -> NSRect {
+    let side = (0.75 * width).rounded()
+    return NSRect(x: (width - side) / 2, y: -(0.08 * side).rounded(), width: side, height: side)
+}
+
+// Plan 2.1: the offset nearest the one before at which the tile's frame, grown by 4 above and 22 below, is shown.
+func scrollOffset(for f: NSRect, from before: CGFloat, shown: CGFloat) -> CGFloat {
+    let top = f.minY - Look.top, bottom = f.maxY + Look.bottom
+    if top < before { return max(0, top) }
+    if bottom > before + shown { return bottom - shown }
+    return before
+}
+
+func plain(_ s: String, _ font: NSFont) -> NSAttributedString { NSAttributedString(string: s, attributes: [.font: font]) }
+
+func firstGlyph(_ run: CTRun) -> CGGlyph {
+    var g = CGGlyph(0)
+    CTRunGetGlyphs(run, CFRange(location: 0, length: 1), &g)
+    return g
+}
+
+// One line at most Look.textW wide, cut by CTLineCreateTruncatedLine (plan 2.4). The run that holds the ellipsis
+// reports the range it stands for, so the string shown is the string with that range replaced.
+func cut(_ s: String, _ font: NSFont, _ type: CTLineTruncationType) -> String {
+    let line = CTLineCreateWithAttributedString(plain(s, font))
+    if CGFloat(CTLineGetTypographicBounds(line, nil, nil, nil)) <= Look.textW { return s }
+    let token = CTLineCreateWithAttributedString(plain("\u{2026}", font))
+    guard let short = CTLineCreateTruncatedLine(line, Double(Look.textW), type, token),
+          let mark = (CTLineGetGlyphRuns(token) as? [CTRun])?.first.map(firstGlyph) else { return "\u{2026}" }
+    for run in CTLineGetGlyphRuns(short) as? [CTRun] ?? [] where CTRunGetGlyphCount(run) == 1 && firstGlyph(run) == mark {
+        let r = CTRunGetStringRange(run)
+        return (s as NSString).replacingCharacters(in: NSRange(location: r.location, length: r.length), with: "\u{2026}")
+    }
+    return s
+}
+
+// Word-wrapped at Look.textW, at most `most` lines, the last cut at its tail when there is more.
+func wrap(_ s: String, _ font: NSFont, most: Int) -> [String] {
+    let ns = s as NSString
+    let setter = CTFramesetterCreateWithAttributedString(plain(s, font))
+    let frame = CTFramesetterCreateFrame(setter, CFRange(location: 0, length: 0),
+                                         CGPath(rect: CGRect(x: 0, y: 0, width: Look.textW, height: 10_000), transform: nil), nil)
+    let ranges = (CTFrameGetLines(frame) as? [CTLine] ?? []).map { CTLineGetStringRange($0) }
+    func part(_ from: Int, _ to: Int) -> String {
+        ns.substring(with: NSRange(location: from, length: to - from)).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    if ranges.count <= most { return ranges.map { part($0.location, $0.location + $0.length) } }
+    var out = ranges.prefix(most - 1).map { part($0.location, $0.location + $0.length) }
+    out.append(cut(part(ranges[most - 1].location, ns.length), font, .end))
+    return out
+}
+
+// The title as a tile shows it (2.4). Two apps with one title: the title on line 1, and on line 2 the file name
+// cut in its middle, so that its end stays, where copies differ.
+func shownTitle(_ r: Row) -> [String] {
+    if r.title != r.sortTitle {
+        return [cut(r.sortTitle, Look.titleFont, .end),
+                cut((r.path as NSString).lastPathComponent, Look.titleFont, .middle)]
+    }
+    return wrap(r.title, Look.titleFont, most: Look.titleLines)
+}
+
+// The second line as a tile shows it (2.4): three sentences are shortened there. The full one is VoiceOver's.
+func shownSecond(_ r: Row) -> String {
+    if r.role == .offer { return "Not set up. Opens its guide." }
+    if r.state == .absent { return r.role == .steam ? "Windows Steam not found" : "Not installed in Steam" }
+    return secondLine(r)
+}
+func spoken(_ r: Row) -> String {
+    if r.role == .offer { return "\(r.title), not set up on this Mac, opens the set-up guide in your browser" }
+    let second = secondLine(r)
+    return second.isEmpty ? r.title : "\(r.title), \(second)"
+}
+// Grey tiles (2.4, D23): what cannot start as it is.
+func dim(_ r: Row) -> Bool { r.role == .offer || r.state == .absent }
+
+// Plan 2.7: what a key does. The window's monitor and --act both ask this; the arrows are the grid's keyDown.
+enum KeyAction: String { case start, quit, endSheet = "end-sheet", pass }
+func keyAction(_ code: UInt16, sheetUp: Bool) -> KeyAction {
+    switch code {
+    case 49: return sheetUp ? .pass : .start   // Space: under a sheet an alert's buttons keep it
+    case 36, 76: return sheetUp ? .pass : .start   // Return, Enter
+    case 53: return sheetUp ? .endSheet : .quit   // Escape: "Don't Start" in the question
+    default: return .pass
+    }
+}
+
+func greyed(_ image: NSImage) -> NSImage {
+    let px = Int(Look.icon * 2)
+    guard let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: px, pixelsHigh: px, bitsPerSample: 8,
+                                     samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
+                                     bytesPerRow: 0, bitsPerPixel: 0),
+          let ctx = NSGraphicsContext(bitmapImageRep: rep) else { return image }
+    NSGraphicsContext.saveGraphicsState()
+    NSGraphicsContext.current = ctx
+    image.draw(in: NSRect(x: 0, y: 0, width: px, height: px))   // a bitmap's own context counts in pixels
+    NSGraphicsContext.restoreGraphicsState()
+    guard let grey = rep.converting(to: .genericGamma22Gray, renderingIntent: .default) else { return image }
+    grey.size = NSSize(width: Look.icon, height: Look.icon)
+    let out = NSImage(size: grey.size)
+    out.addRepresentation(grey)
+    return out
+}
+
+func textShadow() -> NSShadow {
+    let sh = NSShadow()
+    sh.shadowColor = NSColor(white: 0, alpha: Look.shadowAlpha)
+    sh.shadowBlurRadius = Look.shadowBlur
+    sh.shadowOffset = NSSize(width: 0, height: -1)
+    return sh
+}
+
+func centred(_ s: String, _ font: NSFont, alpha: CGFloat, shadow: Bool) -> NSAttributedString {
+    let para = NSMutableParagraphStyle()
+    para.alignment = .center
+    para.lineBreakMode = .byClipping
+    var a: [NSAttributedString.Key: Any] = [.font: font, .paragraphStyle: para, .foregroundColor: NSColor(white: 1, alpha: alpha)]
+    if shadow { a[.shadow] = textShadow() }
+    return NSAttributedString(string: s, attributes: a)
+}
+
+final class TileView: NSView {
+    let row: Row
+    let cell: (Int, Int)
+    let title: [String]
+    let second: [String]
+    weak var grid: GridView?
+    var selected = false { didSet { if selected != oldValue { needsDisplay = true } } }
+    var hovered = false { didSet { if hovered != oldValue { needsDisplay = true } } }
+
+    init(_ r: Row, frame: NSRect, cell: (Int, Int)) {
+        row = r
+        self.cell = cell
+        title = shownTitle(r)
+        let s = shownSecond(r)
+        second = s.isEmpty ? [] : wrap(s, Look.secondFont, most: Look.secondLines)
+        super.init(frame: frame)
+        setAccessibilityElement(true)
+        setAccessibilityRole(.button)
+        setAccessibilityLabel(spoken(r))
+        let full = secondLine(r)
+        toolTip = full.isEmpty ? r.title : r.title + "\n" + full
+    }
+    required init?(coder: NSCoder) { fatalError() }
+    override var isFlipped: Bool { true }
+
+    // The tooltip would otherwise be read again after the label (plan 2.4).
+    override func accessibilityHelp() -> String? { nil }
+    // The selected tile is VoiceOver's: a move with the arrows is spoken, and Return starts the tile just read.
+    override func isAccessibilityFocused() -> Bool { selected }
+    override func setAccessibilityFocused(_ f: Bool) { if f { grid?.focus(self) } }
+    override func accessibilityPerformPress() -> Bool { grid?.pressed(self) ?? false }
+
+    var iconRect: NSRect { NSRect(x: (bounds.width - Look.icon) / 2, y: Look.iconTop, width: Look.icon, height: Look.icon) }
+    var plateRect: NSRect { iconRect.insetBy(dx: -7, dy: -6) }
+    var titleRect: NSRect {
+        NSRect(x: (bounds.width - Look.textW) / 2, y: iconRect.maxY + Look.titleGap, width: Look.textW, height: CGFloat(title.count) * Look.titleLine)
+    }
+    var secondRect: NSRect {
+        NSRect(x: titleRect.minX, y: titleRect.maxY + Look.secondGap, width: Look.textW, height: CGFloat(second.count) * Look.secondLine)
+    }
+
+    override func draw(_ dirty: NSRect) {
+        if selected || hovered {
+            NSColor(white: 1, alpha: selected ? Look.plateFill : Look.hoverFill).setFill()
+            NSBezierPath(roundedRect: plateRect, xRadius: 10, yRadius: 10).fill()
+            if selected && Look.outlineWidth > 0 {
+                let w = Look.outlineWidth
+                let line = NSBezierPath(roundedRect: plateRect.insetBy(dx: w / 2, dy: w / 2), xRadius: 10 - w / 2, yRadius: 10 - w / 2)
+                line.lineWidth = w
+                NSColor(white: 1, alpha: Look.outlineAlpha).setStroke()
+                line.stroke()
+            }
+        }
+        let image = row.role == .offer ? NSWorkspace.shared.icon(for: .applicationBundle) : NSWorkspace.shared.icon(forFile: row.path)
+        let grey = dim(row)
+        (grey ? greyed(image) : image).draw(in: iconRect, from: .zero, operation: .sourceOver, fraction: grey ? Look.dimAlpha : 1,
+                                            respectFlipped: true, hints: nil)
+        if selected {
+            let w = min(title.map { plain($0, Look.titleFont).size().width }.max() ?? 0, Look.textW).rounded(.up)
+            Look.pill.setFill()
+            NSBezierPath(roundedRect: NSRect(x: titleRect.midX - w / 2, y: titleRect.minY, width: w, height: titleRect.height).insetBy(dx: -5, dy: -1),
+                         xRadius: 4, yRadius: 4).fill()
+        }
+        for (i, s) in title.enumerated() {
+            centred(s, Look.titleFont, alpha: 1, shadow: !selected)
+                .draw(with: NSRect(x: titleRect.minX, y: titleRect.minY + CGFloat(i) * Look.titleLine, width: Look.textW, height: Look.titleLine),
+                      options: [.usesLineFragmentOrigin])
+        }
+        for (i, s) in second.enumerated() {
+            centred(s, Look.secondFont, alpha: Look.secondAlpha, shadow: true)
+                .draw(with: NSRect(x: secondRect.minX, y: secondRect.minY + CGFloat(i) * Look.secondLine, width: Look.textW, height: Look.secondLine),
+                      options: [.usesLineFragmentOrigin])
+        }
+    }
+}
+
+// The tiles, plan 2.7: the window's only key view. Hit testing is its own function over the tile frames.
+final class GridView: NSView {
+    var tiles: [TileView] = []
+    var selection: Int? = nil
+    var armed: String? = nil   // the key of the tile a press armed
+    var labelAt: NSPoint? = nil
+    var offset: CGFloat = 0
+    var lastArrow = false
+    var onStart: (Row) -> Void = { _ in }
+    var onQuit: () -> Void = {}
+    var blocked: () -> Bool = { false }
+    var hoverArea: NSTrackingArea?
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        setAccessibilityElement(true)
+        setAccessibilityRole(.group)
+        setAccessibilityLabel("Games")
+        setAccessibilityHelp("Click a game, or press Return, to start it.")
+    }
+    required init?(coder: NSCoder) { fatalError() }
+    override var isFlipped: Bool { true }
+    override var acceptsFirstResponder: Bool { true }
+    override func acceptsFirstMouse(for e: NSEvent?) -> Bool { false }   // a first click only activates the window
+
+    var chosen: Row? { selection.map { tiles[$0].row } }
+    var shown: CGFloat { min(frame.height, Look.most) }
+    func unblocked() -> Bool { !blocked() }   // nothing while a start is under way or a sheet is up
+
+    // Fills the grid, at open and at every reload. The selection stays on the same app, else defaultRow's.
+    func show(rows apps: [Row], offers: [Row], last: Int?) {
+        let keep = chosen?.key
+        let l = gridLayout(apps, offers)
+        tiles.forEach { $0.removeFromSuperview() }
+        tiles = (apps + offers).enumerated().map { TileView($1, frame: l.frames[$0], cell: l.cells[$0]) }
+        for t in tiles { t.grid = self; addSubview(t) }
+        labelAt = l.label
+        setFrameSize(l.size)
+        armed = nil   // a reload disarms
+        selection = nil
+        let pick = tiles.firstIndex { $0.row.key == keep } ?? defaultRow(apps, last: last).flatMap { d in tiles.firstIndex { $0.row.key == d.key } }
+        if let i = pick { select(i, announce: tiles[i].row.key != keep) } else { offset = 0 }
+        window?.invalidateCursorRects(for: self)
+        needsDisplay = true
+    }
+
+    func select(_ i: Int, announce: Bool = true) {
+        let was = selection
+        selection = i
+        for (k, t) in tiles.enumerated() { t.selected = k == i }
+        let before = enclosingScrollView?.contentView.bounds.minY ?? offset
+        offset = scrollOffset(for: tiles[i].frame, from: before, shown: shown)
+        if let sv = enclosingScrollView {
+            sv.contentView.scroll(to: NSPoint(x: 0, y: offset))
+            sv.reflectScrolledClipView(sv.contentView)
+        }
+        if announce && was != i { NSAccessibility.post(element: tiles[i], notification: .focusedUIElementChanged) }
+    }
+
+    func tile(at p: NSPoint) -> Int? { tiles.firstIndex { NSPointInRect(p, $0.frame) } }
+
+    // A press selects and arms its tile; the row returned is started now, which is none: a start is a release.
+    func press(at p: NSPoint) -> Row? {
+        armed = nil
+        guard unblocked(), let i = tile(at: p) else { return nil }
+        armed = tiles[i].row.key
+        select(i)
+        return Look.startOnPress ? tiles[i].row : nil
+    }
+    // A release on the armed tile, with a click count of 1, starts it; anything else starts nothing.
+    func release(at p: NSPoint, clicks: Int) -> Row? {
+        defer { armed = nil }
+        guard unblocked(), clicks == 1, let i = tile(at: p), tiles[i].row.key == armed else { return nil }
+        return tiles[i].row
+    }
+    func pressed(_ t: TileView) -> Bool {   // VoiceOver's press
+        guard unblocked(), let i = tiles.firstIndex(where: { $0 === t }) else { return false }
+        select(i)
+        onStart(t.row)   // the press action starts the tile
+        return true
+    }
+    func focus(_ t: TileView) {
+        if let i = tiles.firstIndex(where: { $0 === t }) { select(i) }
+    }
+
+    // Return, Enter and Space start the selection (through blocked); Escape quits.
+    func perform(_ a: KeyAction) -> Bool {
+        switch a {
+        case .start:
+            guard unblocked(), let r = chosen else { return false }
+            onStart(r)
+            return true
+        case .quit:
+            onQuit()
+            return true
+        case .endSheet, .pass:
+            return false
+        }
+    }
+
+    // Left and Right through the whole order; Up and Down to the nearest tile in x of the next row, the left one
+    // on a tie. Both stay put at an end.
+    func arrow(_ code: UInt16) -> Bool {
+        guard unblocked(), let i = selection, [123, 124, 125, 126].contains(code) else { return false }
+        switch code {
+        case 123, 124:
+            select(max(0, min(i + (code == 124 ? 1 : -1), tiles.count - 1)))
+        default:
+            let from = tiles[i], d = code == 125 ? 1 : -1
+            let next = tiles.indices.filter { tiles[$0].cell.0 == from.cell.0 + d }
+            if let to = next.min(by: { abs(tiles[$0].frame.midX - from.frame.midX) < abs(tiles[$1].frame.midX - from.frame.midX) }) { select(to) }
+        }
+        return true
+    }
+
+    override func keyDown(with e: NSEvent) {
+        lastArrow = arrow(e.keyCode)
+        if !lastArrow { super.keyDown(with: e) }
+    }
+    override func mouseDown(with e: NSEvent) {
+        if let r = press(at: convert(e.locationInWindow, from: nil)) { onStart(r) }
+    }
+    override func mouseUp(with e: NSEvent) {
+        if let r = release(at: convert(e.locationInWindow, from: nil), clicks: e.clickCount) { onStart(r) }
+    }
+
+    // Hover only in the key window, where a click acts (plan 2.4).
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let h = hoverArea { removeTrackingArea(h) }
+        let h = NSTrackingArea(rect: .zero, options: [.mouseMoved, .mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect], owner: self, userInfo: nil)
+        addTrackingArea(h)
+        hoverArea = h
+    }
+    func hover(at p: NSPoint?) {
+        let i = p.flatMap { tile(at: $0) }
+        for (k, t) in tiles.enumerated() { t.hovered = k == i }
+    }
+    override func mouseMoved(with e: NSEvent) { hover(at: convert(e.locationInWindow, from: nil)) }
+    override func mouseExited(with e: NSEvent) { hover(at: nil) }
+    override func resetCursorRects() { for t in tiles { addCursorRect(t.frame, cursor: .pointingHand) } }
+
+    var labelRect: NSRect? {
+        labelAt.map { NSRect(x: $0.x, y: $0.y, width: plain(Look.label, Look.labelFont).size().width.rounded(.up), height: Look.labelH) }
+    }
+    override func draw(_ dirty: NSRect) {
+        guard let r = labelRect else { return }
+        NSAttributedString(string: Look.label, attributes: [.font: Look.labelFont, .foregroundColor: NSColor(white: 1, alpha: Look.labelAlpha)])
+            .draw(with: r, options: [.usesLineFragmentOrigin])
+    }
+}
+
+// The one place a grid is made (plan 2.7, section 6): the window, --grid and --act all use it.
+@MainActor func makeGrid() -> GridView { GridView(frame: .zero) }
+
+// Plan 2.3: the gradient, the glow and the mark, under the title bar too.
+final class BackgroundView: NSView {
+    override func draw(_ dirty: NSRect) {
+        NSGradient(starting: NSColor(white: Look.topWhite, alpha: 1), ending: NSColor(white: Look.bottomWhite, alpha: 1))?.draw(in: bounds, angle: -90)
+        let c = NSPoint(x: bounds.width * 0.15, y: bounds.height)
+        NSGradient(starting: Look.glow, ending: .clear)?.draw(fromCenter: c, radius: 0, toCenter: c, radius: bounds.width * 0.7, options: [])
+        NSColor(white: 1, alpha: Look.markAlpha).setStroke()
+        markPath(in: markBox(width: bounds.width)).stroke()
+    }
+}
+
+func num(_ v: CGFloat) -> String { v == v.rounded() ? String(Int(v)) : String(Double(v)) }
+
+// WCAG: sRGB relative luminance, and the ratio of two of them.
+func luminance(_ c: (CGFloat, CGFloat, CGFloat)) -> CGFloat {
+    func lin(_ v: CGFloat) -> CGFloat { v <= 0.04045 ? v / 12.92 : pow((v + 0.055) / 1.055, 2.4) }
+    return 0.2126 * lin(c.0) + 0.7152 * lin(c.1) + 0.0722 * lin(c.2)
+}
+func ratio(_ a: (CGFloat, CGFloat, CGFloat), _ b: (CGFloat, CGFloat, CGFloat)) -> CGFloat {
+    let x = luminance(a), y = luminance(b)
+    return (max(x, y) + 0.05) / (min(x, y) + 0.05)
+}
+func white(_ alpha: CGFloat, over b: (CGFloat, CGFloat, CGFloat)) -> (CGFloat, CGFloat, CGFloat) {
+    (alpha + (1 - alpha) * b.0, alpha + (1 - alpha) * b.1, alpha + (1 - alpha) * b.2)
+}
+
+// --grid's paint lines (section 4): the real background at the window's size, bar included, and the lowest ratio
+// of each kind of text over every pixel under any rectangle of that kind.
+@MainActor func paintLines(_ grid: GridView) -> [String] {
+    let bar = titleBar(), w = Int(grid.frame.width), h = Int(grid.shown + bar)
+    let back = BackgroundView(frame: NSRect(x: 0, y: 0, width: w, height: h))
+    guard let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: w, pixelsHigh: h, bitsPerSample: 8, samplesPerPixel: 4,
+                                     hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0),
+          let data = rep.bitmapData else { return [] }
+    back.cacheDisplay(in: back.bounds, to: rep)
+    func under(_ rects: [NSRect]) -> [(CGFloat, CGFloat, CGFloat)] {   // grid points, y down from the grid's top
+        var out: [(CGFloat, CGFloat, CGFloat)] = []
+        for r in rects {
+            for y in Int(r.minY.rounded(.down))..<Int(r.maxY.rounded(.up)) {
+                let py = y + Int(bar)
+                guard py >= 0, py < h else { continue }
+                for x in max(0, Int(r.minX.rounded(.down)))..<min(w, Int(r.maxX.rounded(.up))) {
+                    let p = data + py * rep.bytesPerRow + x * 4
+                    out.append((CGFloat(p[0]) / 255, CGFloat(p[1]) / 255, CGFloat(p[2]) / 255))
+                }
+            }
+        }
+        return out
+    }
+    func lowest(_ rects: [NSRect], _ alpha: CGFloat) -> String {
+        let px = under(rects)
+        guard !px.isEmpty else { return "-" }
+        return String(format: "%.2f", px.map { ratio(white(alpha, over: $0), $0) }.min()!)
+    }
+    func inGrid(_ t: TileView, _ r: NSRect) -> NSRect { r.offsetBy(dx: t.frame.minX, dy: t.frame.minY) }
+    let p = Look.pill.usingColorSpace(.sRGB) ?? Look.pill
+    let pill = (p.redComponent, p.greenComponent, p.blueComponent)
+    var lines = [["paint", "pill", String(format: "#%02X%02X%02X", Int((pill.0 * 255).rounded()), Int((pill.1 * 255).rounded()), Int((pill.2 * 255).rounded())),
+                  String(format: "%.2f", ratio((1, 1, 1), pill))].joined(separator: "\t")]
+    lines.append(["paint", "title", lowest(grid.tiles.map { inGrid($0, $0.titleRect) }, 1)].joined(separator: "\t"))
+    lines.append(["paint", "second", lowest(grid.tiles.filter { !$0.second.isEmpty }.map { inGrid($0, $0.secondRect) }, Look.secondAlpha)].joined(separator: "\t"))
+    lines.append(["paint", "label", lowest(grid.labelRect.map { [$0] } ?? [], Look.labelAlpha)].joined(separator: "\t"))
+    if Look.outlineWidth > 0, let i = grid.selection {
+        let px = under([inGrid(grid.tiles[i], grid.tiles[i].plateRect)])
+        let onBack = px.map { ratio(white(Look.outlineAlpha, over: $0), $0) }.min() ?? 0
+        let onPlate = px.map { b -> CGFloat in let fill = white(Look.plateFill, over: b); return ratio(white(Look.outlineAlpha, over: fill), fill) }.min() ?? 0
+        lines.append(["paint", "outline", String(format: "%.2f", onBack), String(format: "%.2f", onPlate)].joined(separator: "\t"))
+    } else {
+        lines.append(["paint", "outline", "-"].joined(separator: "\t"))
+    }
+    return lines
+}
+
+// --grid and --act, plan section 4: the real views, with no window.
+@MainActor func gridMode(_ mode: String, _ given: [String]) {
+    var rest = given, steps: [String] = []
+    if mode == "--act" {
+        guard let s = rest.first else { usage() }
+        steps = s.split(separator: ",").map(String.init)
+        rest.removeFirst()
+    }
+    let (table, more) = gamesOption(rest)
+    guard more.count >= 2 else { usage() }
+    let found = rows(in: Array(more.dropFirst()))
+    let offers = table.map { offerRows($0, found) } ?? []
+    let last = lastID(more[0])
+    let grid = makeGrid()
+    grid.show(rows: found, offers: offers, last: last)
+    func out(_ f: [String]) { print(f.joined(separator: "\t")) }
+    if mode == "--grid" {
+        let box = markBox(width: grid.frame.width)
+        out(["size", num(grid.frame.width), num(grid.frame.height)])
+        out(["window", num(grid.frame.width), num(grid.shown)])
+        out(["mark", num(box.width), num(box.minX), num(-box.minY)])
+        out(["group", grid.accessibilityRole()?.rawValue ?? "-", grid.accessibilityLabel() ?? "-", grid.accessibilityHelp() ?? "-"])
+        if let at = grid.labelAt { out(["label", num(at.x), num(at.y), Look.label]) }
+        for (i, t) in grid.tiles.enumerated() {
+            out(["tile", String(t.cell.0), String(t.cell.1), num(t.frame.minX), num(t.frame.minY), t.row.role.rawValue,
+                 grid.selection == i ? "selected" : "-", dim(t.row) ? "dim" : "-", t.accessibilityRole()?.rawValue ?? "-",
+                 t.accessibilityLabel() ?? "-", t.accessibilityHelp().flatMap { $0.isEmpty ? nil : $0 }.map(oneLine) ?? "-",
+                 String(t.title.count), t.title.joined(separator: " | "), t.second.isEmpty ? "-" : t.second.joined(separator: " ")])
+        }
+        if grid.tiles.isEmpty { out(["empty", Look.noGames, Look.readme]) }
+        let first = grid.acceptsFirstMouse(for: nil) || grid.tiles.contains { $0.acceptsFirstMouse(for: nil) }
+        out(["first-click", first ? "starts" : "activates"])
+        paintLines(grid).forEach { print($0) }
+        return
+    }
+    var started: Row? = nil, quit = false, blocked = false
+    grid.onStart = { started = $0 }
+    grid.onQuit = { quit = true }
+    grid.blocked = { blocked }
+    let codes: [String: UInt16] = ["left": 123, "right": 124, "down": 125, "up": 126, "return": 36, "enter": 76, "space": 49, "escape": 53]
+    func point(_ s: String) -> NSPoint? {
+        let f = s.split(separator: ":").dropFirst().compactMap { Double($0) }
+        return f.count == 2 ? NSPoint(x: f[0], y: f[1]) : nil
+    }
+    func tileNumber(_ s: String) -> TileView? {
+        guard let n = Int(s.split(separator: ":").last ?? ""), n >= 1, n <= grid.tiles.count else { return nil }
+        return grid.tiles[n - 1]
+    }
+    for s in steps {
+        started = nil
+        quit = false
+        var word = ["nothing"]
+        let selected = { ["selected", grid.chosen?.title ?? "-"] }
+        if let code = codes[s], code >= 123 {
+            guard let e = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: 0, context: nil,
+                                           characters: "", charactersIgnoringModifiers: "", isARepeat: false, keyCode: code) else { usage() }
+            grid.keyDown(with: e)
+            if grid.lastArrow { word = selected() }
+        } else if let code = codes[s] ?? (s.hasPrefix("sheet:") ? codes[String(s.dropFirst(6))] : nil) {
+            let a = keyAction(code, sheetUp: s.hasPrefix("sheet:"))
+            if a == .pass || a == .endSheet { word = [a.rawValue] } else { _ = grid.perform(a) }
+        } else if s.hasPrefix("press:"), let p = point(s) {
+            if let r = grid.press(at: p) { started = r } else if grid.armed != nil { word = selected() }
+        } else if s.hasPrefix("release:") || s.hasPrefix("release2:"), let p = point(s) {
+            started = grid.release(at: p, clicks: s.hasPrefix("release2:") ? 2 : 1)
+        } else if s.hasPrefix("axpress:"), let t = tileNumber(s) {
+            _ = t.accessibilityPerformPress()
+        } else if s.hasPrefix("axfocus:"), let t = tileNumber(s) {
+            t.setAccessibilityFocused(true)
+            word = selected()
+        } else if s == "block" || s == "unblock" {
+            blocked = s == "block"
+            word = selected()
+        } else if s == "reload" {
+            grid.show(rows: found, offers: offers, last: last)
+            word = selected()
+        } else { usage() }
+        if let r = started { word = ["start", r.path] } else if quit { word = ["quit"] }
+        let focus = grid.tiles.firstIndex { $0.isAccessibilityFocused() }.map { String($0 + 1) } ?? "-"
+        out([s] + word + ["focus", focus, "offset", num(grid.offset)])
+    }
 }
 
 // -psn_ is what older systems added when Finder started an app.
@@ -546,8 +1235,28 @@ if let mode = args.first, mode.hasPrefix("-"), mode != "--games" {
         guard rest.count >= 2, let id = lastID(rest[0]) else { usage() }
         print(ownership(of: id, in: Array(rest.dropFirst())))
     case "--icon":
+        guard rest.count == 1 || (rest.count == 2 && rest[1] == "small"), !rest[0].isEmpty else { usage() }
+        if !drawIcon(to: absolute(rest[0]), small: rest.count == 2) { FileHandle.standardError.write(Data("launcher-window: the icon could not be drawn or written\n".utf8)); exit(1) }
+    case "--icon-at":
+        let small = rest.first == "small"
+        guard rest.count > (small ? 1 : 0), let rep = iconBitmap(small: small) else { usage() }
+        for p in rest.dropFirst(small ? 1 : 0) {
+            let f = p.split(separator: ",").compactMap { Int($0) }
+            guard f.count == 2 else { usage() }
+            print(iconKind(rep, f[0], f[1]))
+        }
+    case "--svg":
         guard rest.count == 1, !rest[0].isEmpty else { usage() }
-        if !drawIcon(to: absolute(rest[0])) { FileHandle.standardError.write(Data("launcher-window: the icon could not be drawn or written\n".utf8)); exit(1) }
+        if !fm.createFile(atPath: absolute(rest[0]), contents: Data(markSVG().utf8)) { FileHandle.standardError.write(Data("launcher-window: the SVG could not be written\n".utf8)); exit(1) }
+    case "--alias":
+        guard rest.count == 2 || (rest.count == 3 && rest[2] == "make"), !rest[0].isEmpty, !rest[1].isEmpty else { usage() }
+        let app = absolute(rest[0]), path = absolute(rest[1])
+        let state = aliasState(app, path)
+        guard rest.count == 3, state == "none" else { print(state); exit(0) }
+        if let why = makeAlias(app, path) { print("failed\t\(why)"); exit(1) }
+        print("made")
+    case "--grid", "--act":
+        MainActor.assumeIsolated { gridMode(mode, rest) }
     default:
         usage()
     }
@@ -559,69 +1268,29 @@ let (gamesGiven, foldersGiven) = gamesOption(Array(args))
 guard !foldersGiven.contains(where: { $0.hasPrefix("-") }) else { usage() }
 let readFrom = foldersGiven.isEmpty ? windowFolders() : foldersGiven
 let gamesTable = gamesGiven ?? ownBundle().map { $0 + "/Contents/Resources/games.tsv" }
-let readmeAddress = "https://github.com/macgameport/1launcher/blob/main/README.md"
-let windowWidth: CGFloat = 420, itemHeight: CGFloat = 52, headingHeight: CGFloat = 26
 
 final class LauncherWindow: NSWindow {
     override func cancelOperation(_ sender: Any?) { NSApp.terminate(nil) }
 }
 
-// One row of the table: the app's icon at 32 points, its title at 13 points semibold, and the second line
-// at 11 points in the label colour (the secondary one measured 3.95 to 1 in light mode). One element for
-// VoiceOver: "<title>, <second line>".
-final class ItemCell: NSTableCellView {
-    init(_ r: Row) {
-        super.init(frame: NSRect(x: 0, y: 0, width: windowWidth, height: itemHeight))
-        let icon = NSImageView(frame: NSRect(x: 8, y: 10, width: 32, height: 32))
-        let image = r.role == .offer ? NSWorkspace.shared.icon(for: .applicationBundle) : NSWorkspace.shared.icon(forFile: r.path)
-        image.size = NSSize(width: 32, height: 32)
-        icon.image = image
-        icon.setAccessibilityElement(false)
-        addSubview(icon)
-        let second = secondLine(r)
-        let name = NSTextField(labelWithString: r.title)
-        name.font = NSFont.systemFont(ofSize: 13, weight: .semibold)
-        name.textColor = .labelColor
-        name.lineBreakMode = .byTruncatingTail
-        name.frame = NSRect(x: 48, y: second.isEmpty ? 17 : 26, width: windowWidth - 72, height: 18)
-        name.autoresizingMask = [.width]
-        name.setAccessibilityElement(false)
-        addSubview(name)
-        if !second.isEmpty {
-            let line = NSTextField(labelWithString: second)
-            line.font = NSFont.systemFont(ofSize: 11)
-            line.textColor = .labelColor
-            line.lineBreakMode = .byTruncatingTail
-            line.frame = NSRect(x: 48, y: 9, width: windowWidth - 72, height: 15)
-            line.autoresizingMask = [.width]
-            line.setAccessibilityElement(false)
-            addSubview(line)
-        }
-        setAccessibilityElement(true)
-        setAccessibilityRole(.cell)
-        setAccessibilityLabel(r.role == .offer ? "\(r.title), not set up on this Mac, opens the set-up guide in your browser"
-                                              : second.isEmpty ? r.title : "\(r.title), \(second)")
-    }
-    required init?(coder: NSCoder) { fatalError() }
-}
-
 @MainActor
-final class Launcher: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTableViewDataSource, NSTableViewDelegate {
-    enum Line { case heading(String), item(Row) }
+final class Launcher: NSObject, NSApplicationDelegate, NSWindowDelegate {
     enum Sheet { case none, question(NSWindow), failure(NSWindow) }
-    var lines: [Line] = []
     var appRows: [Row] = []
     var offers: [Row] = []
     var sheet = Sheet.none
     var starting = false
     var opened = false
-    let window = LauncherWindow(contentRect: NSRect(x: 0, y: 0, width: windowWidth, height: 300),
-                                styleMask: [.titled, .closable], backing: .buffered, defer: false)
-    let table = NSTableView()
+    let window = LauncherWindow(contentRect: NSRect(x: 0, y: 0, width: Look.least, height: 204),
+                                styleMask: [.titled, .closable, .fullSizeContentView], backing: .buffered, defer: false)
+    let back = BackgroundView()
+    let grid = makeGrid()
     let scroll = NSScrollView()
     let empty = NSView()
-    let none = NSTextField(labelWithString: "No games are set up on this Mac yet.")
-    let address = NSTextField(labelWithString: readmeAddress)
+    let none = NSTextField(labelWithString: Look.noGames)
+    let address = NSTextField(labelWithString: Look.readme)
+    let bar = titleBar()
+    var sheetUp: Bool { if case .none = sheet { return false } else { return true } }
 
     func applicationDidFinishLaunching(_ n: Notification) {
         let menu = NSMenu(), item = NSMenuItem(), appMenu = NSMenu()
@@ -631,70 +1300,62 @@ final class Launcher: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTable
         NSApp.mainMenu = menu
 
         window.title = "14unch3r"
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
         window.setAccessibilityTitle("14unch3r game launcher")
         window.isReleasedWhenClosed = false
         window.delegate = self
         let content = window.contentView!
+        back.frame = content.bounds
+        back.autoresizingMask = [.width, .height]
+        content.addSubview(back)
 
-        let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("row"))
-        column.resizingMask = .autoresizingMask
-        table.addTableColumn(column)
-        table.columnAutoresizingStyle = .firstColumnOnlyAutoresizingStyle
-        table.headerView = nil
-        table.style = .inset
-        table.allowsEmptySelection = false
-        table.allowsMultipleSelection = false
-        table.dataSource = self
-        table.delegate = self
-        table.target = self
-        table.action = #selector(startChosen(_:))   // one click starts a row; there is no button
-        table.setAccessibilityLabel("Games")
-        table.setAccessibilityHelp("Click a row, or press Return, to start it.")
-        scroll.documentView = table
+        grid.onStart = { [unowned self] _ in self.startChosen(nil) }
+        grid.onQuit = { NSApp.terminate(nil) }
+        grid.blocked = { [unowned self] in self.starting || self.sheetUp }
+        scroll.documentView = grid
+        scroll.drawsBackground = false
         scroll.hasVerticalScroller = true
         scroll.autohidesScrollers = true
-        scroll.autoresizingMask = [.width, .height]
         content.addSubview(scroll)
 
         none.font = NSFont.systemFont(ofSize: 13)
-        none.textColor = .labelColor
+        none.textColor = .white
         none.alignment = .center
         address.font = NSFont.systemFont(ofSize: 11)
-        address.textColor = .labelColor
+        address.textColor = NSColor(white: 1, alpha: 0.88)
         address.alignment = .center
         address.isSelectable = true
         empty.addSubview(none)
         empty.addSubview(address)
-        empty.autoresizingMask = [.width, .height]
         content.addSubview(empty)
 
+        // Plan 2.7: keyAction says what a key does; the grid does it. The arrows pass on to the grid's keyDown.
         NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [unowned self] e in
-            if e.keyCode == 36 || e.keyCode == 76 {   // Return and Enter start the selected row; a sheet has its own
-                guard case .none = self.sheet else { return e }
-                self.startChosen(nil)
-                return nil
-            }
-            guard e.keyCode == 53 else { return e }   // Escape
-            switch self.sheet {
-            case .none: NSApp.terminate(nil)
-            case .question(let w), .failure(let w): self.window.endSheet(w, returnCode: .alertFirstButtonReturn)
+            switch keyAction(e.keyCode, sheetUp: self.sheetUp) {
+            case .pass:
+                return e
+            case .endSheet:
+                switch self.sheet {
+                case .question(let w), .failure(let w): self.window.endSheet(w, returnCode: .alertFirstButtonReturn)
+                case .none: break
+                }
+            case let a:
+                _ = self.grid.perform(a)
             }
             return nil
         }
 
         reload()
         window.center()
-        window.initialFirstResponder = table
+        window.initialFirstResponder = grid
         window.makeKeyAndOrderFront(nil)
-        window.makeFirstResponder(table)
+        window.makeFirstResponder(grid)
         if #available(macOS 14, *) { NSApp.activate() } else { NSApp.activate(ignoringOtherApps: true) }
         opened = true
         askOffers()
     }
 
-    // Once the window is on screen, and once: the offers come from children (offerRows), and arrive when they
-    // have answered, at most one limit later. They are kept across reloads; one whose game has since got an
-    // app is dropped by reload().
     func askOffers() {
         guard let table = gamesTable else { return }
         let found = appRows
@@ -714,63 +1375,39 @@ final class Launcher: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTable
         return false
     }
 
-    var chosen: Row? {
-        let i = table.selectedRow
-        guard i >= 0, i < lines.count, case .item(let r) = lines[i] else { return nil }
-        return r
-    }
+    var chosen: Row? { grid.chosen }
 
     // States are read when the window opens, each time it becomes the active app, and just before a start.
     // The selection stays on the same app when it is still listed.
     func reload() {
-        let keep = chosen?.key
         appRows = rows(in: readFrom)
         let have = Set(appRows.compactMap { $0.role == .game ? $0.appID : nil })
-        let all = appRows + offers.filter { !have.contains($0.appID ?? 0) }
-        lines = []
-        for (role, heading) in [(Role.game, "Games"), (.steam, "Steam"), (.offer, "You also own")] {
-            let group = all.filter { $0.role == role }
-            if group.isEmpty { continue }
-            lines.append(.heading(heading))
-            lines += group.map { .item($0) }
-        }
-        table.reloadData()
-        var pick = lines.firstIndex { if case .item(let r) = $0 { return r.key == keep } else { return false } }
-        if pick == nil, let d = defaultRow(appRows, last: appID(UserDefaults.standard.object(forKey: "lastAppID"))) {
-            pick = lines.firstIndex { if case .item(let r) = $0 { return r.key == d.key } else { return false } }
-        }
-        if let i = pick {
-            table.selectRowIndexes(IndexSet(integer: i), byExtendingSelection: false)
-            table.scrollRowToVisible(i)
-        }
-        empty.isHidden = !lines.isEmpty
-        scroll.isHidden = lines.isEmpty
+        grid.show(rows: appRows, offers: offers.filter { !have.contains($0.appID ?? 0) }, last: appID(UserDefaults.standard.object(forKey: "lastAppID")))
+        empty.isHidden = !grid.tiles.isEmpty
+        scroll.isHidden = grid.tiles.isEmpty
         fit()
     }
 
-    // The window's height follows the list, up to a point; its top edge stays where it was. The list's height is
-    // read from the table: the inset style pads it 10 points above and below and puts 20 more above each heading
-    // after the first (measured on macOS 27), which a sum of the row heights misses and the list then scrolls.
+    // The window follows the grid; its top edge and its horizontal middle stay where they were.
     func fit() {
-        let listHeight = lines.isEmpty ? 0 : table.rect(ofRow: lines.count - 1).maxY + table.rect(ofRow: 0).minY
-        let h = min(max(listHeight, 130), 470)
-        let frame = window.frameRect(forContentRect: NSRect(x: 0, y: 0, width: windowWidth, height: h))
+        let shown = grid.shown
+        let size = NSSize(width: grid.frame.width, height: shown + bar)
         var f = window.frame
-        f.origin.y += f.height - frame.height
-        f.size = frame.size
+        f.origin.y += f.height - size.height
+        f.origin.x += ((f.width - size.width) / 2).rounded()
+        f.size = size
         window.setFrame(f, display: true, animate: false)
-        let content = window.contentView!.bounds
-        scroll.frame = content
-        table.sizeLastColumnToFit()
+        scroll.frame = NSRect(x: 0, y: 0, width: size.width, height: shown)
+        scroll.contentView.scroll(to: NSPoint(x: 0, y: grid.offset))
+        scroll.reflectScrolledClipView(scroll.contentView)
         empty.frame = scroll.frame
-        let middle = (scroll.frame.height / 2).rounded()
-        none.frame = NSRect(x: 16, y: middle + 2, width: content.width - 32, height: 18)
-        address.frame = NSRect(x: 16, y: middle - 20, width: content.width - 32, height: 16)
+        let middle = (shown / 2).rounded()
+        none.frame = NSRect(x: 16, y: middle + 2, width: size.width - 32, height: 18)
+        address.frame = NSRect(x: 16, y: middle - 20, width: size.width - 32, height: 16)
     }
 
     @objc func startChosen(_ sender: Any?) {
         guard !starting, case .none = sheet else { return }
-        if (sender as? NSTableView) === table && table.clickedRow != table.selectedRow { return }
         guard let picked = chosen else { return }
         if picked.role == .offer { launch(picked, new: false); return }
         reload()
@@ -821,53 +1458,12 @@ final class Launcher: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTable
         sheet = .failure(a.window)
         a.beginSheetModal(for: window) { _ in self.sheet = .none }
     }
-
-    func numberOfRows(in t: NSTableView) -> Int { lines.count }
-
-    func tableView(_ t: NSTableView, isGroupRow i: Int) -> Bool {
-        if case .heading = lines[i] { return true } else { return false }
-    }
-
-    func tableView(_ t: NSTableView, heightOfRow i: Int) -> CGFloat {
-        if case .heading = lines[i] { return headingHeight } else { return itemHeight }
-    }
-
-    func tableView(_ t: NSTableView, viewFor c: NSTableColumn?, row i: Int) -> NSView? {
-        switch lines[i] {
-        case .heading(let s):
-            let cell = NSTableCellView(frame: NSRect(x: 0, y: 0, width: windowWidth, height: headingHeight))
-            let f = NSTextField(labelWithString: s)
-            f.font = NSFont.systemFont(ofSize: 11, weight: .semibold)
-            f.textColor = .labelColor
-            f.frame = NSRect(x: 8, y: 4, width: windowWidth - 32, height: 15)
-            f.autoresizingMask = [.width]
-            cell.addSubview(f)
-            cell.textField = f
-            return cell
-        case .item(let r):
-            return ItemCell(r)
-        }
-    }
-
-    // Headings cannot be selected. An arrow key that lands on one goes on to the next row in its direction;
-    // a click on one changes nothing.
-    func tableView(_ t: NSTableView, selectionIndexesForProposedSelection p: IndexSet) -> IndexSet {
-        guard let i = p.first, case .heading = lines[i] else { return p }
-        let current = t.selectedRow >= 0 ? IndexSet(integer: t.selectedRow) : IndexSet()
-        guard NSApp.currentEvent?.type == .keyDown else { return current }
-        let step = i > t.selectedRow ? 1 : -1
-        var j = i
-        while j >= 0 && j < lines.count {
-            if case .item = lines[j] { return IndexSet(integer: j) }
-            j += step
-        }
-        return current
-    }
 }
 
 MainActor.assumeIsolated {
     let app = NSApplication.shared
     app.setActivationPolicy(.regular)
+    app.appearance = NSAppearance(named: .darkAqua)   // before the window is made: Launcher's init makes it
     let launcher = Launcher()
     app.delegate = launcher
     app.run()

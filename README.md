@@ -1,3 +1,5 @@
+<p align="center"><img src="docs/images/14unch3r.svg" width="128" height="128" alt="14unch3r: a 1 and a mirrored 4 that form an upward arrow in a circle"></p>
+
 # Mac game ports — Windows games on Apple Silicon, one folder per game
 
 Field notes, patches and launchers for running Windows games on Apple Silicon Macs under Wine. Each
@@ -33,7 +35,8 @@ bash scripts/setup.sh
 
 `setup.sh` checks your prerequisites, applies the patches, and builds a double-clickable app with
 the game's own icon, and **14unch3r**, one small window that lists every game set up on your Mac and
-starts the one you choose. Each game's own app stays in Applications, so Spotlight finds it too. You need a Wine wrapper with Steam and the game inside it first:
+starts the one you click. Each game's own app stays in Applications, so Spotlight finds it too, and setup
+offers a 14unch3r shortcut on the Desktop. You need a Wine wrapper with Steam and the game inside it first:
 **[INSTALL.md](cities-skylines-2/INSTALL.md) walks through all of it**. The stack, the numbers and the
 story are in the game's [README](cities-skylines-2/README.md).
 

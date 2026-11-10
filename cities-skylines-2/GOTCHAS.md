@@ -3028,3 +3028,24 @@ and the probe refused every run with "acf_field not found". Its own test caught 
   the repo.
 - **Run new bash under `/bin/bash`, not the shell you are typing in.** A Claude session's shell here is zsh,
   so a one-liner tried there would have passed.
+- **A `case` inside `$( )` ends the substitution at its first pattern's `)`** (`/bin/bash` 3.2.57, found
+  2026-11-10 building 14unch3r's look): `"$(case "$x" in *…) echo a ;; *) echo b ;; esac)"` gave the
+  text ` echo a ;; *) echo b ;; esac)` back. The `case` word itself is safe (above); its patterns are not.
+  Put the `case` in a function and call that inside the `$( )`, as `endsdots` in
+  `common/test-launcher-window.sh` does.
+
+## A bitmap's own drawing context counts in pixels, not points (2026-11-10)
+
+14unch3r draws a greyed copy of an app's icon into an `NSBitmapImageRep` of 128 by 128 pixels whose `size`
+was set to 64 by 64 points, through `NSGraphicsContext(bitmapImageRep:)`. Drawn into `NSRect(0, 0, 64, 64)`,
+the icon filled only the bottom-left quarter, and the tile showed it at half size in its corner. Every test
+passed: `--grid` reports that a tile is `dim`, not what its pixels look like. An offscreen render of the
+real views, read by eye before the merge, found it.
+
+- **The context made from a bitmap counts in its pixels**, whatever `size` says. Draw into
+  `NSRect(0, 0, pixelsWide, pixelsHigh)`, then set the size in points on the copy you hand to `NSImage`:
+  `rep.converting(to:renderingIntent:)` returns a copy sized in pixels, which also draws at half scale.
+- `iconBitmap` never showed it because its size and its pixels are both 1024.
+- **Look at a drawn surface before calling it built.** The engineering rule's "load the page and look at it"
+  caught what the drawing tests could not; a render of the real views offscreen does it without putting a
+  window on someone's screen (14unch3r's window was rendered that way while a game ran).
