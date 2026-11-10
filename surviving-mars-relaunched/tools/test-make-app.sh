@@ -7,6 +7,10 @@
 # looked for and no alert is shown. The compiled panel is only asked to --parse, then REPLACED by a recording
 # stub before any shim runs: the real one would open a window, and a shim is refused here while its app holds
 # anything but a stub. No game, no Steam. The app pulls nothing at launch (unification plan, O3).
+# Then what the 14unch3r window reads (docs/plans/launcher-window.md, 2.1, W5), every key read with plutil:
+# the role, the app id, the alternate names, the prefix of a fixture wrapper; a failing plutil; a target given
+# with a trailing slash; and the own-bundle test, which refuses anything at the target this builder did not
+# make. Every build is given SM_GAME_EXE in the scratch folder, so no real game path is read or recorded.
 #   bash tools/test-make-app.sh            exit 0 = every case passed
 #   MUTANT=1 bash tools/test-make-app.sh   the built shim never runs its launcher; must exit 1
 #   MUTANT=2 ...   the shim says a window is up whether or not its process is alive; must exit 1
@@ -17,6 +21,12 @@
 #   MUTANT=7 ...   the builder compiles outside an `if` (under set -e a failed compile leaves half an app); must exit 1
 #   MUTANT=8 ...   the shim alerts on every failure (two alerts for one die); must exit 1
 #   MUTANT=9 ...   the shim looks for ERROR: in the whole log (an old failure silences a new one); must exit 1
+#   MUTANT=10 ...  the builder writes the other game's app id; must exit 1
+#   MUTANT=11 ...  the builder drops L1Role; must exit 1
+#   MUTANT=12 ...  the own-bundle test is dropped (whatever is at the target is removed); must exit 1
+#   MUTANT=13 ...  SM_GAME_EXE is ignored (the real game path is recorded); must exit 1
+#   MUTANT=14 ...  a failed plutil is ignored; must exit 1
+#   MUTANT=15 ...  a trailing slash is left on SM_APP (rm -rf of link.app/ empties the bundle it points at); must exit 1
 set -u
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 TOP="$(cd "$HERE/.." && pwd)"
@@ -32,7 +42,7 @@ cleanup() {   # stop what the stub panels left, and only those: a recorded PID m
 trap cleanup EXIT
 M="${MUTANT:-0}"
 mutated() { echo "REFUSED: mutant did not apply"; exit 2; }
-case "$M" in 0|1|2|3|4|5|6|7|8|9) ;; *) echo "REFUSED: no mutant $M"; exit 2 ;; esac
+case "$M" in 0|1|2|3|4|5|6|7|8|9|10|11|12|13|14|15) ;; *) echo "REFUSED: no mutant $M"; exit 2 ;; esac
 fails=0
 check() {  # <name> <got> <want>
   if [ "$2" = "$3" ]; then echo "PASS  $1"; else echo "FAIL  $1 (got '$2', want '$3')"; fails=$((fails + 1)); fi
@@ -74,8 +84,8 @@ $tail
 EOF
   chmod +x "$p"
 }
-build() {   # <app> <launcher> [PATH prefix]: output in <app>.make
-  PATH="${3:+$3:}$T/bin:$PATH" SM_APP="$1" SM_SCRIPT="$2" bash "$MAKE" > "$1.make" 2>&1
+build() {   # <app> <launcher> [PATH prefix]: output in <app>.make. The game is looked for in the scratch folder
+  PATH="${3:+$3:}$T/bin:$PATH" SM_APP="$1" SM_SCRIPT="$2" SM_GAME_EXE="$T/absent/Mars.exe" bash "$MAKE" > "$1.make" 2>&1
 }
 run() {   # <app> [NAME=value ...]: its shim with a scratch HOME, the stubs first on PATH and every kill it sends recorded
   local app="$1" p; shift
@@ -96,11 +106,17 @@ scratch_builder() {   # <dir> [nocommon]
   mkdir -p "$1/surviving-mars-relaunched"; cp "$HERE/make-app.sh" "$1/surviving-mars-relaunched/"
   [ "${2:-}" = nocommon ] || { mkdir -p "$1/common"; cp "$TOP/common/launch-progress.swift" "$1/common/"; }
 }
-if [ "$M" = 7 ]; then
-  scratch_builder "$T/mut"; MAKE="$T/mut/surviving-mars-relaunched/make-app.sh"
-  sed -i '' 's/^elif ! xcrun swiftc \(.*\); then PANEL_WHY="the compile failed".*$/else xcrun swiftc \1/' "$MAKE"
-  grep -q '^else xcrun swiftc -O -o "\$PANEL_OUT" "\$PANEL_SRC" >/dev/null 2>&1$' "$MAKE" || mutated
-fi
+case "$M" in 7|10|11|12|13|14|15) scratch_builder "$T/mut"; MAKE="$T/mut/surviving-mars-relaunched/make-app.sh" ;; esac
+case "$M" in
+  7) sed -i '' 's/^elif ! xcrun swiftc \(.*\); then PANEL_WHY="the compile failed".*$/else xcrun swiftc \1/' "$MAKE"
+     grep -q '^else xcrun swiftc -O -o "\$PANEL_OUT" "\$PANEL_SRC" >/dev/null 2>&1$' "$MAKE" || mutated ;;
+  10) sed -i '' 's|<integer>3215050</integer>|<integer>949230</integer>|' "$MAKE"; grep -q '<integer>949230</integer>' "$MAKE" || mutated ;;
+  11) sed -i '' '/<key>L1Role<\/key>/d' "$MAKE"; grep -q '<key>L1Role</key>' "$MAKE" && mutated ;;
+  12) sed -i '' 's/^  \[ -e "\$t" \] || \[ -L "\$t" \] || return 0$/  return 0/' "$MAKE"; grep -q '|| return 0$' "$MAKE" && mutated ;;
+  13) sed -i '' 's|^GAME_EXE="\${SM_GAME_EXE:-\(.*\)}"$|GAME_EXE="\1"|' "$MAKE"; grep -q 'SM_GAME_EXE:-' "$MAKE" && mutated ;;
+  14) sed -i '' 's/^not_built() { .*/not_built() { return 0; }/' "$MAKE"; grep -q '^not_built() { return 0; }$' "$MAKE" || mutated ;;
+  15) sed -i '' '/# tested as the bundle it names$/d' "$MAKE"; grep -q 'APP="\${APP%/}"' "$MAKE" && mutated ;;
+esac
 
 # --- the builder
 APP="$T/App.app"; SHIM="$APP/Contents/MacOS/launch"; PANEL="$APP/Contents/Resources/launch-progress"
@@ -177,6 +193,96 @@ check "a launcher that exits 1 in silence, after a session that held ERROR:: one
 : > "$log"
 run "$APP" FAKE_RC=3; rc=$?
 check "the same in a fresh log: its exit code, one alert" "$rc:$(grep -c 'Launch failed (exit 3)' "$OSA")" "3:1"
+
+# --- what the 14unch3r window reads (docs/plans/launcher-window.md, 2.1; W5). Built without swiftc, from a
+# scratch working folder. Keys are read by plutil, never by grepping the plist, which plutil rewrites whole.
+mkdir -p "$T/cwd" "$T/badplutil"
+printf '#!/bin/bash\nexit 1\n' > "$T/badplutil/plutil"; chmod +x "$T/badplutil/plutil"   # every plutil call fails
+mk() {   # <SM_APP as given> [game exe]: the builder, output in $T/mk.out; prints its exit code
+  ( cd "$T/cwd" && PATH="${PRE:+$PRE:}$T/noswift:$T/bin:$PATH" SM_APP="$1" SM_SCRIPT="$T/launch-relaunched.sh" \
+      SM_GAME_EXE="${2:-$T/absent/Mars.exe}" bash "$MAKE" ) > "$T/mk.out" 2>&1
+  echo $?
+}
+key() { plutil -extract "$2" raw "$1/Contents/Info.plist" 2>/dev/null || echo "(none)"; }
+appid() { plutil -extract L1SteamAppID raw -expect integer "$1/Contents/Info.plist" 2>/dev/null || echo "(no integer)"; }
+alts() {   # <app>: how many alternate names, then each, joined by |
+  local pl="$1/Contents/Info.plist" n i out
+  n=$(plutil -extract CFBundleAlternateNames raw -expect array "$pl" 2>/dev/null) || { echo "(none)"; return; }
+  out="$n"; i=0
+  while [ "$i" -lt "$n" ]; do out="$out|$(plutil -extract "CFBundleAlternateNames.$i" raw "$pl" 2>/dev/null)"; i=$((i + 1)); done
+  echo "$out"
+}
+lints() { plutil -lint "$1/Contents/Info.plist" >/dev/null 2>&1 && echo lints; }
+said() { grep -c -F -x -e "$1" "$T/mk.out"; }
+snap() {   # <bundle>: names, file contents and link targets under it, as one short hash; "gone" when it is not there
+  [ -d "$1" ] || { echo gone; return; }
+  ( cd "$1" && { find . | LC_ALL=C sort; find . -type f -exec shasum {} + | LC_ALL=C sort; find . -type l -exec readlink {} +; } ) | shasum | cut -c1-12
+}
+GP="drive_c/Program Files (x86)/Steam/steamapps/common/Project Spark/Mars.exe"
+mkdir -p "$T/fx/SM.app/Contents/SharedSupport/prefix" "$T/fx/A&B.app/Contents/SharedSupport/prefix" \
+         "$T/fx/Old.app/Contents/SharedSupport/prefix-old" "$T/cwd/rel.app/Contents/SharedSupport/prefix"
+
+G="$T/fx/SM.app/Contents/SharedSupport/prefix/$GP"
+rc=$(mk "$T/k/Keys.app" "$G"); A="$T/k/Keys.app"
+check "built with a fixture wrapper's game path: exit 0, and the plist lints" "$rc:$(lints "$A")" "0:lints"
+check "  ...L1Role is game" "$(key "$A" L1Role)" game
+check "  ...L1SteamAppID is this game's, stored as an integer" "$(appid "$A")" 3215050
+check "  ...its three alternate names" "$(alts "$A")" "3|Surviving Mars|Surviving Mars: Relaunched|SMR"
+check "  ...L1Prefix is the fixture wrapper's prefix" "$(key "$A" L1Prefix)" "$T/fx/SM.app/Contents/SharedSupport/prefix"
+check "  ...the shim looks for the game SM_GAME_EXE named" "$(sed -n 's/^GAME_EXE="\(.*\)"$/\1/p' "$A/Contents/MacOS/launch")" "$G"
+check "  ...and neither the plist nor the shim records a path in the real home folder" "$(cat "$A/Contents/Info.plist" "$A/Contents/MacOS/launch" | grep -c -F "$HOME/")" 0
+rc=$(mk "$T/k/Amp.app" "$T/fx/A&B.app/Contents/SharedSupport/prefix/$GP")
+check "a prefix holding & survives, and the plist lints" "$rc:$(key "$T/k/Amp.app" L1Prefix):$(lints "$T/k/Amp.app")" "0:$T/fx/A&B.app/Contents/SharedSupport/prefix:lints"
+noprefix() {   # <case> <game path>: built, and no L1Prefix
+  rc=$(mk "$T/k/NoPrefix.app" "$2")
+  check "$1: built, and no L1Prefix" "$rc:$(key "$T/k/NoPrefix.app" L1Prefix)" "0:(none)"
+}
+noprefix "the prefix folder is missing" "$T/fx/Gone.app/Contents/SharedSupport/prefix/$GP"
+noprefix "the game path has no prefix segment" "$T/absent/Mars.exe"
+noprefix "the game path runs through .../prefix-old/..." "$T/fx/Old.app/Contents/SharedSupport/prefix-old/$GP"
+noprefix "the game path is relative, its folder there" "rel.app/Contents/SharedSupport/prefix/$GP"
+
+rc=$(PRE="$T/badplutil" mk "$T/pl/Fails.app")
+check "every plutil call fails: the error line, no bundle left, exit 1" "$rc:$(said "ERROR: $T/pl/Fails.app/Contents/Info.plist is not a valid property list; the app was not built"):$([ -e "$T/pl/Fails.app" ] && echo left)" "1:1:"
+
+mk "$T/proto/Proto.app" > /dev/null; PROTO="$T/proto/Proto.app"   # an app of this builder's, copied wherever one is needed
+own_copy() { mkdir -p "$(dirname "$1")"; cp -R "$PROTO" "$1"; : > "$1/Contents/Resources/keep"; }
+fake() {   # <bundle> <marker line> <identifier> [wrapper|shimlink]: shaped like this builder's app, or nearly
+  local b="$1" i=2
+  mkdir -p "$b/Contents/MacOS" "$b/Contents/Resources"
+  { echo '#!/bin/bash'; while [ "$i" -lt "$2" ]; do echo "# line $i"; i=$((i + 1)); done
+    echo '# Generated by surviving-mars-relaunched/make-app.sh -- re-run that instead of editing this file.'; } > "$b/Contents/MacOS/launch"
+  printf '<?xml version="1.0" encoding="UTF-8"?>\n<plist version="1.0"><dict><key>CFBundleIdentifier</key><string>%s</string></dict></plist>\n' "$3" > "$b/Contents/Info.plist"
+  : > "$b/Contents/Resources/keep"
+  case "${4:-}" in
+    wrapper) mkdir -p "$b/Contents/SharedSupport/prefix" ;;
+    shimlink) mv "$b/Contents/MacOS/launch" "$b/Contents/MacOS/launch.real"; ln -s launch.real "$b/Contents/MacOS/launch" ;;
+  esac
+}
+refused() {   # <case> <target as given> <the bundle it names>: exit 1, both lines said, the bundle untouched
+  local before
+  before=$(snap "$3")
+  rc=$(mk "$2")
+  check "$1: refused with exit 1, both lines said, untouched" "$rc:$(said "ERROR: $3 exists and was not built by this script; nothing removed")$(said 'If it is a leftover of this script, move it to the Trash and run this again.'):$(snap "$3")" "1:11:$before"
+}
+ID=local.sm-patch.relaunched.launcher
+fake "$T/own/Wrapper.app" 2 "$ID" wrapper;      refused "a wrapper-shaped bundle (Contents/SharedSupport)" "$T/own/Wrapper.app" "$T/own/Wrapper.app"
+fake "$T/own/OtherID.app" 2 local.someone.else; refused "a bundle with another identifier" "$T/own/OtherID.app" "$T/own/OtherID.app"
+fake "$T/own/Line11.app" 11 "$ID";              refused "a bundle whose marker is on line 11" "$T/own/Line11.app" "$T/own/Line11.app"
+fake "$T/own/ShimLink.app" 2 "$ID" shimlink;    refused "a bundle whose shim is a symlink" "$T/own/ShimLink.app" "$T/own/ShimLink.app"
+own_copy "$T/elsewhere/Real.app"; ln -s "$T/elsewhere/Real.app" "$T/own/Link.app"
+refused "a symlink to a bundle of this builder's" "$T/own/Link.app" "$T/own/Link.app"
+check "  ...it is still a symlink" "$([ -L "$T/own/Link.app" ] && echo link)" link
+refused "the same symlink given with a trailing slash" "$T/own/Link.app/" "$T/own/Link.app"
+check "  ...it is still a symlink, and the bundle it points at is whole" "$([ -L "$T/own/Link.app" ] && echo link):$([ -e "$T/elsewhere/Real.app/Contents/Resources/keep" ] && echo whole)" link:whole
+replaced() {   # <case> <target as given> <the bundle it names>: exit 0, a complete app, the old one's extra file gone
+  rc=$(mk "$2")
+  check "$1 is replaced" "$rc:$(complete "$3"):$([ -e "$3/Contents/Resources/keep" ] && echo old)" "0:complete:"
+}
+own_copy "$T/own/Again.app";       replaced "a bundle this builder made" "$T/own/Again.app" "$T/own/Again.app"
+fake "$T/own/Line10.app" 10 "$ID"; replaced "a bundle of this builder's shape with its marker on line 10" "$T/own/Line10.app" "$T/own/Line10.app"
+own_copy "$T/own/Slash.app";       replaced "a bundle of this builder's given with a trailing slash" "$T/own/Slash.app/" "$T/own/Slash.app"
+check "  ...and it was built in place, not inside itself" "$([ -e "$T/own/Slash.app/Slash.app" ] && echo nested)" ""
 
 echo "$fails failure(s)"
 [ "$fails" = 0 ]
