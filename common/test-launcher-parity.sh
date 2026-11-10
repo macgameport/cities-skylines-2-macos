@@ -37,15 +37,17 @@ set -u
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 T="$(mktemp -d /tmp/launcher-parity-test.XXXX)"
 trap 'rm -rf "$T"' EXIT
-CS2="$T/launch-cs2-dxmt11.sh"; SM="$T/launch-relaunched.sh"; SMPROBE="$T/sm-licence-wait-probe.sh"
+CS2="$T/launch-cs2-dxmt11.sh"; SM="$T/launch-relaunched.sh"
+CS2PROBE="$T/cs2-licence-wait-probe.sh"; SMPROBE="$T/sm-licence-wait-probe.sh"
 take() {   # <path in the repo> <copy>
   [ -f "$HERE/$1" ] || { echo "REFUSED: $1 not found under $HERE"; exit 2; }
   cp "$HERE/$1" "$2"
 }
 take cities-skylines-2/launchers/launch-cs2-dxmt11.sh "$CS2"
 take surviving-mars-relaunched/launch-relaunched.sh "$SM"
+take cities-skylines-2/scripts/licence-wait-probe.sh "$CS2PROBE"
 take surviving-mars-relaunched/tools/licence-wait-probe.sh "$SMPROBE"
-PROBES=("$SMPROBE")
+PROBES=("$CS2PROBE" "$SMPROBE")
 mutated() { echo "REFUSED: mutant did not apply"; exit 2; }
 mutate() {   # <file> <sed expression> <fixed text that proves it applied>
   sed -i '' "$2" "$1"; grep -qF -- "$3" "$1" || mutated
