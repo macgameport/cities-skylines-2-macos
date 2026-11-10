@@ -8,8 +8,16 @@
 > slice of Phase 5 of `docs/plans/1launcher-unification.md`. It differs from the Phase B paragraph of that
 > outline in three ways, listed under D1, D2 and section 8. File and line references are as of `509bc56`;
 > no code file they name has changed since. A path is relative to the repository root.
-> **🔧 As-built (2026-11-10):** PARTIAL: B1 to B7 built on branch `launcher-window`, not yet merged; no
-> live step has run. `65c799c` B1 (the game builders), `01e783e` B4 (the Steam app, the engine source, the
+> **🔧 As-built (2026-11-10):** PARTIAL: B1 to B7 built, and merged as `1a782fb`. Live steps 0 to 2 are done on
+> the Studio. Step 0, before the merge: the built `--owned` on the real `packageinfo.vdf` of all four wrappers
+> read 949230 and 3215050 `owned` and 730 `not-owned`, in each file alone and in all four together. Step 1: the
+> lock check printed nothing and no Wine process ran. Step 2: the wrapper `S734M.app` went to the Trash with
+> `/usr/bin/trash`; `test-make-engine-install.sh` exit 0 from the kept copy, 14 cases; `setup.sh` exit 0 with
+> both closing lines, 14unch3r built with its icon; T2 21 of 21 and `_vendor` equal; `make-app.sh` exit 0, no
+> hint since 14unch3r is beside it; `make-steam-shortcut.sh` exit 0, `S734M.app` built and `CS2 Steam Store.app`
+> removed. `~/Applications` holds the four apps and three wrappers of this project; `--list` there gives two
+> games and one Steam app, all `ready`; Spotlight's record of each app carries its other names. Steps 3 to 8
+> are still to come. `65c799c` B1 (the game builders), `01e783e` B4 (the Steam app, the engine source, the
 > inventory), `667f727` B2 and `34d1c21` B5 (the window and the offers, built in parallel on a second branch and
 > merged as `598459c`), `66b6847` B3 and B6 (the window's builder, setup's call, the icon), `158f347` W8, and the
 > documents commit after them. Every listed mutant was applied and exited 1, 98 in all: W1 to W3, W7 and W9 in
