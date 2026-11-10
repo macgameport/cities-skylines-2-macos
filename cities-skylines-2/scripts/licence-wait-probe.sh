@@ -24,10 +24,12 @@
 #                                 VOID, quoting the log's first ERROR: line. The wait under test did not
 #                                 happen: Steam was already up, the launch died first, or the log is of
 #                                 another setting.
-#      with --expect-update: the launcher log has no `game update waiting` line
-#                                 VOID. For a Mac whose game has an update waiting: the line shows that
-#                                 the update check ran. (It does not time the wait's second job, below:
-#                                 the manifest keeps a waiting update on disk between sessions.)
+#      with --expect-update, for a Mac whose game has an update waiting, and no `game update waiting`
+#      line in the launcher log:
+#                                 FAIL when the game's record read current before the boot and the
+#                                 launcher logged `Game build N is current.`: Steam had not rewritten the
+#                                 record within the wait, so a player would not be told of the update
+#                                 (the wait's second job, below). Otherwise VOID: the run did not test it.
 #   3. boot-verify exit 3         VOID: it had no log of this run to judge.
 #   4. `platform service integration failed`, in any letter case, in the run's SceneFlow.log or Player.log
 #                                 FAIL, whatever the exit. This is the licence race (GOTCHAS section 11;
@@ -48,11 +50,17 @@
 # sign-in can log several). 2026-11-09: 3 s. No such line, or a `finished Timeout` in that window, is
 # recorded as `none`, and such a run cannot support a lower default. The default never goes below the
 # largest value seen plus 5. This times Steam's app information, a stand-in for the rewrite of the
-# game's record; nothing here times that rewrite itself.
+# game's record. The rewrite itself is tested, not timed, by --expect-update: before each boot, with
+# Steam down, the probe reads the record as the installed launcher does (its own acf_field and
+# update_pending) into manifest-before.txt. The record does not always keep a waiting update between
+# sessions: on 2026-11-07 the MacBook's read current before launch and Steam rewrote it inside the 45 s
+# wait (cities-skylines-2/EXPERIMENTS.md, C74). A run whose record read current and whose launcher still
+# showed the update is the evidence; one whose record already showed it proves only that the check ran.
+# Each verdict line ends `record before: current`, `waiting` or `unreadable` when the file is there.
 #
 # RUN DIRS: ~/cs2-patch/boot-verify/licence-<seconds>/<stamp>-<attempt>/, outside this public checkout:
-# what boot-verify leaves (launcher.log, SceneFlow.log, Player.log), its output as boot-verify.out, and
-# this run's lines of Steam's two logs, which carry the account id. One summary line per run, with the
+# what boot-verify leaves (launcher.log, SceneFlow.log, Player.log), its output as boot-verify.out,
+# manifest-before.txt, and this run's lines of Steam's two logs, which carry the account id. One summary line per run, with the
 # Steam client's version. Exit 0 = every run passed.
 #
 # Tests: scripts/test-licence-wait-probe.sh (the judge on fixture run dirs, the loop against a stub
@@ -84,20 +92,30 @@ second_job() {   # <run dir> -> seconds from sign-in to Steam's last finished ap
   echo "$(($(epoch "$last") - $(epoch "$signin"))) s"
 }
 
+record() {   # <run dir> -> what manifest-before.txt says the game's record read before the boot, or nothing
+  sed -n 's/^record before the boot: \([a-z]*\).*/\1/p' "$1/manifest-before.txt" 2>/dev/null | head -1
+}
+
 EXPECT_UPDATE=0
 judge() {   # <run dir> <seconds> <boot-verify exit> -> one line that starts PASS, FAIL, VOID, OTHER or STOP
-  local d="$1" s="$2" rc="$3" n
+  local d="$1" s="$2" rc="$3" n r tail=""
+  r=$(record "$d"); [ -n "$r" ] && tail=" | record before: $r"
   case "$rc" in
     2)  echo "STOP refused: something already runs against the wrapper (boot-verify exit 2)"; return ;;
     64) echo "STOP setup: boot-verify could not start a boot (exit 64)"; return ;;
   esac
   n=$(wait_lines "$d/launcher.log" "$s" 2>/dev/null)
   [ "${n:-0}" = 1 ] || { echo "VOID the launcher log holds ${n:-0} line(s) 'Licence wait: $s s', not one: $(grep -m1 '^ERROR:' "$d/launcher.log" 2>/dev/null | cut -c1-120)"; return; }
-  [ "$EXPECT_UPDATE" = 1 ] && ! grep -q 'game update waiting' "$d/launcher.log" && { echo "VOID the launcher log has no 'game update waiting' line: the update check did not show the waiting update"; return; }
+  if [ "$EXPECT_UPDATE" = 1 ] && ! grep -q 'game update waiting' "$d/launcher.log"; then
+    if [ "$r" = current ] && grep -q '^Game build [0-9]* is current\.$' "$d/launcher.log"; then
+      echo "FAIL the update check called the game current, and its record read current before the boot: Steam had not rewritten it within the wait (the wait's second job) | second job: $(second_job "$d")$tail"; return
+    fi
+    echo "VOID the launcher log has no 'game update waiting' line, and the record before the boot read ${r:-nothing}: the run did not test the update check"; return
+  fi
   [ "$rc" = 3 ] && { echo "VOID boot-verify had no log of this run to judge (exit 3)"; return; }
-  grep -qi 'platform service integration failed' "$d/SceneFlow.log" "$d/Player.log" 2>/dev/null && { echo "FAIL platform service integration failed (boot-verify exit $rc) | second job: $(second_job "$d")"; return; }
-  [ "$rc" = 1 ] && { echo "OTHER boot-verify failed, and not on the licence: $(sed -n 's/^reason *: *//p' "$d/boot-verify.out" 2>/dev/null | head -1 | cut -c1-120) | second job: $(second_job "$d")"; return; }
-  [ "$rc" = 0 ] && { echo "PASS | second job: $(second_job "$d")"; return; }
+  grep -qi 'platform service integration failed' "$d/SceneFlow.log" "$d/Player.log" 2>/dev/null && { echo "FAIL platform service integration failed (boot-verify exit $rc) | second job: $(second_job "$d")$tail"; return; }
+  [ "$rc" = 1 ] && { echo "OTHER boot-verify failed, and not on the licence: $(sed -n 's/^reason *: *//p' "$d/boot-verify.out" 2>/dev/null | head -1 | cut -c1-120) | second job: $(second_job "$d")$tail"; return; }
+  [ "$rc" = 0 ] && { echo "PASS | second job: $(second_job "$d")$tail"; return; }
   echo "VOID boot-verify exit $rc is not one of its own"
 }
 
@@ -128,6 +146,19 @@ for f in _owns game_pids game_up steam_up; do
 done
 [ -f "$LAUNCHER" ] || { echo "REFUSED: no installed launcher at $LAUNCHER (run scripts/setup.sh)"; exit 2; }
 grep -q '^# >>> launch-feedback (' "$LAUNCHER" || { echo "REFUSED: the installed launcher has no launch-feedback block, so it ignores CS2_LICENCE_WAIT: run scripts/setup.sh"; exit 2; }
+# The game's update record, read the way the installed launcher reads it (its 2b), before each boot.
+MANIFEST="$WINEPREFIX/drive_c/Program Files (x86)/Steam/steamapps/appmanifest_949230.acf"
+for f in acf_field update_pending; do
+  body=$(sed -n "/^$f() {/,/^}/p" "$LAUNCHER")   # not inside "$(...)": bash 3.2 then brace-expands {/,/^}
+  eval "$body"
+  [ "$(type -t $f)" = function ] || { echo "REFUSED: $f not found in the installed launcher"; exit 2; }
+done
+record_before() {   # <run dir>: what the launcher's update check would read now, with Steam down
+  local w
+  update_pending
+  case "$?" in 0) w=waiting ;; 1) w=current ;; *) w=unreadable ;; esac
+  echo "record before the boot: $w (StateFlags $(acf_field StateFlags), buildid $(acf_field buildid), TargetBuildID $(acf_field TargetBuildID))" > "$1/manifest-before.txt"
+}
 game_up && { echo "REFUSED: the game is running"; exit 2; }
 steam_up && { echo "REFUSED: this wrapper's Steam is running"; exit 2; }
 
@@ -138,7 +169,7 @@ since() {   # <Steam log> <epoch> <copy>: the log's lines stamped at or after th
 passes=0; voids=0; others=0; n=0
 echo "licence wait $SECS s, $RUNS run(s), $(date '+%Y-%m-%d %H:%M'), host $(scutil --get LocalHostName 2>/dev/null), output $OUT"
 while [ "$passes" -lt "$RUNS" ]; do
-  n=$((n + 1)); D="$OUT/$(date +%Y%m%d-%H%M%S)-$n"; mkdir -p "$D"; t0=$(date +%s)
+  n=$((n + 1)); D="$OUT/$(date +%Y%m%d-%H%M%S)-$n"; mkdir -p "$D"; record_before "$D"; t0=$(date +%s)
   CS2_LICENCE_WAIT="$SECS" bash "$BV" --out "$D" > "$D/boot-verify.out" 2>&1; rc=$?
   since "$SLOGS/connection_log.txt" "$t0" "$D/connection_log.txt"
   since "$SLOGS/appinfo_log.txt" "$t0" "$D/appinfo_log.txt"

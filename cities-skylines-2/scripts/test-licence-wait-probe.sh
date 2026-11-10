@@ -10,6 +10,7 @@
 #   MUTANT=3 ...   boot-verify exit 1 counts as FAIL (any failed boot blamed on the licence); must exit 1
 #   MUTANT=4 ...   rules 4 and 5 swapped (a real licence failure is filed as OTHER); must exit 1
 #   MUTANT=5 ...   an exit code nobody documents counts as PASS; must exit 1
+#   MUTANT=6 ...   the record before the boot is ignored (a missed update reads VOID, not FAIL); must exit 1
 set -u
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 T="$(mktemp -d /tmp/licence-wait-probe-test.XXXX)"
@@ -26,6 +27,7 @@ case "${MUTANT:-0}" in
   4) awk '/^  grep -qi .platform service integration failed. / { held = $0; next } { print } held != "" && /^  \[ "\$rc" = 1 \] && / { print held; held = "" }' "$P" > "$P.new" && mv "$P.new" "$P"
      [ "$(grep -n '^  \[ "\$rc" = 1 \] && ' "$P" | cut -d: -f1)" -lt "$(grep -n "^  grep -qi 'platform service integration failed' " "$P" | cut -d: -f1)" ] || mutated ;;
   5) sed -i '' 's/^  echo "VOID boot-verify exit \$rc is not one of its own"$/  echo "PASS"/' "$P"; grep -q '^  echo "PASS"$' "$P" || mutated ;;
+  6) sed -i '' 's/^    if \[ "\$r" = current \] && grep /    if false \&\& grep /' "$P"; grep -q '^    if false && grep ' "$P" || mutated ;;
   *) echo "REFUSED: no mutant ${MUTANT}"; exit 2 ;;
 esac
 fails=0
@@ -98,6 +100,19 @@ check "--expect-update, and no 'game update waiting' line: VOID" "$(word --expec
 echo 'WARNING: game update waiting (build 23700737 -> 25127643) — launching the installed build. CS2_UPDATE=apply takes it.' >> "$D/launcher.log"
 check "--expect-update, with the line: PASS" "$(word --expect-update "$D" 15 0)" PASS
 judge "$D" 015 0 > /dev/null; check "--judge with a leading zero in the seconds: usage, exit 64" "$?" 64
+# The record before the boot (C74: it can read current between sessions, and Steam rewrites it after sign-in).
+D=$(rundir missed); echo 'record before the boot: current (StateFlags 4, buildid 23700737, TargetBuildID 23700737)' > "$D/manifest-before.txt"
+sed -i '' 's/^Game build 25127643 is current\.$/Game build 23700737 is current./' "$D/launcher.log"
+check "--expect-update, the record current before the boot and the launcher saying current: FAIL, the second job" \
+  "$(judge --expect-update "$D" 15 0 | grep -c "^FAIL the update check called the game current.*record before: current$")" 1
+check "  ...the same run without --expect-update: PASS, with the record named" "$(judge "$D" 15 0)" "PASS | second job: 3 s | record before: current"
+D=$(rundir seen); echo 'record before the boot: current (StateFlags 4, buildid 23700737, TargetBuildID 23700737)' > "$D/manifest-before.txt"
+echo 'WARNING: game update waiting (build 23700737 -> 25127643) — launching the installed build. CS2_UPDATE=apply takes it.' >> "$D/launcher.log"
+check "--expect-update, the record current before and the update shown: PASS, the second job tested" "$(judge --expect-update "$D" 15 0)" "PASS | second job: 3 s | record before: current"
+D=$(rundir already); echo 'record before the boot: waiting (StateFlags 6, buildid 23700737, TargetBuildID 25127643)' > "$D/manifest-before.txt"
+check "--expect-update, the record already waiting and no update line: VOID" "$(word --expect-update "$D" 15 0)" VOID
+D=$(rundir norecord)
+check "--expect-update, no record file and the launcher saying current: VOID, not FAIL" "$(word --expect-update "$D" 15 0)" VOID
 
 # ---------------------------------------------------------------- the loop, against a stub boot-verify.sh
 # The stub takes the next word of STUB_PLAN at each call and leaves what such a boot leaves in --out. Its
@@ -114,6 +129,8 @@ mkdir -p "$OUT"; : > "$OUT/Player.log"; echo '[INFO]  MainMenu reached' > "$OUT/
 printf '%s\n' "Licence wait: ${CS2_LICENCE_WAIT:-unset} s" 'Game exited (rc=0).' > "$OUT/launcher.log"
 case "$what" in
   pass)  echo 'reason                  : menu reached'; exit 0 ;;
+  current) echo 'Game build 23700737 is current.' >> "$OUT/launcher.log"; echo 'reason                  : menu reached'; exit 0 ;;
+  update) echo 'WARNING: game update waiting (build 23700737 -> 25127643) — launching the installed build.' >> "$OUT/launcher.log"; echo 'reason                  : menu reached'; exit 0 ;;
   void)  echo 'ERROR: Steam did not auto-login' > "$OUT/launcher.log"; echo 'reason                  : launcher exited before the game started'; exit 3 ;;
   other) echo "reason                  : no 'GameManager destroyed'"; exit 1 ;;
   fail)  echo '[ERROR]  [SceneFlow] platform service integration failed' > "$OUT/SceneFlow.log"; echo "reason                  : no 'MainMenu reached'"; exit 1 ;;
@@ -126,8 +143,16 @@ printf '#!/bin/bash\ncase "$*" in *steam.exe*) [ -n "${STUB_STEAM:-}" ] || [ -e 
 printf '#!/bin/bash\necho "$STUB_PREFIX/drive_c/windows/system.reg"\n' > "$T/bin/lsof"
 printf '#!/bin/bash\nexit 0\n' > "$T/bin/sleep"
 chmod +x "$T/bin"/*
-installed() { printf '#!/bin/bash\n%s\n' "$1" > "$H/cs2-patch/launch-cs2-dxmt11.sh"; }   # the installed launcher, as far as the probe reads it
+# the installed launcher, as far as the probe reads it: the block's marker, and the real update-check functions
+installed() {
+  { printf '#!/bin/bash\n%s\n' "$1"
+    [ "${2:-}" = bare ] || for f in acf_field update_pending; do sed -n "/^$f() {/,/^}/p" "$REPO/launchers/launch-cs2-dxmt11.sh"; done
+  } > "$H/cs2-patch/launch-cs2-dxmt11.sh"
+}
 installed '# >>> launch-feedback (a fake launcher)'
+STEAMAPPS="$H/Applications/CS2dxmt11.app/Contents/SharedSupport/prefix/drive_c/Program Files (x86)/Steam/steamapps"; mkdir -p "$STEAMAPPS"
+manifest() { printf '"AppState"\n{\n\t"appid"\t\t"949230"\n\t"StateFlags"\t\t"%s"\n\t"buildid"\t\t"%s"\n\t"TargetBuildID"\t\t"%s"\n}\n' "$1" "$2" "$3" > "$STEAMAPPS/appmanifest_949230.acf"; }
+manifest 4 23700737 23700737
 probe() {   # <name> <plan> [probe arguments]: output in $T/<name>.out; echoes the probe's exit code
   local name="$1" plan="$2"; shift 2
   rm -rf "$T/state" "$H/cs2-patch/boot-verify"; mkdir -p "$T/state"
@@ -155,7 +180,18 @@ check "the game is running: refused, no boot" "$(STUB_GAME=1 probe game 'pass' 1
 check "this wrapper's Steam is running: refused, no boot" "$(STUB_STEAM=1 probe steam 'pass' 15):$(boots):$(said steam "^REFUSED: this wrapper's Steam is running")" "2:0:1"
 installed 'echo "an older launcher"'
 check "an installed launcher without the block: refused, no boot" "$(probe oldl 'pass' 15):$(boots):$(said oldl '^REFUSED: the installed launcher has no launch-feedback block')" "2:0:1"
+installed '# >>> launch-feedback (a fake launcher)' bare
+check "an installed launcher without the update-check functions: refused, no boot" "$(probe nofn 'pass' 15):$(boots):$(said nofn '^REFUSED: acf_field not found in the installed launcher')" "2:0:1"
 installed '# >>> launch-feedback (a fake launcher)'
+manifest 4 23700737 23700737
+check "the record is read before each boot into manifest-before.txt: current, with its numbers" \
+  "$(probe rec 'pass pass' 15 2):$(cat "$H"/cs2-patch/boot-verify/licence-15/*/manifest-before.txt | grep -c '^record before the boot: current (StateFlags 4, buildid 23700737, TargetBuildID 23700737)$')" "0:2"
+check "--expect-update with a current record, and a launcher that says current: exit 1, FAIL on the first boot" \
+  "$(probe missed2 'current pass' --expect-update 15):$(boots):$(said missed2 'attempt 1: FAIL the update check called the game current')" "1:1:1"
+manifest 1026 23700737 25127643
+check "--expect-update with a record already waiting, and the update shown: PASS, the record named waiting" \
+  "$(probe seen2 'update' --expect-update 15 1):$(said seen2 'attempt 1: PASS .*record before: waiting')" "0:1"
+manifest 4 23700737 23700737
 for bad in 07 1000 abc -5 ''; do
   check "seconds '$bad': usage, exit 64, no boot" "$(probe bad 'pass' "$bad"):$(boots)" "64:0"
 done
