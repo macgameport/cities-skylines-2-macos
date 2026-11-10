@@ -17,10 +17,12 @@
 # D3DM_FLUSH_POS_INF_TO_NAN=1 (no change), and Options > Video > Antialiasing = SMAA (no change; whether
 # that also took FSR 2 out of use was not verified).
 #
-# The S734M wrapper itself is not touched: it stays on D3DMetal 2.1, and this script only reads it.
+# Standalone mode builds from the S734M wrapper's Wine while that wrapper is in ~/Applications, and from
+# the copy of it SurvivingMars.app keeps as wine.d3dm21-BAK once it is gone: the wrapper goes to the
+# Trash, and its name to the Steam app (docs/plans/launcher-window.md, D11). Either is only read.
 # The four D3DMetal DLLs and their Mac-side libraries change layout between the versions: 2.1 has a
 # separate d3d12.so/dxgi.so/... per DLL, 3.0 links all of them to one libd3dshared.dylib.
-# Rebuild after the S734M wrapper's Wine or CrossOver is updated: it replaces <out-dir>.
+# Rebuild after the source Wine or CrossOver is updated: it replaces <out-dir>.
 set -eu
 SM_WORK="${SM_WORK:-$HOME/Library/Developer/1launcher/surviving-mars-relaunched}"
 # ENGINE_SRC=<wine dir> clones another engine instead (the unified-stack probe used the daily CS2
@@ -45,7 +47,10 @@ if [ "${1:-}" = --install ]; then
   fi
   OUT="$T/wine.new"
 else
-  SRC="${ENGINE_SRC:-$HOME/Applications/S734M.app/Contents/SharedSupport/wine}"
+  # A Steam app named S734M.app has no SharedSupport, so it is passed over like an absent wrapper
+  SRC="$HOME/Applications/S734M.app/Contents/SharedSupport/wine"
+  [ -d "$SRC" ] || SRC="$HOME/Applications/SurvivingMars.app/Contents/SharedSupport/wine.d3dm21-BAK"
+  SRC="${ENGINE_SRC:-$SRC}"
   OUT="${1:-$SM_WORK/engine/wine-d3dm30}"
 fi
 GPTK=""

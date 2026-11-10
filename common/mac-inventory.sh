@@ -124,15 +124,20 @@ echo "gh wrapper patterns: $(printf '%s\n' "$pats" | grep -E "$PROJ" | tr '\n' '
 echo "gh in an interactive shell is: $(zsh -ic 'whence -w gh' </dev/null 2>/dev/null | tail -1)"
 
 sec "apps and wrappers in ~/Applications"
-for a in "Cities Skylines II" "CS2 Steam Store" "Surviving Mars Relaunched"; do
+# S734M.app is the Steam app's name since docs/plans/launcher-window.md, and was a Wine wrapper's before it.
+# A bundle is a wrapper when it has Contents/SharedSupport, and is then reported with the wrappers below.
+for a in "Cities Skylines II" "S734M" "CS2 Steam Store" "Surviving Mars Relaunched"; do
   s="$HOME/Applications/$a.app/Contents/MacOS/launch"
-  if [ -f "$s" ]; then r="$(sed -n 's/^SCRIPT="\(.*\)"$/\1/p' "$s" | head -1 | t)"
+  if [ -d "$HOME/Applications/$a.app/Contents/SharedSupport" ]; then echo "$a.app: a Wine wrapper, not the app (listed below)"
+  elif [ -f "$s" ]; then r="$(sed -n 's/^SCRIPT="\(.*\)"$/\1/p' "$s" | head -1 | t)"
     echo "$a.app: $([ -n "$r" ] && echo "runs $r" || echo "present (it names no launcher script)")$(grep -q 'pull --ff-only' "$s" && echo " · pulls a remote at each launch")"
   else echo "$a.app: absent"; fi
 done
+# the 14unch3r window has no shim to read, so it has a line of its own
+echo "14unch3r.app: $([ -d "$HOME/Applications/14unch3r.app" ] && echo present || echo absent)"
 for w in CS2dxmt11 CS2dxmt11-pk110 S734M SurvivingMars CS2 CS2child-test; do
   p="$HOME/Applications/$w.app/Contents/SharedSupport/prefix/drive_c/Program Files (x86)/Steam/steamapps"
-  [ -d "$HOME/Applications/$w.app" ] || continue
+  [ -d "$HOME/Applications/$w.app/Contents/SharedSupport" ] || continue
   echo "$w.app: Cities: Skylines II $([ -f "$p/common/Cities Skylines II/Cities2.exe" ] && echo "installed, build $(grep -m1 '"buildid"' "$p/appmanifest_949230.acf" 2>/dev/null | tr -dc 0-9)" || echo "not installed") · Surviving Mars $([ -f "$p/common/Project Spark/Mars.exe" ] && echo "installed, build $(grep -m1 '"buildid"' "$p/appmanifest_3215050.acf" 2>/dev/null | tr -dc 0-9)" || echo "not installed")"
 done
 for a in "$HOME"/Applications/*.app; do
