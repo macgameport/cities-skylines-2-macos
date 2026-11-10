@@ -16,8 +16,9 @@
 #     any file it includes is a .gitconfig file directly in the home folder, and the checkout does not hand
 #     its settings to another folder (a commondir file). Anything else is listed by name and not examined
 #     further;
-#   - even then git runs with monitors and hooks off, no pager, without touching the index, and without
-#     looking into repositories nested inside the checkout, whose settings were never read;
+#   - even then git is pinned to that one .git folder, so it cannot go looking for another repository further
+#     up whose settings were never read, and it runs with monitors and hooks off, no pager, without touching
+#     the index, and without looking into repositories nested inside the checkout;
 #   - no credential helper is ever run: the script reports which settings file would supply the push
 #     credentials, not what they are.
 # What git may still start is a program named in YOUR OWN settings (a large-file filter, say), as it would in
@@ -42,6 +43,7 @@ not_plain() {   # <checkout>: prints what in its own settings is outside the pla
   done
 }
 G() { git --no-pager --no-optional-locks -c core.fsmonitor=false -c core.hooksPath=/dev/null "$@"; }
+Gd() { G --git-dir="$d/.git" --work-tree="$d" "$@"; }     # git in checkout $d: that .git folder and no other
 
 sec "this Mac"
 echo "macOS $(sw_vers -productVersion 2>/dev/null) · Apple Silicon: $([ "$(sysctl -n hw.optional.arm64 2>/dev/null)" = 1 ] && echo yes || echo no)"
@@ -77,11 +79,15 @@ for g in "$HOME"/*/.git "$HOME"/*/*/.git "$HOME"/*/*/*/.git; do
     echo "    NOT EXAMINED FURTHER: its own git settings hold more than the plain set: $odd"
     continue
   fi
-  echo "    HEAD $(G -C "$d" rev-parse --short HEAD 2>/dev/null) on $(G -C "$d" rev-parse --abbrev-ref HEAD 2>/dev/null) · $(G -C "$d" status -sb --ignore-submodules=all 2>/dev/null | head -1 | safe) · $(G -C "$d" status --porcelain --ignore-submodules=all 2>/dev/null | wc -l | tr -d ' ') changed or untracked · $(G -C "$d" status --porcelain --ignored --ignore-submodules=all 2>/dev/null | grep -c '^!!') ignored"
-  an="$(G -C "$d" var GIT_AUTHOR_IDENT 2>/dev/null | sed 's/ <.*//')"
+  if ! Gd rev-parse --git-dir >/dev/null 2>&1; then
+    echo "    NOT EXAMINED FURTHER: git does not take its .git folder for a repository"
+    continue
+  fi
+  echo "    HEAD $(Gd rev-parse --short HEAD 2>/dev/null) on $(Gd rev-parse --abbrev-ref HEAD 2>/dev/null) · $(Gd status -sb --ignore-submodules=all 2>/dev/null | head -1 | safe) · $(Gd status --porcelain --ignore-submodules=all 2>/dev/null | wc -l | tr -d ' ') changed or untracked · $(Gd status --porcelain --ignored --ignore-submodules=all 2>/dev/null | grep -c '^!!') ignored"
+  an="$(Gd var GIT_AUTHOR_IDENT 2>/dev/null | sed 's/ <.*//')"
   # which settings file would supply the push credentials for GitHub here: a read of settings, no helper is run
   # git reads these in order, and an empty one clears the list so far: what is left is what a push would use
-  src="$(G -C "$d" config --show-origin --get-regexp '^credential\.(.*\.)?helper$' 2>/dev/null | awk -F'\t' '
+  src="$(Gd config --show-origin --get-regexp '^credential\.(.*\.)?helper$' 2>/dev/null | awk -F'\t' '
     { n = index($2, " "); key = n ? substr($2, 1, n - 1) : $2; val = n ? substr($2, n + 1) : ""
       if (key != "credential.helper" && key != "credential.https://github.com.helper") next
       if (val == "") { out = ""; next }

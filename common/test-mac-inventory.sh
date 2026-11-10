@@ -10,6 +10,7 @@
 #   MUTANT=3 ...                                 a commondir file is not noticed; must exit 1
 #   MUTANT=4 ...                                 git status looks into nested repositories; must exit 1
 #   MUTANT=5 ...                                 a credential helper is asked for the push identity; must exit 1
+#   MUTANT=6 ...                                 git is left to find the repository by itself; must exit 1
 # No game, no Steam, no Wine, no Intel program. Everything it writes is under one folder in /tmp.
 set -u
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
@@ -35,13 +36,15 @@ printf '[user]\n\tname = iosoceans\n\temail = project@example.invalid\n[credenti
 # settings a checkout might pull in from a place of its own choosing
 printf '[core]\n\tfsmonitor = %s elsewhere-fsmonitor\n\taskPass = %s\n[filter "trap"]\n\tclean = %s elsewhere-filter filter\n[credential]\n\thelper = !%s elsewhere-helper\n' "$TRAP" "$T/ask-elsewhere.sh" "$TRAP" "$TRAP" > "$E/evil.cfg"
 
+# The changed file keeps its size. Git can tell a file has changed from a new size alone; with the size the same
+# it has to read the file, and reading it is what runs a filter. So every filter trap is live on every run.
 mk() {   # <name>: a checkout with one commit, a filter attribute, a changed file and the project's address
   d="$H/github/$1"
   g init -q "$d" 2>/dev/null
   printf '* filter=trap\n' > "$d/.gitattributes"; echo one > "$d/file.txt"
   g -C "$d" add -A && g -C "$d" commit -q -m one
   g -C "$d" remote add origin https://github.com/macgameport/1launcher.git
-  echo two >> "$d/file.txt"
+  echo two > "$d/file.txt"
 }
 set_own() { g config -f "$H/github/$1/.git/config" "$2" "$3"; }
 
@@ -70,8 +73,13 @@ mk nested; d="$H/github/nested"
 g init -q "$d/sub" 2>/dev/null; printf '* filter=trap\n' > "$d/sub/.gitattributes"; echo one > "$d/sub/file.txt"
 g -C "$d/sub" add -A && g -C "$d/sub" commit -q -m one
 g -C "$d" add sub 2>/dev/null && g -C "$d" commit -q -m sub
-g config -f "$d/sub/.git/config" filter.trap.clean "$TRAP nested-filter filter"; echo two >> "$d/sub/file.txt"
-TRAPPED="helper filter fsmonitor askpass uppercase include-elsewhere include-climbs includeif worktreeconfig commondir"
+g config -f "$d/sub/.git/config" filter.trap.clean "$TRAP nested-filter filter"; echo two > "$d/sub/file.txt"
+# a folder inside a trapped checkout, holding nothing of a repository but a plain settings file: git, left to
+# itself, would walk up from it and use the outer checkout and its settings
+mk outer; set_own outer filter.trap.clean "$TRAP outer-filter filter"
+mkdir -p "$H/github/outer/inner/.git"
+printf '[remote "origin"]\n\turl = https://github.com/macgameport/1launcher.git\n' > "$H/github/outer/inner/.git/config"
+TRAPPED="helper filter fsmonitor askpass uppercase include-elsewhere include-climbs includeif worktreeconfig commondir outer outer/inner"
 
 # the script under test, or a mutant of it
 RUN="$T/inventory.sh"; cp "$SCRIPT" "$RUN"
@@ -81,7 +89,8 @@ case "${MUTANT:-0}" in
   2) sed -i '' "s/printf 'an-include-[a-z-]* '/:/" "$RUN" ;;
   3) sed -i '' '/commondir" ] && printf/d' "$RUN" ;;
   4) sed -i '' 's/ --ignore-submodules=all//g' "$RUN" ;;
-  5) awk '{print} /^  src="\$\(G -C "\$d" config --show-origin/ { ins = 1 } ins && /\| t\)"$/ { print "  printf \"protocol=https\\nhost=github.com\\n\\n\" | G -C \"$d\" credential fill >/dev/null 2>&1"; ins = 0 }' "$SCRIPT" > "$RUN" ;;
+  6) sed -i '' 's/G --git-dir="$d\/.git" --work-tree="$d" "$@"/G -C "$d" "$@"/' "$RUN" ;;
+  5) awk '{print} /^  src="\$\(Gd config --show-origin/ { ins = 1 } ins && /\| t\)"$/ { print "  printf \"protocol=https\\nhost=github.com\\n\\n\" | Gd credential fill >/dev/null 2>&1"; ins = 0 }' "$SCRIPT" > "$RUN" ;;
   *) echo "REFUSED: no mutant ${MUTANT}"; exit 2 ;;
 esac
 if [ "${MUTANT:-0}" != 0 ]; then
@@ -101,7 +110,7 @@ check "the script exits 0" "$?" 0
 check "it writes nothing to stderr" "$(wc -c < "$T/err" | tr -d ' ')" 0
 check "no planted program ran: $(sort -u "$T/fired" 2>/dev/null | tr '\n' ' ')" "$([ -s "$T/fired" ] && echo ran || echo none)" none
 check "the output names no absolute home path" "$(grep -c -F "$T" "$T/out")" 0
-check "it lists all 12 checkouts" "$(grep -c '^~/github/' "$T/out")" 12
+check "it lists all 14 checkouts" "$(grep -c '^~/github/' "$T/out")" 14
 check "plain: examined" "$(has plain '^    HEAD [0-9a-f]\{7,\} on ')" yes
 check "plain: its one changed file is counted" "$(has plain ' · 1 changed or untracked · ')" yes
 check "plain: commits as the project" "$(has plain 'commits as: project · ')" yes
@@ -115,6 +124,7 @@ check "includeif: the reason prints no path" "$(has includeif 'plain set: includ
 check "include-elsewhere: the reason" "$(has include-elsewhere 'an-include-outside-the-home-folder')" yes
 check "include-climbs: the reason" "$(has include-climbs 'an-include-below-the-home-folder')" yes
 check "commondir: the reason" "$(has commondir 'a-commondir-file')" yes
+check "outer/inner: the reason" "$(has outer/inner 'git does not take its .git folder for a repository')" yes
 
 # every trap is live: plain git, run the ordinary way in each checkout, starts the planted program
 mv "$T/fired" "$T/fired-by-script" 2>/dev/null; : > "$T/fired"
@@ -122,7 +132,8 @@ for c in plain $TRAPPED nested; do
   ( cd "$H/github/$c" && g status --porcelain; printf 'protocol=https\nhost=github.com\n\n' | g credential fill ) > /dev/null 2>&1 < /dev/null
 done
 for label in home-helper-project home-helper-personal own-helper own-filter own-fsmonitor own-askpass own-uppercase \
-             elsewhere-fsmonitor elsewhere-filter elsewhere-askpass elsewhere-helper own-worktreeconfig commondir-filter nested-filter; do
+             elsewhere-fsmonitor elsewhere-filter elsewhere-askpass elsewhere-helper own-worktreeconfig commondir-filter nested-filter \
+             outer-filter; do
   check "control: plain git does start $label" "$(grep -c -x "$label" "$T/fired" | sed 's/^[1-9][0-9]*$/fires/')" fires
 done
 
