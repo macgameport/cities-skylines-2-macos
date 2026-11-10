@@ -18,7 +18,9 @@
 > `setup.sh` twice in Terminal, answered `y`, and macOS asked nothing about the Desktop folder; one alias of 904
 > bytes, which `--alias` reads as `have`, was made at the first run and not rewritten by the second, which did not
 > ask; no name ending " 2" a few minutes later. The two game aliases left the Desktop 37 seconds after, through a
-> Finder Move to Trash by James himself ("i moved the shortcuts"), not through setup, which never calls Finder. L4 and L5 are still to come. Tests:
+> Finder Move to Trash by James himself ("i moved the shortcuts"), not through setup, which never calls Finder. Put back, they
+> were byte-identical to their fingerprints from before setup, and all three aliases read Kind "Alias", type `fapa`,
+> and grouped together. L4 and L5 are still to come. Tests:
 > `test-launcher-window.sh` 166 cases, its 40 new mutants (31 to 70) each seen red and restored;
 > `test-make-launcher-app.sh` 27, mutant 8 new; `test-setup.sh` 77, mutants 9 to 16 new; every other suite of
 > the parent's section 6 and `test-launcher-builders.sh` (W19) unchanged and green; `check-identifiers.sh`
