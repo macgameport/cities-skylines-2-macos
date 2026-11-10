@@ -16,8 +16,9 @@
 > both closing lines, 14unch3r built with its icon; T2 21 of 21 and `_vendor` equal; `make-app.sh` exit 0, no
 > hint since 14unch3r is beside it; `make-steam-shortcut.sh` exit 0, `S734M.app` built and `CS2 Steam Store.app`
 > removed. `~/Applications` holds the four apps and three wrappers of this project; `--list` there gives two
-> games and one Steam app, all `ready`; Spotlight's record of each app carries its other names. Steps 3 to 8
-> are still to come. `65c799c` B1 (the game builders), `01e783e` B4 (the Steam app, the engine source, the
+> games and one Steam app, all `ready`; Spotlight's record of each app carries its other names. Step 3 passed,
+> by James (Spotlight, 2026-11-10); step 4 was replaced by live step L2 of `docs/plans/launcher-window-look.md`,
+> passed the same day. Steps 5 to 8 are still to come. `65c799c` B1 (the game builders), `01e783e` B4 (the Steam app, the engine source, the
 > inventory), `667f727` B2 and `34d1c21` B5 (the window and the offers, built in parallel on a second branch and
 > merged as `598459c`), `66b6847` B3 and B6 (the window's builder, setup's call, the icon), `158f347` W8, and the
 > documents commit after them. Every listed mutant was applied and exited 1, 98 in all: W1 to W3, W7 and W9 in

@@ -1364,8 +1364,11 @@ may belong to a different wrapper's Steam.
 | exp_d16d76 | 2026-10-10 15:19 | `60262-6cfa941` | 0 | 0 | 0 | rendered | candidate |
 | exp_8e55b4 | 2026-10-11 17:35 | `18-launcher-6cfa941` | 0 | 0 | 0 | rendered | candidate |
 | exp_ad3998 | 2026-10-11 17:50 | `4-fullscreen-toggle-1116` | 0 | 0 | 0 | rendered | candidate |
+| exp_bc173f | 2026-11-10 13:36 | `14unch3r-look-L2-20261110` | 0 | 0 | 0 | — | no-capture |
+| exp_75cd2d | 2026-11-10 14:34 | `14unch3r-look-L3-20261110` | 0 | 0 | 0 | — | no-capture |
+| exp_7e3863 | 2026-11-10 14:55 | `14unch3r-look-L4-20261110` | 0 | 0 | 0 | — | no-capture |
 
-304 cells · 45 VOID-LIBS · 244 candidate
+307 cells · 45 VOID-LIBS · 244 candidate
 ---
 
 ## Running a cell (the procedure this ledger assumes)
