@@ -72,8 +72,17 @@ for g in "$HOME"/*/.git "$HOME"/*/*/.git "$HOME"/*/*/*/.git; do
     esac
     echo "    remote $name: $w"
   done
-  echo "    under ~/Documents: $(in_documents "$d") · layout: $([ -d "$d/cities-skylines-2" ] && echo "one folder per game" || echo "before the restructure") · Surviving Mars folder: $([ -d "$d/surviving-mars-relaunched" ] && echo yes || echo no)"
-  echo "    untracked or ignored at old places: $(for f in MODS-GUIDE.md logs .env CLAUDE.local.md .claude; do [ -e "$d/$f" ] && printf '%s ' "$f"; done; ls "$d"/scripts/*.exe >/dev/null 2>&1 && printf 'scripts/*.exe(%s) ' "$(ls "$d"/scripts/*.exe | wc -l | tr -d ' ')"; echo)"
+  case "$urls" in *macgameport/1launcher*|*macgameport/cities-skylines-2-macos*) game=cs2 ;; *) game=sm ;; esac
+  if [ "$game" = cs2 ]; then
+    echo "    under ~/Documents: $(in_documents "$d") · layout: $([ -d "$d/cities-skylines-2" ] && echo "one folder per game" || echo "before the restructure") · Surviving Mars folder: $([ -d "$d/surviving-mars-relaunched" ] && echo yes || echo no)"
+    # what git does not track and a pull leaves where it was: the first list moves by hand, the second stays
+    tomove="$(for f in MODS-GUIDE.md logs; do [ -e "$d/$f" ] && printf '%s ' "$f"; done; ls "$d"/scripts/*.exe >/dev/null 2>&1 && printf 'scripts/*.exe(%s) ' "$(ls "$d"/scripts/*.exe | wc -l | tr -d ' ')"; [ -d "$d/cities-skylines-2" ] && for f in archive launchers patches; do [ -d "$d/$f" ] && printf '%s/(left behind by a pull) ' "$f"; done)"
+    keep="$(for f in .env CLAUDE.local.md .claude; do [ -e "$d/$f" ] && printf '%s ' "$f"; done)"
+    echo "    to move into cities-skylines-2/ by hand: ${tomove:-nothing }· kept at the root: ${keep:-nothing}"
+  else
+    echo "    under ~/Documents: $(in_documents "$d") · layout: the separate Surviving Mars checkout"
+    echo "    holds outside git: $(for x in runs backup engine scratch; do [ -d "$d/$x" ] && printf '%s(%s entries) ' "$x" "$(ls -A "$d/$x" | wc -l | tr -d ' ')"; done)· helper programs: $(ls "$d"/tools/*.exe 2>/dev/null | wc -l | tr -d ' ')"
+  fi
   odd="$(not_plain "$d")"
   if [ -n "$odd" ]; then
     echo "    NOT EXAMINED FURTHER: its own git settings hold more than the plain set: $odd"
@@ -97,11 +106,21 @@ for g in "$HOME"/*/.git "$HOME"/*/*/.git "$HOME"/*/*/*/.git; do
   echo "    commits as: $(kind "$an") · the GitHub credential helper is named in: $src· repo-local identity include: $([ -n "$(own "$d" --get-all include.path)" ] && echo yes || echo no)"
 done
 [ "$found" = 0 ] && echo "none found three levels under ~"
+for p in Documents Desktop Downloads; do
+  [ -d "$HOME/$p" ] && ! ls "$HOME/$p" >/dev/null 2>&1 && echo "could not look inside ~/$p (a macOS privacy setting for this terminal): a checkout there would not be listed"
+done
 
 sec "identity by folder (the two dotfiles)"
-git config --global --get-regexp '^includeif' 2>/dev/null | awk '{print "git includeIf: " $1}' | t
-# only the folder patterns themselves: never the rest of a line of the shell profile
-echo "gh wrapper patterns: $(grep -o '"\$HOME/github/[A-Za-z0-9_-]*/"\*' "$HOME/.zshrc" 2>/dev/null | sort -u | tr '\n' ' ')"
+# only the entries for this project's folders, and only the folder patterns themselves, never the rest of a
+# line of the shell profile: entries for other folders are counted, not shown
+PROJ='/cs2/|/1launcher/|/sm-patch/|cities-skylines'
+git config --global --get-regexp '^includeif' 2>/dev/null | grep -E "$PROJ" | while read -r k v; do
+  f="$v"; case "$f" in "~/"*) f="$HOME/${f#\~/}" ;; esac
+  echo "git includeIf: $k -> $v ($([ -f "$f" ] && echo "the file exists" || echo "THE FILE IS MISSING"))"
+done | t
+echo "git includeIf entries for other folders, not shown: $(git config --global --get-regexp '^includeif' 2>/dev/null | grep -c -v -E "$PROJ")"
+pats="$(grep -o '"\$HOME/[A-Za-z0-9_/.-]*/"\*' "$HOME/.zshrc" 2>/dev/null | sort -u)"
+echo "gh wrapper patterns: $(printf '%s\n' "$pats" | grep -E "$PROJ" | tr '\n' ' ')· for other folders, not shown: $(printf '%s\n' "$pats" | grep -c -v -E "$PROJ|^$")"
 echo "gh in an interactive shell is: $(zsh -ic 'whence -w gh' </dev/null 2>/dev/null | tail -1)"
 
 sec "apps and wrappers in ~/Applications"
@@ -115,6 +134,11 @@ for w in CS2dxmt11 CS2dxmt11-pk110 S734M SurvivingMars CS2 CS2child-test; do
   p="$HOME/Applications/$w.app/Contents/SharedSupport/prefix/drive_c/Program Files (x86)/Steam/steamapps"
   [ -d "$HOME/Applications/$w.app" ] || continue
   echo "$w.app: Cities: Skylines II $([ -f "$p/common/Cities Skylines II/Cities2.exe" ] && echo "installed, build $(grep -m1 '"buildid"' "$p/appmanifest_949230.acf" 2>/dev/null | tr -dc 0-9)" || echo "not installed") · Surviving Mars $([ -f "$p/common/Project Spark/Mars.exe" ] && echo "installed, build $(grep -m1 '"buildid"' "$p/appmanifest_3215050.acf" 2>/dev/null | tr -dc 0-9)" || echo "not installed")"
+done
+for a in "$HOME"/Applications/*.app; do
+  [ -d "$a/Contents/SharedSupport/prefix" ] || continue
+  n="$(basename "$a" .app)"
+  case "$n" in CS2dxmt11|CS2dxmt11-pk110|S734M|SurvivingMars|CS2|CS2child-test) ;; *) echo "$(printf '%s' "$n" | safe).app: a Wine wrapper that is not one of the six this script knows from the Studio" ;; esac
 done
 
 sec "the Cities: Skylines II install folder"

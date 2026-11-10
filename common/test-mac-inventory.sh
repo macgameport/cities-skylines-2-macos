@@ -11,13 +11,18 @@
 #   MUTANT=4 ...                                 git status looks into nested repositories; must exit 1
 #   MUTANT=5 ...                                 a credential helper is asked for the push identity; must exit 1
 #   MUTANT=6 ...                                 git is left to find the repository by itself; must exit 1
+#   MUTANT=7 ...                                 a folder it may not read goes unmentioned; must exit 1
+#   MUTANT=8 ...                                 a wrapper it does not know goes unmentioned; must exit 1
+#   MUTANT=9 ...                                 the identity lines name other projects' folders; must exit 1
+# It also checks what the report says: the labels, the two dotfile lines, and that nothing in it names the
+# home folder or a folder of another project.
 # No game, no Steam, no Wine, no Intel program. Everything it writes is under one folder in /tmp.
 set -u
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 SCRIPT="$HERE/common/mac-inventory.sh"
 [ -f "$SCRIPT" ] || { echo "REFUSED: $SCRIPT not found"; exit 2; }
 T="$(mktemp -d /tmp/mac-inventory-test.XXXX)"
-trap 'rm -rf "$T"' EXIT
+trap 'chmod -R u+rwx "$T" 2>/dev/null; rm -rf "$T"' EXIT
 unset GIT_ASKPASS SSH_ASKPASS GIT_DIR GIT_WORK_TREE GIT_CONFIG_PARAMETERS
 export GIT_TERMINAL_PROMPT=0
 H="$T/home"; E="$T/elsewhere"; mkdir -p "$H/github" "$H/.gitconfig-dir" "$E"; : > "$H/.zshrc"
@@ -33,6 +38,15 @@ g() { HOME="$H" git "$@"; }
 # helper list first, as the real ones do, so no helper of this Mac is ever reached from here.
 printf '[user]\n\tname = somebody\n\temail = somebody@example.invalid\n[credential "https://github.com"]\n\thelper =\n\thelper = !%s home-helper-personal\n' "$TRAP" > "$H/.gitconfig"
 printf '[user]\n\tname = iosoceans\n\temail = project@example.invalid\n[credential "https://github.com"]\n\thelper =\n\thelper = !%s home-helper-project\n' "$TRAP" > "$H/.gitconfig-cs2"
+# the two dotfiles: entries for two of the project's folders, one naming a file that is not there, and one
+# entry each for a folder of another project
+g config --global "includeIf.gitdir:$H/github/cs2/.path" "$H/.gitconfig-cs2"
+g config --global "includeIf.gitdir:$H/github/1launcher/.path" "~/.gitconfig-missing"
+g config --global "includeIf.gitdir:$H/github/otherproject/.path" "$H/.gitconfig-cs2"
+printf 'gh() {\n  case "$PWD/" in\n    "$HOME/github/cs2/"*|"$HOME/github/otherproject/"*) command gh "$@" ;;\n    *) command gh "$@" ;;\n  esac\n}\n' > "$H/.zshrc"
+# a folder this terminal may not read, a wrapper the script knows and one it does not
+mkdir "$H/Documents" && chmod 000 "$H/Documents"
+mkdir -p "$H/Applications/OtherWrapper.app/Contents/SharedSupport/prefix" "$H/Applications/CS2dxmt11.app/Contents/SharedSupport/prefix"
 # settings a checkout might pull in from a place of its own choosing
 printf '[core]\n\tfsmonitor = %s elsewhere-fsmonitor\n\taskPass = %s\n[filter "trap"]\n\tclean = %s elsewhere-filter filter\n[credential]\n\thelper = !%s elsewhere-helper\n' "$TRAP" "$T/ask-elsewhere.sh" "$TRAP" "$TRAP" > "$E/evil.cfg"
 
@@ -53,6 +67,10 @@ mkdir -p "$H/github/plain/.git/hooks"
 for h in fsmonitor-watchman post-index-change pre-commit post-checkout; do
   printf '#!/bin/bash\n%s plain-hook-%s\n' "$TRAP" "$h" > "$H/github/plain/.git/hooks/$h"; chmod +x "$H/github/plain/.git/hooks/$h"
 done
+# two honest checkouts for the labels: one that a pull left half-moved, and the old Surviving Mars one
+mk labels; d="$H/github/labels"; : > "$d/MODS-GUIDE.md"; : > "$d/.env"; mkdir "$d/cities-skylines-2" "$d/archive"
+mk smold;  g -C "$H/github/smold" remote set-url origin studio:git/sm-patch.git
+mkdir "$H/github/smold/runs" "$H/github/smold/tools"; : > "$H/github/smold/runs/one.log"; : > "$H/github/smold/tools/a.exe"; : > "$H/github/smold/tools/b.exe"
 mk helper;            set_own helper credential.helper "!$TRAP own-helper"
 mk filter;            set_own filter filter.trap.clean "$TRAP own-filter filter"
 mk fsmonitor;         set_own fsmonitor core.fsmonitor "$TRAP own-fsmonitor"
@@ -89,6 +107,9 @@ case "${MUTANT:-0}" in
   2) sed -i '' "s/printf 'an-include-[a-z-]* '/:/" "$RUN" ;;
   3) sed -i '' '/commondir" ] && printf/d' "$RUN" ;;
   4) sed -i '' 's/ --ignore-submodules=all//g' "$RUN" ;;
+  7) sed -i '' '/could not look inside/s/echo /: /' "$RUN" ;;
+  8) sed -i '' '/a Wine wrapper that is not one of the six/s/echo /: /' "$RUN" ;;
+  9) sed -i '' 's/ | grep -E "\$PROJ" | while read/ | while read/' "$RUN" ;;
   6) sed -i '' 's/G --git-dir="$d\/.git" --work-tree="$d" "$@"/G -C "$d" "$@"/' "$RUN" ;;
   5) awk '{print} /^  src="\$\(Gd config --show-origin/ { ins = 1 } ins && /\| t\)"$/ { print "  printf \"protocol=https\\nhost=github.com\\n\\n\" | Gd credential fill >/dev/null 2>&1"; ins = 0 }' "$SCRIPT" > "$RUN" ;;
   *) echo "REFUSED: no mutant ${MUTANT}"; exit 2 ;;
@@ -110,11 +131,23 @@ check "the script exits 0" "$?" 0
 check "it writes nothing to stderr" "$(wc -c < "$T/err" | tr -d ' ')" 0
 check "no planted program ran: $(sort -u "$T/fired" 2>/dev/null | tr '\n' ' ')" "$([ -s "$T/fired" ] && echo ran || echo none)" none
 check "the output names no absolute home path" "$(grep -c -F "$T" "$T/out")" 0
-check "it lists all 14 checkouts" "$(grep -c '^~/github/' "$T/out")" 14
+check "it lists all 16 checkouts" "$(grep -c '^~/github/' "$T/out")" 16
 check "plain: examined" "$(has plain '^    HEAD [0-9a-f]\{7,\} on ')" yes
 check "plain: its one changed file is counted" "$(has plain ' · 1 changed or untracked · ')" yes
 check "plain: commits as the project" "$(has plain 'commits as: project · ')" yes
 check "plain: the helper is the project file's alone" "$(has plain 'named in: ~/.gitconfig-cs2 · ')" yes
+check "labels: what moves by hand, and what stays" "$(has labels 'to move into cities-skylines-2/ by hand: MODS-GUIDE.md archive/(left behind by a pull) · kept at the root: .env $')" yes
+check "smold: the separate Surviving Mars checkout, on a private server" "$(has smold 'layout: the separate Surviving Mars checkout$')$(has smold 'remote origin: a private git server$')" yesyes
+check "smold: what it holds that no repo has" "$(has smold 'holds outside git: runs(1 entries) · helper programs: 2$')" yes
+exact() { grep -c -F -x -e "$1" "$T/out"; }
+check "a folder it may not read is named" "$(exact 'could not look inside ~/Documents (a macOS privacy setting for this terminal): a checkout there would not be listed')" 1
+check "a wrapper it does not know is named" "$(exact 'OtherWrapper.app: a Wine wrapper that is not one of the six this script knows from the Studio')" 1
+check "a wrapper it knows is reported" "$(grep -c '^CS2dxmt11.app: Cities: Skylines II not installed' "$T/out")" 1
+check "includeIf: the project's entry, and that its file exists" "$(exact 'git includeIf: includeif.gitdir:~/github/cs2/.path -> ~/.gitconfig-cs2 (the file exists)')" 1
+check "includeIf: a missing file is said" "$(exact 'git includeIf: includeif.gitdir:~/github/1launcher/.path -> ~/.gitconfig-missing (THE FILE IS MISSING)')" 1
+check "gh wrapper: the project's pattern alone" "$(exact 'gh wrapper patterns: "$HOME/github/cs2/"* · for other folders, not shown: 1')" 1
+check "another project's folder is counted twice and named nowhere" "$(grep -c -F 'for other folders, not shown: 1' "$T/out"):$(grep -c otherproject "$T/out")" 2:0
+check "the gh wrapper is seen as a function" "$(exact 'gh in an interactive shell is: gh: function')" 1
 check "nested: examined, its inner repository left alone" "$(has nested '^    HEAD [0-9a-f]\{7,\} on ')" yes
 for c in $TRAPPED; do
   check "$c: not examined" "$(has "$c" 'NOT EXAMINED FURTHER')$(has "$c" '^    HEAD ')" yesno
