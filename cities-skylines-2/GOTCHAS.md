@@ -3013,5 +3013,18 @@ and the probe refused every run with "acf_field not found". Its own test caught 
   that is not the right side of an assignment. Only braces inside a **nested double-quoted** word are
   expanded: `"$(sed -n '/^f() {/,/^}/p' …)"` and `'^[0-9]{5,}'` in single quotes are left alone (measured
   under `/bin/bash` 3.2.57, 2026-11-10), so the Surviving Mars tools' `eval "$(sed -n '…')"` lines are safe.
+- **`local x="$(…)"` is not an assignment here: it is expanded too** (measured on the Studio, `/bin/bash`
+  3.2.57, 2026-11-10, with `"$(echo "x{a,b}y")"`). `local`, `export`, `readonly` and `declare` are commands
+  and `x=…` is their argument: the variable came out as `xby` (`xay` under `readonly`), never `x{a,b}y`.
+  Also expanded: a `for … in "$(…)"` list, and the backtick form inside double quotes. Left alone: a plain
+  `x="$(…)"` or `x=$(…)`, the second of two plain assignments on one line, an unquoted `$(…)` as an
+  argument, a `case` word, `[[ … ]]`, and a here-document body. So "assign first" means `local x` on its own
+  line and then `x=$(…)`, which is how the dialog fix is written.
+- **Swept the same day: 84 tracked shell scripts, 0 left.** The line grep above reads `local x="$(…)"` as an
+  assignment and cannot see a substitution that spans lines, so the sweep used a scratch parser that follows
+  each `"$(` to its closing bracket and reports a brace list inside a nested double-quoted word. Its control:
+  both launchers as they were before `2e338a9` were flagged at the dialog line, planted `local`, `for` and
+  `eval` lines were flagged, and a planted plain assignment was reported as safe. The parser was not kept in
+  the repo.
 - **Run new bash under `/bin/bash`, not the shell you are typing in.** A Claude session's shell here is zsh,
   so a one-liner tried there would have passed.
