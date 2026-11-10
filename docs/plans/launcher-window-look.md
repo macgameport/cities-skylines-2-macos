@@ -2,7 +2,23 @@
 
 > **Status:** Triple-checked 2026-11-10 — build-ready-with-fixes, corrections folded. Pass 1 was three
 > lenses; pass 1b was a fourth agent checking the fold, and its findings are folded too. Eight decisions
-> James made the same day are in section 9. Written 2026-11-10; not yet built.
+> James made the same day are in section 9. Written 2026-11-10.
+> **🔧 As-built (2026-11-10):** PARTIAL: B8 to B12 built on branch `launcher-look` (`17dd03a`, and the documents
+> commit after it), not yet merged; live steps L1 to L5 are still to come, each on James's word. Tests:
+> `test-launcher-window.sh` 166 cases, its 40 new mutants (31 to 70) each seen red and restored;
+> `test-make-launcher-app.sh` 27, mutant 8 new; `test-setup.sh` 77, mutants 9 to 16 new; every other suite of
+> the parent's section 6 and `test-launcher-builders.sh` (W19) unchanged and green; `check-identifiers.sh`
+> and `check-links.py` exit 0; the source compiles with warnings as errors. The window was not opened for a
+> look because a game was running on the Studio: an offscreen render of the real views, from the same code,
+> showed the grid, the selection with its outline, a hovered tile and the grey tiles. Deviations: (1) that
+> render found grey icons drawn at half size, since a bitmap's own context counts in pixels; fixed, and
+> recorded in `cities-skylines-2/GOTCHAS.md`, since `--grid` reports `dim` but no pixel of it. (2) With the
+> offers block centred, Up from a lone offer goes to the tile nearest above it in x, which is no longer the
+> first game; W15's case says so. (3) Setup's Desktop step is a function, `desktop_step`, called after the
+> problems exit, so that W18's mutant "run before the problems exit" is one line; `scrollOffset` never
+> returns less than 0, and `fit()` scrolls the clip view to the grid's offset again after a resize. Verify
+> against: `common/launcher-window.swift`, `common/make-launcher-app.sh`, `cities-skylines-2/scripts/setup.sh`,
+> their three tests, `docs/images/14unch3r.svg`.
 > Tracking: issue #22. A follow-on to `docs/plans/launcher-window.md` ("the parent"), whose step numbers,
 > test numbers and decisions this plan continues: B8 to B12, W13 to W19, D12 to D25. File and line
 > references are as of `f1afa88`. A path is relative to the repository root. Every number marked
