@@ -72,7 +72,7 @@
 > `_vendor equal`; the badge patch `on, as before`. 4.8, this game: `boot-verify.sh` PASS (main menu reached,
 > graceful exit, Steam down, no crash marker), and James then started the game from its app and reported it
 > runs well. Deviations: (a) this Mac's game is build 23700737, not the Studio's 25127643; no patch failed,
-> and the launcher flags the update as waiting, so setup is run again once it is taken. (b) The boot check
+> and the launcher flags the update as waiting, so setup is run again once it is taken. **Taken 2026-11-10:** build 25127643, then setup, T2 `21 found, 21 identical` and `boot-verify.sh` PASS on it (how it came in, and the launcher bug it exposed, are in `docs/plans/launch-experience.md`'s as-built header). (b) The boot check
 > was started by the session, not by James, while he was away; the start from the app was his. 4.5: with no game running, `runs` (86 files) and
 > `backup` (7) moved to the state folder with the same counts after as before; there was no `engine/`;
 > `frame-fix.exe` moved into the repo's `tools/` and git ignores it; `make-app.sh` built the app with the
