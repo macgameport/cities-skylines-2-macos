@@ -1,7 +1,8 @@
 # 14unch3r: desktop icons over a dark background, and the mark
 
-> **Status:** Written 2026-11-10. Pass 1, three lenses, is folded (see the corrections near the end); the
-> check of that fold is still to come, and no code starts before it.
+> **Status:** Triple-checked 2026-11-10 — build-ready-with-fixes, corrections folded. Pass 1 was three
+> lenses; pass 1b was a fourth agent checking the fold, and its findings are folded too. Eight decisions
+> James made the same day are in section 9. Written 2026-11-10; not yet built.
 > Tracking: issue #22. A follow-on to `docs/plans/launcher-window.md` ("the parent"), whose step numbers,
 > test numbers and decisions this plan continues: B8 to B12, W13 to W19, D12 to D25. File and line
 > references are as of `f1afa88`. A path is relative to the repository root. Every number marked
@@ -130,8 +131,9 @@ Tiles replace rows. The rows, their order, their states and their titles are the
   its rows), and 22.
 - **Past 600.** When the grid is taller than 600 the window shows 600 of it and the grid scrolls inside a
   scroll view that draws no background; the background and the mark do not move. After every change of
-  selection the grid is scrolled by the least amount that puts the selected tile's frame, grown by 4
-  above and 22 below, inside the 600. That amount is `scrollOffset(for:)`, a function of the frames alone.
+  selection the offset becomes `scrollOffset(for:from:)`: the offset nearest the one before at which the
+  selected tile's frame, grown by 4 above and 22 below, is inside the 600. The grid keeps it, the scroll
+  view follows it, and `--act` prints it.
 
 | Tiles | Grid size | Tile origins, x from the left and y from the top of the grid |
 |---|---|---|
@@ -184,8 +186,9 @@ Every colour, alpha and size of 2.1 to 2.5 is a named constant in one `enum Look
   selected tile.
 - **Two apps with one title.** `titled()` (`:181-190`) appends the file name, which ran to 3 or 4 lines
   and, cut to 2, left both tiles reading the same. Such a tile shows the title on line 1, cut at its tail,
-  and the file name on line 2, cut in its middle so that its end stays, where copies differ. `--list` and
-  VoiceOver keep `titled()`'s form.
+  and the file name on line 2, cut in its middle so that its end stays, where copies differ. The cuts are
+  `CTLineCreateTruncatedLine`'s, which gave section 1's strings. `--list` and VoiceOver keep `titled()`'s
+  form.
 - **Second line:** 10.5 points regular, white at alpha 0.88, the same shadow, at most 2 lines, starting 4
   below the title's last line. It is `secondLine()`, except that the tile shortens three sentences:
 
@@ -263,6 +266,8 @@ The drawing moves into `iconBitmap(small:)`, which `--icon` writes and `--icon-a
 A `GridView` holds one `TileView` per row and is the window's only key view and first responder. It is
 made in one function, `makeGrid`, and filled by one, `show(rows:offers:last:)`, which the window, `--grid`
 and `--act` all call. It reports through two closures, `onStart` and `onQuit`, and asks a third, `blocked`.
+`perform(_:)` on the grid applies `start` (through `blocked`, to `onStart`) and `quit` (to `onQuit`); the
+monitor and `--act` call it with `keyAction`'s answer.
 
 - **Click.** `mouseDown` and `mouseUp` only convert the point and call `press(at:)` and
   `release(at:clicks:)`. A press on a tile selects it and arms it, by its row's key. A release on the armed
@@ -404,8 +409,9 @@ Coordinates are in points from the grid's top left, y down.
 **`--act <step,...> [--games <tsv>] <last app id or -> <folder>...`** applies steps, separated by commas,
 to the same views and goes on after a start or a quit. Per step it prints the step; then `selected` and
 the title, or `start` and the path, or `quit`, `pass`, `end-sheet` or `nothing`; then `focus` and the
-number of the tile that answers focused; then `offset` and `scrollOffset`'s answer. A start prints and
-starts nothing.
+number of the tile that answers focused, or `-` when none does; then `offset` and the grid's offset: one
+tab-separated line per step. `block`, `unblock`, `reload` and `axfocus` print `selected` and the title.
+A start prints and starts nothing.
 
 | Step | What it does |
 |---|---|
@@ -424,11 +430,11 @@ y from the top left (2.6).
 | # | Step | Test | Cases | Mutants, each seen red |
 |---|---|---|---|---|
 | W13 | B8 | `common/test-launcher-window.sh`: `--icon-at`; `common/test-make-launcher-app.sh`: the packing | `ink` at 512,242 (ring top), 243,511 and 780,511 (ring sides), 483,575 and 540,575 (the stems), 433,395 (the 1's flag), 650,458 (the 4's flag); `body` at 512,780 (the ring's opening), 512,575 (between the stems), 672,575; `clear` at 64,959. The "14" icon measured `body` at five of those ink points and `ink` at 512,575 and 672,575, so the case tells the two apart. With `small`: `ink` at 512,192, which is `body` in the full form. `test-make-launcher-app.sh:127-133` still passes: 1024 by 1024. Added there, with a recording `sips` first on the path: the three files of 16 and 32 pixels are scaled from the small drawing and the other seven from the full one; with a program that fails on `small`, all ten come from the full one and the icon is still packed | the mark not stroked in the icon; the arc ended at 302 degrees, not 238; the small form's stroke at 0.05; the small drawing used for no size |
-| W14 | B9 | `common/test-launcher-window.sh`: `--grid` | Each row of 2.1's table by `size`, `window` and origins, with fixture apps; 17 games give `size 552 788` and `window 552 600`. `mark` is 333, 55.5, 27 at 444 and 414, 69, 33 at 552. Every tile has `AXButton`, the label of 2.7 and no help; the group is `AXGroup`, "Games", with its help. An offer is on its own row under the label, both at the offers block's left edge; its label ends "opens the set-up guide in your browser"; it shows "Not set up. Opens its guide." and is `dim`. An `absent` Steam app shows "Windows Steam not found", is `dim`, and its label holds the full sentence. An `absent` game shows "Not installed in Steam" and is `dim`; a `ready` one is not. Two apps with one title, whose file names differ only at their ends: 2 title lines each, line 1 the title, and the two shown titles differ. The selected tile is the last game when listed, else the first game. An empty folder: `size 444 172`, both strings, no tile. `first-click activates`. `paint`: the pill is `#0059D1` at 6.27; title, second line and label are at least 4.5; the outline is at least 4.5 on the background and 3 on the plate | 5 to a row; the group gap dropped; the least width dropped; the button role dropped; an offer's label without the guide words; offers not starting a row; the offers block given the games' left edge; the first tile selected whatever the last id; the title allowed 3 lines; the file name cut at its tail; an `absent` game not dim; the tile's help left as the tooltip; `acceptsFirstMouse` true; the pill the accent colour; the outline dropped; the second line at alpha 0.5; the mark at alpha 0.4 |
+| W14 | B9 | `common/test-launcher-window.sh`: `--grid` | Each row of 2.1's table by `size`, `window` and origins, with fixture apps; 17 games give `size 552 788` and `window 552 600`. `mark` is 333, 55.5, 27 at 444 and 414, 69, 33 at 552. Every tile has `AXButton`, the label of 2.7 and no help; the group is `AXGroup`, "Games", with its help. An offer is on its own row under the label, both at the offers block's left edge; its label ends "opens the set-up guide in your browser"; it shows "Not set up. Opens its guide." and is `dim`. An `absent` Steam app shows "Windows Steam not found", is `dim`, and its label holds the full sentence. An `absent` game shows "Not installed in Steam" and is `dim`; a `ready` one is not. Two apps with one title, whose file names differ only at their ends: 2 title lines each, line 1 the title, and the two shown titles differ. A game whose title wraps to three lines shows 2, the second ending in an ellipsis. The selected tile is the last game when listed, else the first game. An empty folder: `size 444 172`, both strings, no tile. `first-click activates`. `paint`: the pill is `#0059D1` at 6.27; title, second line and label are at least 4.5; the outline is at least 4.5 on the background and 3 on the plate | 5 to a row; the group gap dropped; the least width dropped; the button role dropped; an offer's label without the guide words; offers not starting a row; the offers block given the games' left edge; the first tile selected whatever the last id; the title allowed 3 lines; the file name cut at its tail; an `absent` game not dim; the tile's help left as the tooltip; `acceptsFirstMouse` true; the pill the accent colour; the outline dropped; the second line at alpha 0.5; the mark at alpha 0.4 |
 | W15 | B9 | same file: `--act` | `right` moves on, stays at the last tile; `left` stays at the first; `right` goes from the end of row 1 to the start of row 2. `down` goes to the nearest tile of the next row (with 5 games and Steam, from the fourth tile to Steam, not to the fifth game), into the offers row too, and stays on the last row; `up` the reverse. `return`, `enter` and `space` print `start` and the selected path; on an offer, its address. `escape` prints `quit`. `sheet:escape` prints `end-sheet`; `sheet:space` and `sheet:return` print `pass`. `press` and `release` on one tile: `start`, and the tile is selected after the press. `press` on one tile and `release` on another, or in a gap: `nothing`. `press`, `release2` on one tile: `nothing`. `press`, `reload`, `release` on one tile: `nothing`. `press` and `release` at 146:40, between two tiles, and at 10:10: `nothing`. After `block`: `press` and `release`, `return`, `right` and `axpress:1` each print `nothing`; after `unblock` they act. `axpress:2` starts tile 2. `axfocus:3` selects tile 3, and after every move `focus` names the selected tile. `right`, `reload`: still tile 2. With 17 games: `offset 188` after four `down`, `offset 0` after four `up` | a start on the press; the release not compared with the armed tile; a second click counted; a reload not disarming; `down` moving one tile on; `right` wrapping to the first; Escape dropped; Space dropped; Space taken under a sheet; the press action starting nothing; `blocked` not asked; focus never answered; a reload selecting the default; the selection not scrolled into view |
 | W16 | B10 | same file: `--svg` | The output equals `docs/images/14unch3r.svg` by `cmp`, is the five lines of 2.8 and 596 bytes, passes `xmllint --noout`, and holds none of `<text`, `<image`, `<script`, `href`. `README.md` names that file once, and the file is there | the 1's top at 0.70, not 0.76; a second line break written at the end |
 | W17 | B11 | same file: `--alias`, in a scratch folder with a fixture app | `none` for an empty path; `make` prints `made`, and the file is an alias by `file`, then reads `have`; `make` again prints `have` and the file's bytes and inode are unchanged. `other`, and untouched under `make`: a plain file, a folder, a symlink to the app, a dangling symlink, an alias to another fixture app. After the app is moved within the scratch folder the alias still reads `have` for the new path. A target that does not exist: `failed`, exit 1, nothing written. A folder that does not exist: `failed`, exit 1 | an existing path overwritten; a symlink to the app read as `have`; an alias to another app read as `have`; exit 0 on a failed write |
-| W18 | B11 | `cities-skylines-2/scripts/test-setup.sh`: the builder stub (`:52-57`) also writes a recording `launcher-window` into the scratch `HOME`'s `14unch3r.app`, before it exits 1 when told to fail; the program answers `--alias` with `$STUB_ALIAS` (default `none`), records each call, and prints `made` under `make`. Every scratch home that should reach the step has a `Desktop` folder. A second form of the pty helper (`:157-161`) types a given answer through a pipe held open, `{ sleep 1; printf '%s\n' "$answer"; sleep 6; } \| script ...`, with `STUB_OSV` unset so that the caution question is not asked first | Typing `y`: the question is asked once, one call without `make` and one with, the `added` line. Typing an empty line, and typing `n`: asked, no `make`, the `no shortcut made` line. `--yes` at a terminal: not asked, no call at all, the `no shortcut made` line. `--desktop` with no terminal: not asked, `make` once. No terminal and no flag: no call at all, the `no shortcut made` line. `STUB_ALIAS=have`: not asked, no `make`, the `already there` line, with and without `--desktop`. `STUB_ALIAS=other`: not asked, no `make`, the `left as it is` line, even with `--desktop`. `STUB_ALIAS=failed`: the `could not be made:` line with the sentence. `--check --desktop`: no call and nothing written. The window stub exiting 1: no call, no `Desktop:` line. A home with no `Desktop` folder: no call, no line. A failing patch (`STUB_FAIL`, `:174`): exit 1 as before, not asked, no call. `--help` names `--desktop`. Every case but the failing patch exits 0 with `=== setup complete ===` | Return counted as yes; `--yes` counted as yes; asked without a terminal; the Desktop looked at without a terminal; `make` passed when the state is `other`; asked when the state is `have`; the alias step run when the window was not built; the step run before the problems exit; the Desktop folder not tested |
+| W18 | B11 | `cities-skylines-2/scripts/test-setup.sh`: the builder stub (`:52-57`) also writes a recording `launcher-window` into the scratch `HOME`'s `14unch3r.app`, before it exits 1 when told to fail; the program answers `--alias` with `$STUB_ALIAS` (default `none`), records each call, and prints `made` under `make`. Every scratch home that should reach the step has a `Desktop` folder. A second form of the pty helper (`:157-161`) types a given answer through a pipe held open, `{ sleep 1; printf '%s\n' "$answer"; sleep 6; } \| script ...`, with `STUB_OSV` unset so that the caution question is not asked first | Typing `y`: the question is asked once, one call without `make` and one with, the `added` line. Typing an empty line, and typing `n`: asked, no `make`, the `no shortcut made` line. `--yes` at a terminal: not asked, no call at all, the `no shortcut made` line. `--desktop` with no terminal: not asked, `make` once. No terminal and no flag: no call at all, the `no shortcut made` line. `STUB_ALIAS=have`: not asked, no `make`, the `already there` line, at a terminal and with `--desktop` at none. `STUB_ALIAS=other`: the same, with the `left as it is` line. `STUB_ALIAS` set to `failed`, a tab and a sentence, with `--desktop`: the `could not be made:` line with that sentence. `--check --desktop`: no call and nothing written. The window stub exiting 1: no call, no `Desktop:` line. A home with no `Desktop` folder: no call, no line. A failing patch (`STUB_FAIL`, `:174`) with `--desktop`: exit 1 as before, not asked, no call. `--help` names `--desktop`. Every case but the failing patch, `--check` and `--help` exits 0 with `=== setup complete ===` | Return counted as yes; `--yes` counted as yes; the Desktop looked at without a terminal; `make` passed when the state is `other`; asked when the state is `have`; the alias step run when the window was not built; the step run before the problems exit; the Desktop folder not tested |
 | W19 | B9 | `common/test-launcher-builders.sh`, unchanged | The builders' apps still come out of `--list` as before: the grid changed no row | none new |
 
 Only a person sees: the look itself, the grey of a grey tile, the hover plate and cursor, the alerts in
@@ -547,11 +553,29 @@ chose the fixed blue); a second `<picture>` image for the page.
 Added in the same fold, from James (2026-11-10): K7 and D23, grey tiles; D15, D16, D17 and D20 decided;
 D22, the name stays.
 
+### Fold check (pass 1b, 2026-11-10)
+
+One agent read the fold alone, against the code and a copy of the builder's scratch tree. It confirmed R1
+to R16 in every place they belong, every new number and every new cite, and measured the small form's
+points, the `paint` ratios and the grey icon offscreen. Its nine findings are folded:
+
+| # | Finding | Where it landed |
+|---|---|---|
+| F1 | **Blocker.** W18's mutant "the step run before the problems exit" survived: with no terminal the Desktop is not looked at either way (measured) | W18: the failing patch runs with `--desktop` |
+| F2 | **Blocker.** W14's mutant "the title allowed 3 lines" had no red case once a shared title became two one-line cuts | W14: a title that wraps to three lines |
+| F3 | W18's `have`, `other` and `failed` cases predated R9 and would not reach the program | W18 |
+| F4 | The least scroll depends on the offset before, so it is not a function of the frames alone | 2.1 `scrollOffset(for:from:)` |
+| F5, F6 | Two more cases that do not end in "setup complete"; one mutant that was the same line as another | W18 |
+| F7 | `--act`'s line for the steps that are not keys or clicks | 4 |
+| F8 | Nothing called `onQuit` | 2.7 `perform(_:)` |
+| F9 | Which truncation gives the middle cut | 2.4 |
+
 ## Review log
 
 | Date | Pass | Lenses | Method | Model | Verified against | Verdict |
 |---|---|---|---|---|---|---|
 | 2026-11-10 | 1 | correctness, architecture and blast radius; builder simulation; design, accessibility and test plan | three agents; the builder built B8 to B11 on a scratch tree, ran the four suites and saw 30 mutants red; blockers measured again inline | Fable 5.2 | `5bbab65` | build-ready-with-fixes |
+| 2026-11-10 | 1b | the fold alone | one agent; offscreen probes and a copy of the scratch tree | Fable 5.2 | `fee81b0` | build-ready-with-fixes |
 
 Key paths: `common/launcher-window.swift`, `common/make-launcher-app.sh`, `common/test-launcher-window.sh`,
 `common/test-make-launcher-app.sh`, `common/test-launcher-builders.sh`, `cities-skylines-2/scripts/setup.sh`,
