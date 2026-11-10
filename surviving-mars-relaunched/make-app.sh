@@ -2,6 +2,9 @@
 # make-app.sh -- build ~/Applications/Surviving Mars Relaunched.app, a double-click shim that runs
 # launch-relaunched.sh quietly (SM_QUIET=1: notifications, alert on failure) and logs to
 # ~/Library/Logs/sm-relaunched-launcher.log. Modelled on cs2's scripts/make-steam-shortcut.sh.
+# It also compiles ../common/launch-progress.swift into the app, the start-up progress window the
+# Cities: Skylines II app has too; the shim starts it beside the launcher and tells the launcher
+# (SM_PANEL=1), so that a step shows in the window and posts no notification.
 # Re-run this instead of editing the generated app. The icon is Relaunched's own, pulled from
 # Mars.exe with ../cities-skylines-2/scripts/pe-icon.py; without it the app gets a generic icon.
 # Each launch runs the launcher in this checkout as it is: nothing is pulled at launch, so update with
@@ -44,15 +47,44 @@ if [ "\$running" = 1 ]; then
   exit 0
 fi
 { echo; echo "===== \$(date '+%Y-%m-%d %H:%M:%S') ====="; } >> "\$LOG"
-SM_QUIET=1 bash "\$SCRIPT" >> "\$LOG" 2>&1
+# The progress window and how it is stopped: the same lines as the Cities: Skylines II app's shim, and
+# the reasons are beside them in cities-skylines-2/scripts/make-shortcut.sh. In short: started after the
+# ===== line; PANEL=1 only when its process is alive 0.3 s later; stopped through jobs -pr, never by a
+# bare PID (bash has reaped it hours before the game exits) and never by name (the other game's window).
+APPDIR="\$(cd "\$(dirname "\$0")/.." && pwd)"
+PROGRESS="\$APPDIR/Resources/launch-progress"
+PANEL=0; PANEL_PID=""
+if [ -x "\$PROGRESS" ]; then
+  LP_TITLE="Surviving Mars: Relaunched" LP_LOG="\$LOG" "\$PROGRESS" >/dev/null 2>&1 &
+  PANEL_PID=\$!; sleep 0.3
+  if jobs -pr | grep -qx "\$PANEL_PID"; then PANEL=1; else PANEL_PID=""; fi
+fi
+stop_panel() { [ -n "\$PANEL_PID" ] && jobs -pr | grep -qx "\$PANEL_PID" && kill "\$PANEL_PID" 2>/dev/null; return 0; }
+trap stop_panel EXIT
+SM_QUIET=1 SM_PANEL=\$PANEL bash "\$SCRIPT" >> "\$LOG" 2>&1
 rc=\$?
-if [ \$rc -ne 0 ]; then
+stop_panel
+# One alert for one failure: when this session, the text after the last ===== line, holds an ERROR:
+# line, the launcher's die has already shown its own.
+if [ \$rc -ne 0 ] && ! awk '/^===== / { e = 0; next } /^ERROR:/ { e = 1 } END { exit !e }' "\$LOG"; then
   osascript -e "display alert \"Surviving Mars: Relaunched\" message \"Launch failed (exit \$rc). Open the log?\" buttons {\"Dismiss\",\"Open Log\"} default button \"Open Log\"" \\
     -e 'if button returned of result is "Open Log" then do shell script "open ~/Library/Logs/sm-relaunched-launcher.log"' >/dev/null 2>&1
 fi
 exit \$rc
 SHIM
 chmod +x "$APP/Contents/MacOS/launch"
+
+# The progress window. Skipped, with the reason said at the end, when swiftc or the source is missing,
+# when the compile fails, and when the launcher prints no step lines (an older one: no step would ever
+# arrive). The compile is the condition of an `elif` because this script runs under set -e.
+PANEL_SRC="$HERE/../common/launch-progress.swift"
+PANEL_OUT="$APP/Contents/Resources/launch-progress"
+PANEL_WHY=""
+if ! xcrun -f swiftc >/dev/null 2>&1; then PANEL_WHY="swiftc is missing: install the Xcode Command Line Tools"
+elif [ ! -f "$PANEL_SRC" ]; then PANEL_WHY="common/launch-progress.swift is missing from this checkout"
+elif ! grep -q '^# >>> launch-feedback (' "$SCRIPT"; then PANEL_WHY="the launcher prints no step lines: it is an older one"
+elif ! xcrun swiftc -O -o "$PANEL_OUT" "$PANEL_SRC" >/dev/null 2>&1; then PANEL_WHY="the compile failed"; rm -f "$PANEL_OUT"
+fi
 
 ICON_KEY=""
 if [ -f "$PE_ICON" ] && [ -f "$GAME_EXE" ]; then
@@ -95,3 +127,4 @@ plutil -lint "$APP/Contents/Info.plist" >/dev/null
 touch "$APP"
 echo "built: $APP"
 if [ -n "$ICON_KEY" ]; then echo "icon:  from Mars.exe"; else echo "icon:  generic (pe-icon.py or Mars.exe not found)"; fi
+if [ -z "$PANEL_WHY" ]; then echo "progress: Swift panel built (the start-up progress window)"; else echo "progress: skipped ($PANEL_WHY): notifications only"; fi
