@@ -198,6 +198,11 @@ Mars started 17 s or 32 s after sign-in initialised SteamAPI at once and owned i
 version of this note said it "blocks until sign-in + 48 s"; the 15 s runs showed that was a fixed 13.5 s stall
 of the game's own, unrelated to the sign-in time.)
 Add an auto-retry if `platform service integration failed` shows in the first ~12s.
+**2026-11-10: not seen on the current build.** Six boots on the Studio with no wait at all and five at 15 s on
+the MacBook reached the menu with no such failure (game 1.6.2f1, Steam client 1792618285;
+`scripts/licence-wait-probe.sh`, `docs/plans/launch-experience.md` 3.6). The launcher's default went from 45 to
+15 s, and `CS2_LICENCE_WAIT` sets it. What survives of this entry is the signature: if it comes back, it reads
+exactly as above, and the 45 s that once cleared it is one setting away.
 
 ### 12. Disable the Steam overlay — it crashes the game under Wine
 `WINEDLLOVERRIDES="gameoverlayrenderer64=d;gameoverlayrenderer=d"`.

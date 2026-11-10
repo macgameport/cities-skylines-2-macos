@@ -106,9 +106,9 @@ Want to look before it touches anything? `bash scripts/setup.sh --check` runs th
 
 Double-click **~/Applications/Cities Skylines II.app**.
 
-The first launch starts Steam inside the wrapper and waits about 45 seconds for Steam to confirm
-your licence — skipping that wait causes a flood of errors and no main menu. When Steam is already
-running, the wait is skipped.
+The first launch starts Steam inside the wrapper and waits about 15 seconds for Steam to confirm
+your licence. A small window at the top right shows each step and closes as the game starts. When Steam
+is already running, the wait is skipped.
 
 **One setting to change, in-game:** Options → Graphics → **Display Mode → Fullscreen Window**.
 
@@ -311,6 +311,7 @@ now resolve their methods by name, so later updates should not break them the sa
 | Symptom | What's happening |
 |---|---|
 | "Steam did not auto-login" | The saved token expired. Open Steam inside the wrapper, sign in until the library loads, then relaunch. |
+| No main menu after a fresh start, and `platform service integration failed` in the game's `SceneFlow.log` | The game started before Steam had confirmed your licence. Start it once from Terminal with a longer wait, `CS2_LICENCE_WAIT=45 bash ~/cs2-patch/launch-cs2-dxmt11.sh`, and please open an issue: the default of 15 seconds rests on two Macs. |
 | Game exits immediately, launch fails with code 1 | A stale `.crash` marker from a force-kill. The launcher clears it automatically now; if it persists, delete `.../Steam/.crash` inside the prefix. |
 | Black screen with a working cursor | The Coherent Gameface UI fix didn't apply. Re-run `bash scripts/setup.sh` and check its patch output. |
 | Mods won't download ("Preparing 2%", IO errors) | The patches are not all in place. Run `bash scripts/setup.sh` again and read its last lines: it says how many patch scripts finished and names any that failed. |
