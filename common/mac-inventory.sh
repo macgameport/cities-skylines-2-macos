@@ -1,7 +1,9 @@
 #!/bin/bash
 # mac-inventory.sh -- what this Mac holds of the project, before anything is moved or updated on it.
 # Read-only: it changes nothing, starts no Wine, Steam, game or Intel program, and reads no file's contents
-# beyond a launcher path and a build number. The output is meant to be pasted somewhere else, so it names no
+# beyond a launcher path and a build number. Every git call here is made with file-system monitors and hooks
+# switched off and without touching the index, so a checkout's own settings cannot make this script run a
+# program; and it asks git for a push identity only where no credential helper is set by the checkout itself. The output is meant to be pasted somewhere else, so it names no
 # account, user or computer: the home folder prints as ~, and an identity prints as "project", "personal" or
 # "none". Run it from a checkout, or straight from the remote without touching one:
 #   bash common/mac-inventory.sh
@@ -11,6 +13,9 @@ PROJECT_LOGIN="iosoceans"          # the project's public commit identity
 t() { sed "s#$HOME#~#g"; }
 kind() { case "$1" in "") echo none ;; "$PROJECT_LOGIN") echo project ;; *) echo personal ;; esac; }
 sec() { echo; echo "== $1"; }
+G() { git --no-optional-locks -c core.fsmonitor=false -c core.hooksPath=/dev/null "$@"; }   # git, unable to run a checkout's own hooks
+# a credential helper is a program. One named by a checkout's own files is not ours to run.
+own_helper() { G -C "$1" config --show-origin --get-regexp '^credential\.(.*\.)?helper$' 2>/dev/null | awk '{print $1}' | grep -c -e '^file:\.git/' -e "^file:$1/"; }
 in_documents() { case "$1" in "$HOME/Documents"/*) echo "YES (apps cannot run scripts there)" ;; *) echo no ;; esac; }
 
 sec "this Mac"
@@ -25,11 +30,11 @@ found=0
 for g in "$HOME"/*/.git "$HOME"/*/*/.git "$HOME"/*/*/*/.git; do
   [ -d "$g" ] || continue
   d="${g%/.git}"
-  urls="$(git -C "$d" remote -v 2>/dev/null | awk '{print $2}' | sort -u)"
+  urls="$(G -C "$d" remote -v 2>/dev/null | awk '{print $2}' | sort -u)"
   case "$urls" in *macgameport/*|*sm-patch.git*) ;; *) continue ;; esac
   found=$((found + 1))
   echo "$d" | t
-  git -C "$d" remote -v 2>/dev/null | awk '$3=="(fetch)"{print $1, $2}' | while read -r name url; do
+  G -C "$d" remote -v 2>/dev/null | awk '$3=="(fetch)"{print $1, $2}' | while read -r name url; do
     case "$url" in
       *macgameport/1launcher*) w="GitHub, current name" ;;
       *macgameport/cities-skylines-2-macos*) w="GitHub, old name (redirects)" ;;
@@ -39,18 +44,22 @@ for g in "$HOME"/*/.git "$HOME"/*/*/.git "$HOME"/*/*/*/.git; do
     esac
     echo "    remote $name: $w"
   done
-  echo "    HEAD $(git -C "$d" rev-parse --short HEAD 2>/dev/null) on $(git -C "$d" rev-parse --abbrev-ref HEAD 2>/dev/null) · $(git -C "$d" status -sb 2>/dev/null | head -1) · $(git -C "$d" status --porcelain 2>/dev/null | wc -l | tr -d ' ') changed or untracked · $(git -C "$d" status --porcelain --ignored 2>/dev/null | grep -c '^!!') ignored"
+  echo "    HEAD $(G -C "$d" rev-parse --short HEAD 2>/dev/null) on $(G -C "$d" rev-parse --abbrev-ref HEAD 2>/dev/null) · $(G -C "$d" status -sb 2>/dev/null | head -1) · $(G -C "$d" status --porcelain 2>/dev/null | wc -l | tr -d ' ') changed or untracked · $(G -C "$d" status --porcelain --ignored 2>/dev/null | grep -c '^!!') ignored"
   echo "    under ~/Documents: $(in_documents "$d") · layout: $([ -d "$d/cities-skylines-2" ] && echo "one folder per game" || echo "before the restructure") · Surviving Mars folder: $([ -d "$d/surviving-mars-relaunched" ] && echo yes || echo no)"
-  an="$(git -C "$d" var GIT_AUTHOR_IDENT 2>/dev/null | sed 's/ <.*//')"
-  cu="$(cd "$d" && printf 'protocol=https\nhost=github.com\n\n' | GIT_TERMINAL_PROMPT=0 git credential fill 2>/dev/null | sed -n 's/^username=//p')"
-  echo "    commits as: $(kind "$an") · pushes as: $(kind "$cu") · repo-local identity include: $([ -n "$(git -C "$d" config --local --get-all include.path 2>/dev/null)" ] && echo yes || echo no)"
+  an="$(G -C "$d" var GIT_AUTHOR_IDENT 2>/dev/null | sed 's/ <.*//')"
+  if [ "$(own_helper "$d")" = 0 ]; then
+    cu="$(cd "$d" && printf 'protocol=https\nhost=github.com\n\n' | GIT_TERMINAL_PROMPT=0 G credential fill 2>/dev/null | sed -n 's/^username=//p')"
+    pushes="$(kind "$cu")"
+  else pushes="not asked (this checkout's own files name a credential helper)"; fi
+  echo "    commits as: $(kind "$an") · pushes as: $pushes · repo-local identity include: $([ -n "$(G -C "$d" config --local --get-all include.path 2>/dev/null)" ] && echo yes || echo no)"
   echo "    untracked or ignored at old places: $(for f in MODS-GUIDE.md logs .env CLAUDE.local.md .claude; do [ -e "$d/$f" ] && printf '%s ' "$f"; done; ls "$d"/scripts/*.exe >/dev/null 2>&1 && printf 'scripts/*.exe(%s) ' "$(ls "$d"/scripts/*.exe | wc -l | tr -d ' ')"; echo)"
 done
 [ "$found" = 0 ] && echo "none found three levels under ~"
 
 sec "identity by folder (the two dotfiles)"
 git config --global --get-regexp '^includeif' 2>/dev/null | awk '{print "git includeIf: " $1}' | t
-grep -n 'github/[A-Za-z0-9_-]*/"\*' "$HOME/.zshrc" 2>/dev/null | sed 's/^[0-9]*: */gh wrapper patterns: /' | t
+# only the folder patterns themselves: never the rest of a line of the shell profile
+echo "gh wrapper patterns: $(grep -o '"\$HOME/github/[A-Za-z0-9_-]*/"\*' "$HOME/.zshrc" 2>/dev/null | sort -u | tr '\n' ' ')"
 echo "gh in an interactive shell is: $(zsh -ic 'whence -w gh' 2>/dev/null | tail -1)"
 
 sec "apps and wrappers in ~/Applications"
