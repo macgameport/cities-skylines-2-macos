@@ -3,7 +3,7 @@
 > **Status:** Triple-checked 2026-11-10 — build-ready-with-fixes, corrections folded. Pass 1 was three
 > lenses; pass 1b was a fourth agent checking the fold, and its findings are folded too. Eight decisions
 > James made the same day are in section 9. Written 2026-11-10.
-> **🔧 As-built (2026-11-10):** PARTIAL: B8 to B12 built on branch `launcher-look` (`17dd03a` and `7ac2482`) and
+> **🔧 As-built (2026-11-10):** BUILT: B8 to B12 built on branch `launcher-look` (`17dd03a` and `7ac2482`) and
 > merged as `64c06f1`. L1 done the same day on James's word: no launcher, Wine or Steam ran and no launcher lock
 > was held; `make-launcher-app.sh` exit 0; `--grid - ~/Applications` gave two games and one Steam tile at 444 by
 > 172, the pill `#0059D1` at 6.27, the lowest title, second-line and outline ratios 9.62, 9.79 and 5.06 (3.58 on
@@ -22,7 +22,9 @@
 > were byte-identical to their fingerprints from before setup, and all three aliases read Kind "Alias", type `fapa`,
 > and grouped together. L4 done the same day:
 > github.com showed the mark above the README's first heading, loaded (150 by 150 natural, shown at 128), with
-> the page in its light theme and in its dark one (`prefers-color-scheme`, logged out). L5, the MacBook (2026-11-10): the alias iCloud brought (16:51) reads `have`, none was made, and no name ending " 2" is on the Desktop. Tests:
+> the page in its light theme and in its dark one (`prefers-color-scheme`, logged out). L5, the MacBook (2026-11-10): the alias iCloud brought (16:51) reads `have`, none was made, and no name ending " 2" is on the Desktop. On the Studio the same alias came back from iCloud at
+> 16:51, 952 bytes where it was 904, and still reads `have`: macOS refreshed it; the program never writes one that
+> reads `have`. All five live steps have passed. Tests:
 > `test-launcher-window.sh` 166 cases, its 40 new mutants (31 to 70) each seen red and restored;
 > `test-make-launcher-app.sh` 27, mutant 8 new; `test-setup.sh` 77, mutants 9 to 16 new; every other suite of
 > the parent's section 6 and `test-launcher-builders.sh` (W19) unchanged and green; `check-identifiers.sh`
