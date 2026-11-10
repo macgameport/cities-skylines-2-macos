@@ -2956,3 +2956,18 @@ one with the old pasted-source form, twelve seconds apart, both exiting 0: **he 
 - **So a check whose pass condition is "no banner" needs its control in the same sitting, at the Mac
   itself.** Without the control, an absent banner reads as a pass. Here the control caught it: the check
   is repeated at the Studio. Recorded in `docs/plans/launch-experience.md`, as-built, live step 5.
+
+## bash 3.2 brace-expands `{/,/^}` inside a quoted command substitution used as an argument (2026-11-10)
+
+The wait probe takes two functions out of the installed launcher with a sed range,
+`sed -n "/^$f() {/,/^}/p"`. Written as `eval "$(sed -n "/^$f() {/,/^}/p" "$LAUNCHER")"`, macOS's
+`/bin/bash` 3.2.57 split the pattern into `/^f() /` and `/^f() /^/`: sed failed twice, eval got nothing,
+and the probe refused every run with "acf_field not found". Its own test caught it on the first run.
+
+- **Measured in isolation:** the same `"$(…)"` as the right side of an assignment, `body=$(…)` or
+  `x="$(…)"`, is left alone. As an argument (`eval "$(…)"`, `echo "$(…)"`), with a nested double-quoted
+  word that holds `{a,b}`, it is brace-expanded. zsh does not do this.
+- **The fix is an assignment first, then `eval "$body"`**, with a comment saying why
+  (`cities-skylines-2/scripts/licence-wait-probe.sh`). No other script in the repo used the form.
+- **Run new bash under `/bin/bash`, not the shell you are typing in.** A Claude session's shell here is zsh,
+  so a one-liner tried there would have passed.
