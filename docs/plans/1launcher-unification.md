@@ -514,6 +514,9 @@ the icon tool's old path went with 4.3. After 4.9 the way back is the Trash.
 
 Candidates, by measurement: the lock (identical three times), Steam attribution by open files, sign-in and licence wait, the update check, graceful Steam stop, the cloud verdict, the app builders, `pe-icon.py` (a peer reaching into a peer after 3.4), the engine builders. Its plan must answer: how a shared file reaches CS2's deployed copies, given the rule never to edit a launcher in place; what the per-game config holds; whether the two run models merge; and whether the launch-time pull returns with a check the pulled commit must pass.
 
+The first four items of the list below are planned in `docs/plans/launch-experience.md` and built as its
+Phase A (2026-11-10); that plan also orders the rest.
+
 Added 2026-11-09 from three questions about the two launch experiences. Measured, not yet planned; none of it is built before Phase 4 ends, because a change under `cities-skylines-2/launchers` or `cities-skylines-2/scripts` makes Phase 4 repeat the Studio's live steps first.
 
 - **One progress window for both games.** `cities-skylines-2/scripts/make-shortcut.sh` compiles a Swift panel into the Cities: Skylines II app. `surviving-mars-relaunched/make-app.sh` builds none, so Surviving Mars shows notifications only. The panel finds its step by matching the launcher's message text (`Almost ready — 30s`, `verifying licence`) and no test names those strings, so rewording a message leaves the bar stuck with every test green. The shared one takes the title, the log path and the game's process from its builder and reads a step marker the launcher writes.

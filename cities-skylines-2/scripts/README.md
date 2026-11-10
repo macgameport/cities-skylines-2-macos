@@ -158,7 +158,8 @@ instrument answers "what is actually happening, and can I trust the number?".
 > row by row, so an audit that lists "files not named in this README" will always return exactly
 > those eleven; that is expected, not drift.
 | `strip-comments.py` | Compare two revisions of a C/ObjC file for **code** equality, ignoring comments — how a comment-only edit is proven to be comment-only |
-| `make-shortcut.sh` · `make-steam-shortcut.sh` · `make-vanilla-wrapper.sh` | Build the double-clickable launchers in `~/Applications`, and a throwaway wrapper carrying vanilla wined3d |
+| `make-shortcut.sh` · `make-steam-shortcut.sh` · `make-vanilla-wrapper.sh` | Build the double-clickable launchers in `~/Applications`, and a throwaway wrapper carrying vanilla wined3d. `make-shortcut.sh` also compiles the start-up progress window; `test-make-shortcut.sh` runs the built shim against stubs |
+| `licence-wait-probe.sh` | Measures a shorter wait after sign-in: boots through `boot-verify.sh` with `CS2_LICENCE_WAIT` set and judges each run PASS, FAIL, VOID or OTHER; `--judge` gives one run's verdict with no launch. Method and the rule for changing the default: [the launch experience plan](../../docs/plans/launch-experience.md), 3.6. Test: `test-licence-wait-probe.sh` |
 | `install-webhelper-shim.sh` | documented in the reproducers table above |
 | `pe-icon.py` | Pull the largest `RT_ICON` out of a PE binary — used to give the shortcuts real icons |
 | `diag-launch-dxmt11.sh` | The canonical dxmt11 launcher plus diagnostic instrumentation |

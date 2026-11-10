@@ -195,7 +195,7 @@ under Rosetta is the likely place — not measured).
 | `REFERENCES.md` | Upstream projects, recipes, sources |
 | `PLAN.md` | Roadmap / open threads |
 | `launchers/` | The one live launcher; dead-stack scripts archived with reasons |
-| `scripts/` | Minimal reproducers, `make-shortcut.sh` (builds the double-clickable launcher app — icon extracted from your own `Cities2.exe`, plus a persistent progress window for the Steam/licence wait), and the helpers the launcher runs each boot: `cs2-display-profile.sh` (per-display retina/DRS profile) and `patch-modconflict-badge.py` (removes the mod keybinding ⚠ badges) — see `scripts/README.md` |
+| `scripts/` | Minimal reproducers, `make-shortcut.sh` (builds the double-clickable launcher app — icon extracted from your own `Cities2.exe`, plus the progress window that shows each start-up step, compiled from `common/launch-progress.swift`), and the helpers the launcher runs each boot: `cs2-display-profile.sh` (per-display retina/DRS profile) and `patch-modconflict-badge.py` (removes the mod keybinding ⚠ badges) — see `scripts/README.md` |
 | `patches/` | The 16 binary patches, with the two small Python libraries they use, and `repatch.sh`. The game needs 10 of them |
 | `docs/wine-bugs/` | Ready-to-file Wine bug reports for the three root causes |
 

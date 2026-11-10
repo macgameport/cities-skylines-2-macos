@@ -17,7 +17,7 @@
 # timeout that took Steam with it. Plan: docs/plans/verification-instruments.md § I1. Seed:
 # ~/cs2-patch/harness-2026-09-02/boot2.sh (outside the repo).
 #
-# FACTS ENCODED (measured 2026-09-02; launcher line numbers re-read 2026-10-10, driver 2026-09-03):
+# FACTS ENCODED (measured 2026-09-02; launcher line numbers re-read 2026-11-10, driver 2026-09-03):
 #   - SceneFlow.log lives at <LocalLow>/Cities Skylines II/Logs/SceneFlow.log — not the Steam game
 #     dir, not the LocalLow root. It is WRITTEN LIVE, line by line: T3 left 67 lines on disk at the
 #     SIGTERM, the last one 11 s before it, mtime = that line. (The 2026-09-02 belief that it is
@@ -26,10 +26,10 @@
 #     log (→ FAIL), and only a run that never wrote a line leaves the previous log in place (→ VOID).
 #     Its first line carries [YYYY-MM-DD HH:MM:SS,mmm] in local time; `MainMenu reached` appears
 #     once; `GameManager destroyed` is written only on a graceful exit. Player.log has no MainMenu.
-#   - The launcher (launch-cs2-dxmt11.sh) runs Cities2.exe in the FOREGROUND (:295), then shuts
-#     Steam down itself (:298-331). Never shut Steam down from here. It always exits 0 (:335); the
-#     game's rc is only in its `Game exited (rc=N)` line (:301); `die` exits 1 (:52). With
-#     CS2_QUIET=1 `die` shows a MODAL alert (:48) that would hang a headless run; with QUIET=0 and
+#   - The launcher (launch-cs2-dxmt11.sh) runs Cities2.exe in the FOREGROUND (:381), then shuts
+#     Steam down itself (:387-419). Never shut Steam down from here. It always exits 0 (:421); the
+#     game's rc is only in its `Game exited (rc=N)` line (:387); `die` exits 1 (:88). With
+#     CS2_QUIET=1 `die` shows a MODAL alert (:84) that would hang a headless run; with QUIET=0 and
 #     stdin from /dev/null its `read -n1` fails and it exits at once — so it runs QUIET=0 </dev/null.
 #   - The game window is class=UnityWndClass title=Cities: Skylines II. `win-resize-driver.exe close`
 #     POSTS WM_CLOSE (:142) after an IsWindow refusal (:123, rc 1) and returns 0 at once (:143); the
@@ -42,8 +42,8 @@
 #   - The launcher is detached into its own SESSION so a killed caller cannot take it, and Steam,
 #     down. macOS ships no `setsid`; perl's POSIX::setsid does the same job. perl and bash are both
 #     SIP-protected, so DYLD_* is purged on their exec — harmless: the launcher re-exports
-#     DYLD_FALLBACK_LIBRARY_PATH itself (:67) before wine runs. The launcher's own "never
-#     nohup/setsid" rule (:184-190) is about ITS Steam line, not about how it is started.
+#     DYLD_FALLBACK_LIBRARY_PATH itself (:98) before wine runs. The launcher's own "never
+#     nohup/setsid" rule (:262-267) is about ITS Steam line, not about how it is started.
 #   - A failed `close` (driver rc != 0, or no window found) goes straight to the SIGTERM fallback —
 #     nothing was posted, so there is nothing to wait 120 s for. The signal goes to the GAME pids
 #     only, never steam.exe (a TERM leaves the same .crash marker a KILL does).

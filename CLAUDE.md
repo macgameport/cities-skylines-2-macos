@@ -10,7 +10,7 @@ for umbrella work.
 |---|---|
 | `cities-skylines-2/` | Cities: Skylines II: notes, patches, launchers, and its own `CLAUDE.md`, `GOTCHAS.md`, `EXPERIMENTS.md` and `docs/` |
 | `surviving-mars-relaunched/` | Surviving Mars: Relaunched: launcher, tools and tests, `README.md`, `docs/plans/`; no `CLAUDE.md` of its own. Its state is outside the repo (below) |
-| `common/` | checks and tests shared by every game: `check-links.py`, `check-identifiers.sh`, `test-launch-lock.sh` (the lock code two launchers share), `mac-inventory.sh` (a read-only, redacted report of what a Mac holds of the project) and its test `test-mac-inventory.sh` |
+| `common/` | checks and tests shared by every game: `check-links.py`, `check-identifiers.sh`, `test-launch-lock.sh` (the lock code two launchers share), `mac-inventory.sh` (a read-only, redacted report of what a Mac holds of the project) and its test `test-mac-inventory.sh`, `launch-progress.swift` (the start-up progress window both apps compile) with `test-launch-progress.sh`, `test-launch-feedback.sh` (the feedback block two launchers share) and `test-launcher-parity.sh` (fails when the two launchers drift apart; it is also the table of differences kept on purpose) |
 | `docs/plans/` | repo-level plans. A game's own plans are in `<game>/docs/plans/`, so a plan audit must look in both |
 | `scripts/` | compatibility only: a forwarding `setup.sh` and pointer files at paths that older clones and outside links still use. Nothing new goes here |
 

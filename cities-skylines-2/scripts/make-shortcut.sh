@@ -7,10 +7,11 @@
 # this repo does not (and must not) redistribute Paradox artwork, so the icon is extracted locally
 # at build time from the copy you own.
 #
-# The progress applet: a dock-icon launch spends ~1-2 minutes on Steam start + licence sync with
-# nothing on screen but transient notifications. The bundled cs2-progress panel (compiled Swift) shows a
-# persistent progress window instead — it polls the launcher log the shim writes and mirrors the
-# newest milestone, then quits itself once the game process is up.
+# The progress window: a dock-icon launch spends ~1-2 minutes on Steam start + licence sync with
+# nothing on screen but transient notifications. The bundled launch-progress panel (compiled here
+# from common/launch-progress.swift, the source the Surviving Mars app compiles too) shows a
+# persistent window instead — it follows the launcher log the shim writes, shows the newest step
+# line, and closes itself by what that log says.
 #
 # Usage:
 #   bash scripts/make-shortcut.sh                    # the app for the installed launcher
@@ -100,17 +101,31 @@ fi
 
 chmod +x "\$SCRIPT" 2>/dev/null
 { echo; echo "===== \$(date '+%Y-%m-%d %H:%M:%S') ====="; } >> "\$LOG"
-# Persistent progress window (built beside this shim, if osacompile was available at build time).
-# It reads \$LOG and quits itself when the game is up, on ERROR, or after 8 minutes.
+# The progress window, built beside this shim when swiftc was there at build time. It reads \$LOG
+# from the ===== line just written, so it is started after that line, and it closes by itself.
+# PANEL=1 means a window process is alive 0.3 s after its start, not that a file exists: told
+# there is no window, the launcher posts each step as a notification instead.
 APPDIR="\$(cd "\$(dirname "\$0")/.." && pwd)"
-PROGRESS="\$APPDIR/Resources/cs2-progress"
-[ -x "\$PROGRESS" ] && "\$PROGRESS" >/dev/null 2>&1 &
-CS2_QUIET=1${HUD_ENV} bash "\$SCRIPT" >> "\$LOG" 2>&1
+PROGRESS="\$APPDIR/Resources/launch-progress"
+PANEL=0; PANEL_PID=""
+if [ -x "\$PROGRESS" ]; then
+  LP_TITLE="Cities: Skylines II" LP_LOG="\$LOG" "\$PROGRESS" >/dev/null 2>&1 &
+  PANEL_PID=\$!; sleep 0.3
+  if jobs -pr | grep -qx "\$PANEL_PID"; then PANEL=1; else PANEL_PID=""; fi
+fi
+# The launcher returns when the game exits, hours after the window closed itself. By then bash
+# has reaped the child and its number is free for another process, so a plain kill of
+# \$PANEL_PID could signal a stranger (measured on bash 3.2.57 for
+# docs/plans/launch-experience.md, 3.4). jobs -pr lists a live child and not an ended one.
+# Never pkill by name: the other game's window has the same name.
+stop_panel() { [ -n "\$PANEL_PID" ] && jobs -pr | grep -qx "\$PANEL_PID" && kill "\$PANEL_PID" 2>/dev/null; return 0; }
+trap stop_panel EXIT
+CS2_QUIET=1 CS2_PANEL=\$PANEL${HUD_ENV} bash "\$SCRIPT" >> "\$LOG" 2>&1
 rc=\$?
-# The applet exits on its own; this is only the backstop (launcher died before any milestone).
-# pkill by path, NOT AppleScript quit-by-name — telling a non-running app to quit LAUNCHES it.
-pkill -f 'Resources/cs2-progress' 2>/dev/null
-if [ \$rc -ne 0 ]; then
+stop_panel
+# One alert for one failure: when this session, the text after the last ===== line, holds an
+# ERROR: line, the launcher's die has already shown its own.
+if [ \$rc -ne 0 ] && ! awk '/^===== / { e = 0; next } /^ERROR:/ { e = 1 } END { exit !e }' "\$LOG"; then
   osascript -e "display alert \"Cities: Skylines II\" message \"Launch failed (exit \$rc). Open the log?\" buttons {\"Dismiss\",\"Open Log\"} default button \"Open Log\"" \\
     -e 'if button returned of result is "Open Log" then do shell script "open ~/Library/Logs/cs2-launcher.log"' >/dev/null 2>&1
 fi
@@ -144,110 +159,27 @@ fi
 [ "$ICON_OK" = 1 ] || echo "    icon:     skipped (generic icon) — game exe or python3 not found; the app still works"
 
 # ---------------------------------------------------------------- progress panel (Swift)
-# A tiny compiled floating panel: mirrors the launcher's milestones (from the log the shim
-# writes) so a dock-icon launch visibly does something during the Steam-start + licence-sync
-# minutes. Quits itself when the game process appears, when the launcher logs an ERROR (the
-# shim's alert takes over), or after 8 minutes.
+# A tiny compiled floating panel, common/launch-progress.swift (the Surviving Mars app compiles
+# the same source): it shows the launcher's step lines (from the log the shim writes) so a
+# dock-icon launch visibly does something during the Steam-start + licence-sync minutes, and it
+# closes itself by what that log says. Skipped, with the reason said, when swiftc or the source is
+# missing, when the compile fails, and when the launcher prints no step lines: that is a new app
+# over an older installed launcher, where no step would ever arrive and the window would sit on
+# "Getting ready…". Without the panel the app posts notifications.
 # ⚠ Why Swift and not an AppleScript applet: measured 2026-08-23 — `progress` properties in an
 # osacompile applet render NO window on macOS 26 (process alive, System Events reports zero
 # windows), whether polled from `on idle` or from a repeat-loop inside `run`. Dead end; the
-# AppKit panel below is unconditional. Accessory activation policy = no dock icon, no focus theft.
-PROGRESS_OK=0
-if xcrun -f swiftc >/dev/null 2>&1; then
-  PDIR=$(mktemp -d)
-  cat > "$PDIR/progress.swift" << 'SWIFT'
-// Generated by scripts/make-shortcut.sh — re-run that instead of editing the binary's source.
-// Usage: cs2-progress [logfile]   (logfile defaults to ~/Library/Logs/cs2-launcher.log)
-import AppKit
-
-let logPath = CommandLine.arguments.count > 1
-    ? CommandLine.arguments[1]
-    : ("~/Library/Logs/cs2-launcher.log" as NSString).expandingTildeInPath
-let app = NSApplication.shared
-app.setActivationPolicy(.accessory)
-
-let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 400, height: 96),
-                   styleMask: [.titled], backing: .buffered, defer: false)
-win.title = "Cities: Skylines II"
-win.level = .floating
-win.collectionBehavior = [.canJoinAllSpaces]
-win.isReleasedWhenClosed = false
-if let screen = NSScreen.main {
-    let f = screen.visibleFrame
-    win.setFrameOrigin(NSPoint(x: f.maxX - 424, y: f.maxY - 120))
-}
-let title = NSTextField(labelWithString: "Cities: Skylines II is starting")
-title.font = NSFont.boldSystemFont(ofSize: 13)
-title.frame = NSRect(x: 16, y: 66, width: 368, height: 18)
-let status = NSTextField(labelWithString: "Waking the launcher…")
-status.font = NSFont.systemFont(ofSize: 12)
-status.textColor = .secondaryLabelColor
-status.frame = NSRect(x: 16, y: 44, width: 368, height: 17)
-let bar = NSProgressIndicator(frame: NSRect(x: 16, y: 16, width: 368, height: 16))
-bar.isIndeterminate = false
-bar.minValue = 0
-bar.maxValue = 5
-win.contentView!.addSubview(title)
-win.contentView!.addSubview(status)
-win.contentView!.addSubview(bar)
-win.orderFrontRegardless()
-
-let started = Date()
-func lastSession() -> String {
-    guard let s = try? String(contentsOfFile: logPath, encoding: .utf8) else { return "" }
-    if let r = s.range(of: "===== ", options: .backwards) { return String(s[r.lowerBound...]) }
-    return s
-}
-func gameUp() -> Bool {
-    let p = Process()
-    p.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
-    p.arguments = ["-f", "/Cities2.exe"]   // leading slash: never match watchers by name
-    p.standardOutput = FileHandle.nullDevice
-    guard (try? p.run()) != nil else { return false }
-    p.waitUntilExit()
-    return p.terminationStatus == 0
-}
-var quitAt: Date? = nil
-Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
-    if let q = quitAt { if Date() >= q { app.terminate(nil) }; return }
-    if Date().timeIntervalSince(started) > 480 { app.terminate(nil) }
-    let t = lastSession()
-    if t.contains("ERROR:") { app.terminate(nil) }   // the shim's own alert takes over
-    var stepN = 0.0
-    var msg = "Waking the launcher…"
-    if t.contains("Launching Cities: Skylines II") {
-        stepN = 5; msg = "Starting the game — the window is on its way…"
-    } else if t.contains("Almost ready — 15s") {
-        stepN = 4; msg = "Licence check — about 15 seconds left…"
-    } else if t.contains("Almost ready — 30s") {
-        stepN = 4; msg = "Licence check — about 30 seconds left…"
-    } else if t.contains("verifying licence") {
-        stepN = 3; msg = "Signed in — verifying the game licence (about 45 s)…"
-    } else if t.contains("Steam already warm") {
-        stepN = 4; msg = "Steam already warm — launching shortly…"
-    } else if t.contains("Steam already running") {
-        stepN = 3; msg = "Steam already running — reusing the session…"
-    } else if t.contains("Starting Steam") {
-        stepN = 2; msg = "Starting Steam and signing in…"
-    } else if t.contains("Wrapper:") {
-        stepN = 1; msg = "Checking game patches…"
-    }
-    bar.doubleValue = stepN
-    status.stringValue = msg
-    if stepN == 5 && gameUp() {
-        status.stringValue = "Game is up — have fun!"
-        quitAt = Date().addingTimeInterval(2)
-    }
-}
-app.run()
-SWIFT
-  if xcrun swiftc -O -o "$APP/Contents/Resources/cs2-progress" "$PDIR/progress.swift" >/dev/null 2>&1; then
-    PROGRESS_OK=1
-    echo "    progress: Swift panel built (persistent launch-progress window)"
-  fi
-  rm -rf "$PDIR"
+# AppKit panel is unconditional. Accessory activation policy = no dock icon, no focus theft.
+PANEL_SRC="$(cd "$(dirname "$0")/../.." && pwd)/common/launch-progress.swift"
+PANEL_OUT="$APP/Contents/Resources/launch-progress"
+PROGRESS_WHY=""
+if ! xcrun -f swiftc >/dev/null 2>&1; then PROGRESS_WHY="swiftc is missing: install the Xcode Command Line Tools"
+elif [ ! -f "$PANEL_SRC" ]; then PROGRESS_WHY="common/launch-progress.swift is missing from this checkout"
+elif ! grep -q '^# >>> launch-feedback (' "$LAUNCHER"; then PROGRESS_WHY="the launcher prints no step lines: it is an older one, update it and re-run this"
+elif ! xcrun swiftc -O -o "$PANEL_OUT" "$PANEL_SRC" >/dev/null 2>&1; then PROGRESS_WHY="the compile failed"; rm -f "$PANEL_OUT"
 fi
-[ "$PROGRESS_OK" = 1 ] || echo "    progress: skipped (swiftc unavailable or compile failed) — notifications only"
+if [ -z "$PROGRESS_WHY" ]; then echo "    progress: Swift panel built (persistent launch-progress window)"
+else echo "    progress: skipped ($PROGRESS_WHY) — notifications only"; fi
 
 # ---------------------------------------------------------------- Info.plist
 cat > "$APP/Contents/Info.plist" << PLIST

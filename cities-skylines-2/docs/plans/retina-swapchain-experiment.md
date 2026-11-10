@@ -251,9 +251,10 @@ One retry per run on a missing result row (inspect the cell log first); two miss
   gate on it.)
 - **Sharpness**: 3 screenshots per run into `~/cs2-patch/perf-runs/rt-shots/<cell>-tN.png` via
   `screencapture -x`, from a background shell that live-polls the cell log (the log has no per-line
-  timestamps — poll `until grep -q 'Launching Cities: Skylines II' "$LOG"`, substring match, no
-  end-anchor; the verbatim line is `Launching Cities: Skylines II (Wine 11 + DXMT)…` with a U+2026
-  ellipsis). Offsets **+80 s / +105 s / +130 s** after the launch line (flythrough = measured
+  timestamps — poll `until grep -q 'Starting Cities: Skylines II' "$LOG"`, substring match, no
+  end-anchor; since 2026-11-10 the verbatim line is `[5/5] Starting Cities: Skylines II. The menu takes
+  about a minute…` with a U+2026 ellipsis, and before that it was `Launching Cities: Skylines II (Wine 11 +
+  DXMT)…`). Offsets **+80 s / +105 s / +130 s** after the launch line (flythrough = measured
   89.5 s starting ~43 s post-line + boot; +150 s risks the post-bench menu). After b0-1, calibrate:
   flythrough end ≈ Benchmark.coc mtime bump, start ≈ end − 89.5 s — adjust r-cell offsets if b0's
   shots show menu/loading instead of the flythrough. `caffeinate -u -t 3` before each shot window

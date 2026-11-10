@@ -5,7 +5,7 @@
 # Launches the game <runs> (default 5) times through launch-relaunched.sh with SM_LICENCE_WAIT=<seconds>,
 # judges each run from the game's own log, quits the game at the main menu and lets the launcher close
 # Steam. Every launch starts Steam fresh (the launcher shuts it down at exit), so each run pays the wait;
-# a run whose launcher log lacks "Waiting <seconds> s" did not exercise it and is VOID.
+# a run whose launcher log lacks the line "Licence wait: <seconds> s" did not exercise it and is VOID.
 #
 # PASS = the game logged `Steam initialized`, both DLCs loaded (`DLC norman`, `DLC thomas`) and
 # `[Braze] Initialized` -- the last line all 23 full start-ups on record share, ~11 s in, with the menu
@@ -53,6 +53,10 @@ judge() {   # <game log> -> "PASS|FAIL <why>" from the game's log alone
   [ -n "$why" ] && echo "FAIL$why" || echo PASS
 }
 if [ "${1:-}" = --judge ]; then judge "${2:?usage: --judge <game log>}"; exit; fi
+# How many times a launcher log says it waited <seconds>: the plain line that licence_wait prints (the
+# launcher's launch-feedback block), never the player's text, which is free to be reworded. The Cities:
+# Skylines II probe holds the same function, and common/test-launcher-parity.sh runs both against the block.
+wait_lines() { grep -c "^Licence wait: $2 s\$" "$1"; }   # <launcher log> <seconds>
 
 SECS="${1:?usage: licence-wait-probe.sh <seconds> [runs] | --judge <game log>}"; RUNS="${2:-5}"
 eval "$(grep -E '^(APP|SS|GAME|ENGINE)=' "$L")"
@@ -99,7 +103,7 @@ for r in $(seq 1 "$RUNS"); do
   fi
   wait "$LP"; lrc=$?
   [ -n "$glog" ] && cp "$glog" "$OUT/run-$r.game.log"
-  waited=$(grep -c "Waiting $SECS s" "$LL")
+  waited=$(wait_lines "$LL" "$SECS")
   v=VOID
   if [ "$waited" != 1 ]; then v="VOID (licence wait not run: $(grep -m1 'ERROR\|already running' "$LL" | cut -c1-80))"
   elif [ -z "$glog" ]; then v="FAIL no game log within $((tg - t0)) s: $(grep -m1 'ERROR' "$LL" | cut -c1-80)"
