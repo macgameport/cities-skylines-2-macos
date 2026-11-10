@@ -199,7 +199,7 @@ version of this note said it "blocks until sign-in + 48 s"; the 15 s runs showed
 of the game's own, unrelated to the sign-in time.)
 Add an auto-retry if `platform service integration failed` shows in the first ~12s.
 **2026-11-10: not seen on the current build.** Six boots on the Studio with no wait at all and five at 15 s on
-the MacBook reached the menu with no such failure (game 1.6.2f1, Steam client 1792618285;
+the MacBook reached the menu with no such failure (game 1.6.2f1 on the Studio, 1.6.0f1 on the MacBook, Steam client 1792618285;
 `scripts/licence-wait-probe.sh`, `docs/plans/launch-experience.md` 3.6). The launcher's default went from 45 to
 15 s, and `CS2_LICENCE_WAIT` sets it. What survives of this entry is the signature: if it comes back, it reads
 exactly as above, and the 45 s that once cleared it is one setting away.
