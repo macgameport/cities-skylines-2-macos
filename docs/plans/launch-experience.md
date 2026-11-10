@@ -29,8 +29,12 @@
 > fresh, the launcher logged `Licence wait: 0 s` and went straight to steps 4 and 5, the game started 30 s
 > after the boot began and reached its menu, and neither of its logs holds `platform service integration
 > failed`. Steam's app information was in 1 s after sign-in. The race of `GOTCHAS.md` section 11 did not
-> show, so the series at 30 and 15 cannot tell those waits from none; the decision is James's. Live steps
-> 7 and 8 are not done. Deviations: (1) the widest
+> show, so the series at 30 and 15 cannot tell those waits from none; the decision is James's. He chose
+> five more at 0 s, with this rule: all pass, and the default becomes 15 once five runs at 15 on the MacBook
+> pass too; any failure, and the series at 30 and 15 runs as planned. `licence-wait-probe.sh 0 5`: **5 of 5
+> PASS** (runs `20261110-032650-1` to `20261110-033756-5`), Steam client 1792618285 throughout, Steam's app
+> information in 0 or 1 s after sign-in. Six boots with no wait at all, six menus, no licence failure. The
+> change of default is prepared on branch `licence-wait-15`, not merged. Live steps 7 and 8 are not done. Deviations: (1) the widest
 > step text measures 357 points in the 368 point label, not the 312 this plan first said; both labels cut a
 > longer text with an ellipsis. (2) Rule 8 of 3.7 lists the Surviving Mars probe at A5 and gains the
 > Cities: Skylines II one at A6, since that probe does not exist earlier. (3) The probe stops at its first
