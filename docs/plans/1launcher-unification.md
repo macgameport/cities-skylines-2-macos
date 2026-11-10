@@ -10,8 +10,8 @@
 > that fold was checked by a second agent (no blocker; its eight findings folded).
 > Written 2026-11-08. Tracking: issue #22.
 > **🔧 As-built (2026-11-08):** PARTIAL. Phases 0, 1 and 2 are built (Phase 2 on 2026-11-09); Phase 3 is built and its exit criteria pass (2026-11-09), with
-> retirement (3.7) still to do; Phase 4 is in progress: its Cities: Skylines II half is done (2026-11-09), its
-> Surviving Mars half (4.5 to 4.7 and the rest of 4.8) is not.
+> retirement (3.7) still to do; Phase 4 is in progress (2026-11-09): 4.1 to 4.5 and 4.7 are done; Surviving
+> Mars's start from its rebuilt app (the rest of 4.8), 4.6 and 4.9 on are not.
 > Phase 1 is commit `270ca2a` (211 renames at 100%, nothing else) and the commit that adds this line.
 > Measured on the real checkout after both: T1 0 of 107 · T2 22 of 22 and `setup.sh --check` exit 0 ·
 > T3 every gate exit 0, lock test 17 PASS, 102 files syntax-clean · T4 · T6 9 · T11 · T13 · T15 5 of 5 ·
@@ -64,7 +64,7 @@
 > under the new state folder; the old checkout's `runs/` was not recreated; the app has its icon; the shim
 > names the new launcher. With that every exit criterion of Phase 3 passes. Open: 3.7, retiring the old
 > checkout (James's approval) and the separate GitHub repo (his click).
-> **Phase 4 (2026-11-09): PARTIAL, Cities: Skylines II only.** On the MacBook at `31c6d3c`, macOS 27.2. 4.1 to
+> **Phase 4 (2026-11-09): PARTIAL.** On the MacBook at `31c6d3c`, macOS 27.2. 4.1 to
 > 4.3 were already done when the session started: the inventory showed the checkout at `~/github/1launcher`,
 > level with origin, nothing to move by hand, committing as the project, and both dotfiles naming the new
 > path. 4.4: setup exit 0, eight of eight checks, `10 of 10 patch scripts finished without error` and
@@ -73,10 +73,16 @@
 > graceful exit, Steam down, no crash marker), and James then started the game from its app and reported it
 > runs well. Deviations: (a) this Mac's game is build 23700737, not the Studio's 25127643; no patch failed,
 > and the launcher flags the update as waiting, so setup is run again once it is taken. (b) The boot check
-> was started by the session, not by James, while he was away; the start from the app was his. Open, from the
-> same inventory: the old Surviving Mars checkout `~/sm-patch` has 1 helper program, not 2, and a `scratch/`
-> with 2 entries, both of which 4.1 says to stop on before 4.5; `patch_cohtml_license.py` is still in
-> `~/cs2-patch/old-patchers/` (4.6); 4.7's twelve checks have not been run here.
+> was started by the session, not by James, while he was away; the start from the app was his. 4.5: with no game running, `runs` (86 files) and
+> `backup` (7) moved to the state folder with the same counts after as before; there was no `engine/`;
+> `frame-fix.exe` moved into the repo's `tools/` and git ignores it; `make-app.sh` built the app with the
+> game's icon, and its shim names the checkout's launcher and has 0 lines that pull. 4.7: each of the twelve
+> checks exits 0, and the inventory again shows no app running a launcher at an old path. Deviations: (c) the
+> old checkout had one helper, not two: `game-input.exe` was never built on this Mac, and neither the
+> launcher nor a test calls it. (d) Before 4.5 James started Surviving Mars once from the old app; it ran
+> from `~/sm-patch` and its log (with its `.frame-fix` companion) is among the 86 moved. (e) `~/sm-patch`
+> stays, with `scratch/` (`next`, `probe-signin-sync.sh`) in it. Open: Surviving Mars has not been started
+> from the rebuilt app; `patch_cohtml_license.py` is still in `~/cs2-patch/old-patchers/` (4.6).
 > Verify against: `common/` · root `scripts/` · `cities-skylines-2/scripts/check-experiments.py` ·
 > `.gitignore` · `LICENSE` · root `README.md`, `INSTALL.md`, `CLAUDE.md`.
 > File and line references are as of `cc66a90`; after Phase 1 every CS2 path gains the prefix
