@@ -22,7 +22,7 @@
 > were byte-identical to their fingerprints from before setup, and all three aliases read Kind "Alias", type `fapa`,
 > and grouped together. L4 done the same day:
 > github.com showed the mark above the README's first heading, loaded (150 by 150 natural, shown at 128), with
-> the page in its light theme and in its dark one (`prefers-color-scheme`, logged out). L5 is still to come. Tests:
+> the page in its light theme and in its dark one (`prefers-color-scheme`, logged out). L5, the MacBook (2026-11-10): the alias iCloud brought (16:51) reads `have`, none was made, and no name ending " 2" is on the Desktop. Tests:
 > `test-launcher-window.sh` 166 cases, its 40 new mutants (31 to 70) each seen red and restored;
 > `test-make-launcher-app.sh` 27, mutant 8 new; `test-setup.sh` 77, mutants 9 to 16 new; every other suite of
 > the parent's section 6 and `test-launcher-builders.sh` (W19) unchanged and green; `check-identifiers.sh`

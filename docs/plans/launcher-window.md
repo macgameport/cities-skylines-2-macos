@@ -18,7 +18,7 @@
 > removed. `~/Applications` holds the four apps and three wrappers of this project; `--list` there gives two
 > games and one Steam app, all `ready`; Spotlight's record of each app carries its other names. Step 3 passed,
 > by James (Spotlight, 2026-11-10); step 4 was replaced by live step L2 of `docs/plans/launcher-window-look.md`,
-> passed the same day. Steps 5 to 8 are still to come. `65c799c` B1 (the game builders), `01e783e` B4 (the Steam app, the engine source, the
+> passed the same day. Steps 5 to 7 are still to come. Step 8, the MacBook (2026-11-10): a first `setup.sh` there left the game app as built at 05:43, with no `L1Role`, so the window listed nothing; a second, `--yes`, exit 0, rebuilt it. `make-app.sh` and `make-steam-shortcut.sh` exit 0 (that Mac has the store wrapper; `CS2 Steam Store.app` removed); `--list` gives two games and one Steam app, all `ready`; `test-make-engine-install.sh` exit 0. Steps 3 and 5 there, by James, are still to come. `65c799c` B1 (the game builders), `01e783e` B4 (the Steam app, the engine source, the
 > inventory), `667f727` B2 and `34d1c21` B5 (the window and the offers, built in parallel on a second branch and
 > merged as `598459c`), `66b6847` B3 and B6 (the window's builder, setup's call, the icon), `158f347` W8, and the
 > documents commit after them. Every listed mutant was applied and exited 1, 98 in all: W1 to W3, W7 and W9 in
