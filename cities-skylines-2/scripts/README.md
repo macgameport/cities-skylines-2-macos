@@ -158,7 +158,7 @@ instrument answers "what is actually happening, and can I trust the number?".
 > row by row, so an audit that lists "files not named in this README" will always return exactly
 > those eleven; that is expected, not drift.
 | `strip-comments.py` | Compare two revisions of a C/ObjC file for **code** equality, ignoring comments — how a comment-only edit is proven to be comment-only |
-| `make-shortcut.sh` · `make-steam-shortcut.sh` · `make-vanilla-wrapper.sh` | Build the double-clickable launchers in `~/Applications`, and a throwaway wrapper carrying vanilla wined3d. `make-shortcut.sh` also compiles the start-up progress window; `test-make-shortcut.sh` runs the built shim against stubs |
+| `make-shortcut.sh` · `make-steam-shortcut.sh` · `make-vanilla-wrapper.sh` | Build the double-clickable launchers in `~/Applications`, and a throwaway wrapper carrying vanilla wined3d. `make-shortcut.sh` also compiles the start-up progress window; `test-make-shortcut.sh` runs the built shim against stubs. `make-steam-shortcut.sh` builds `S734M.app`, the Windows Steam; `test-make-steam-shortcut.sh` builds it around a fixture wrapper. Each builder replaces only a bundle it generated itself |
 | `licence-wait-probe.sh` | Measures a shorter wait after sign-in: boots through `boot-verify.sh` with `CS2_LICENCE_WAIT` set and judges each run PASS, FAIL, VOID or OTHER; `--judge` gives one run's verdict with no launch. Method and the rule for changing the default: [the launch experience plan](../../docs/plans/launch-experience.md), 3.6. Test: `test-licence-wait-probe.sh` |
 | `install-webhelper-shim.sh` | documented in the reproducers table above |
 | `pe-icon.py` | Pull the largest `RT_ICON` out of a PE binary — used to give the shortcuts real icons |

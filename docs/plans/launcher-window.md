@@ -3,11 +3,34 @@
 > **Status:** Triple-checked 2026-11-10 — build-ready-with-fixes, corrections folded. Pass 1 was four
 > lenses; pass 1b was a fifth agent checking the fold, and its findings are folded too. Five decisions
 > James made the same day are in section 9; the two made after the check changed 2.4's last paragraph, W12
-> and live step 2, as the note at the end of the corrections says. Nothing is built until he says go.
+> and live step 2, as the note at the end of the corrections says. He said go the same day.
 > Written 2026-11-10. Tracking: issue #22. This is Phase B of `docs/plans/launch-experience.md`, the second
 > slice of Phase 5 of `docs/plans/1launcher-unification.md`. It differs from the Phase B paragraph of that
 > outline in three ways, listed under D1, D2 and section 8. File and line references are as of `509bc56`;
 > no code file they name has changed since. A path is relative to the repository root.
+> **🔧 As-built (2026-11-10):** PARTIAL: B1 to B7 built on branch `launcher-window`, not yet merged; no
+> live step has run. `65c799c` B1 (the game builders), `01e783e` B4 (the Steam app, the engine source, the
+> inventory), `667f727` B2 and `34d1c21` B5 (the window and the offers, built in parallel on a second branch and
+> merged as `598459c`), `66b6847` B3 and B6 (the window's builder, setup's call, the icon), `158f347` W8, and the
+> documents commit after them. Every listed mutant was applied and exited 1, 98 in all: W1 to W3, W7 and W9 in
+> `test-launcher-window.sh` (114 cases, mutants 1 to 30), `test-make-shortcut.sh` (48, 14), `test-make-app.sh`
+> (47, 16), `test-make-steam-shortcut.sh` (27, 8), `test-engine-source.sh` (10, 3), `test-mac-inventory.sh` (62,
+> 10), `test-setup.sh` (61, 8), `test-make-launcher-app.sh` (25, 7), `test-launcher-builders.sh` (6, 2); parity,
+> progress, feedback, lock, links and identifiers pass. Deviations: (1) two of W2's cases could not make their
+> mutants fail, since there is no process 7 and process 1 is outside 2 to 99999: `+<a live pid>` and a live
+> process of another user stand in. (2) `--list` drops a duplicate app by its resolved path, and folders are not
+> merged, or W1's mutant 7 could never fail. (3) The offers are asked of their children all at once: one after
+> another, two games take 10 s against W7's 7. (4) An AppKit alert button cannot answer both Return and Escape,
+> so a key monitor maps Escape to "Don't Start". (5) W8 is its own file, `common/test-launcher-builders.sh`, so
+> that the window test's 30 mutants need no builder. (6) The Steam builder tests its target before it would
+> clone a store wrapper, and all four of its options now need a value: a bare `--name` looped for ever. (7) The
+> inventory says when a listed app is still a wrapper, as the Studio's `S734M.app` is until live step 2. Found
+> while building and not yet in the design: once the Trash is emptied, `wine.d3dm21-BAK` in `SurvivingMars.app`
+> is the only copy of that Wine, and the rollback of
+> `surviving-mars-relaunched/docs/plans/one-wrapper-per-game.md` renames it back to `wine`, after which the two
+> tools stop with a clear error; and between the merge and live step 2, `build-engine-1116.sh` step 7 refuses,
+> without stopping the build, to replace the wrapper of that name. Verify against: `common/launcher-window.swift`,
+> `common/make-launcher-app.sh`, `common/games.tsv`, the three builders, `cities-skylines-2/scripts/setup.sh`.
 
 ## 0. What James asked for (2026-11-10)
 

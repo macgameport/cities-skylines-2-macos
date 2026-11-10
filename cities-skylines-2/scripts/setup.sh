@@ -16,7 +16,8 @@
 #   2. copies the launcher + repatch.sh + patches/ into ~/cs2-patch/   (macOS TCC blocks .app
 #      bundles from executing scripts inside ~/Documents, so they cannot live in the repo)
 #   3. applies the binary patches (idempotent; each refuses to write if the pattern moved)
-#   4. builds "Cities Skylines II.app" in ~/Applications with the game's own icon
+#   4. builds "Cities Skylines II.app" in ~/Applications with the game's own icon, then 14unch3r.app,
+#      the window that lists every game set up on this Mac (common/make-launcher-app.sh)
 set -u
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
@@ -208,6 +209,19 @@ if ! bash "$REPO/scripts/make-shortcut.sh" --launcher "$DEST/$(basename "$LAUNCH
   --game "$GDIR/Cities2.exe"; then
   problems=$((problems+1))
   echo "  !! the app was not built: the lines above say why."
+else
+  # 14unch3r (docs/plans/launcher-window.md, 2.3). Only after the game's app was built, and never counted as a
+  # problem: the game's own app does not need it. Its builder exits 3 when it skipped the build and says why.
+  echo
+  echo "Building 14unch3r, the window that lists the games:"
+  WINDOW_BUILDER="$REPO/../common/make-launcher-app.sh"
+  if [ ! -f "$WINDOW_BUILDER" ]; then
+    echo "  window: not built (common/make-launcher-app.sh is not in this checkout)"
+  elif bash "$WINDOW_BUILDER"; then
+    WINDOW_BUILT=1
+  else
+    echo "  window: not built (see the line above)"
+  fi
 fi
 
 if [ "$problems" -gt 0 ]; then
@@ -220,7 +234,7 @@ cat << DONE
 
 === setup complete ===
 
-Play:      double-click  ~/Applications/Cities Skylines II.app
+Play:      double-click  ~/Applications/Cities Skylines II.app$([ "${WINDOW_BUILT:-0}" = 1 ] && printf '\n           or open 14unch3r, which lists every game set up on this Mac')
 Log:       ~/Library/Logs/cs2-launcher.log
 
 First run: Steam signs in inside the wrapper, waits ~15s for the licence to sync, then the game

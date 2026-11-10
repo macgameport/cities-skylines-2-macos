@@ -51,7 +51,7 @@ and was retired from this repository on 2026-11-09.
 | Graphics | **DXMT v0.80** — PE side is Porting Kit's build (`v0.80-17-g79f6279`, a commit not in 3Shain/dxmt), `winemetal.so` rebuilt here from tag `v0.80` + [the remote-layer patch](scripts/dxmt-remote-layer-fallback.patch); [mixed vintage, deliberately](INSTALL.md#the-dxmt-halves-are-different-vintages-deliberately) | **DXMT v0.80** — reports the real GPU |
 | Patches | **10** | **10** — the six errno patches are unnecessary on Wine 11 |
 | Alt-tab in exclusive fullscreen | **works** | freezes ([dxmt#206](https://github.com/3Shain/dxmt/issues/206)) — use borderless |
-| Steam's **visible storefront** | **renders** with patched wine+DXMT (2026-08-31); **black** on the stock stack — shop via **CS2 Steam Store.app** | **renders** |
+| Steam's **visible storefront** | **renders** with patched wine+DXMT (2026-08-31); **black** on the stock stack — shop via **S734M.app**, the Windows Steam | **renders** |
 | Measured | **M3 Max, 1080p:** 44.9 FPS, GPU 23.1 ms, presentation `Direct` · **Mac Studio M5 Max, 2560×1440, benchmark:** 47.8 FPS ([Performance](#performance)) | M3 Max, 1080p: 42.7 FPS, GPU ~26 ms, `Composited` |
 | Proven by | a full validated session: mods delete+redownload, alt-tab cycles, city play | boots, mods load + download, Steam UI, DLC |
 
@@ -152,8 +152,8 @@ under Rosetta is the likely place — not measured).
 
    **The storefront still works — from the second app.** The engine build (INSTALL §6)
    preserves your wine 11.0 wrapper as `CS2dxmt11-pk110.app` (an APFS clone: under a minute,
-   ~no extra disk, the game install stripped from the clone) and installs **CS2 Steam
-   Store.app** beside the game shortcut. Double-click it to buy DLC or browse; **Steam
+   ~no extra disk, the game install stripped from the clone) and installs **S734M.app**,
+   the Windows Steam, beside the game shortcut (it was called **CS2 Steam Store.app** until 2026-11-10). Double-click it to buy DLC or browse; **Steam
    licences are account-level**, so a purchase there carries over to the game wrapper. Its
    library always shows CS2 as not installed (the game lives in the other wrapper); DLC content
    downloads in the game's own Steam on its next sign-in, within a minute for a 437 MB set. Built the engine before this existed? `bash scripts/make-steam-shortcut.sh`

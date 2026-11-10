@@ -1,15 +1,19 @@
 #!/bin/bash
 # test-make-engine-install.sh -- make-engine.sh --install on throwaway wrappers whose wine/ is an APFS clone
-# of S734M's (no game, no Steam). Refusals: no path; a wrapper holding Cities2.exe; a Wine process using the
-# wrapper; an existing wine.d3dm21-BAK without --rebuild. Then a real install (3.0 in, 2.1 kept as the BAK)
-# and a --rebuild that builds from the BAK, never from the installed 3.0 engine.
+# of S734M's Wine (no game, no Steam): the S734M wrapper's own while it is in ~/Applications, else the copy
+# SurvivingMars.app keeps as wine.d3dm21-BAK (docs/plans/launcher-window.md, D11). Refusals: no path; a
+# wrapper holding Cities2.exe; a Wine process using the wrapper; an existing wine.d3dm21-BAK without
+# --rebuild. Then a real install (3.0 in, 2.1 kept as the BAK) and a --rebuild that builds from the BAK,
+# never from the installed 3.0 engine. It starts the Intel wine64 of a clone; tools/test-engine-source.sh
+# checks only which Wine is chosen, and starts nothing.
 #   bash tools/test-make-engine-install.sh            exit 0 = every case passed
 #   MUTANT=1 bash tools/test-make-engine-install.sh   the Cities2.exe guard removed; must exit 1
 set -u
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 ME="$HERE/tools/make-engine.sh"
 SRCW="$HOME/Applications/S734M.app/Contents/SharedSupport/wine"
-[ -x "$SRCW/bin/wine64" ] || { echo "REFUSED: no S734M Wine to clone at $SRCW"; exit 2; }
+[ -d "$SRCW" ] || SRCW="$HOME/Applications/SurvivingMars.app/Contents/SharedSupport/wine.d3dm21-BAK"
+[ -x "$SRCW/bin/wine64" ] || { echo "REFUSED: no Wine to clone at $SRCW"; exit 2; }
 mkdir -p "$HERE/scratch"
 T="$(mktemp -d "$HERE/scratch/install-test.XXXX")"   # same volume as the source, so cp -c clones
 FIX=""

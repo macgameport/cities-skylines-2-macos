@@ -137,8 +137,9 @@ faster, but **Steam's visible storefront window is black on it** (the game, its 
 and Paradox Mods downloads are all unaffected — the daily flow runs Steam in tray mode). The
 build script handles this for you: it preserves the wine 11.0 wrapper as `CS2dxmt11-pk110.app`
 (an APFS clone — under a minute, ~no extra disk, the game install stripped from the clone) and
-installs **CS2 Steam Store.app** in `~/Applications`. Play from **Cities Skylines II.app**; buy
-DLC and browse from **CS2 Steam Store.app** — licences are account-level, so purchases cross
+installs **S734M.app**, the Windows Steam, in `~/Applications` (until 2026-11-10 it was called **CS2 Steam
+Store.app**). Play from **Cities Skylines II.app** or from **14unch3r**, which lists every game set up on this
+Mac; buy DLC and browse from **S734M.app** — licences are account-level, so purchases cross
 over immediately. The store wrapper has no game install, so its library always shows CS2 as
 not installed; DLC with content downloads in the game's own Steam the next time it signs in
 (measured 2026-11-01: a 437 MB set, finished within a minute, no game update needed). One
@@ -199,8 +200,8 @@ profile system both assume it. **Direct presentation only shows in exclusive Ful
 composites every borderless window, so in Fullscreen Window the Metal HUD still says `Composited`
 on 11.16 too. If you want Direct, switch to exclusive Fullscreen, which this engine makes safe
 (reported on M4 Pro / macOS 27.0, where 11.16 measured +6.1 % over 11.0 —
-[#15](https://github.com/macgameport/1launcher/issues/15)). You also get **CS2 Steam Store.app** — the
-storefront, one double-click away in the preserved 11.0 wrapper.
+[#15](https://github.com/macgameport/1launcher/issues/15)). You also get **S734M.app** — the
+Windows Steam's storefront, one double-click away in the preserved 11.0 wrapper.
 
 Validated on three Macs so far (an M3 Max, an M5 Max, and a user's M4 Pro) — if it misbehaves on yours, roll back and open an issue with
 `~/Library/Logs/cs2-launcher.log`.
@@ -327,7 +328,8 @@ is in **[docs/patch-inventory.md](docs/patch-inventory.md)**.
 ## Uninstall
 
 ```bash
-rm -rf ~/Applications/"Cities Skylines II.app" ~/Applications/"CS2 Steam Store.app" ~/cs2-patch
+rm -rf ~/Applications/"Cities Skylines II.app" ~/Applications/"S734M.app" ~/Applications/14unch3r.app ~/cs2-patch
+defaults delete local.1launcher.window 2>/dev/null; rm -f ~/Library/Preferences/local.1launcher.window.plist
 ```
 
 Then delete the wrappers (`~/Applications/CS2dxmt11.app`, and `~/Applications/CS2dxmt11-pk110.app`
