@@ -136,8 +136,8 @@ kept > "$T/uc.kept" <<'KEPT'
 <   msg="Steam has a game update waiting (build $UPD_FROM -> $UPD_TO). Mods follow the newest game version, so the installed build can break them."
 >   msg="Steam has a game update waiting (build $UPD_FROM -> $UPD_TO)."
 # the question's wording: "takes several minutes" was measured there (6.5 min), "can take" was not
-<         [ "$(osascript -e "button returned of (display dialog \"$msg Updating takes several minutes.\" buttons {\"Play anyway\", \"Update first\"} default button \"Update first\" with title \"TITLE\" giving up after $UPDATE_ASK_SECS)" 2>/dev/null)" = "Update first" ] && ans=update
->         [ "$(osascript -e "button returned of (display dialog \"$msg Updating can take several minutes.\" buttons {\"Play anyway\", \"Update first\"} default button \"Update first\" with title \"TITLE\" giving up after $UPDATE_ASK_SECS)" 2>/dev/null)" = "Update first" ] && ans=update
+<         btn=$(osascript -e "button returned of (display dialog \"$msg Updating takes several minutes.\" buttons {\"Play anyway\", \"Update first\"} default button \"Update first\" with title \"TITLE\" giving up after $UPDATE_ASK_SECS)" 2>/dev/null)
+>         btn=$(osascript -e "button returned of (display dialog \"$msg Updating can take several minutes.\" buttons {\"Play anyway\", \"Update first\"} default button \"Update first\" with title \"TITLE\" giving up after $UPDATE_ASK_SECS)" 2>/dev/null)
 # only Cities: Skylines II patches game files, so only it applies them again after an update
 <   ensure_patches || note "WARNING: some fixes did not apply to the new game build — see INSTALL.md 'After a game update'."
 KEPT

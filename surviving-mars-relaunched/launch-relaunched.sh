@@ -335,7 +335,11 @@ check_game_update() {
     skip)  ;;
     *)
       if [ "$QUIET" = "1" ]; then
-        [ "$(osascript -e "button returned of (display dialog \"$msg Updating can take several minutes.\" buttons {\"Play anyway\", \"Update first\"} default button \"Update first\" with title \"Surviving Mars: Relaunched\" giving up after $UPDATE_ASK_SECS)" 2>/dev/null)" = "Update first" ] && ans=update
+        # Assigned first, then tested: as an argument of `[`, bash 3.2 brace-expands the {…, …} in the
+        # nested quotes, `[` gets too many arguments, and the player's "Update first" is lost (2026-11-10).
+        local btn
+        btn=$(osascript -e "button returned of (display dialog \"$msg Updating can take several minutes.\" buttons {\"Play anyway\", \"Update first\"} default button \"Update first\" with title \"Surviving Mars: Relaunched\" giving up after $UPDATE_ASK_SECS)" 2>/dev/null)
+        [ "$btn" = "Update first" ] && ans=update
       elif [ -t 0 ]; then
         printf '%s\nUpdate first? [Y/n] (no answer in %ss = play the installed build) ' "$msg" "$UPDATE_ASK_SECS"
         if read -r -t "$UPDATE_ASK_SECS" ans; then

@@ -12,6 +12,7 @@
 #   MUTANT=3 ...   "Still updating" is a pop-up again and no step; must exit 1
 #   MUTANT=4 ...   "Game updated" is a pop-up again and no step; must exit 1
 #   MUTANT=5 ...   a total of 0 bytes is shown to the player as a size; must exit 1
+#   MUTANT=6 ...   the dialog's answer is tested inside `[` again (lost to bash 3.2's brace expansion); must exit 1
 set -u
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 LAUNCHER="${1:-$REPO/launch-relaunched.sh}"
@@ -31,6 +32,15 @@ case "${MUTANT:-0}" in
   4) sed -i '' 's/then echo "Game updated to build \$UPD_FROM\."; step 4 "The game is updated…"; return 0; fi$/then note "Game updated to build $UPD_FROM."; return 0; fi/' "$BLOCK"
      grep -q 'then note "Game updated to build \$UPD_FROM\."; return 0; fi$' "$BLOCK" || mutated ;;
   5) sed -i '' '/^  \[ "\$((10#\$2))" = 0 \] && return 0 /d' "$BLOCK"; grep -q '= 0 \] && return 0' "$BLOCK" && mutated ;;
+  6) python3 - "$BLOCK" <<'PY' || mutated
+import io, sys
+p = sys.argv[1]; s = io.open(p, encoding='utf-8').read()
+a = s.index('        btn=$(osascript '); b = s.index('\n', a); c = s.index('\n', b + 1)
+cmd = s[a + len('        btn='):b]
+s = s[:a] + '        [ "' + cmd + '" = "Update first" ] && ans=update' + s[c:]
+io.open(p, 'w', encoding='utf-8').write(s)
+PY
+     grep -q '^        \[ "\$(osascript ' "$BLOCK" || mutated ;;
   *) echo "REFUSED: no mutant ${MUTANT}"; exit 2 ;;
 esac
 
@@ -163,6 +173,37 @@ expect zerototal lacks ' GB|syntax error|division by|integer expression|unbound 
 BYTES_DONE=1048576000 mk_manifest 6 25579348 25600000
 run_case equal $NUL SM_UPDATE=apply SM_UPDATE_POLL=1 SM_UPDATE_TICK=1 SM_UPDATE_TIMEOUT=2
 expect equal has '^STEP 4: Updating the game: 0 min so far…$'; expect equal lacks ' GB'
+
+# 9c. the app's dialog (QUIET=1), under /bin/bash 3.2, the shell the app runs: a fake `osascript` answers.
+#     The answer was once tested inside `[`, where bash 3.2 brace-expands the dialog's {…, …}; `[` then got
+#     too many arguments and "Update first" was lost (2026-11-10, a real click in Cities: Skylines II's copy).
+FAKEBIN="$T/fakebin"; mkdir -p "$FAKEBIN"
+printf '%s\n' '#!/bin/bash' 'printf "%s\n" "$@" >> "$FAKE_OSALOG"' '[ -n "${FAKE_BUTTON:-}" ] && echo "$FAKE_BUTTON"' 'exit 0' > "$FAKEBIN/osascript"
+chmod +x "$FAKEBIN/osascript"
+dialog_case() {   # dialog_case <name> <button or empty> <env...>
+  local name="$1" button="$2"; shift 2
+  : > "$T/$name.args"; : > "$T/$name.osa"
+  mk_manifest 6 25579348 25600000
+  env PATH="$FAKEBIN:$PATH" FAKE_BUTTON="$button" FAKE_OSALOG="$T/$name.osa" SM_UPDATE_TIMEOUT=15 "$@" \
+    FAKE_ARGLOG="$T/$name.args" FAKE_MANIFEST="$T/appmanifest_3215050.acf" \
+    /bin/bash -c '
+      set -u
+      QUIET=1; STEAM_WINE="'"$FAKEWINE"'"; STEAM="steam.exe"; MANIFEST="'"$T"'/appmanifest_3215050.acf"
+      note() { echo "NOTE: $1"; }; step() { echo "STEP $1: $2"; }; die() { echo "DIE: $1"; exit 1; }
+      steam_exe_up() { return 0; }
+      . "'"$BLOCK"'"
+      check_game_update; echo "RC:$?"
+    ' < "$NUL" > "$T/$name.out" 2>&1
+}
+dialog_case dlgupdate "Update first" SM_UPDATE_POLL=1 FAKE_DELAY=1 FAKE_NEWBUILD=25600000
+expect dlgupdate has 'steam://validate/3215050'; expect dlgupdate has 'Game updated to build 25600000'
+expect dlgupdate lacks 'too many arguments|WARNING: game update waiting'
+if grep -q 'buttons {"Play anyway", "Update first"}' "$T/dlgupdate.osa"; then PASS=$((PASS + 1))
+else FAIL=$((FAIL + 1)); echo "FAIL dlgupdate: osascript did not get the dialog's buttons whole"; fi
+dialog_case dlgplay "Play anyway"
+expect dlgplay has 'WARNING: game update waiting'; expect dlgplay lacks 'steam://|too many arguments'
+dialog_case dlgnone ""
+expect dlgnone has 'WARNING: game update waiting'; expect dlgnone lacks 'steam://|too many arguments'
 
 # 10-12. interactive terminal (`script` supplies a tty): "n" plays, Enter updates, silence plays.
 #        Input is held back 1 s: typed before the prompt, `script` loses it and sends EOF, which
