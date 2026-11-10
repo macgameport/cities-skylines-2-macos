@@ -7,7 +7,14 @@
 > merged as `64c06f1`. L1 done the same day on James's word: no launcher, Wine or Steam ran and no launcher lock
 > was held; `make-launcher-app.sh` exit 0; `--grid - ~/Applications` gave two games and one Steam tile at 444 by
 > 172, the pill `#0059D1` at 6.27, the lowest title, second-line and outline ratios 9.62, 9.79 and 5.06 (3.58 on
-> the plate); the packed icon holds the small form at 16 and 32 pixels. L2 to L5 are still to come. Tests:
+> the plate); the packed icon holds the small form at 16 and 32 pixels. L2 done the same day, on stand-in apps
+> (a busy game, a ready one, one with no program, a game and a Windows Steam not installed, an offer): in the
+> captures the names measured 10.20 to 1 at worst, the status lines 8.34 and the pill 6.21; with the system in
+> light mode the window and the question were the same dark window (no pixel off by more than 24 of 255);
+> "Don't Start" wrote nothing, a failed start kept the window, "Start Anyway" started the stand-in and quit;
+> the empty window and the 16-pixel icon as designed. James did the rest and said "everything checked out":
+> the pointer, the keys, the yellow accent, VoiceOver, Finder and the Dock. He kept the outline, the hover
+> plate and the pointing hand (D16, D25). Captures in `~/cs2-patch/evidence/`. L3 to L5 are still to come. Tests:
 > `test-launcher-window.sh` 166 cases, its 40 new mutants (31 to 70) each seen red and restored;
 > `test-make-launcher-app.sh` 27, mutant 8 new; `test-setup.sh` 77, mutants 9 to 16 new; every other suite of
 > the parent's section 6 and `test-launcher-builders.sh` (W19) unchanged and green; `check-identifiers.sh`
@@ -531,7 +538,7 @@ read and written as before.
 | D13 | The look | **Decided 2026-11-10** from the third mockup: tiles, the dark background, the mark centred and faint |
 | D14 | Light mode | The window is always dark, alerts included. The parent's "light and dark follow the system" ends |
 | D15 | The selection's colour | **Decided 2026-11-10 ("Fixed blue + outline").** A fixed blue, `#0059D1`, not the system accent: white on the accent measured 1.58 to 4.02. On a Mac set to another accent the pill stays blue |
-| D16 | An outline on the selected icon's plate, which the mockup does not have | **Decided 2026-11-10** with D15: added. Without it the selection is told by hue alone. James sees it in L2 and can strike it |
+| D16 | An outline on the selected icon's plate, which the mockup does not have | **Decided 2026-11-10** with D15: added. Without it the selection is told by hue alone. **Kept after L2 (2026-11-10, "keep all three")** |
 | D17 | Second lines shortened on the tile | **Decided 2026-11-10 ("Shorten").** "Windows Steam not found", "Not set up. Opens its guide." and, with K7, "Not installed in Steam", so no tile needs a third line. The full sentences stay for VoiceOver and the tooltip |
 | D18 | The label "You also own" | Kept, small, above a row of its own |
 | D19 | An image file in the repository, which the parent's D8 ruled out | **Decided 2026-11-10** by K6: one SVG, written by the program and compared with it by a test |
@@ -540,7 +547,7 @@ read and written as before.
 | D22 | The repository's name, which James asked to alias to `14unch3r` | **Decided 2026-11-10 ("Keep 1launcher").** GitHub has no aliases; a rename, whose old links redirect, was offered and not taken. The app, the icon and the page's image say 14unch3r; the repository, its folders and its links stay `1launcher` (parent D4) |
 | D23 | A tile that cannot start (K7) | Grey icon and a few words saying why. It is still chosen and started: for a game not installed, its launcher's own alert names the fix. The window cannot open a game's own Steam to install it; that gap is in `docs/plans/1launcher-unification.md` |
 | D24 | The icon at 16 and 32 pixels | A small form with a heavier stroke, measured (section 1): the full form is a grey blur at 16 |
-| D25 | The hover plate and the pointing hand, which the mockup does not have | Added, since one click starts a game. James sees them in L2 and can strike either |
+| D25 | The hover plate and the pointing hand, which the mockup does not have | Added, since one click starts a game. **Kept after L2 (2026-11-10, "keep all three, everything checked out")** |
 
 ## Review corrections (triple-check 2026-11-10)
 
