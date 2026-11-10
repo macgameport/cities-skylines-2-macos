@@ -549,7 +549,8 @@ No launcher code changes, so no boot check is owed; step 5 starts each rebuilt a
 - Live steps 0 to 7 pass on the Studio and step 8 on the MacBook.
 - The design gate: step 4's captures show every string readable in light and in dark at the measured
   ratio; every state is words; the keyboard reaches everything; VoiceOver reads a row's title and state.
-- The as-built header here is written, and issue #22 has a line once James allows the post.
+- The as-built header here is written, and issue #22 has its line: posted 2026-11-10 on James's word
+  (issuecomment-6782587385), covering this plan and `docs/plans/launcher-window-look.md`.
 
 ## 7. Rollback
 
