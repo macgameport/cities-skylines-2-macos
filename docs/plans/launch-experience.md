@@ -447,6 +447,14 @@ inputs and open questions. None is decided.
 - **The name.** James still likes "14unch3r". The repository and folder name is what paths and links are
   built from; the name on the app, the window and the icon is a label and can differ from it.
 
+**Planned 2026-11-10: `docs/plans/launcher-window.md`.** Phase B is planned there, and that plan governs
+where it differs from the Phase B paragraph above. The per-game apps stay and are the window's entries.
+The window opens a game's own app and does not turn into the progress window. Only the Studio's donor
+wrapper leaves `~/Applications`. It also moves where C and D must live: with games started from Spotlight
+as well, the sign-in action and the release check belong in what every start passes through, each app's
+shim or a step the shims share, and the window can offer them without being the only door to them. The
+inputs above are answered there.
+
 ## 5. Test plan
 
 Every mutant is applied to real source, seen red, and restored green. No test starts Wine, Steam, a game
