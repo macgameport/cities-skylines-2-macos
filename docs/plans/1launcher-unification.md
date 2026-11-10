@@ -6,7 +6,8 @@
 > 2026-11-08 ("Ok go ahead with recs"). Phase 3 was re-checked against the renamed tree before its build by a
 > fourth fitted pass on 2026-11-09 (1 blocker, folded with five other findings and a group of thirteen
 > smaller ones; fourth-pass block). Phase 4 was rewritten on 2026-11-09 and re-checked the same day by a fifth
-> fitted pass (1 blocker, folded with seven other findings and a group of smaller ones; fifth-pass block).
+> fitted pass (1 blocker, folded with seven other findings and a group of smaller ones; fifth-pass block), and
+> that fold was checked by a second agent (no blocker; its eight findings folded).
 > Written 2026-11-08. Tracking: issue #22.
 > **🔧 As-built (2026-11-08):** PARTIAL. Phases 0, 1 and 2 are built (Phase 2 on 2026-11-09); Phase 3 is built and its exit criteria pass (2026-11-09), with
 > retirement (3.7) still to do; Phase 4 is not started.
@@ -252,17 +253,24 @@ the MacBook's Surviving Mars keeps pulling its private remote and its CS2 keeps 
 and its deployed copies.
 
 **Who does it.** A session on the MacBook, with James there. That session writes no Claude auto-memory (global
-rule): what is worth keeping goes into this file's as-built header, committed. It cannot see the Studio.
+rule): what is worth keeping goes into this file's as-built header, committed. It cannot see the Studio. It
+is started outside the checkout, in the home folder, because 4.3 renames the checkout. After 4.3's `mv` it
+ends and James starts a new one in `~/github/1launcher`, which Claude Code takes for a new project and asks
+to trust. The reason is Phase 2's deviation (c): a session keeps the shell profile it loaded when it started,
+so one started before 4.2 runs a bare `gh` at the new path as the other account. The new session runs T5
+first, and every other `gh` call of this phase names the project's config directory outright, as T5's second
+form does.
 
 **Before the visit.** The setup plan's live steps have passed on the Studio (its S10 to S12), so `main` is
-known to install and boot. The Studio's checkout has nothing ahead of `origin/main` (`git status -sb`), so the
+known to install and boot, and T2 reads `21 found, 21 identical` and `_vendor equal` there. The Studio's checkout has nothing ahead of `origin/main` (`git status -sb`), so the
 script that 4.1 fetches is the tested one. The Studio's game builds, for 4.4 to compare with, read from its
 own inventory on 2026-11-09: Cities: Skylines II 25127643, Surviving Mars 25579348; if a game updates on the
 Studio before the visit, this line is corrected first. No game, Steam or launcher is running on either Mac,
 and Steam on the Studio stays closed until 4.8 is over: one Steam on the account at a time.
 
-4.1 **Look first.** From the MacBook's CS2 checkout, wherever it is:
-`git fetch origin && git show origin/main:common/mac-inventory.sh | bash`. The fetch adds objects and remote
+4.1 **Look first.** With the MacBook's CS2 checkout named, wherever it is:
+`git -C <checkout> fetch origin && git -C <checkout> show origin/main:common/mac-inventory.sh | bash`. The
+fetch adds objects and remote
 refs inside `.git` and changes no file in the working tree. The script is read-only, starts no Intel program,
 and prints nothing that identifies an account or a computer: entries in the two dotfiles for folders of other
 projects are counted, not shown. It trusts no folder it looks into: it runs git inside a checkout only when
@@ -275,9 +283,11 @@ not expect:
 - a third checkout, or a `could not look inside` line, which means a checkout could be there unseen;
 - a checkout marked `NOT EXAMINED FURTHER`, which names what held it back;
 - an install folder that is a symlink, or a Wine wrapper the script does not know;
+- Surviving Mars installed in a wrapper other than `SurvivingMars.app`, or in none: the launcher and
+  `make-app.sh` expect that one;
 - a count of Wine, Steam or game processes other than 0;
-- a scheduled task or launch agent that names an old path: this phase has no step for one (2.2 step 6 was
-  the Studio's);
+- a scheduled task or launch agent that names an old checkout's path: this phase has no step for one (2.2
+  step 6 was the Studio's). `~/cs2-patch` stays, and the script does not count it as an old path;
 - an old Surviving Mars checkout whose helper programs are not 2.
 
 4.2 **The two dotfiles, by James** (Phase 0 step 4, for this Mac): the include for `~/github/1launcher/` and
@@ -306,16 +316,35 @@ places:
 git status --porcelain --ignored | grep '^[!?][!?]' | grep -v -e ' cities-skylines-2/' -e ' surviving-mars-relaunched/' -e ' \.env$' -e ' CLAUDE\.local\.md$' -e ' \.claude/$'
 ```
 
-`MODS-GUIDE.md` and `logs/` go into `cities-skylines-2/`. Anything it prints under `archive/`, `docs/`,
-`launchers/`, `patches/` or `scripts/` goes to the same path under `cities-skylines-2/`. `__pycache__` folders
-are deleted. Anything else (`revenv/`, `scratchpad/`, `dumps/`) is shown to James. Move with `mv -n` and stop
-if a destination exists: in the re-check's trial a plain `mv` replaced an existing `MODS-GUIDE.md` without
-asking. Then `rmdir archive launchers patches 2>/dev/null` and the listing again: it prints only what James
-chose to leave. `.env`, `CLAUDE.local.md` and `.claude/` stay at the root. Then Phase 2.2 steps 2 to 4 for
-this Mac: the repo-local identity include, `git -C <checkout> config --local include.path "~/.gitconfig-cs2"`;
-from a shell whose working directory is elsewhere, `mv <checkout> ~/github/1launcher` (if the checkout was
-under `~/Documents` this is also what takes it out: an app cannot run scripts there, and Surviving Mars runs
-from its checkout); then the identity gate (T5) before any commit, push or other `gh` call.
+`MODS-GUIDE.md` and `logs/` go into `cities-skylines-2/`, where neither exists yet. A line that ends in `/`
+is a whole folder and does not show what is in it, so for the five old folders list the files themselves
+before moving anything:
+
+```bash
+git status --porcelain --ignored -uall -- archive docs launchers patches scripts | grep '^[!?][!?]'
+```
+
+Each file it prints goes to the same path under `cities-skylines-2/`, except a file in a `__pycache__` folder,
+which is deleted. Move file by file with `mv -n`, making the destination folder first, and stop if a
+destination file exists. Moving a whole folder is not safe here: `mv -n` of a folder onto a folder that
+exists does not stop, it puts one inside the other (tried: exit 0, and a `launchers/launchers`), and a plain
+`mv` replaced an existing `MODS-GUIDE.md` without asking. Anything else in the first listing (`revenv/`,
+`scratchpad/`, `dumps/`) is shown to James. Then `rmdir archive launchers patches 2>/dev/null` and the first
+listing again: it prints only what James chose to leave. `.env`, `CLAUDE.local.md` and `.claude/` stay at the
+root. Then Phase 2.2 steps 2 to 4 for this Mac: the repo-local identity include,
+`git -C <checkout> config --local include.path "~/.gitconfig-cs2"`; then, from a shell whose working directory
+is elsewhere, the move, after a look at where it goes, because Phase 2 found an empty folder already at the
+new path and `mv` would have put the checkout inside it:
+
+```bash
+mkdir -p ~/github
+[ -e ~/github/1launcher ] && echo "STOP: something is already at the new path"
+```
+
+If that prints nothing: `mv <checkout> ~/github/1launcher`. Where the checkout was under `~/Documents` this is
+also what takes it out: an app cannot run scripts there, and Surviving Mars runs from its checkout. This
+session ends here ("Who does it"); the new one starts with the identity gate (T5), before any commit, push or
+other `gh` call.
 
 4.4 **Cities: Skylines II.** From `~/github/1launcher/cities-skylines-2`:
 `bash scripts/setup.sh 2>&1 | tee /tmp/setup.out`. It checks this Mac first (Rosetta has been removed by
@@ -328,8 +357,10 @@ line, and it prints the second only when nothing went wrong:
 prints 2. If it names a failed patch, stop: this Mac's game may be on a build the Studio's is not (the
 inventory printed this Mac's; "Before the visit" has the Studio's), and `cities-skylines-2/GOTCHAS.md` (the
 entries of 2026-11-02 to 2026-11-07) has what was found last time. The badge patch stays on here only if it
-has run here; setup says which, and where it says `off (it has never run here)` it removes
-`~/cs2-patch/patch-modconflict-badge.py` on purpose. Do not pass `--hide-mod-badges` to make a count come
+has run here. On its first run here setup says which, and where it says `off (it has never run here)` it
+removes `~/cs2-patch/patch-modconflict-badge.py` on purpose. A later run, or a Mac whose install folder never
+held the badge file, prints no `mod badge patch:` line at all, and that also means off; the inventory's
+`mod badge patch:` line shows the file, the marker and how often the patch has run. Do not pass `--hide-mod-badges` to make a count come
 out: that option edits `Game.dll`. Setup keeps the old launcher beside the new one as
 `launch-cs2-dxmt11.sh.bak`, and leaves in `~/cs2-patch/patches` any patch script the repo no longer has, so
 its `patches:` line can count more scripts than the repo holds. The retired fallback launcher and the old
@@ -347,8 +378,9 @@ echo "$found found, $same identical"
 diff -r patches/_vendor "$HOME/cs2-patch/patches/_vendor" && echo "_vendor equal"
 ```
 
-It reads `21 found, 21 identical` where setup said the badge patch is on; `20 found, 20 identical`, with one
-`not installed` line for the badge file, where setup said it is off; and `_vendor equal` either way.
+It reads `21 found, 21 identical` where the badge patch is on; `20 found, 20 identical`, with one
+`not installed` line for the badge file, where it is off (setup said so, or printed no badge line); and
+`_vendor equal` either way.
 
 4.5 **Surviving Mars.** Quit the game. The old checkout (the inventory says where, and what it holds outside
 git; `~/sm-patch` on the Studio) has `runs/`, `backup/`, perhaps `engine/`, and two `.exe` helpers that no
@@ -358,7 +390,7 @@ unnoticed until clicks miss. The inventory must have printed `absent` for both n
 moved: if the inventory showed it with entries, ask James. As 3.5:
 
 ```bash
-S=~/sm-patch        # the old checkout, as the inventory printed it
+S=~/sm-patch
 ST="$HOME/Library/Application Support/1launcher/surviving-mars-relaunched"
 WK="$HOME/Library/Developer/1launcher/surviving-mars-relaunched"
 N="$HOME/github/1launcher/surviving-mars-relaunched"
@@ -370,13 +402,16 @@ for d in runs backup; do [ -d "$S/$d" ] && mv -n "$S/$d" "$ST/"; done
 mv -n "$S"/tools/*.exe "$N/tools/"
 for d in runs backup; do [ -d "$ST/$d" ] && echo "after: $d $(find "$ST/$d" -type f | wc -l | tr -d ' ')"; done
 [ -d "$WK/engine" ] && echo "after: engine $(find "$WK/engine" -type f | wc -l | tr -d ' ')"
-ls "$N/tools/frame-fix.exe"                        # must exist
-git -C ~/github/1launcher status --porcelain       # must not list the helpers
+ls "$N/tools/frame-fix.exe"
+git -C ~/github/1launcher status --porcelain
 bash "$N/make-app.sh"
-grep -c pull "$HOME/Applications/Surviving Mars Relaunched.app/Contents/MacOS/launch"    # must print 0
+grep -c pull "$HOME/Applications/Surviving Mars Relaunched.app/Contents/MacOS/launch"
 ```
 
-Each `after` count equals its `before` count. `make-app.sh` needs the app not to be running; for the game's
+The block carries no `#` notes because an interactive zsh does not take `#` for a comment: pasted into
+Terminal, a note after `S=` would leave `S` empty. `S` is the old checkout as the inventory printed it. Each
+`after` count equals its `before` count, `frame-fix.exe` is listed, the `status` line does not list the
+helpers, and the last line prints 0. `make-app.sh` needs the app not to be running; for the game's
 icon it reads `Mars.exe` in `~/Applications/SurvivingMars.app`, and without it still exits 0 with a generic
 icon. The rebuilt shim names the checkout's launcher and has no line that pulls.
 
@@ -406,10 +441,10 @@ entries in the two dotfiles on both Macs, by James, once nothing is left at the 
 ```bash
 git config --global --unset "includeIf.gitdir:$HOME/github/cs2/.path"
 sed -i '' -e 's#"$HOME/github/cs2/"\* *| *##' -e 's# *| *"$HOME/github/cs2/"\*##' ~/.zshrc
-grep -c 'github/cs2/"' ~/.zshrc     # must print 0
+grep -c 'github/cs2/"' ~/.zshrc
 ```
 
-If the entries were keyed to another path, `--unset` exits 5 and the `sed` changes nothing, both without a
+The last line must print 0. If the entries were keyed to another path, `--unset` exits 5 and the `sed` changes nothing, both without a
 word: the two edits are then made by hand. Then the inventory a last time. The Studio's bare `sm-patch.git`
 stays: once nothing pulls it, it is the archive of the private history.
 
@@ -421,10 +456,11 @@ Not in this phase: moving `~/cs2-patch` into `~/Library` on the MacBook, which i
 `docs/plans/local-files-layout.md` and waits for that plan's L1 and L2.
 
 **Exit.** The identity gate passed there. Setup printed `10 of 10` and `setup complete`. T2 reads 21 of 21
-there, or 20 of 20 where setup said the badge patch is off, and `patches/_vendor` equals the checkout's. The
+there, or 20 of 20 where the badge patch is off (setup said so, or printed no badge line), and
+`patches/_vendor` equals the checkout's. The
 twelve tests of 4.7 exit 0. Both games launched once from their apps, Surviving Mars as T10. The last
-inventory, after 4.9, shows: one checkout, `~/github/1launcher`; each app `runs` a path that exists and is
-under neither the old Surviving Mars checkout nor an old CS2 path; `~/sm-patch: absent`; no `github/cs2` in
+inventory, after 4.9, shows: one checkout, `~/github/1launcher`; each app line that says `runs` names a path
+that `ls` finds, under neither the old Surviving Mars checkout nor an old CS2 path; `~/sm-patch: absent`; no `github/cs2` in
 the include or wrapper-pattern lines; and no `patch_cohtml_license.py`.
 
 **Rollback.** The checkout: `mv` back and `git remote set-url` back; the old address still redirects. Cities:
@@ -459,7 +495,7 @@ Candidates, by measurement: the lock (identical three times), Steam attribution 
 | # | Test | Passes when | Mutant, applied and seen red |
 |---|---|---|---|
 | T1 | `common/check-links.py`, a relative-link resolver over every tracked `.md` (written in Phase 1; fenced and inline code excluded) | 0 unresolved (baseline 0 of 107) | move `docs/patch-inventory.md` up one level in a scratch tree: 7 unresolved |
-| T2 | From `cities-skylines-2/`: `cmp -s` `launchers/launch-cs2-dxmt11.sh`, `repatch.sh`, `scripts/cs2-display-profile.sh`, `scripts/patch-modconflict-badge.py` and each `patches/*.py` against its copy in `~/cs2-patch`; plus `setup.sh --check` exits 0. From the layout plan's L1 on this is its LT4, against the folder `common/paths.sh` resolves | With 4.4's commands, which give each copy's place in `~/cs2-patch`: `21 found, 21 identical` where setup said the badge patch is on; `20 found, 20 identical` where it said `off (it has never run here)`, because setup then removes the badge file from the install folder on purpose. Either way `patches/_vendor` equals the checkout's by `diff -r` (22 of 22 until the fallback launcher was retired on 2026-11-09) | leave `scripts/cs2-display-profile.sh` at the old root in a scratch tree: one fewer found (20, or 19 with the badge patch off) |
+| T2 | From `cities-skylines-2/`: `cmp -s` `launchers/launch-cs2-dxmt11.sh`, `repatch.sh`, `scripts/cs2-display-profile.sh`, `scripts/patch-modconflict-badge.py` and each `patches/*.py` against its copy in `~/cs2-patch`; plus `setup.sh --check` exits 0 (in Phase 4 the full setup run of 4.4 stands in for it). From the layout plan's L1 on this is its LT4, against the folder `common/paths.sh` resolves | With 4.4's commands, which give each copy's place in `~/cs2-patch`: `21 found, 21 identical` where the badge patch is on; `20 found, 20 identical` where setup said `off (it has never run here)` or printed no `mod badge patch:` line, because setup removes the badge file from an install folder where the patch never ran and never installs it unasked. Either way `patches/_vendor` equals the checkout's by `diff -r` (22 of 22 until the fallback launcher was retired on 2026-11-09) | leave `scripts/cs2-display-profile.sh` at the old root in a scratch tree: one fewer found (20, or 19 with the badge patch off) |
 | T3 | CS2 gates from the new paths, counts as in Phase 1's exit criteria | all exit 0 with those counts | delete one row of `docs/images/AUDIT.md` in a scratch tree: `check-experiments.py` exits 1. Remove `cwd=REPO`: it exits 1 from `/tmp` |
 | T4 | For `README.md`, `INSTALL.md`, `CLAUDE.md`, `GOTCHAS.md` and `scripts/setup.sh` at their new paths: the oldest commit that `git log --follow --format=%h` prints | it is the file's first commit from before the move (`a162423` for `README.md`, `CLAUDE.md` and `GOTCHAS.md`; `831cce6` for `INSTALL.md` and `setup.sh`). Straight after commit A each count is the old one plus 1 (34, 20, 40, 154 and 4 before); later commits add to it. `git blame` on the moved README shows more than one commit | drop `--follow`: the oldest commit printed is commit A |
 | T5 | Identity gate (2.2 step 4) | every value names the project identity | a scratch clone outside the keyed paths with no repo-local include: the gate names the other identity |
@@ -473,7 +509,7 @@ Candidates, by measurement: the lock (identical three times), Steam attribution 
 | T13 | `git check-ignore -q` after the move | ignored: `cities-skylines-2/MODS-GUIDE.md`, `cities-skylines-2/logs/x`, `cities-skylines-2/scripts/x.png`, `.env`; not ignored: `cities-skylines-2/docs/images/x.png` and `x.jpg` | leave the prefix off the negation: the image is ignored |
 | T14 | On the Studio after 3.5: source each path-setting line of the seven Surviving Mars scripts that set one (for `patch-window-origin.py`, evaluate its line in `python3`) and print what it resolves to | every code path is inside `surviving-mars-relaunched/` and exists; every state path is inside the `SM_STATE` folder, whose `runs/` and `backup/` exist; the engine default is `~/Library/Developer/1launcher/surviving-mars-relaunched/engine/wine-d3dm30`: it has no space in it, is not under the `SM_STATE` folder, exists, and its `bin/wine64 --version` prints a version | use the wrong directory level in one `tools/` script: its code path does not exist; point `tools/make-engine.sh:48` at `$SM_STATE`: the engine default has a space |
 | T15 | Each compatibility file names a target that exists: the forwarder, the three pointer files and the root `INSTALL.md`. After the push, each of the eight edited issue links returns its file (`gh api repos/…/contents/<path>`) | 5 of 5, then 8 of 8 | point one at a misspelt path: 4 of 5 |
-| T16 | `common/test-mac-inventory.sh`: a throwaway home folder holding sixteen checkouts that carry the project's address, twelve of them booby-trapped through their git settings, with the two dotfiles, a folder that cannot be read and a wrapper the script does not know | 54 PASS: no planted program runs; each trapped checkout is left unexamined and says why; the four honest ones are examined; the report's lines read as planted and name neither the home folder nor another project's folder; and, as a control, plain git does start every trap | `MUTANT=1` to `9`, each exits 1: six let a planted program run (every key plain, any include, an unnoticed `commondir`, nested repositories, a credential helper asked, git left to find the repository), three drop a line or name another project's folder |
+| T16 | `common/test-mac-inventory.sh`: a throwaway home folder holding sixteen checkouts that carry the project's address, twelve of them booby-trapped through their git settings, with the two dotfiles, a folder that cannot be read and a wrapper the script does not know | 55 PASS: no planted program runs; each trapped checkout is left unexamined and says why; the four honest ones are examined; the report's lines read as planted and name neither the home folder nor another project's folder; and, as a control, plain git does start every trap | `MUTANT=1` to `9`, each exits 1: six let a planted program run (every key plain, any include, an unnoticed `commondir`, nested repositories, a credential helper asked, git left to find the repository), three drop a line or name another project's folder |
 
 ## 6. MacBook inventory (run there; paste **redacted** output: home folder as `~`, accounts as project or personal)
 
@@ -594,7 +630,19 @@ Phase 4 was rewritten after the rename, the merge and the setup plan's build, so
 
 While the agent ran, the inventory script also changed for three security reviews (`709b74c`, `57ebbd5`, `8975cbf`): it reads each checkout's settings file without running git inside it, runs git there only when the keys are plain and then pinned to that `.git` folder, and never runs a credential helper. T16 is its test.
 
-Measured inline for the fold: the new 4.2 and 4.9 commands on four arrangements of the wrapper's line (new pattern present, old pattern 0 after removal, each parses); T2's commands on the Studio (21 found); 4.3's listing on a scratch clone pulled from `1a48b0a` (the six planted leftovers, one of them untracked) and on the Studio's checkout (nothing); 4.5's moves in scratch under bash and zsh with no `engine/` (counts equal, nothing left behind); the six Surviving Mars tests of 4.7 on the Studio (each exit 0); T16 (54 PASS twelve runs in a row, nine mutants red). Not measured, because only the MacBook can show it: its paths, its badge state, its game builds, and whether the Surviving Mars tests find there what they read.
+Measured inline for the fold: the new 4.2 and 4.9 commands on four arrangements of the wrapper's line (new pattern present, old pattern 0 after removal, each parses); T2's commands on the Studio (`21 found, 10 identical` and no installed `_vendor`: its install folder is behind `main` until the setup plan's S10, so this shows that the commands run, not the pass values, which "Before the visit" now asks for); 4.3's listing on a scratch clone pulled from `1a48b0a` (the six planted leftovers, one of them untracked) and on the Studio's checkout (nothing); 4.5's moves in scratch under bash and zsh with no `engine/` (counts equal, nothing left behind); the six Surviving Mars tests of 4.7 on the Studio (each exit 0); T16 (54 PASS twelve runs in a row, nine mutants red; 55 since the fold check). Not measured, because only the MacBook can show it: its paths, its badge state, its game builds, and whether the Surviving Mars tests find there what they read.
+
+**The fold, checked (2026-11-09).** A fold is new text, so a second agent read this one at `516e2f5` against the code and against itself, followed 4.1 to 4.10 as the MacBook session would, and tried what it doubted in scratch. No blocker. Each finding below was reproduced inline before it was folded.
+
+| # | Finding | Folded into |
+|---|---|---|
+| a | 4.3's listing prints a whole folder as one line, and `mv -n` of a folder onto a folder that exists nests it instead of stopping, so "stop if a destination exists" protected nothing | 4.3 |
+| b | "Setup says which" is false in one state: with no badge file and no marker setup prints no badge line, by design (`scripts/test-setup.sh:81`), and that is the state of any second run | 4.4, T2, Exit |
+| c | Phase 4 repeated the sequence behind Phase 2's deviation (c), a session that keeps the shell profile it started with, and did not say where the session is started while 4.3 renames its folder | Who does it, 4.1, 4.3 |
+| d | "T2's commands on the Studio (21 found)" read as a pass and was not one | Before the visit, this block |
+| e | A trailing `#` note is not a comment in an interactive zsh: pasted into Terminal, 4.9's check would have read four extra file names and 4.5's first line would have left `S` empty | 4.5, 4.9 |
+| f | 4.3's `mv` had no look at its destination, which Phase 2 found occupied | 4.3 |
+| g | The stop list assumed Surviving Mars sits in `SurvivingMars.app`; the Exit's "a path that exists" is not something the inventory tests; the inventory counted `~/cs2-patch`, which stays, as an old path; T2 still named `setup.sh --check`, which Phase 4 does not run by itself | 4.1, Exit, `common/mac-inventory.sh`, T16, T2 |
 
 ## Review log
 
@@ -606,5 +654,6 @@ Measured inline for the fold: the new 4.2 and 4.9 commands on four arrangements 
 | 2026-11-09 | 4 (fitted, Phase 3 before its build) | every cite of Phase 3 in both trees · what the rename made stale · builder simulation of 3.1 to 3.4 and 3.6 on a scratch clone with the gates and the Wine-free tests run, mutants included | 1 agent; the blocker re-read inline; folded and audited two-sided inline; the build is the check of the fold | Opus 5.5 | this repo `1e870f5` (scratch build at `0e5317a`) · Surviving Mars `14df074` | build-ready-with-fixes |
 | 2026-11-09 | 4b (re-read of the fourth pass's fold) | the fold of pass 4 against the tree as built, and against itself | inline: the fold was written while the session was on another model, and a fold is a judgment surface. One defect: the status line counted "12 other fixes" where the block lists five findings and thirteen smaller ones | Fable 5.2 | this repo `1840c08` | no change to the verdict |
 | 2026-11-09 | 5 (fitted, Phase 4 after its rewrite) | every step of Phase 4 run in scratch: the pull from two old states · the inventory in a scratch home · the dotfile commands · setup over a simulated old install · 4.5's moves · what state each stopping point leaves · the document against itself | 1 agent; its blocker re-read inline; folded and audited two-sided inline, every added or changed command run in scratch first | Fable 5.2 | this repo `8713363` to `57ebbd5` (the fold is the commit that adds this row) | build-ready-with-fixes |
+| 2026-11-09 | 5b (fitted, the fold of pass 5) | the folded text against the code · against itself: counts and cross-references · read as the MacBook session, 4.1 to 4.10 | 1 agent, about 19 tool calls; each finding reproduced inline, then folded and audited two-sided inline. Its fold is text and one pattern in the inventory script, covered by T16 | Fable 5.2 | this repo `516e2f5` | build-ready-with-fixes |
 
 Key paths: `scripts/setup.sh` · `scripts/make-shortcut.sh` · `scripts/check-experiments.py` · `scripts/test-launch-lock.sh` · `scripts/cell-fingerprint.sh` · `launchers/` · `.gitignore` · `LICENSE` · `README.md` · `INSTALL.md` · `CLAUDE.md` · `docs/agent-brief.md` · Surviving Mars: `launch-relaunched.sh`, `make-app.sh`, `tools/` · Phase 4: `common/mac-inventory.sh`, `common/test-mac-inventory.sh`, `cities-skylines-2/scripts/setup.sh`, `cities-skylines-2/repatch.sh`.

@@ -47,6 +47,10 @@ printf 'gh() {\n  case "$PWD/" in\n    "$HOME/github/cs2/"*|"$HOME/github/otherp
 # a folder this terminal may not read, a wrapper the script knows and one it does not
 mkdir "$H/Documents" && chmod 000 "$H/Documents"
 mkdir -p "$H/Applications/OtherWrapper.app/Contents/SharedSupport/prefix" "$H/Applications/CS2dxmt11.app/Contents/SharedSupport/prefix"
+# two scheduled tasks: one names an old checkout, one names only the install folder, which stays
+mkdir -p "$H/.claude/scheduled-tasks/names-old" "$H/.claude/scheduled-tasks/names-install"
+echo 'cd ~/github/cs2 && git pull' > "$H/.claude/scheduled-tasks/names-old/SKILL.md"
+echo 'tail ~/cs2-patch/logs/last.log' > "$H/.claude/scheduled-tasks/names-install/SKILL.md"
 # settings a checkout might pull in from a place of its own choosing
 printf '[core]\n\tfsmonitor = %s elsewhere-fsmonitor\n\taskPass = %s\n[filter "trap"]\n\tclean = %s elsewhere-filter filter\n[credential]\n\thelper = !%s elsewhere-helper\n' "$TRAP" "$T/ask-elsewhere.sh" "$TRAP" "$TRAP" > "$E/evil.cfg"
 
@@ -147,6 +151,7 @@ check "includeIf: the project's entry, and that its file exists" "$(exact 'git i
 check "includeIf: a missing file is said" "$(exact 'git includeIf: includeif.gitdir:~/github/1launcher/.path -> ~/.gitconfig-missing (THE FILE IS MISSING)')" 1
 check "gh wrapper: the project's pattern alone" "$(exact 'gh wrapper patterns: "$HOME/github/cs2/"* · for other folders, not shown: 1')" 1
 check "another project's folder is counted twice and named nowhere" "$(grep -c -F 'for other folders, not shown: 1' "$T/out"):$(grep -c otherproject "$T/out")" 2:0
+check "a scheduled task is listed for an old checkout's path, not for the install folder" "$(exact 'scheduled tasks: names-old ')" 1
 check "the gh wrapper is seen as a function" "$(exact 'gh in an interactive shell is: gh: function')" 1
 check "nested: examined, its inner repository left alone" "$(has nested '^    HEAD [0-9a-f]\{7,\} on ')" yes
 for c in $TRAPPED; do

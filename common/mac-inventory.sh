@@ -162,6 +162,7 @@ for d in "$HOME/Library/Application Support/1launcher" "$HOME/Library/Developer/
 done
 
 sec "other things that name the old places"
-echo "scheduled tasks: $(grep -l 'github/cs2\|sm-patch\|cs2-patch' "$HOME"/.claude/scheduled-tasks/*/SKILL.md 2>/dev/null | sed 's#.*/scheduled-tasks/##; s#/SKILL.md##' | tr '\n' ' ')"
-echo "launch agents: $(grep -l 'github/cs2\|sm-patch\|cs2-patch' "$HOME"/Library/LaunchAgents/*.plist 2>/dev/null | wc -l | tr -d ' ')"
+# the old checkouts' paths. ~/cs2-patch is not one: it is the install folder, and it stays
+echo "scheduled tasks: $(grep -l 'github/cs2\|sm-patch' "$HOME"/.claude/scheduled-tasks/*/SKILL.md 2>/dev/null | sed 's#.*/scheduled-tasks/##; s#/SKILL.md##' | tr '\n' ' ')"
+echo "launch agents: $(grep -l 'github/cs2\|sm-patch' "$HOME"/Library/LaunchAgents/*.plist 2>/dev/null | wc -l | tr -d ' ')"
 echo "Claude project folders for old paths: $(ls -d "$HOME"/.claude/projects/*github-cs2 "$HOME"/.claude/projects/*sm-patch 2>/dev/null | wc -l | tr -d ' ')"
