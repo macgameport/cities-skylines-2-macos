@@ -79,14 +79,21 @@ else
   echo "    games:    common/games.tsv is missing, so the window will offer no games to set up"
 fi
 
-# The icon: the program draws it (launcher-window --icon, docs/plans/launcher-window.md, 2.6), sips scales it
-# and iconutil packs it, as the game builders do with a game's own icon. No image file is in the repository.
+# The icon: the program draws it (launcher-window --icon, docs/plans/launcher-window-look.md, 2.6), sips scales
+# it and iconutil packs it, as the game builders do with a game's own icon. The three files of 16 and 32 pixels
+# come from its small form, whose heavier stroke reads at that size; if that cannot be drawn, from the full one.
+# No image file is in the repository.
 ICON_OK=0
 if "$EXE" --icon "$B/icon.png" > /dev/null 2>&1 && [ -f "$B/icon.png" ]; then
+  SMALL="$B/icon.png"
+  "$EXE" --icon "$B/icon-small.png" small > /dev/null 2>&1 && [ -f "$B/icon-small.png" ] && SMALL="$B/icon-small.png"
   ISET="$B/14unch3r.iconset"; mkdir -p "$ISET"
   for sz in 16 32 128 256 512; do
-    sips -z $sz $sz "$B/icon.png" --out "$ISET/icon_${sz}x${sz}.png" > /dev/null 2>&1
-    sips -z $((sz * 2)) $((sz * 2)) "$B/icon.png" --out "$ISET/icon_${sz}x${sz}@2x.png" > /dev/null 2>&1
+    ONE="$B/icon.png"; TWO="$B/icon.png"
+    [ "$sz" -le 32 ] && ONE="$SMALL"
+    [ "$sz" = 16 ] && TWO="$SMALL"
+    sips -z $sz $sz "$ONE" --out "$ISET/icon_${sz}x${sz}.png" > /dev/null 2>&1
+    sips -z $((sz * 2)) $((sz * 2)) "$TWO" --out "$ISET/icon_${sz}x${sz}@2x.png" > /dev/null 2>&1
   done
   iconutil -c icns "$ISET" -o "$NEW/Contents/Resources/14unch3r.icns" > /dev/null 2>&1 && ICON_OK=1
 fi

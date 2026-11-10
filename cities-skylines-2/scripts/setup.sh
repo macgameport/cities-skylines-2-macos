@@ -10,6 +10,7 @@
 #   bash scripts/setup.sh --hide-mod-badges   # opt in to the mod badge patch (INSTALL.md)
 #   bash scripts/setup.sh --show-mod-badges   # opt out again
 #   bash scripts/setup.sh --yes        # do not stop to ask when this Mac is outside what has been tested
+#   bash scripts/setup.sh --desktop    # also put a 14unch3r shortcut on the Desktop, without asking
 #
 # What it does:
 #   1. verifies the wrapper, Steam and the game are where they should be
@@ -24,6 +25,7 @@ REPO="$(cd "$(dirname "$0")/.." && pwd)"
 RETIRED="The Wine 10 + D3DMetal stack was retired on 2026-11-09. Its last version is commit fefc1e0."
 CHECK_ONLY=0
 ASSUME_YES=0
+DESKTOP=0
 BADGES=""
 DEST="${CS2_PATCH_DIR:-$HOME/cs2-patch}"
 
@@ -34,6 +36,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --check)   CHECK_ONLY=1; shift ;;
     --yes)     ASSUME_YES=1; shift ;;
+    --desktop) DESKTOP=1; shift ;;
     --stack)   need_value "$@"            # there is one stack now; its names are still accepted
                case "$2" in
                  dxmt11|wine11) ;;
@@ -224,17 +227,54 @@ else
   fi
 fi
 
+# 14unch3r's shortcut on the Desktop (docs/plans/launcher-window-look.md, 2.9): one alias, made only on a yes, and
+# never in place of anything already there; the window program says what is at the path. Run after the problems
+# exit, so a setup that ends with problems never reaches it. Without --desktop, a run that is not at a terminal, or
+# that has --yes, does not look at the Desktop: a look could bring a question from macOS that nobody is there to see.
+DESKTOP_LINE=""
+desktop_step() {
+  WINDOW_APP="$HOME/Applications/14unch3r.app"
+  WINDOW_PROG="$WINDOW_APP/Contents/MacOS/launcher-window"
+  [ "${WINDOW_BUILT:-0}" = 1 ] || return 0
+  [ -x "$WINDOW_PROG" ] || return 0
+  [ -d "$HOME/Desktop" ] || return 0
+  _look=0; _ask=0
+  if [ "$DESKTOP" = 1 ]; then _look=1
+  elif [ "$ASSUME_YES" = 0 ] && [ -t 0 ]; then _look=1; _ask=1
+  fi
+  _state=unlooked
+  if [ "$_look" = 1 ]; then _state=$("$WINDOW_PROG" --alias "$WINDOW_APP" "$HOME/Desktop/14unch3r" 2>/dev/null); fi
+  if [ "$_state" = none ]; then
+    _want=$DESKTOP
+    if [ "$_ask" = 1 ]; then
+      printf 'Put a 14unch3r shortcut on the Desktop? [y/N] '
+      read -r _a || _a=""
+      case "$_a" in y|Y) _want=1 ;; esac
+    fi
+    if [ "$_want" = 1 ]; then _state=$("$WINDOW_PROG" --alias "$WINDOW_APP" "$HOME/Desktop/14unch3r" make 2>/dev/null); fi
+  fi
+  case "$_state" in
+    made)          DESKTOP_LINE="Desktop:   14unch3r shortcut added" ;;
+    have)          DESKTOP_LINE="Desktop:   the 14unch3r shortcut is already there" ;;
+    other)         DESKTOP_LINE="Desktop:   something else named 14unch3r is there; it was left as it is" ;;
+    none|unlooked) DESKTOP_LINE="Desktop:   no shortcut made. To add one:  bash scripts/setup.sh --desktop" ;;
+    failed*)       DESKTOP_LINE="Desktop:   the shortcut could not be made: $(printf '%s' "$_state" | cut -s -f2)" ;;
+  esac
+  return 0
+}
+
 if [ "$problems" -gt 0 ]; then
   echo
   echo "=== setup finished with $problems problem(s): see the lines marked !! above ==="
   exit 1
 fi
+desktop_step
 
 cat << DONE
 
 === setup complete ===
 
-Play:      double-click  ~/Applications/Cities Skylines II.app$([ "${WINDOW_BUILT:-0}" = 1 ] && printf '\n           or open 14unch3r, which lists every game set up on this Mac')
+Play:      double-click  ~/Applications/Cities Skylines II.app$([ "${WINDOW_BUILT:-0}" = 1 ] && printf '\n           or open 14unch3r, which lists every game set up on this Mac')$([ -n "$DESKTOP_LINE" ] && printf '\n%s' "$DESKTOP_LINE")
 Log:       ~/Library/Logs/cs2-launcher.log
 
 First run: Steam signs in inside the wrapper, waits ~15s for the licence to sync, then the game
