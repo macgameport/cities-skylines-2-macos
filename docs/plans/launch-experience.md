@@ -424,6 +424,29 @@ a collection of the apps that can be run. And then you just select the one you w
   needs releases to exist, which is the first step of `docs/plans/local-files-layout.md`, and a signing
   key, which is James's to create.
 
+**More from James for the plan of B, 2026-11-10, with what was measured on the Studio that day.** These are
+inputs and open questions. None is decided.
+
+- **Show only the games the account owns.** Installed is certain: each wrapper's Steam has one
+  `steamapps/appmanifest_<appid>.acf` per installed game. Owned but not installed looks readable too: all
+  three wrappers hold `appcache/packageinfo.vdf` (42 KB), and it contains both ported games' ids as 32-bit
+  values, including the id of the game that wrapper does not have installed. That fits "the packages this
+  account owns", but the account owns both games, so it does not show that an unowned game is absent. The
+  file exists only after a sign-in, and its format is Valve's own. `config/licensecache` is absent in all
+  three. The plan must say what a row shows before any sign-in, and must never refuse a launch on this
+  file's word: Steam decides the licence at launch.
+- **Keep one small app per game in Applications, so Spotlight finds it, and let the window list those.**
+  This turns "per-game shortcuts, off by default" above into a question. The two per-game apps exist today.
+  The wrappers are what should leave `~/Applications`: it holds seven of this project's bundles now.
+- **Label the Windows Steam as such, perhaps "S734M".** `/Applications/Steam.app`, Valve's own, is on the
+  Studio, so a second app named Steam would be ambiguous there. `CFBundleAlternateNames` is a real
+  `Info.plist` key: System Settings declares "System Preferences" with it and Spotlight's record of that app
+  carries it as `kMDItemAlternateNames`. Not measured: whether Spotlight honours the key for an app of ours
+  in `~/Applications`. If it does, "S734M" can be found by typing "steam". Each wrapper has its own Windows
+  Steam, so the plan must also say which one this app opens.
+- **The name.** James still likes "14unch3r". The repository and folder name is what paths and links are
+  built from; the name on the app, the window and the icon is a label and can differ from it.
+
 ## 5. Test plan
 
 Every mutant is applied to real source, seen red, and restored green. No test starts Wine, Steam, a game
