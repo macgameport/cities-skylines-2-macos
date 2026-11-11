@@ -38,8 +38,11 @@
 > in `a9eeaa7`: after Control-C the installer said "Done."; it now traps INT, TERM and HUP and says it was
 > stopped (two GOTCHAS entries; the guide gained one sentence). Not done yet: the installer opened again
 > after the closed window, James's sign-in, `steam://install/949230`, picture 4, the cloned game seen while
-> polling and `-shutdown`, `boot-verify.sh` to the main menu, the after-listing, and the cleanup. The scratch
-> wrapper `~/Applications/CS2fresh.app` is kept until NL1 ends.
+> polling and `-shutdown`, `boot-verify.sh` to the main menu, the after-listing, and the cleanup. One thing to
+> confirm: Steam was watched for 62 s after the closed window, and 2 min 38 s after it Steam's logs show an
+> orderly exit that nothing in the run asked for (most likely its window closed by hand); the guide's
+> sentence that Steam stays open after a closed window rests on that being so, and the step is measured again
+> when NL1 goes on. The scratch wrapper `~/Applications/CS2fresh.app` is kept until NL1 ends.
 >
 > Tracking: issue #22. File and line references are as of `a749425`; none of the cited files changed up to
 > `580cf4e`. A path is relative to the repository root. Every number marked "measured" was measured on the

@@ -3112,6 +3112,10 @@ real views, read by eye before the merge, found it.
   group never reaches it.
 - **Opened again with Steam up**, the installer skips to its sign-in words and does not start Steam a second
   time (measured after Control-C; after the closed window the state was the same and it was not opened again).
+- After the Control-C runs that Steam went on for more than six hours. After the closed window it was watched
+  for 62 s; 2 min 38 s after the window closed, Steam's own logs show an orderly exit ("Quit message loop",
+  "Shutdown", `.crash` removed). Nothing in the run sent it a signal; the likeliest cause is its sign-in window
+  being closed by hand, which is not confirmed. The closed-window case is measured again when NL1 goes on.
 - Not measured: the same during a download. Nobody had signed in.
 - Evidence: `~/cs2-patch/evidence/simple-install-NL1-20261111/` (`ctrl-c.txt`, `trace-run3.txt`).
 
