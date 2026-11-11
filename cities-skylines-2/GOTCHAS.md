@@ -3110,14 +3110,35 @@ real views, read by eye before the merge, found it.
 - That is `start_steam`'s doing: Steam is started in its own process group with hang-up ignored
   (`set -m; ( trap '' HUP; exec ... ) & disown; set +m`), so the signal the Terminal sends to the installer's
   group never reaches it.
-- **Opened again with Steam up**, the installer skips to its sign-in words and does not start Steam a second
-  time (measured after Control-C; after the closed window the state was the same and it was not opened again).
-- After the Control-C runs that Steam went on for more than six hours. After the closed window it was watched
-  for 62 s; 2 min 38 s after the window closed, Steam's own logs show an orderly exit ("Quit message loop",
-  "Shutdown", `.crash` removed). Nothing in the run sent it a signal; the likeliest cause is its sign-in window
-  being closed by hand, which is not confirmed. The closed-window case is measured again when NL1 goes on.
-- Not measured: the same during a download. Nobody had signed in.
-- Evidence: `~/cs2-patch/evidence/simple-install-NL1-20261111/` (`ctrl-c.txt`, `trace-run3.txt`).
+- **Opened again with Steam up**, the installer skips to its sign-in words ("Steam for Windows is open.") and
+  does not start Steam a second time: measured after Control-C and, the same afternoon, after a closed window
+  (run 6, with Steam signed in).
+- After the Control-C runs that Steam went on for more than six hours. After a closed window it was watched
+  for 62 s at the sign-in window (run 3) and for 53 s signed in with nobody touching it (run 5). Two orderly
+  exits that looked like the window's doing (2 min 38 s after run 3, 21 s after run 4) were James closing
+  Steam's sign-in window: **closing the sign-in window of a Steam that is not signed in quits Steam**, in
+  order ("Quit message loop", "Shutdown", `.crash` removed). Confirmed by him for run 4; run 3's is most
+  likely the same.
+- **macOS's box still names Steam.** Closing the window asks "Do you want to terminate running processes in
+  this window?" and lists `sleep, steam.exe, caffeinate, bash (2)`. Terminal lists every process whose
+  controlling terminal is the window's, and Steam keeps it: its own process group does not change that. The
+  box is wrong about Steam, which ignores the hang-up, but it is what the player reads. A process detached
+  into its own session (perl's `POSIX::setsid`, as `boot-verify.sh` does for the launcher) would not be listed.
+- Not measured: the same during a download.
+- Evidence: `~/cs2-patch/evidence/simple-install-NL1-20261111/` (`ctrl-c.txt`, `trace-run3.txt`,
+  `run4-watch.txt`, `run5-watch.txt`, `run4-terminate-box.jpg`).
+
+## `steam://install/<appid>` opens Steam's Install box inside its main window (2026-11-11)
+
+- **Measured in a new wrapper, signed in, the game not installed** (the Studio, Steam client 1792618285, the
+  plan's NL1): `wine64 steam.exe steam://install/949230`, sent to the running Steam, returns 0 at once and
+  Steam draws its own Install box over the game's page: the game and its size, two shortcut boxes ticked,
+  the drive with its free space, Install and Cancel. Cancel leaves no manifest and starts nothing.
+- The box is drawn **inside** Steam's main window, not as a window of its own, so a window list sees no
+  change. Look at the window itself.
+- The first try landed while a download the player had started a few seconds earlier was running, and
+  showed nothing: read `content_log.txt` for "Update Running" before judging such a test.
+- Evidence: the same folder (`steam-url.txt`, `steam-url-after.png`).
 
 ## In bash 3.2 an `EXIT` trap that runs after a signal can see exit code 0 (2026-11-11)
 

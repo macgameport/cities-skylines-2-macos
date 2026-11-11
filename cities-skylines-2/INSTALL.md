@@ -31,6 +31,8 @@ about 105 GB of free disk space (the game with all its DLC is about 100 GB).
    ![Steam's sign-in window](docs/images/steam-signin.png)
 4. In Steam, click **Library**, then **Cities: Skylines II**, then **Install**. The download takes hours.
    When it finishes Steam shows a green Play button: do not press it, it does not work from inside Steam.
+
+   ![Steam's Install button](docs/images/steam-install-button.png)
 5. The installer sees the download finish, closes Steam, applies the fixes and builds the app. It ends
    with `Done.`
 6. Play: **Cities Skylines II** in Applications, or **14unch3r**, the window that lists every game set up

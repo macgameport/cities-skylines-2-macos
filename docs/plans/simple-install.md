@@ -4,8 +4,8 @@
 > pass 1b: a fitted check of that fold, one blocker, folded too). Written 2026-11-10.
 >
 > **🔧 As-built (2026-11-11):** PARTIAL: N1 to N6a are built on the local branch `simple-install` (`86c83d8`, and
-> `a9eeaa7` for a defect the first live step found), not merged and not pushed; nothing is published. NL1 was
-> begun on 2026-11-11 and is part done (the last paragraph of this header); no other live step has been run. Tests, each with `HOME` at a
+> `a9eeaa7` for a defect the first live step found), not merged and not pushed; nothing is published. NL1
+> passed on 2026-11-11 (the last paragraph of this header); no other live step has been run. Tests, each with `HOME` at a
 > scratch folder: NT1 59 cases and 10 mutants; NT2 94 cases, mutants 17 to 21 beside the sixteen older ones;
 > NT3 96 cases and 25 mutants; NT4 31 cases and 5 mutants; NT5 with NT7 42 cases and 7 mutants;
 > `common/test-launch-lock.sh` 24 cases and its mutant, with the installer as its third file. All 52 new
@@ -20,10 +20,12 @@
 > sweep's `kill` goes through `L1_KILL` (default `kill`), so that no test signals a real process; and NT1's
 > launcher-failure case makes a whole prefix before it exits 1, so that only the exit code tells. (4)
 > `cities-skylines-2/GOTCHAS.md` has the four planned entries (the fourth, Steam and a closed Terminal window,
-> written from NL1), one the tests found and one the live run found. N6a carries picture 3 only, as planned. (5) The
+> written from NL1), one the tests found, one the live run found, and one on `steam://install` from NL1's
+> second half. N6a carries picture 3 only, as planned; picture 4 was added at NL1. (5) The
 > experiments ledger gained a row for the probe's evidence folder (`exp_a934dc`): its gate was red on `main`
 > without one. (6) N1, N2 and most of N3 were written on Opus 5.5; N3's last fix, N4, N5, N6a and this header
-> on Fable 5.2. Still to come, each on James's word: the rest of NL1, NL2 to NL5, and N6b after the release exists. Verify
+> on Fable 5.2; NL1's second half and its records on Opus 5.5. Still to come, each on James's word: NL2 to NL5,
+> and N6b after the release exists. Verify
 > against: `install.sh`, `cities-skylines-2/scripts/install.sh`, `cities-skylines-2/scripts/make-wrapper.sh`,
 > `cities-skylines-2/scripts/setup.sh`, `common/make-installer-app.sh`, their five tests,
 > `common/test-launch-lock.sh`, `cities-skylines-2/INSTALL.md`.
@@ -36,13 +38,35 @@
 > holding the prefix with its window on screen, the lock released and `caffeinate` ended; opened again with
 > Steam up, the installer went straight to its sign-in words and did not start Steam again. Found and fixed
 > in `a9eeaa7`: after Control-C the installer said "Done."; it now traps INT, TERM and HUP and says it was
-> stopped (two GOTCHAS entries; the guide gained one sentence). Not done yet: the installer opened again
-> after the closed window, James's sign-in, `steam://install/949230`, picture 4, the cloned game seen while
-> polling and `-shutdown`, `boot-verify.sh` to the main menu, the after-listing, and the cleanup. One thing to
-> confirm: Steam was watched for 62 s after the closed window, and 2 min 38 s after it Steam's logs show an
-> orderly exit that nothing in the run asked for (most likely its window closed by hand); the guide's
-> sentence that Steam stays open after a closed window rests on that being so, and the step is measured again
-> when NL1 goes on. The scratch wrapper `~/Applications/CS2fresh.app` is kept until NL1 ends.
+> stopped (two GOTCHAS entries; the guide gained one sentence).
+>
+> **NL1, second half (the Studio, the same afternoon, after a restart; runs 4 to 6, same evidence folder).**
+> With Steam already updated, Steam's sign-in window was up 10 to 23 s after the installer was opened. A
+> closed Terminal window (the red button, then Terminate) left Steam up, signed in and untouched, for the 53 s
+> it was watched (run 5); the two earlier Steam exits that looked like the window's doing were James closing
+> Steam's sign-in window, which quits a Steam that is not signed in (he confirmed run 4's). macOS's box for the
+> closed window lists `steam.exe` among the processes it "will terminate"; it is wrong about Steam, but the
+> installer keeps "Leave this window open" for now (a decision for James, below). Opened again after the
+> closed window, the installer said "Steam for Windows is open." and did not start Steam again. James signed
+> in with a code and "Remember me"; Steam signed itself in again at its next start. Pressing Install started
+> the real 92 GB download, which James paused and uninstalled. `steam://install/949230`, sent with the game not
+> installed, opened Steam's Install box inside the main window; Cancel left nothing (a GOTCHAS entry). Picture
+> 4 was cropped from Steam's window to the Install button alone (`AUDIT.md` row, the guide's step 4). With the
+> installer polling, the real game folder was cloned in with `cp -Rc` (96 GB in 1 s, no disk used) and then
+> its manifest: the installer saw the game within one poll and said "The game is installed. Closing Steam.";
+> counted from the manifest's arrival, Steam was gone in order at 7 s and the wineserver at 11 s; the
+> installer stopped before step 6 with exit code 0.
+> `boot-verify.sh` on the scratch wrapper: PASS (main menu 89 s after launch, graceful exit, Steam down, no
+> `.crash`; `~/cs2-patch/boot-verify/20261111-154440`). The after-listing differs from the before-listing only
+> by the wrapper itself and a Bitwarden extension that is not ours: the install writes nothing else to the
+> Desktop, Documents or two levels of `~/Library`, as the guide's Uninstall says. Steam was then signed out in
+> the scratch wrapper (its token store empty, `-shutdown` exit code 0 when run by hand) and `CS2fresh.app`
+> went to the Trash. Not recorded: the exit code of the installer's own `-shutdown`, which it discards.
+> Found, not fixed: after the player uninstalls mid-download the installer does not say "Waiting for you to
+> choose Install" again, and its last line stays the download's "0.0 of 92.4 GB (0%)". **For James:** whether
+> the last line may now say that closing the window is safe (perhaps with Steam started in its own session, so
+> that macOS's box no longer names it), and whether a later slice has the installer open Steam's Install box
+> itself with `steam://install/949230` (2.9).
 >
 > Tracking: issue #22. File and line references are as of `a749425`; none of the cited files changed up to
 > `580cf4e`. A path is relative to the repository root. Every number marked "measured" was measured on the
