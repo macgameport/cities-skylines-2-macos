@@ -45,8 +45,8 @@
 > closed Terminal window (the red button, then Terminate) left Steam up, signed in and untouched, for the 53 s
 > it was watched (run 5); the two earlier Steam exits that looked like the window's doing were James closing
 > Steam's sign-in window, which quits a Steam that is not signed in (he confirmed run 4's). macOS's box for the
-> closed window lists `steam.exe` among the processes it "will terminate"; it is wrong about Steam, but the
-> installer keeps "Leave this window open" for now (a decision for James, below). Opened again after the
+> closed window lists `steam.exe` among the processes it "will terminate"; it is wrong about Steam, and the
+> installer keeps "Leave this window open" (James, 2026-11-11: "Keep the line"). Opened again after the
 > closed window, the installer said "Steam for Windows is open." and did not start Steam again. James signed
 > in with a code and "Remember me"; Steam signed itself in again at its next start. Pressing Install started
 > the real 92 GB download, which James paused and uninstalled. `steam://install/949230`, sent with the game not
@@ -63,10 +63,11 @@
 > the scratch wrapper (its token store empty, `-shutdown` exit code 0 when run by hand) and `CS2fresh.app`
 > went to the Trash. Not recorded: the exit code of the installer's own `-shutdown`, which it discards.
 > Found, not fixed: after the player uninstalls mid-download the installer does not say "Waiting for you to
-> choose Install" again, and its last line stays the download's "0.0 of 92.4 GB (0%)". **For James:** whether
-> the last line may now say that closing the window is safe (perhaps with Steam started in its own session, so
-> that macOS's box no longer names it), and whether a later slice has the installer open Steam's Install box
-> itself with `steam://install/949230` (2.9).
+> choose Install" again, and its last line stays the download's "0.0 of 92.4 GB (0%)". **Decided by James
+> (2026-11-11):** the last line stays "Leave this window open"; Steam is not moved into its own session, and
+> the guide's "Closing the window or pressing Control-C stops the installer only: Steam stays open" carries
+> the recovery. **Still for James:** whether a later slice has the installer open Steam's Install box itself
+> with `steam://install/949230` (2.9).
 >
 > Tracking: issue #22. File and line references are as of `a749425`; none of the cited files changed up to
 > `580cf4e`. A path is relative to the repository root. Every number marked "measured" was measured on the
