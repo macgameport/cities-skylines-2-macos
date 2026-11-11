@@ -2,6 +2,31 @@
 
 > **Status:** Triple-checked 2026-11-10 — build-ready-with-fixes, corrections folded (pass 1: four lenses;
 > pass 1b: a fitted check of that fold, one blocker, folded too). Written 2026-11-10.
+>
+> **🔧 As-built (2026-11-11):** PARTIAL: N1 to N6a are built on the local branch `simple-install` (`86c83d8`),
+> not merged and not pushed; nothing is published and no live step has been run. Tests, each with `HOME` at a
+> scratch folder: NT1 59 cases and 10 mutants; NT2 94 cases, mutants 17 to 21 beside the sixteen older ones;
+> NT3 92 cases and 24 mutants; NT4 31 cases and 5 mutants; NT5 with NT7 42 cases and 7 mutants;
+> `common/test-launch-lock.sh` 24 cases and its mutant, with the installer as its third file. All 51 new
+> mutants and the 17 older ones were applied and seen red. NT6's gates were run and are green: links (0
+> unresolved), identifiers (at the residual of 9), the experiments ledger, `bash -n`, and the three launcher
+> suites. Deviations: (1) NT3 found a defect while it was being built: on a new install, where Steam has no
+> log yet, `wc -l < "$BOOTLOG" 2>/dev/null` printed the log's whole path into the player's Terminal; the file
+> is now tested first (`cities-skylines-2/GOTCHAS.md`). (2) The mutant "a copied function run with an empty
+> `WINEPREFIX`" could not go red on a wrong result: with no prefix the variable is unset and `set -u` stops
+> the copied function inside its own pipeline, so the game is never taken for ours either way. What the
+> guard saves is the shell's "unbound variable" line, and that is what the case now asserts. (3) The stray
+> sweep's `kill` goes through `L1_KILL` (default `kill`), so that no test signals a real process; and NT1's
+> launcher-failure case makes a whole prefix before it exits 1, so that only the exit code tells. (4)
+> `cities-skylines-2/GOTCHAS.md` has the three planned entries and one the tests found; the fourth planned
+> entry (Steam and a closed Terminal window) waits for NL1. N6a carries picture 3 only, as planned. (5) The
+> experiments ledger gained a row for the probe's evidence folder (`exp_a934dc`): its gate was red on `main`
+> without one. (6) N1, N2 and most of N3 were written on Opus 5.5; N3's last fix, N4, N5, N6a and this header
+> on Fable 5.2. Still to come, each on James's word: NL1 to NL5, and N6b after the release exists. Verify
+> against: `install.sh`, `cities-skylines-2/scripts/install.sh`, `cities-skylines-2/scripts/make-wrapper.sh`,
+> `cities-skylines-2/scripts/setup.sh`, `common/make-installer-app.sh`, their five tests,
+> `common/test-launch-lock.sh`, `cities-skylines-2/INSTALL.md`.
+>
 > Tracking: issue #22. File and line references are as of `a749425`; none of the cited files changed up to
 > `580cf4e`. A path is relative to the repository root. Every number marked "measured" was measured on the
 > Studio (M5 Max, macOS 27.2) on 2026-11-10; the probe's scripts, logs, captures and a `NOTES.md` are in
