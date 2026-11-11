@@ -32,6 +32,7 @@
 #   MUTANT=22 ...  the ten-minute limit removed; must exit 1
 #   MUTANT=23 ...  a copied function run with an empty WINEPREFIX; must exit 1
 #   MUTANT=24 ...  a broken python3 sent to xcode-select --install; must exit 1
+#   MUTANT=25 ...  a signal ends in the EXIT trap alone (which then says Done.); must exit 1
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
 REPO="$(cd "$HERE/../.." && pwd)"
@@ -71,6 +72,7 @@ case "${MUTANT:-0}" in
   21) mutate 's#^    if \[ "\$up" = 0 \]; then$#    if true; then#' '^    if true; then$' ;;
   22) mutate 's#^    while \[ "\$i" -lt "\$START_POLLS" \]; do$#    while :; do#' '^    while :; do$' ;;
   23) first 'if prefix_known && game_running' 'if game_running' '^if game_running' ;;
+  25) mutate "s#^trap 'on_signal 143' TERM\$#: no trap#" '^: no trap$' ;;
   24) mutate 's#^if xcode-select -p > /dev/null 2>&1; then #if xcode-select -p > /dev/null 2>\&1 \&\& py_ok; then #' '2>&1 && py_ok; then' ;;
 esac
 
@@ -394,7 +396,7 @@ newh; bash "$MKW" "$WR" steam; dl - installed; sed -i '' 's/^START_POLLS=120 /ST
 rc="$(STUB_STARTS='slow ok' run)"; sed -i '' 's/^START_POLLS=3 /START_POLLS=120 /' "$S"
 check "no client within the limit: ended and started again" "$rc:$(starts):$(calls '^WINESERVER -k' | awk '{ print ($1 > 0) }')" "0:2:1"
 newh; bash "$MKW" "$WR" steam; : > "$ST/steam"; : > "$ST/helper"; dl installed
-check "a client already up: not started again, straight to the words" "$(run):$(starts):$(said 'Do not press it')" "0:0:1"
+check "a client already up: not started again, straight to the words, and not said to be starting" "$(run):$(starts):$(said 'Do not press it'):$(said 'is starting'):$(said 'Steam for Windows is open.')" "0:0:1:0:1"
 newh; bash "$MKW" "$WR" steam; dl - - - installed
 check "no manifest yet: the choose-Install line once" "$(run):$(said '^  Waiting for you to choose Install in Steam$')" "0:1"
 newh; bash "$MKW" "$WR" steam; dl - zero zero installed
@@ -409,7 +411,18 @@ newh; bash "$MKW" "$WR" steam; dl - installed
 check "a stray left after that: a plain kill, never -9" "$(STUB_SHUTDOWN_STUCK=1 STUB_WS_STUCK=1 run):$(grep -c '^KILL 99903$' "$CALLS"):$(grep -c 'KILL -9' "$CALLS")" "0:1:0"
 newh; bash "$MKW" "$WR" steam; dl - installed
 rc="$(env -u CS2_WRAPPER HOME="$H" PATH="$B:$PATH" L1_KILL="$B/killrec" L1_TRACE="$T/trace$n" bash "$S" > "$H.out" 2>&1 < /dev/null; echo $?)"
-check "L1_TRACE: a line per poll" "$rc:$(grep -cE '^[0-9]{2}:[0-9]{2}:[0-9]{2} steam=[0-9]+ client=' "$T/trace$n" | awk '{ print ($1 >= 2) ? "lines" : "few" }')" "0:lines"
+check "L1_TRACE: a line per poll" "$rc:$(grep -cE '^[0-9]{2}:[0-9]{2}:[0-9]{2} steam=[0-9]+ proc=(yes|no) client=' "$T/trace$n" | awk '{ print ($1 >= 2) ? "lines" : "few" }')" "0:lines"
+
+# --- stopped by a signal while it waits (Control-C sends INT; a background job cannot be sent INT, so TERM and HUP)
+for sig in TERM HUP; do
+  newh; bash "$MKW" "$WR" steam; : > "$ST/steam"; : > "$ST/helper"
+  env -u CS2_WRAPPER -u L1_TRACE HOME="$H" PATH="$B:$PATH" L1_KILL="$B/killrec" bash "$S" > "$H.out" 2>&1 < /dev/null & ip=$!
+  i=0; until grep -q 'Waiting for you to choose Install' "$H.out" 2>/dev/null || [ "$i" -gt 100 ]; do /bin/sleep 0.1; i=$((i + 1)); done
+  kill -"$sig" "$ip"; wait "$ip"; rc=$?
+  check "stopped by $sig while it waits: its own line, not Done, the lock released, Steam left running" \
+    "$(said '^Stopped. Open the installer again'):$(said '^Done.'):$([ -L "$PFX/.launcher.lock" ] && echo held || echo free):$([ -f "$ST/steam" ] && echo up):$(calls '^WINESERVER -k')" "1:0:free:up:0"
+  check "  ...and a signal's exit code" "$rc" "$([ "$sig" = TERM ] && echo 143 || echo 129)"
+done
 
 # --- step 6
 newh; bash "$MKW" "$WR" steam; dl - installed+game

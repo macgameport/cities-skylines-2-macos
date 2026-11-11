@@ -64,6 +64,7 @@ on_exit() {
   [ -n "${LOCK:-}" ] && release_lock
   case "$END" in
     quiet) ;;
+    signal) echo; echo "Stopped. Open the installer again: it carries on from here." ;;
     *) echo
        case "$rc" in
          0) echo "Done. Start the game from Applications: Cities Skylines II, or 14unch3r." ;;
@@ -73,6 +74,12 @@ on_exit() {
   esac
 }
 trap on_exit EXIT
+# Control-C, a closed window, a kill: without these the EXIT trap saw exit code 0 and said "Done." (measured
+# at the plan's NL1, 2026-11-11). Steam is not reached by any of them: it has its own process group.
+on_signal() { END=signal; exit "$1"; }
+trap 'on_signal 130' INT
+trap 'on_signal 143' TERM
+trap 'on_signal 129' HUP
 [ "$CHECK" = 1 ] && END=quiet
 [ "$(id -u)" = 0 ] && { echo "Do not run the installer as root (with sudo): it would leave files only root can change in your home folder."; exit 1; }
 
@@ -132,7 +139,10 @@ steam_proc_up() {   # steam.exe proper, either case (Valve's installer writes St
   return 1
 }
 wsrv() { WINEPREFIX="${WINEPREFIX:?}" "$SS/wine/bin/wineserver" "$@"; }
-trace() { [ -n "${L1_TRACE:-}" ] && echo "$(date '+%H:%M:%S') steam=$(steam_family | wc -l | tr -d ' ') client=$1" >> "$L1_TRACE"; return 0; }
+trace() {   # steam= counts by the launcher's lower-case rule; proc= is this script's own test, which also sees Steam.exe
+  [ -n "${L1_TRACE:-}" ] || return 0
+  echo "$(date '+%H:%M:%S') steam=$(steam_family | wc -l | tr -d ' ') proc=$(steam_proc_up && echo yes || echo no) client=$1" >> "$L1_TRACE"
+}
 use_wrapper() {   # <path>: the wrapper, and the launcher's exports for it
   APP="$1"
   SS="$APP/Contents/SharedSupport"
@@ -341,10 +351,13 @@ case "$STATE" in
   update) say "Steam has a game update waiting. The game's app offers it at the next start." ;;
   *)
     if [ "$CHECK" = 1 ]; then say "not installed: would start Steam and wait for you to sign in and press Install"; else
-    say "Steam for Windows is starting. A small box headed \"Steam - Fatal Error\" can appear once or twice"
-    say "and close again. That is expected: Steam is updating itself. Click nothing in it."
     up=0
-    if webhelper_up; then up=1
+    if webhelper_up; then up=1; say "Steam for Windows is open."
+    else
+      say "Steam for Windows is starting. A small box headed \"Steam - Fatal Error\" can appear once or twice"
+      say "and close again. That is expected: Steam is updating itself. Click nothing in it."
+    fi
+    if [ "$up" = 1 ]; then :
     elif steam_proc_up; then   # a Steam already there: up, or stuck at its box
       i=0
       while [ "$i" -lt "$STUCK_POLLS" ]; do
