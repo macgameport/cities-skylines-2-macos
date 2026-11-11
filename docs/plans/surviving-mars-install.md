@@ -1,23 +1,26 @@
 # Surviving Mars: Relaunched from nothing, without CrossOver, on one shared installer
 
-> **Status:** written 2026-11-11. Not checked: run `check it` before any code is written from this.
+> **Status:** Triple-checked 2026-11-11 — build-ready-with-fixes, corrections folded (pass 1: four lenses;
+> the fold is not yet checked). Written 2026-11-11.
 >
 > Tracking: issue #22. The installer this builds on exists only on the branch `simple-install`; references
-> to `install.sh`, `cities-skylines-2/scripts/install.sh`, `make-wrapper.sh`, `common/make-installer-app.sh`
-> and their tests are as of that branch at `6a66416`. Every other reference is as of `main` at `efcd2cd`;
-> nothing under `surviving-mars-relaunched/`, and neither `common/games.tsv` nor
-> `common/launcher-window.swift`, differs between the two. A path is relative to the repository root.
-> "The installer plan" is `docs/plans/simple-install.md`, with its steps N1 to N6 and live steps NL1 to NL5.
-> This plan's steps are M0 to M8, its tests MT1 to MT10, its live steps ML1 to ML7 and its decisions MD1 to
-> MD8. Every number marked "measured" was measured on the Studio (M5 Max, macOS 27.2.1) on 2026-11-11; the
-> records are in `~/Library/Application Support/1launcher/surviving-mars-relaunched/runs/d3dmetal-source-probe-20261111/`
+> to `install.sh`, `cities-skylines-2/scripts/install.sh`, `make-wrapper.sh`, `common/make-installer-app.sh`,
+> their tests, and `common/test-launch-lock.sh` with the installer as its third file, are as of that branch
+> at `6a66416`. Every other reference is as of `main` at `04936e7`; nothing under
+> `surviving-mars-relaunched/`, and neither `common/games.tsv` nor `common/launcher-window.swift`, differs
+> between the two. A path is relative to the repository root. "The installer plan" is
+> `docs/plans/simple-install.md`, with its steps N1 to N6 and live steps NL1 to NL5. This plan's steps are
+> M0 to M8, its tests MT1 to MT10, its live steps ML1 to ML7 (with ML4b) and its decisions MD1 to MD10. Every number
+> marked "measured" was measured on the Studio (M5 Max, macOS 27.2.1) on 2026-11-11; the records are in
+> `~/Library/Application Support/1launcher/surviving-mars-relaunched/runs/d3dmetal-source-probe-20261111/`
 > (`SUMMARY.txt` first).
 
 ## 0. What James asked for (2026-11-11)
 
 "should we have one installer handle everything?", then, on hearing what Surviving Mars depends on: "we
 need SMR to run without needing crossover or the launcher is still just a cs2 wrapper, not a launcher".
-After the probe of section 1.4: "Write the plan".
+After the probe of section 1.4: "Write the plan". And of the time it takes: "no one is waiting for any of
+this. We're just doing it for the sake of doing it. And doing it well."
 
 So two things, and the second serves the first:
 
@@ -31,123 +34,189 @@ So two things, and the second serves the first:
 
 - There is no install from nothing. `surviving-mars-relaunched/README.md:44` says so: the one-time setup,
   `tools/split-wrapper.sh`, makes `~/Applications/SurvivingMars.app` by cloning one Cities: Skylines II
-  wrapper and moving the game out of another (its header, phases A0 to A4b).
-- D3DMetal 3.0 comes from a CrossOver 26 on the same Mac (`README.md:58`). `tools/make-engine.sh:57` looks
-  in `CX_GPTK`, then in the two places CrossOver installs to, and `:74` stops without one. What it takes is
-  six pieces (`:86-92`): `external/D3DMetal.framework`, `external/libd3dshared.dylib`, and
-  `wine/x86_64-windows/` `atidxx64.dll`, `d3d11.dll`, `d3d12.dll`, `dxgi.dll`.
+  wrapper and moving the game out of another (its header, phases A0 to A4b). `README.md:47-57` describes
+  those wrappers and the Steam app of that project.
+- D3DMetal 3.0 comes from a CrossOver 26 on the same Mac (`README.md:58`). `tools/make-engine.sh:57-61`
+  looks in `CX_GPTK` and then in the two places CrossOver installs to, taking the first that holds the
+  framework, so a `CX_GPTK` folder that is wrong is passed over without a word; `:74` stops with none. What
+  it takes is six pieces (`:86-92`): `external/D3DMetal.framework`, `external/libd3dshared.dylib`, and
+  `wine/x86_64-windows/` `atidxx64.dll`, `d3d11.dll`, `d3d12.dll`, `dxgi.dll`. It also runs `nm` (`:63`),
+  which on macOS is a stand-in until Apple's Command Line Tools are installed (measured: `/usr/bin/nm`
+  links `libxcselect`; `codesign` and `plutil` do not).
 - The game is DirectX 12 only (`README.md`, "Findings"; `launch-relaunched.sh:4-5`), so it needs D3DMetal:
   DXMT, the Cities: Skylines II engine, is Direct3D 11. Under D3DMetal 2.1 a landscaping project turns the
-  whole map black; 3.0 renders it. The launcher refuses anything but 3.0 (`launch-relaunched.sh:139-143`).
+  whole map black; 3.0 renders it. The launcher refuses a version below 3 (`launch-relaunched.sh:139-143`;
+  the pattern at `:142` is `[3-9].*`).
 - The click-offset helper, `tools/frame-fix.exe`, is built with Homebrew's `mingw-w64` (`README.md:60`,
   `:75`) and is not in the repository (`surviving-mars-relaunched/.gitignore:9`). Without it the launcher
-  goes on and tells the player to press Option+Return twice (`launch-relaunched.sh:377`).
+  goes on and tells the player to press Option+Return twice (`launch-relaunched.sh:373-378`).
 - The double-click app runs the launcher inside the checkout (`make-app.sh:22`; "It runs the scripts in
-  this checkout and never pulls", `README.md`). An install made from a temporary copy of the repository
-  would leave an app that points at a folder macOS later removes.
+  this checkout and never pulls", `README.md:32-33`). An install made from a temporary copy of the
+  repository would leave an app that points at a folder macOS later removes.
 
 ### 1.2 What the launcher needs from a wrapper
 
 Read from `launch-relaunched.sh`: a wrapper at `~/Applications/SurvivingMars.app` or `SM_WRAPPER` (`:71`);
-in it `Contents/SharedSupport/wine` with D3DMetal 3.0 (`:76`, `:139`), `Contents/Frameworks` (`:79`), and a
-prefix holding Steam for Windows signed in and the game at
+in it `Contents/SharedSupport/wine` with D3DMetal 3 or later (`:76`, `:139-142`), `Contents/Frameworks`
+(`:79`), and a prefix holding Steam for Windows signed in and the game at
 `steamapps/common/Project Spark/Mars.exe` (`:73`, `:145`) with `appmanifest_3215050.acf` (`:95`). The
-launcher writes `steam_appid.txt` itself (`:363`) and sets its own environment (`:79-84`). It asks nothing
-of the wrapper's own launcher or `Info.plist`.
+launcher writes `steam_appid.txt` itself (`:363`) and sets its own environment (`:77-84`), which includes
+`WINEESYNC=1 WINEMSYNC=1`; a Wine program started without them against a Wine server that has them dies
+(`:80-82`). It asks nothing of the wrapper's own launcher or `Info.plist`.
 
-### 1.3 Where the pieces are published (read 2026-11-11)
+Two things about Steam decide how a test of it must be run. The launcher uses a Steam that is already
+running and does not sign in again (`:234-235`). And Steam pulls a game's cloud saves at sign-in only when
+the game is installed in it (`:44-46`, `README.md:109`). So a Steam that was signed in before the game was
+there never pulls, and the game then starts on an empty save folder and writes a new settings file, which
+is the silent-conflict case of `:41-43`.
+
+### 1.3 Where the pieces are published (read 2026-11-11, each row checked against GitHub by a reviewer)
 
 | Piece | Published by | File | Bytes | sha256 |
 |---|---|---|---|---|
 | Wrapper template | Porting Kit, `vitor251093/porting-kit-wrappers`, release `Wineskin-3.0.6-2` | `Wineskin.app.tar.7z` | 53,110,672 | `fbe276bb...907a` (the installer plan's pin, `make-wrapper.sh:21-23`) |
 | Wine 10 | Porting Kit, `vitor251093/porting-kit-engines`, release `wineskin` | `WS12WineSikarugir10.0_2_D3DMetal-v2.1.tar.7z` | 183,963,888 | `a2f9322f3e6160453d9b31891e91d17a7c1f0b752c1804416880792c37d125d2` (GitHub's digest; not downloaded) |
 | D3DMetal 3.0 | Gcenx, `Gcenx/game-porting-toolkit`, release `Game-Porting-Toolkit-3.0-3` (2026-03-03) | `game-porting-toolkit-3.0-3.tar.xz` | 239,200,808 | `d377683937340f914823dbb2e1252b329cbf834ff58907d0293db8cebf0e392e` (downloaded, matches) |
-| Steam for Windows | Valve | `SteamSetup.exe` | 2,380,800 | the installer plan's tested value (`cities-skylines-2/scripts/install.sh:25-26`) |
+| Steam for Windows | Valve | `SteamSetup.exe` | 2,380,800 (the installer plan, `docs/plans/simple-install.md:149`) | the tested value at `cities-skylines-2/scripts/install.sh:26` |
+
+Each file's address is `https://github.com/<repository>/releases/download/<release>/<file>`.
 
 The wrapper's own Wine names itself: `wine.d3dm21-BAK/version` reads "wine sikarugir 10.0 (revision 2
-D3DMetal-v2.1)", which is the name of the second row. That the published file is the same Wine is not
-measured (ML1). No published engine has D3DMetal 3.0 built in: Porting Kit's newest D3DMetal engine is
-v2.1, and the engines of `Sikarugir-App/Engines` are plain Wine.
+D3DMetal-v2.1)", which is the name of the second row. That the published file is the same Wine, and what
+its top folder is called, are not measured (ML1). No published engine names D3DMetal 3.0: of the 300 files
+of Porting Kit's `wineskin` release 16 name D3DMetal and the highest is v2.1; `Sikarugir-App/Engines` has
+none (by file name; contents not inspected). That repository also publishes `WS12WineSikarugir10.0_2.tar.xz`
+(166,278,716 bytes), the same Wine by name with no D3DMetal in it; it is unmeasured (ML1).
+
+Porting Kit's `wineskin` is one rolling release whose files can be replaced in place; Gcenx makes a new
+release per build, and every older one still has its file.
 
 ### 1.4 The probe (measured)
 
-- Gcenx's archive holds one folder, `Game Porting Toolkit.app`, 6,041 entries, none absolute and none with
-  `..`. The six pieces are under `Contents/Resources/wine/lib/`, in the layout `make-engine.sh` reads
-  (`external/`, `wine/x86_64-windows/`). Nothing from the archive was run.
+- Gcenx's archive holds one folder, `Game Porting Toolkit.app`: 6,041 entries (5,235 files, 563 folders,
+  243 links), none absolute, no name with a `..` part, no hard link, no set-user or set-group bit. The six
+  pieces are under `Contents/Resources/wine/lib/`, in the layout `make-engine.sh` reads (`external/`,
+  `wine/x86_64-windows/`). Taken out, they are 15 files (10 in the framework, the library, 4 DLLs) and 3
+  links, all inside the framework: `D3DMetal -> Versions/Current/D3DMetal`,
+  `Resources -> Versions/Current/Resources`, `Versions/Current -> A`. Nothing from the archive was run.
 - `D3DMetal.framework`: all 10 files are byte-identical to the copy the game runs on today, which came from
-  CrossOver 26.2. Version 3.0 in both. `codesign --verify --strict` passes on the downloaded copy; its
-  identifier is `com.apple.D3DMetal` and its authority chain is Software Signing, Apple Code Signing
-  Certification Authority, Apple Root CA.
-- `libd3dshared.dylib`: byte-identical.
-- The four DLLs: every PE section, the link stamp, the imports and the exports are equal. CrossOver's
-  copies carry a certificate table of 7,744 bytes at the end (CodeWeavers' signature); within the length
-  of Gcenx's file 7 bytes differ, the header's checksum and the entry that points at that table.
+  CrossOver 26.2. Version 3.0 in both; its lowest macOS is 14.0. This passes on the downloaded copy:
+  `codesign --verify --strict -R '=identifier "com.apple.D3DMetal" and anchor apple' <framework>`. The
+  leading `=` is needed: without it `codesign` takes the words for a file name and fails.
+- `libd3dshared.dylib`: byte-identical, and signed by Apple too: the same command with
+  `com.apple.libd3dshared` passes.
+- **What the signature does not notice:** a copy of the framework with a file added at `Versions/B/` still
+  passes the check at its root. A byte changed inside `Versions/A` fails it.
+- The four DLLs are not signed in Gcenx's archive. Against CrossOver's: every PE section, the link stamp,
+  the imports and the exports are equal. CrossOver's copies carry a certificate table of 7,744 bytes at the
+  end (CodeWeavers' signature); within the length of Gcenx's file 7 bytes differ, the header's checksum and
+  the entry that points at that table. Their sha256, with the library's:
+
+  | File | Bytes | sha256 |
+  |---|---|---|
+  | `libd3dshared.dylib` | 95,952 | `5131e631eee8b542eadf48f4df9fd662d9aeeb59139137e0e6e14047dc434995` |
+  | `atidxx64.dll` | 106,496 | `bd004dd9e41415b0e1395d51a2ded762a02c7731491e74ed6076f3648ae9ea7f` |
+  | `d3d11.dll` | 106,496 | `05fa6f700fb5ee5561dc3a46d98f0aed845d4fa8ab274bff1dc604b0b3f6edd1` |
+  | `d3d12.dll` | 114,688 (CrossOver's: 122,432) | `27dcf69bedb20ed557a83953e356ab2477b688c2a2c631f880b7583f30ff0705` |
+  | `dxgi.dll` | 86,016 | `249711d3d786a9b0bb7c3558f36e472ab07ee21b8dbf118e34c975046832f9a2` |
+
 - `CX_GPTK=<the archive's lib folder> bash tools/make-engine.sh <out>` ran for the first time and built an
   engine. `diff -rq` against the installed engine: the four DLLs and nothing else, 4,789 files on each
   side. It is kept as `~/Library/Developer/1launcher/surviving-mars-relaunched/engine/wine-d3dm30-gcenx`.
-- `tools/frame-fix.exe`: two plain builds differ in 2 bytes (the link stamp); two builds with
-  `-Wl,--no-insert-timestamp` are byte-identical (149,913 bytes, `x86_64-w64-mingw32-gcc` 16.2.0). The
-  result holds no `/Users/` string.
+- `tools/frame-fix.exe`: built as the header says, it holds the compiler package's own build paths in its
+  debug sections (64 strings under `/private/tmp/mingw-w64`, 18 under `/opt/homebrew/Cellar/mingw-w64`),
+  and two builds differ in 2 bytes (the link stamp). Built with `-s` and `-Wl,--no-insert-timestamp` it is
+  17,920 bytes, two builds are byte-identical, and it holds none of those strings and no `/Users/`
+  (`mingw-w64` 14.0.0_3 from Homebrew, gcc 16.2.0). That the stripped helper still fixes the click offset
+  is not measured (ML2).
 - The game is 10,816,563,427 bytes on disk by Steam's count (build 25579348).
+- The builder lens of this plan's check built M1 and M3 in a scratch tree: the reduced Cities: Skylines II
+  installer passes the 96 cases of `test-install.sh` (run again by the planner), and its per-case output
+  equals the installer's of `6a66416` once the scratch folder's name is replaced; the fetch script, run on
+  the real archive with no network, took 14.5 s and left the same pieces the probe took out by hand.
 
 ### 1.5 Apple's licence for the toolkit (read in full)
 
 The release notes of Gcenx's archive link Apple's "Software License Agreement for Game Porting Toolkit"
-(EA18380, 8/17/2023); the archive itself holds no copy. What it says, by section:
+(EA18380, 8/17/2023) as a file attached to that release page; the archive itself holds no copy, and the
+address is Gcenx's, not Apple's. The text is of 2023 and the framework was signed in November 2025;
+whether Apple's own download of 3.0 carries newer terms, and whether the five pieces outside the framework
+sit in Apple's `/redist` folder, are not verified (M0). What the text says, by section:
 
-- 2A(i): the software may be installed and used for developing, testing or evaluating video games for
-  Apple-branded products. It does not name playing.
-- 2A(iii) and 2C: it may be distributed for non-commercial purposes only. The framework as a whole, and
-  any part of the toolkit's `/redist` folder, may be distributed apart from the rest.
-- 2C: only on Apple-branded hardware. 2D: no modification and no reverse engineering. 5: Apple may end
-  the licence with notice.
+- **Use is limited by purpose.** 1A: only for the purposes the agreement names. 2A(i): to install,
+  internally use and test it for the sole purpose of developing, testing or evaluating video games for
+  Apple-branded products. It does not name playing. By using it one agrees (the preamble).
+- **Passing it on is limited to non-commercial purposes** (2A(iii)), with Apple's notices kept on every
+  copy (2A). The framework as a whole, and any part of the toolkit's `/redist` folder, may be passed on
+  apart from the rest (2C). 2C also says the software may not be hosted.
+- 2C: only on Apple-branded hardware. 2D: no copying beyond the grant, no modification, no reverse
+  engineering, no derived work.
+- 5: the licence ends when Apple says so, and without notice on any breach; all copies must then be
+  destroyed. 6: the user indemnifies Apple.
 
-Porting Kit's D3DMetal engines rest on the same wording, the 2.1 engine this game's wrapper already
-starts from among them. `README.md:66-67` says today that nothing from Apple is in this repository and
-that the engine built from it may not be redistributed; both stay true, since the installer fetches the
-archive from its publisher and builds the engine on the player's Mac. This is a reading of the text, not
-legal advice.
+Porting Kit's D3DMetal engines rest on the same text, the 2.1 engine this game's wrapper already starts
+from among them. This project passes on nothing of Apple's: the installer fetches each file from its
+publisher and builds the engine on the player's Mac. `README.md:66-67` says today that nothing from Apple
+or CodeWeavers is in this repository; that stays true. This is a reading of the text, not legal advice.
 
 ### 1.6 The installer as it is built, and what in it belongs to one game
 
 `cities-skylines-2/scripts/install.sh` (446 lines) is six stages, each skipped when done. What names
-Cities: Skylines II in it:
+Cities: Skylines II in it, or holds only for that game:
 
-- the wrapper's default path and the candidates looked through (`:88-99`, `:209-235`), and `CS2_WRAPPER`;
+- the wrapper's default path and the candidates looked through (`:88-99`, `:209-235`); `CS2_WRAPPER`,
+  also exported for setup (`:159`); `CS2_VIA_INSTALLER` (`:445`);
 - the game's folder, program and manifest (`:109`, `:157-158`, `:172-181`);
-- stage 1's check of the Mac, which is `setup.sh --mac-only` (`:241-243`), and stage 6, which is `setup.sh`
-  (`:435-446`);
-- the words: the title lines, "about 100 GB", "about 235 MB", the closing line, the free-space caution
-  (`NEED_GB`, `:33`).
+- the Wine environment it exports and the line it starts Steam with (`:146-166`), which are that game's
+  launcher's, held to it by `test-install.sh`;
+- stage 1's check of the Mac, which is `setup.sh --mac-only` with `--yes` and `--check` passed on
+  (`:241-243`); stage 2's test that python3 runs (`:264-273`); stage 6, which is `setup.sh` with `--yes`
+  and `--desktop` passed on (`:435-446`), and the list of the installer's own files it looks for first
+  (`:439`: `repatch.sh`, `patches`);
+- the report `--check` gives when there is no wrapper, which names stages 4 to 6 in its own words
+  (`:309-314`);
+- the words: the opening line with "about 105 GB free" and "about 100 GB" (`:207`); the free-space caution
+  (`:293`, with `NEED_GB` at `:33`); "(about 235 MB)" (`:298`); "about 100 GB and takes hours" (`:382`);
+  "Do not press it: it does not work from inside Steam", measured for this game only (`:383-384`); "step 6"
+  in three places (`:12`, `:384`, `:437`); the closing line (`:62-75`).
 
 Everything else is about a Mac, a wrapper, Steam, and a game identified by its Steam app ID: the options,
-the traps, the lock, the Steam helpers, stage 2 (Apple's tools), stage 4 (Steam's installer, checked and
-run), and stage 5 (start Steam through its first-start failure, wait for the download by the manifest,
-close Steam). `make-wrapper.sh` (177 lines) names the game in its engine pin (`:18-20`), its default
-target (`:31`) and its first comment line; the rest makes any wrapper from a template and an engine.
+the traps, the lock (taken after stage 3, `:315-318`), the Steam helpers, stage 2's wait for Apple's
+tools, stage 4 (Steam's installer, checked and run), and stage 5 (start Steam through its first-start
+failure, wait for the download by the manifest, close Steam). `make-wrapper.sh` (177 lines) names the game
+in its engine pin (`:18-20`), its default target (`:31`) and its header, which `--help` prints; the rest
+makes any wrapper from a template and an engine.
 
 The root `install.sh` already takes the game as its first word and hands over to
-`<game>/scripts/install.sh` (`:78-85`); `common/make-installer-app.sh` already takes `--game` and names the
-app from `common/games.tsv` (`:46-51`). The 14unch3r window shows a game with no app as "Not set up" and
-opens its guide (`common/launcher-window.swift:165`, `:755`).
+`<game>/scripts/install.sh` (`:78-85`); it and the installer app name `<game>/INSTALL.md` when they fail
+(`install.sh:63`, `common/make-installer-app.sh:95`); `common/make-installer-app.sh` already takes `--game`
+and names the app from `common/games.tsv` (`:46-51`). The 14unch3r window shows a game with no app as "Not
+set up" and opens its guide (`common/launcher-window.swift:165`, `:755`).
 
-The lock code is held identical in three files by `common/test-launch-lock.sh:19-20`; the installer's
-copies of the launcher's Steam helpers are held identical to the Cities: Skylines II launcher by
-`cities-skylines-2/scripts/test-install.sh` (its mutant 19).
+The lock code is held identical in three files by `common/test-launch-lock.sh:19-20`, which finds its
+`LOCK=` line at the start of a line (`:34`); the installer's copies of the launcher's Steam helpers are
+held identical to the Cities: Skylines II launcher by `cities-skylines-2/scripts/test-install.sh` (its
+mutant 19). That test copies one file, `install.sh`, into a scratch repository (`:43`) and puts a stub at
+`cities-skylines-2/scripts/make-wrapper.sh` (`:109`); its output holds the scratch folder's random name
+and process numbers.
 
 ### 1.7 What is not known
 
 1. Whether the game starts on an engine made from Gcenx's pieces, whose DLLs lack CodeWeavers' signature.
    Nothing in Wine reads it; whether the game or Steam does is unmeasured (ML3).
-2. Whether the published Wine 10 archive is the Wine in the wrapper (ML1).
+2. Whether the published Wine 10 archive is the Wine in the wrapper, and whether the archive without
+   D3DMetal is that Wine less D3DMetal (ML1).
 3. Whether a prefix made from nothing runs Steam and the game. The wrapper in use is a clone of one that
    Porting Kit's Steam port made; whatever that port put in its prefix beyond a plain one is unlisted (ML2).
 4. Whether Steam's installer and Steam's first start behave on Wine 10 with D3DMetal 3.0 as they did on
-   Wine 11 with DXMT, where the first start failed and the second worked (the installer plan, 1.4).
-5. Whether `steam://install/3215050` is needed. The header of the launcher calls it "the route
+   Wine 11 with DXMT, where the first start failed and the second worked (the installer plan, 1.4); and
+   whether the first Wine start after the engine swap updates the prefix (ML2).
+5. Whether the helper works stripped, and from a folder whose path holds a space (ML2).
+6. Whether Play inside Steam works for this game. For Cities: Skylines II it does not; here it is
+   unmeasured, and the installer's words do not depend on it (2.2).
+7. Whether `steam://install/3215050` is needed. The header of the launcher calls it "the route
    (unmeasured)" for a Mac with no copy of the game (`launch-relaunched.sh:35`). For Cities: Skylines II
-   the player's own click on Install worked and the URL opened Steam's Install box (the installer plan's
-   NL1); this plan uses the click.
+   the player's own click on Install worked (the installer plan's NL1); this plan uses the click.
 
 ## 2. Design
 
@@ -156,16 +225,17 @@ copies of the launcher's Steam helpers are held identical to the Cities: Skyline
 | File | New or changed | What it is |
 |---|---|---|
 | `common/install-core.sh` | new, from `cities-skylines-2/scripts/install.sh` | the shared installer: everything of 1.6 that is not one game's, as functions a game's installer calls in order |
-| `common/make-wrapper.sh` | moved from `cities-skylines-2/scripts/` | takes the engine as three required options; the template pin stays in it |
+| `common/make-wrapper.sh` | moved from `cities-skylines-2/scripts/` | takes the engine as three required options and the target as a fourth; the template pin stays in it |
 | `common/fetch.sh` | new, from `make-wrapper.sh` | `fetch <url> <bytes> <sha256> <file>` with `L1_DOWNLOADS`, and `sha`, for both callers |
-| `cities-skylines-2/scripts/install.sh` | reduced | the game's settings, then the core's stages, then `setup.sh` |
+| `cities-skylines-2/scripts/install.sh` | reduced | the game's settings and its own functions, then the core's stages, then `setup.sh` |
+| `cities-skylines-2/scripts/test-install.golden` | new | what the installer of `6a66416` prints in each case of its test (MT1) |
 | `surviving-mars-relaunched/scripts/install.sh` | new | the same shape with seven stages |
 | `surviving-mars-relaunched/scripts/setup.sh` | new | `--mac-only`; puts the launcher and the helper where the app can keep them; builds the app and 14unch3r |
-| `surviving-mars-relaunched/tools/fetch-d3dmetal.sh` | new | fetches the pinned archive, takes the six pieces out, checks them, prints their folder |
-| `surviving-mars-relaunched/tools/frame-fix.exe` | new in the repository | the built helper, with a test that rebuilds and compares (MD3) |
+| `surviving-mars-relaunched/tools/fetch-d3dmetal.sh` | new | fetches the pinned archive, takes the six pieces out, checks them |
+| `surviving-mars-relaunched/tools/make-engine.sh` | changed | a `CX_GPTK` that is given is the only place looked in; an interrupted swap is finished; root is refused |
+| `surviving-mars-relaunched/tools/frame-fix.exe`, `frame-fix.build`, the runtime's licence text | new in the repository | the built helper, its build record, and the licence of what is linked into it (MD3) |
 | `surviving-mars-relaunched/INSTALL.md` | new | the guide: the quick way, what is downloaded and from whom, Apple's terms, uninstall |
-| `surviving-mars-relaunched/launch-relaunched.sh`, `make-app.sh`, `README.md` | changed | words that assume a checkout or CrossOver (2.6, 2.7) |
-| `tools/make-engine.sh` | unchanged in what it does | its error line and header name the installer as the usual source |
+| `surviving-mars-relaunched/launch-relaunched.sh`, `make-app.sh`, `README.md` | changed | words that assume a checkout, CrossOver or another game's wrappers (2.7) |
 
 `tools/split-wrapper.sh` stays as it is: it is how the two existing Macs got their wrapper, and it is not
 part of an install from nothing.
@@ -174,7 +244,8 @@ part of an install from nothing.
 
 `common/install-core.sh` is read with `.` by a game's installer after the game's settings are set, and is
 never run by itself. The game's file stays the address the bootstrap hands over to
-(`<game>/scripts/install.sh`), so `install.sh` at the root and the installer app do not change.
+(`<game>/scripts/install.sh`), so `install.sh` at the root and the installer app do not change. `set -u`
+and the header stay in the game's file, which is what `--help` prints.
 
 The settings a game gives:
 
@@ -184,88 +255,160 @@ The settings a game gives:
 | Steam app ID | 949230 | 3215050 |
 | folder under `steamapps/common` | `Cities Skylines II` | `Project Spark` |
 | program | `Cities2.exe` | `Mars.exe` |
-| wrapper, and the variable that overrides it | `~/Applications/CS2dxmt11.app`, `CS2_WRAPPER` | `~/Applications/SurvivingMars.app`, `SM_WRAPPER` |
+| wrapper, and the variable that names another | `~/Applications/CS2dxmt11.app`, `CS2_WRAPPER` | `~/Applications/SurvivingMars.app`, `SM_WRAPPER` |
 | other wrappers looked through | the launcher's list (`find_wrapper`) | none |
 | engine: file, bytes, sha256 | `WS12Wine11.0_DXMT-v0.80.tar.7z`, as pinned today | the second row of 1.3 |
-| number of steps | 6 | 7 |
-| download, in words | about 100 GB, hours | about 10 GB |
-| free space wanted | 110 GB | 20 GB |
-| the Mac check | `scripts/setup.sh --mac-only` | the same contract, its own `setup.sh` |
-| `game_running` | its launcher's, held identical by test | its launcher's (`launch-relaunched.sh:149`), held identical by test |
+| the Wine environment, and the line Steam is started with | as today, its launcher's | its launcher's (`launch-relaunched.sh:77-84`), with Steam's window shown |
+| number of steps, used wherever a step is named | 6 | 7 |
+| the opening line's needs | about 105 GB free, a download of about 100 GB | about 20 GB free, a download of about 10 GB |
+| the free-space caution, and its threshold | as today, 110 GB | the game about 11 GB and Wine and Steam beside it, 20 GB; the sizes are measured at ML2 |
+| the Wine stage's size | about 235 MB | about 237 MB |
+| the download, in words | about 100 GB and takes hours | about 10 GB |
+| what to do at Steam's Play button | as today | "Do not press it: this window finishes the install, and the game starts from its own app." |
+| the Mac check | `scripts/setup.sh --mac-only`, with `--yes` and `--check` passed on | the same contract, its own `setup.sh` |
+| the test that Apple's tools work | python3 runs | `nm` runs |
+| options passed to setup | `--yes`, `--desktop` | `--yes`; `--desktop` is a wrong option for this game (exit 2) |
+| the variable that tells setup the installer runs it | `CS2_VIA_INSTALLER` | `SM_VIA_INSTALLER` |
+| the installer's own files looked for before setup | as today | `scripts/setup.sh`, `launch-relaunched.sh`, `make-app.sh`, `tools/frame-fix.exe`, `tools/make-engine.sh`, `common/make-launcher-app.sh` |
+| `game_running` | its launcher's, held identical by test | its launcher's (`launch-relaunched.sh:149`), held identical by test; the game's file sets the `GAME` it reads from the wrapper's path as the launcher sees it |
 | closing line | "Cities Skylines II, or 14unch3r" | "Surviving Mars Relaunched, or 14unch3r" |
 
 The core's functions, in the order a game calls them: begin (options, the opening lines, the wrapper
-chosen, the running-game refusal, `caffeinate`), the Mac, Apple's tools, the wrapper, Steam, the game. A
-game puts its own stages between them and after them. The step number printed comes from the game's count.
+chosen and checked, the running-game refusal, `caffeinate`), the Mac, Apple's tools, the free-space
+caution, the wrapper, the lock, Steam, the game. A game puts its own stages between them and after them,
+and gives each stage its number. The report `--check` gives for a Mac with no wrapper is made from the
+game's own list of stages, so it names all of them after the wrapper.
 
 Rules for the move:
 
-- **Cities: Skylines II's installer prints and does exactly what it does at `6a66416`.** The move changes
-  where lines live, not one word of output and not one exit code. MT1 holds this.
-- The lock code in the core is the copy `common/test-launch-lock.sh` holds identical to both launchers.
-  The Steam helpers in the core (`_owns`, `webhelper_up`, `steam_family`) stay the copies held identical
+- **Cities: Skylines II's installer prints and does exactly what it does at `6a66416`**, with the one
+  addition of MD10. MT1 holds this on every run of its test, not once.
+- The lock is taken where it is taken today, after the wrapper stage, and is held through every later
+  stage, a game's own included.
+- The lock code in the core is the copy `common/test-launch-lock.sh` holds identical to both launchers;
+  that test's third file becomes the core, and the `LOCK=` line stays at the start of a line. The function
+  bodies keep the indentation they have, so the 25 mutants of the installer's test still apply.
+- The Steam helpers in the core (`_owns`, `webhelper_up`, `steam_family`) stay the copies held identical
   to the Cities: Skylines II launcher; Surviving Mars's launcher spells the same functions differently
   (`launch-relaunched.sh:190-198`) and is not changed for this.
-- `game_running` and the wrapper search are the game's, not the core's.
-- Every line the player reads that names a game or a size comes from a setting. No line of the core holds
-  either game's name; MT2 greps for it.
+- `game_running`, the wrapper search and the Wine environment are the game's, not the core's.
+- Every line the player reads that names a game, a size or a step number comes from a setting. No line of
+  the core that is not a comment holds `Cities`, `Skylines`, `Surviving`, `Mars`, `949230`, `3215050`,
+  `CS2_`, `SM_`, `CS2dxmt11`, or a number followed by `GB` or `MB`; MT2 greps for these.
+- **Another Steam (MD10).** Before the core starts Steam or waits on it, it looks for a Steam for Windows
+  that belongs to another prefix on this Mac. If there is one it stops with exit 3 and says which wrapper,
+  and that one Steam at a time may use the account. This is in the core, so Cities: Skylines II's
+  installer gains it. It cannot see another Mac or the Steam of macOS; the guide says so.
 
-`common/make-wrapper.sh` takes `--engine-url`, `--engine-bytes` and `--engine-sha`, all three or it exits
-2, and `--wrapper`. It has no default target and no default engine. Nothing it prints names a game or an
-engine today, so its output does not change.
+`common/make-wrapper.sh` takes `--engine-url`, `--engine-bytes`, `--engine-sha` and `--wrapper`; without
+all four it exits 2. It reads no game's variable and has no default. Its header, which `--help` prints, is
+rewritten without a game's name; its other lines name only the files it is given. Each game's engine pin
+lives in that game's `scripts/install.sh`.
 
 ### 2.3 `tools/fetch-d3dmetal.sh`
 
 `bash tools/fetch-d3dmetal.sh --into <folder>` leaves `<folder>/lib/external/` and
-`<folder>/lib/wine/x86_64-windows/` holding the six pieces and prints `<folder>/lib`, the value
-`make-engine.sh` takes as `CX_GPTK`. The folder must not exist; on any failure nothing is left.
+`<folder>/lib/wine/x86_64-windows/` holding the six pieces, and nothing else in `<folder>`. `<folder>/lib`
+is the value `make-engine.sh` takes as `CX_GPTK`; the script's last line prints it, and a caller that
+chose the folder does not need to read it.
 
-1. The archive is fetched with `common/fetch.sh` against the size and sha256 of 1.3. A file that is no
-   longer published, or not the pinned one, stops with the words `make-wrapper.sh` uses for its two files.
-2. Its listing is read first (`tar -tf`). Any name that is absolute or holds `..` stops the script.
-3. Only the members under `Game Porting Toolkit.app/Contents/Resources/wine/lib/external/` and the four
-   DLLs are taken out, with `--no-mac-metadata`. Nothing else in the archive touches the disk, and nothing
-   from it is run.
-4. Checks, each stopping the script: the framework's version reads 3.0; `codesign --verify --strict` passes
-   on the framework and its signature satisfies `anchor apple`; `libd3dshared.dylib` and the four DLLs are
-   there, the DLLs beginning `MZ`.
+1. It refuses to run as root. The folder must be an absolute path that does not exist, in a folder that
+   does; the script makes it, and only after that arms the cleanup that removes it on any failure. A
+   folder that exists is refused and left as it was.
+2. The archive is fetched with `common/fetch.sh` against the size and sha256 of 1.3, into a work folder
+   inside `<folder>`. A file that is no longer published, or not the pinned one, stops with the words
+   `make-wrapper.sh` uses for its two files.
+3. Its listing is read first (`tar -tf`). Any name that is absolute, or has `..` as one of its parts,
+   stops the script.
+4. Only the members under `Game Porting Toolkit.app/Contents/Resources/wine/lib/external/` and the four
+   DLLs are taken out, into the work folder, with `--no-mac-metadata --no-same-owner
+   --no-same-permissions`. Nothing else in the archive touches the disk, and nothing from it is run.
+5. What was taken out must be exactly the 15 files and 3 links of 1.4, the links with those three
+   targets. Anything more, anything missing, or a link with another target stops the script.
+6. Checks, each stopping the script: the framework's version reads 3.0; the framework's root passes
+   `codesign --verify --strict -R '=identifier "com.apple.D3DMetal" and anchor apple'`; the library passes
+   the same with `com.apple.libd3dshared`; each of the four DLLs has the sha256 of 1.4, written in the
+   script.
+7. `lib` is moved into `<folder>` and the work folder, with the archive in it, is removed.
 
-The sha256 pin already fixes every byte. The signature check is there because it says something the pin
-cannot: that the framework is Apple's own build, whoever published the archive.
+**What rests on what.** The pin of step 2 already fixes every byte of the archive. The signature shows
+more than the pin can: that the framework and the library are Apple's own builds, whoever published the
+archive. It does not cover the four DLLs, which are unsigned: they rest on their sha256 and on 1.4's
+comparison with CrossOver 26.2's copies. And it does not notice an added file, which is what step 5 is
+for.
 
 ### 2.4 The installer for Surviving Mars
 
 Seven stages, each skipped when done:
 
-1. **This Mac.** Apple Silicon, Rosetta 2 (offered as today), macOS 14.6 or later (`README.md:41-42`).
-2. **Apple's Command Line Tools.** As for Cities: Skylines II. Here they give the app its icon and its
-   progress window (`make-app.sh:24`, `:115-121`), not the game (MD6).
+1. **This Mac.** Apple Silicon and macOS 14 or later are required, since the framework will not load
+   below 14.0; Rosetta 2 is offered as today; a macOS other than the tested one gets the caution Cities:
+   Skylines II's setup gives.
+2. **Apple's Command Line Tools.** Stage 4 needs them (`nm`, `make-engine.sh:63`), and so do the app's
+   icon and progress window (`make-app.sh:24`, `:115-121`).
 3. **Wine.** `common/make-wrapper.sh` with this game's engine, into `SurvivingMars.app`.
-4. **Apple's D3DMetal 3.0.** Skipped when the wrapper's framework reads 3.0, by the launcher's own
-   expression (`launch-relaunched.sh:139-140`). Otherwise `fetch-d3dmetal.sh` into a temporary folder, then
-   `make-engine.sh --install <wrapper>` with `CX_GPTK` set to what it printed, then the folder removed. It
-   says where the files come from and that installing them accepts Apple's licence, with the licence's
-   address. If the framework does not read 3.0 afterwards it stops. A CrossOver on the Mac is not looked
-   for: one source, the pinned one.
-5. **Steam for Windows.** The core's.
+   **Before anything of Apple's is fetched, the installer asks (MD9).** Both this stage's engine and the
+   next stage's archive hold Apple's D3DMetal. It says that Wine for this game comes with Apple's
+   D3DMetal, part of Apple's Game Porting Toolkit; that version 2.1 comes inside Porting Kit's Wine and
+   version 3.0 from Gcenx's release page, neither from Apple directly; where Apple's licence is linked
+   (that release page, `https://github.com/Gcenx/game-porting-toolkit/releases/tag/Game-Porting-Toolkit-3.0-3`);
+   and what it allows in one sentence (1.5). To go on the player types `y`; anything else stops with exit
+   3. `--yes` answers it, with nobody to ask it stops, and `--check` only says it would ask. It is asked
+   once, and not at all when both stages are done.
+4. **Apple's D3DMetal 3.0.**
+   - Skipped when the wrapper's framework reads 3 or later, by the launcher's own expression and pattern
+     (`launch-relaunched.sh:139-142`), held identical by test.
+   - It runs with the lock held. It waits up to 10 s for nothing of Wine to hold the wrapper; if Steam is
+     open in it, it says so and stops with exit 3.
+   - `fetch-d3dmetal.sh --into <temporary>/pieces`, the temporary folder made with `mktemp -d` and removed
+     by the installer's exit trap; then `make-engine.sh --install <wrapper>` with `CX_GPTK` at
+     `<temporary>/pieces/lib`, never empty, and with `--rebuild` when the wrapper already holds
+     `wine.d3dm21-BAK`. Its output is kept in a file and shown, the home folder as `~`, only if it fails.
+   - Afterwards the framework must read 3 or later, and the library and the four DLLs in the wrapper must
+     equal the fetched ones byte for byte. Then the temporary folder goes, the 239 MB archive with it.
+5. **Steam for Windows.** The core's, started with this game's environment.
 6. **The game.** The core's, with this game's words.
 7. **The game's app.** `scripts/setup.sh`.
 
-Stage 4 comes before Steam is installed, so that no Wine process is using the wrapper when its engine is
-swapped (`make-engine.sh` refuses otherwise) and Steam is first started on the engine it will keep.
+**With `SM_WRAPPER` set, the installer stops before stage 7**, as `--no-setup` does, and says why: the app
+starts the default wrapper (`make-app.sh:23`), so an install into another one is a test, and gets no app.
 
-`make-engine.sh --install` keeps the Wine it started from as `wine.d3dm21-BAK` inside the wrapper. It is
-an APFS clone and costs almost no disk; it stays, because `--rebuild` builds from it.
+**Stopped part way through the swap.** `make-engine.sh --install` builds the new Wine as a clone beside
+the old one, then moves the old one aside as `wine.d3dm21-BAK` and the new one in (`:99-100`). Three
+states can be left, and each is handled before the core judges the wrapper:
+
+- stopped while cloning: a folder `wine.new.tmp.<number>` is left. `make-engine.sh` removes any at its
+  start.
+- stopped between the two moves: no `wine/`, a finished `wine.new` and the BAK. The game's installer,
+  before the core looks at the wrapper, moves `wine.new` to `wine`; `make-engine.sh --install` does the
+  same at its start. Without this the core would call the wrapper incomplete and say to move it to the
+  Trash (`cities-skylines-2/scripts/install.sh:222-225`), which is wrong for a wrapper that may hold a
+  game.
+- a BAK, and a `wine/` that does not read 3: stage 4 passes `--rebuild`.
+
+`make-engine.sh` itself changes in three ways: when `CX_GPTK` is set, that folder is the only place looked
+in, and one that does not hold the framework stops it with exit 1; an interrupted swap is finished as
+above; and it refuses to run as root. Its way of finding CrossOver when `CX_GPTK` is not set stays, for
+the existing Macs and for ML3's way back.
 
 ### 2.5 `surviving-mars-relaunched/scripts/setup.sh`
 
-- `--mac-only`: the checks of stage 1, with the exit codes the core reads (0 ready, 1 Rosetta missing).
+- `--mac-only`, with `--yes` and `--check` as the core passes them: the checks of stage 1. It exits 0
+  when the Mac is ready, 1 when only Rosetta is missing, and 3 with its own words on an Intel Mac or a
+  macOS below 14. A caution is printed and, with a terminal and without `--yes`, asked about once, as
+  Cities: Skylines II's setup does.
 - Otherwise: it copies `launch-relaunched.sh` and `tools/frame-fix.exe` into the game's state folder,
   `~/Library/Application Support/1launcher/surviving-mars-relaunched/` (`SM_STATE`, where `runs/` and
   `backup/` already are), keeping the `tools/` level so the launcher finds the helper where it looks
   (`launch-relaunched.sh:74`); builds the app with `make-app.sh` told to run that copy (`SM_SCRIPT`,
-  `make-app.sh:22`); and builds `14unch3r.app` with `common/make-launcher-app.sh`. It never touches
-  `runs/` or `backup/`. It prints the home folder as `~`.
+  `make-app.sh:22`); and builds `14unch3r.app` with `common/make-launcher-app.sh`.
+- **A copy is never written over a file in place.** Each is written beside the old one under another name
+  and then renamed over it, because a launcher goes on reading its own file after the game exits
+  (`launch-relaunched.sh:379-415`). And setup refuses, with exit 3, while the wrapper's lock names a live
+  process or the game runs.
+- It refuses a state folder that is not the user's own, or that others can write to. It never touches
+  `runs/` or `backup/`. A copy that is already there is replaced by the current one. It prints the home
+  folder as `~`. It refuses to run as root.
 - It does this on every Mac, a maintainer's included (MD4): one way of running, which is the one a
   stranger gets. After `git pull`, a maintainer runs setup again, as for Cities: Skylines II.
 - No Desktop shortcut is offered by this setup. The one alias the repository allows on the Desktop is
@@ -275,10 +418,16 @@ No new place outside the repository: the state folder is already in the root `CL
 
 ### 2.6 `tools/frame-fix.exe` in the repository
 
-The helper is built once with `-Wl,--no-insert-timestamp` and committed, with a line added to
-`.gitignore` to let that one file through; `tools/game-input.exe`, a testing tool, stays out. A text file
-beside it, `tools/frame-fix.build`, records the compiler's version line and the file's sha256. The build
-line in the header of `frame-fix.c` gains the flag. MT7 holds the file to its source.
+The helper is built once with `-s -Wl,--no-insert-timestamp` and committed (17,920 bytes), with a line
+added to `.gitignore` to let that one file through; `tools/game-input.exe`, a testing tool, stays out. The
+build line in the header of `frame-fix.c` gains the two flags. `tools/frame-fix.build` records that build
+line, the version lines of the compiler and the linker, what `brew list --versions mingw-w64` says, and
+the sha256 of `frame-fix.c` and of the program. MT7 holds the file to its source.
+
+The program has parts of the mingw-w64 runtime and of the compiler's support library linked into it. The
+runtime's licence text is committed beside it, as `patches/_vendor/` keeps the licences of what it holds,
+and the README names it. The terms of the compiler's support library are read at M4, before the commit;
+if they cannot be met this way, MD3 goes back to James.
 
 The launcher's line for a missing helper (`:377`) loses "is not built (see its header)": the file is now
 part of the install, and its absence is a damaged install.
@@ -287,17 +436,33 @@ part of the install, and its absence is a damaged install.
 
 - `surviving-mars-relaunched/INSTALL.md`: the quick way (the app or the pasted line, as in the Cities:
   Skylines II guide, with that guide's pictures of macOS's messages reused by link); what the installer
-  downloads and from whom, in a table like 1.3; a paragraph on Apple's licence in plain words, with its
-  address: what it allows, that it is non-commercial, and that it speaks of evaluating games; the one
-  Steam at a time rule; uninstall, which names the wrapper, the app, the state folder and 14unch3r.
-- `surviving-mars-relaunched/README.md`: "What it assumes" loses the three lines that need another game's
-  wrappers, CrossOver and `mingw-w64` (`:44`, `:58`, `:60`); Setup leads with the installer;
-  `split-wrapper.sh` is described as the way the first two Macs were set up. `:66-67` gains the helper as
-  the one binary in the repository.
-- `launch-relaunched.sh:143`: the refusal on D3DMetal 2.1 says to open the installer again, and gives the
-  `make-engine.sh` line for a checkout second. Its header's "On another Mac" paragraph (`:31-35`) is
-  replaced by a pointer to the guide.
+  downloads and from whom, in a table like 1.3. On Apple's licence, in plain words and with the address
+  of 2.4: that using the toolkit is allowed for developing, testing or evaluating games on a Mac and that
+  the text does not name playing; that it may be passed on only non-commercially; that it ends on any
+  breach, and that the user answers to Apple for their own use of it; and that this project passes on
+  nothing of Apple's. The one Steam at a time rule, and that the installer can check it only on this Mac.
+  Uninstall: the wrapper; the app; in the state folder the launcher's copy and `tools/`, with a warning
+  that `backup/` holds copies of saves and `runs/` logs; `~/Library/Logs/sm-relaunched-launcher.log`;
+  14unch3r and its preferences file only when no other game here uses them; and any folder given as
+  `L1_DOWNLOADS`.
+- `surviving-mars-relaunched/README.md`: "What it assumes" loses what needs another game's wrappers and
+  Steam app, CrossOver and `mingw-w64` (`:44-60`); Setup leads with the installer; `split-wrapper.sh` is
+  described as the way the first two Macs were set up. `:66-68` says that this project does not pass on
+  Apple's or CodeWeavers' files, and names the helper as the one program in the repository, with its
+  runtime's licence.
+- `launch-relaunched.sh`: the lines that name a file of the checkout or the script's own header say what
+  to do from an install instead, and give the checkout's line second where there is one: `:136`
+  (`split-wrapper.sh`), `:143` (the refusal below 3: open the installer again), `:145`, `:269` and `:397`
+  ("see the header", "the top of launch-relaunched.sh"), `:377`. Its header's "On another Mac" paragraph
+  (`:31-35`) is replaced by a pointer to the guide.
+- `make-app.sh`: `:10-11`, `:68`, `:119` and `:184` name the checkout's own files; each says to open the
+  installer again, or to run setup from a checkout.
 - `common/games.tsv`: the guide address of Surviving Mars becomes its `INSTALL.md`.
+- For the moved script: `cities-skylines-2/scripts/README.md` (its rows for `make-wrapper.sh` and its
+  test), `cities-skylines-2/GOTCHAS.md:3055` and `:3083`, and one line in the installer plan's as-built
+  header saying where the script and its test went.
+- `docs/plans/1launcher-unification.md`: the O3 row gains a dated line that this game's app runs a copy in
+  the state folder (MD4). `docs/plans/local-files-layout.md`: one pointer line.
 - The root `README.md` and `CLAUDE.md`: Surviving Mars has an installer; `common/` gains the three shared
   files; and where `CLAUDE.md` lists what the game's state folder holds (`backup/` and `runs/`), it gains
   the launcher's copy and the helper.
@@ -308,123 +473,221 @@ part of the install, and its absence is a damaged install.
 
 - 14unch3r's "Not set up" tile keeps opening the guide. Having it start the installer is a later slice
   (MD8).
-- `steam://install/<id>` is not used (1.7, item 5).
-- The Cities: Skylines II installer gains nothing but the move.
+- `steam://install/<id>` is not used (1.7, item 7).
+- The Cities: Skylines II installer gains nothing but the move and MD10's check.
+- **No way to sign in again.** When the saved sign-in lapses, the launcher says to open Steam in the
+  wrapper and sign in (`launch-relaunched.sh:249`), and nothing opens that Steam: the installer skips
+  Steam once the game is installed. This is so today for both games and is not changed here.
 - macOS 28 and Macs without Rosetta: no route for this game (cs2 #21), and none is made here.
 - A second source for D3DMetal. If Gcenx's file goes, stage 4 stops with the "no longer published" words
-  until a new pin is committed; MD1 covers asking him.
+  until a new pin is committed. A lost pin is never mended by this project publishing the file itself
+  (1.5, 2C); MD1 covers asking him.
+- Nothing watches the pins. Porting Kit's release can replace a file in place (1.3), which stops stage 3
+  with the "not the file this was tested with" words. A scheduled check is a follow-up, as in the
+  installer plan (its 2.9).
 - Stages 1 and 2 are tested with stubs only, as in the installer plan (its 2.9).
 
 ## 3. Steps
 
-- **M0. The two probes that decide the design, before any code** (ML1, ML2). If the published Wine is not
-  the wrapper's Wine, or a wrapper from nothing does not run the game, the difference is written into this
-  plan as a step and the plan is checked again. ML3 runs beside them.
-- **M1. `common/fetch.sh` and `common/make-wrapper.sh`.** The move and the three options. MT5.
-- **M2. `common/install-core.sh`, and Cities: Skylines II's installer reduced to its settings.** MT1, MT2.
+- **M0. The probes that decide the design, before any code** (ML1, ML2, ML3, in that order, not at once).
+  If the published Wine is not the wrapper's Wine, or a wrapper from nothing does not run the game, the
+  difference is written into this plan as a step and the plan is checked again. Beside them, if James
+  wants it: Apple's own download of the toolkit, which needs his Apple Account, read for its licence and
+  for where the five pieces outside the framework sit (1.5).
+- **M1. `common/fetch.sh`, `common/make-wrapper.sh`, `common/install-core.sh`, and Cities: Skylines II's
+  installer reduced to its settings, in one commit**, since the installer calls the wrapper script and
+  holds the engine pin. First of all, before a line is moved: `test-install.golden` is recorded from the
+  installer of `6a66416`. MT1, MT2, MT5.
+- **M2. `tools/make-engine.sh`: the three changes of 2.4.** MT8.
 - **M3. `tools/fetch-d3dmetal.sh`.** MT4.
-- **M4. `tools/frame-fix.exe` committed, with `frame-fix.build`.** MT7.
-- **M5. `surviving-mars-relaunched/scripts/setup.sh`, and `make-app.sh` and the launcher's words.** MT6, MT8.
+- **M4. `tools/frame-fix.exe` committed, with `frame-fix.build` and the licence text.** MT7.
+- **M5. `surviving-mars-relaunched/scripts/setup.sh`, and `make-app.sh`'s and the launcher's words.** MT6, MT8.
 - **M6. `surviving-mars-relaunched/scripts/install.sh`.** MT3.
 - **M7. The documents of 2.7**, and the installer app's test for this game (MT9).
 - **M8. The live steps ML4 to ML6, then the as-built header.**
 
-The work is done on a branch cut from `simple-install`. Whether that branch is merged first is MD5.
+The work is done on a branch cut from `simple-install` after that branch is rebased on `main`, which
+holds this plan.
 
 ## 4. Test plan
 
 Every test runs with `HOME` at a scratch folder and every outside program a recording stub, as
-`cities-skylines-2/scripts/test-install.sh` does. Each mutant is applied to the real source, seen red, and
-removed; a mutant whose line is gone refuses with exit 2.
+`cities-skylines-2/scripts/test-install.sh` does, except where a row says the real program is run. Each
+mutant is applied to the real source, seen red, and removed; a mutant whose line is gone refuses with
+exit 2.
 
 | # | Test | What it shows | Mutants, each must turn it red |
 |---|---|---|---|
-| MT1 | A one-time gate at M2, run and recorded in the as-built header: the installer of `6a66416` and the reduced one, each run against the same stub world for every scenario of `test-install.sh` | the output and the exit code are identical, scenario by scenario | one word changed in a core message; one exit code changed; a stage's skip test inverted |
-| MT2 | `cities-skylines-2/scripts/test-install.sh`, its 96 cases, with only the paths of moved lines changed | the installer still does what NT3 showed | its 25 mutants, each applied where its line now lives; new: the core holds a game's name; a setting read before it is set |
-| MT3 | `surviving-mars-relaunched/scripts/test-install.sh` | seven stages, each skipped when done; stage 4 skipped at 3.0, run at 2.1 and with no framework; stage 4 before Steam's installer; a wrapper not reading 3.0 after the swap stops it; the game found by `Project Spark/Mars.exe` and manifest `3215050` at `StateFlags` 4; `--check` changes nothing; no line says "Cities"; the lock; the running-game refusal by this game's test | stage 4 skipped at 2.1; stage 4 after Steam; the 3.0 check after the swap removed; the manifest of the other game accepted; `--check` fetching; the lock not taken; setup run with the game absent; CrossOver looked for |
-| MT4 | `surviving-mars-relaunched/tools/test-fetch-d3dmetal.sh`, with small archives the test makes | the six pieces land and the folder is printed; wrong size, wrong sha256, a piece missing, a framework reading 2.1, a failed signature check, and a member named with `..` or from `/` each stop it with nothing left; a planted extra member never reaches the disk; a matching copy in `L1_DOWNLOADS` is used and a non-matching one is not; curl's 22 gives the "no longer published" words; nothing from the archive is run | the sha256 test removed; the version test removed; the signature test removed; the `..` test removed; the whole archive unpacked; the folder left behind on failure |
-| MT5 | `common/test-make-wrapper.sh`, the 59 cases moved | as NT1; and: no engine options exits 2, two of three exits 2, the Wine 10 archive's layout is accepted | its 10 mutants; new: a default engine put back |
-| MT6 | `surviving-mars-relaunched/scripts/test-setup.sh` | the launcher and the helper are in the scratch state folder; the app's program names that copy and not the checkout; `runs/` and `backup/` are untouched, files in them included; `--mac-only` gives 0, and 1 without Rosetta; from a temporary copy the app still names the state folder; the 14unch3r builder is called | the app pointed at the checkout; the helper not copied; a file in `runs/` removed; `--mac-only` going on to copy |
-| MT7 | `surviving-mars-relaunched/tools/test-frame-fix-build.sh` | the committed file has the recorded sha256 and no `/Users/` string; where the recorded compiler is installed, a rebuild is byte-identical; elsewhere it says the rebuild was skipped and why | one byte of the file changed; the flag dropped from the build line |
-| MT8 | The launcher's existing tests, with two cases added | the refusal on 2.1 names the installer and holds no checkout path; a missing helper is reported without "not built" | either line put back |
-| MT9 | `common/test-launch-lock.sh`, `common/test-bootstrap.sh`, `common/test-make-installer-app.sh` with a case for this game, `common/test-launcher-parity.sh`, the eight `tools/test-*.sh`, `tools/test-make-app.sh` | the lock code is identical in the core and both launchers; the bootstrap hands over to either game; the app is "Install Surviving Mars Relaunched"; nothing else moved | the lock test's own mutant, with the core as its third file |
+| MT1 | In `test-install.sh`, on every run: each case's name, result and whole output, with the scratch folder's name and process numbers replaced, compared with `test-install.golden`, which was recorded from the installer of `6a66416` | the installer's words and results are those of `6a66416`, case by case; a changed golden file is a change of that game's words, seen in review | "is open." made "is opened." in the core (the test's own greps pass it; measured); one exit code changed; a stage's skip test inverted |
+| MT2 | `cities-skylines-2/scripts/test-install.sh`, its 96 cases: the core copied into the scratch repository beside the game's file, the wrapper stub moved to `common/`, the mutant helpers applied to both files | the installer still does what NT3 showed; the engine pin reaches the wrapper script as its three options; new cases: another prefix's Steam stops it with exit 3 (MD10), and none does not | its 25 mutants, each applied where its line now lives; new: one of the core's forbidden words put into it; a setting read before it is set; MD10's check removed |
+| MT3 | `surviving-mars-relaunched/scripts/test-install.sh`, with its own fixture maker (a wrapper whose framework reads 2.1, 3.0 or is absent) and stubs for the fetch and engine scripts that write to the one record of calls | seven stages, each skipped when done; the question of MD9: declined, or with nobody to ask, nothing is fetched and it exits 3, `--yes` answers it, `--check` only says, and it is not asked when stages 3 and 4 are done; stage 2 before stage 4 and stage 4 before Steam's installer, by the order of the record; stage 4 skipped at 3.0, run at 2.1 and with no framework, with `--rebuild` when a BAK exists, with the lock held, and with the temporary folder gone afterwards; a wrapper whose pieces differ from the fetched ones after the swap stops it; a half-finished swap is finished and not called incomplete; Steam open in the wrapper stops stage 4 with exit 3; the game found by `Project Spark/Mars.exe` and manifest `3215050` at `StateFlags` 4; with `SM_WRAPPER` set it stops before stage 7; a relative `SM_WRAPPER` exits 2 by that name; `--desktop` exits 2; the installer's own files gone exits 4; `--check` with no wrapper names stages 4 to 7 and changes nothing; no line holds a word of the other game; this game's `game_running` and engine pin | stage 4 skipped at 2.1; stage 4 after Steam; the comparison after the swap removed; the question removed; the question asked again when done; the lock taken after stage 4; the half-finished swap left; the manifest of the other game accepted; `--check` fetching; setup run with the game absent; setup run with `SM_WRAPPER` set |
+| MT4 | `surviving-mars-relaunched/tools/test-fetch-d3dmetal.sh`, with small archives the test makes (Python's `tarfile` for a name with `..`, which macOS's `tar` will not write) | the six pieces land and the last line is the folder; each of these stops it with nothing left: a wrong sha256 at the right size, a wrong size, a piece missing, an extra file among the pieces, a link among the pieces with another target, a framework reading 2.1, a DLL with another sha256, and a name that is absolute or has a `..` part placed outside the members taken; a `..` link elsewhere in the archive is accepted, as the real one has 29; a folder that exists is refused and keeps its files; a matching copy in `L1_DOWNLOADS` is used and a non-matching one is not; curl's 22 gives the "no longer published" words; nothing from the archive is run. **The signature, with the real `codesign`:** a look-alike framework the test builds and signs itself, with Apple's identifier and version 3.0, must be refused; the stub records that the script's two `codesign` lines carry `--verify --strict` and the two requirements; and where a real framework is on the Mac (the probe's, or a wrapper's) the script's own lines must pass on it, else the test prints SKIP for that case | the sha256 test removed; the version test removed; `-R` dropped from a `codesign` line; the check pointed at `Versions/A`; the fixed list removed; a DLL's sha256 test removed; the `..` test removed; the whole archive unpacked; the cleanup armed before the folder is made |
+| MT5 | `common/test-make-wrapper.sh`, the 59 cases moved and changed as the builder lens changed them: the options always given, the engine pin set by the case, its `fetch.sh` copied beside it | as NT1; and: no engine options exits 2, each two of three exits 2, no `--wrapper` exits 2, `CS2_WRAPPER` is not read, a wrong option among right ones exits 2. Whether the Wine 10 archive unpacks with the same top folder is ML1's to record, and a fixture follows what it finds | its 10 mutants (the tenth now on the template's sha256); new: a default engine put back |
+| MT6 | `surviving-mars-relaunched/scripts/test-setup.sh` | the launcher and the helper are in the scratch state folder; the app's program names that copy and not the checkout; an older copy there is replaced; `runs/` and `backup/` are untouched, files in them included; a held lock, or the game running, refuses with exit 3 and copies nothing; a state folder others can write to is refused; `--mac-only` gives 0, 1 without Rosetta, 3 on Intel and below macOS 14, takes `--yes` and `--check`, and copies nothing; from a temporary copy the app still names the state folder; the 14unch3r builder is called | the app pointed at the checkout; the helper not copied; copied only when absent; written in place; a file in `runs/` removed; the lock test removed; `--mac-only` going on to copy |
+| MT7 | `surviving-mars-relaunched/tools/test-frame-fix-build.sh` | everywhere: `frame-fix.c` and the program have the sha256 values in `frame-fix.build`, and the program holds no `/Users/`, `/private/tmp` or `/opt/homebrew` string; where `brew list --versions mingw-w64` equals the record, the header's own build line gives a byte-identical file; elsewhere it prints SKIP for the rebuild, with the reason, and does not call it a pass | one byte of the program changed; one byte of `frame-fix.c` changed; `-s` dropped from the build line (red only where the rebuild runs) |
+| MT8 | `tools/test-make-engine-install.sh` and `tools/test-engine-source.sh`, with cases added; and a source gate on the launcher and `make-app.sh` | `CX_GPTK` set to a folder without the framework stops with exit 1 even with a CrossOver planted in the scratch home; a half-finished swap is finished; stale clone folders are removed; root is refused. The source gate, which is a grep and is named as one: the lines of 2.7 no longer name a file of the checkout or the header | the fall-through to CrossOver put back; the finishing move removed; one old line put back |
+| MT9 | `common/test-launch-lock.sh` with the core as its third file, `common/test-bootstrap.sh` with a case for this game, `common/test-make-installer-app.sh` with a case for this game, `common/test-launcher-parity.sh`, and the eight `tools/test-*.sh` | the lock code is identical in the core and both launchers; the bootstrap hands over to either game; the app is "Install Surviving Mars Relaunched"; nothing else moved | the lock test's own mutant |
 | MT10 | The gates: `common/check-links.py`, `common/check-identifiers.sh` at its residual of 9, `cities-skylines-2/scripts/check-experiments.py`, `bash -n` on every script | no dead link, no identifier, the ledger whole | none: they are gates |
+
+The uninstall the guide describes is prose and has no test; ML6 follows it by hand at its end.
 
 ## 5. Live steps, each on James's word
 
+For every step that starts Steam or the game: no Steam is using the account anywhere, on either Mac, the
+Steam of macOS included; and the game's last exit upload was ok.
+
 - **ML1. The published Wine.** The second row of 1.3 is downloaded (184 MB), checked against its digest,
   unpacked beside the probe's folder, and compared with `SurvivingMars.app`'s `wine.d3dm21-BAK` by
-  `diff -rq`. Recorded: identical, or every file that differs.
-- **ML2. A wrapper from nothing, by hand, on the Studio.** With no game, Steam or launcher running, and
-  the last exit upload of the game ok. A copy of `make-wrapper.sh` with the three pin lines changed makes
-  `~/Applications/SMfresh.app`; `make-engine.sh --install` with the probe's pieces; Steam's installer;
-  Steam started, with what its first start does recorded. James signs in. The game's folder and then its
-  manifest are cloned from `SurvivingMars.app` with `cp -Rc` (no download, almost no disk).
-  `SM_WRAPPER=~/Applications/SMfresh.app bash launch-relaunched.sh` must reach the menu; James loads the
-  save with a landscaping project and looks at the map. A visible game start: he is told before it.
-  Recorded besides: what the old prefix holds that the new one does not (the registry's override and
-  uninstall keys, `system32` files that are not Wine's), kept with the run; the cloud upload at exit; that
-  the real wrapper's next launch pulls with no conflict. Then Steam is signed out there and `SMfresh.app`
-  goes to the Trash.
-- **ML3. The real wrapper on the published pieces.** `make-engine.sh --install ~/Applications/SurvivingMars.app
-  --rebuild` with `CX_GPTK` at the probe's pieces; James plays a session with landscaping. The way back is
-  the same line without `CX_GPTK`, which takes CrossOver's copies again.
-- **ML4. The installer, for real, on the Studio**, after M6: from the branch's worktree into a scratch
-  wrapper named by `SM_WRAPPER`, through every stage, the game cloned in while it polls, as NL1 did; then
-  the launcher to the menu. And once more for Cities: Skylines II after the move: the installer into a
-  scratch wrapper, the game cloned in, `boot-verify.sh` to the main menu.
+  `diff -rq`. Recorded: the archive's top folder, and identical or every file that differs. Then the
+  archive without D3DMetal (1.3; 166 MB), compared the same way: if it is that Wine less D3DMetal, it can
+  be the pin, and stage 3 then fetches nothing of Apple's.
+- **ML2. A wrapper from nothing, by hand, on the Studio.**
+  1. Before: the real wrapper's `Saved Games/Surviving Mars Relaunched/<its account folder>/` and
+     `userdata/<its account folder>/3215050/` are copied into the state folder's `backup/`.
+  2. A copy of `make-wrapper.sh` with the three pin lines changed, kept with the run, makes
+     `~/Applications/SMfresh.app`. `make-engine.sh --install` with the probe's pieces; what the first Wine
+     start after it does is recorded. Steam's installer. The helper, built stripped, is put beside a copy
+     of the launcher in a scratch folder whose path holds a space.
+  3. Steam is started with the launcher's own environment (`launch-relaunched.sh:77-84`); what its first
+     start does is recorded. James signs in.
+  4. The game's folder and then its manifest are cloned from `SurvivingMars.app` with `cp -Rc` (no
+     download, almost no disk).
+  5. **Steam is closed with `-shutdown`, and the step waits until nothing holds the prefix.** Without
+     this the launcher would use the Steam that signed in before the game was there, and no saves would
+     be pulled (1.2).
+  6. `SM_WRAPPER=~/Applications/SMfresh.app bash <the scratch copy of the launcher>`. A visible game
+     start: James is told before it. **The launcher must print "Steam Cloud: saves up to date."** With
+     any other cloud line James quits at the menu and loads nothing.
+  7. At the menu James loads the save with a landscaping project and looks at the map; then quits.
+     Recorded: the menu reached; the map; the helper's log showing it watching; the cloud upload at exit;
+     the sizes of the wrapper and of Steam in it.
+  8. Recorded besides: what the old prefix holds that the new one does not (the registry's override and
+     uninstall keys, `system32` files that are not Wine's), kept with the run.
+  9. After: the real wrapper's next launch prints the same cloud line, with no conflict. If there is a
+     conflict, the way back is the launcher's own recipe (`launch-relaunched.sh:49-56`) and the copies of
+     step 1. Then Steam is signed out in `SMfresh.app` and it goes to the Trash; that the real wrappers'
+     saved sign-in still works is seen at their next start.
+- **ML3. The real wrapper on the published pieces.** With nothing running. First the wrapper's present
+  `wine/` is cloned to `~/Library/Developer/1launcher/surviving-mars-relaunched/engine/wine-d3dm30-crossover`,
+  because the rebuild removes it (`make-engine.sh:99`). Then
+  `make-engine.sh --install ~/Applications/SurvivingMars.app --rebuild` with `CX_GPTK` at the probe's
+  pieces. Recorded: its `D3DMetal    :` line, and `d3d12.dll` in the wrapper at 114,688 bytes. James plays
+  a session with landscaping. The way back is that clone moved into place, or the same line without
+  `CX_GPTK` while CrossOver 26 is still installed.
+- **ML4. The installer, for real, on the Studio**, after M6. For this game: from the branch's worktree
+  into a scratch wrapper named by `SM_WRAPPER` (so it stops before setup), through every stage, the game
+  cloned in while it polls, as NL1 did; recorded with ML3's two lines. Then the launcher with that
+  wrapper to the menu, under ML2's steps 1, 6 and 9. Then setup on its own with `SM_APP` and `SM_STATE` at
+  scratch folders, and the scratch app started once. For Cities: Skylines II after the move: the installer
+  with `--no-setup` into a scratch wrapper, the game cloned in, `boot-verify.sh` to the main menu.
+- **ML4b. The Studio moved to the copy in the state folder (MD4).** Setup for real. The app then runs the
+  state folder's launcher, and the game is started once from it. The way back: `make-app.sh` run from a
+  checkout of `main`, and the two copies removed from the state folder.
 - **ML5. The MacBook.** The installer on a Mac whose wrapper was made the old way: every stage reports done
   except setup, and the app runs the copy in the state folder. Then the game.
 - **ML6. A Mac account with nothing in it**, with NL4 of the installer plan: the published app or pasted
-  line for this game, to Steam's sign-in window; whether the game is downloaded there is James's call.
+  line for this game, to Steam's sign-in window; whether the game is downloaded there is James's call. At
+  its end the guide's uninstall is followed, and what is left is listed.
 - **ML7. After the first week:** whether the three pinned files are still published, and anything a player
   reported.
 
 ## 6. Exit criteria
 
 - M0's three probes are recorded, and the design is unchanged by them or the change was checked.
-- M1 to M7 are committed; MT1 was run and its result is in the as-built header; MT2 to MT10 pass; every
-  listed mutant was applied and seen red, with the count in the header.
-- ML4 passed for both games; ML5 passed.
-- A Mac with neither CrossOver nor a wrapper of another game installs and starts Surviving Mars: ML6, or
-  ML4 on an account with neither if ML6 waits for the release.
-- `README.md` no longer lists CrossOver, another game's wrappers or `mingw-w64` under "What it assumes".
+- M1 to M7 are committed; MT1 to MT10 pass; every listed mutant was applied and seen red, with the count
+  in the as-built header.
+- ML4 passed for both games, ML4b passed, and ML5 passed.
+- **A wrapper made by the installer from the three downloads starts the game.** That is ML4 for this
+  game, and its record holds the two things that show where the engine came from: `make-engine.sh`'s
+  `D3DMetal    :` line naming the fetched folder, and `d3d12.dll` in the wrapper at 114,688 bytes, the size
+  of the published file and not of CrossOver's.
+- `README.md`'s "What it assumes" no longer lists CrossOver, another game's wrappers or Steam app, or
+  `mingw-w64`.
 - The as-built header is written, with the deviations.
 
 ## 7. Rollback
 
-- Nothing here changes a file inside a game's prefix or a save. The engine swap keeps the Wine it replaced
-  inside the wrapper, and ML3 names its way back.
-- The move of M1 and M2 is one revert: the installer of `6a66416` is whole in the history, and MT1 exists
-  to show the two behave alike before anything depends on the new one.
-- An install made by the new installer is removed by the guide's uninstall: the wrapper, the app, the
-  state folder, 14unch3r.
+- **Saves.** No step changes a file in a prefix by hand. But ML2 and ML4 start the game from a second
+  prefix on James's account, which uploads to Steam Cloud what the real wrapper then pulls. ML2's steps 1,
+  5, 6 and 9 are what keep that safe, and they name the way back.
+- **The engine.** The swap keeps the Wine it replaced inside the wrapper. ML3 replaces a working engine,
+  so it clones that first and names two ways back.
+- **MD4 on the two existing Macs.** ML4b names the way back.
+- **The move of M1** is one revert while nothing later is built on it: the installer of `6a66416` is
+  whole in the history, and MT1 shows on every run that the two behave alike.
+- An install made by the new installer is removed by the guide's uninstall.
 - Once `release` carries this, a pin that stops being published is fixed by a commit and a move of
   `release`; until then stage 3 or 4 stops with words that say so.
 
 ## 8. Decisions, each James's
 
-**Decided 2026-11-11: all eight as recommended.** Asked whether he accepted them, with MD5 named as the
-one that costs time, James answered: "That's fine, no one is waiting for any of this. We're just doing it
-for the sake of doing it." So nothing here is traded against a date: where a step can be done properly or
-quickly, it is done properly. The sections above already describe the recommended choices.
+**Decided 2026-11-11: MD1 to MD8, all as recommended.** Asked whether he accepted them, with MD5 named as
+the one that costs time, James answered: "That's fine, no one is waiting for any of this. We're just
+doing it for the sake of doing it." So nothing here is traded against a date: where a step can be done
+properly or quickly, it is done properly. **MD9 and MD10 came out of the check and are not decided:** the
+sections above describe them as recommended, and either can be taken out.
 
-| # | Decision | Decided as recommended |
-|---|---|---|
-| MD1 | Where D3DMetal 3.0 comes from | Gcenx's release page, pinned by size and sha256, fetched by the installer and never re-hosted, as for Porting Kit's two files; the guide and stage 4 state Apple's terms. A short note to Gcenx, drafted for James to send or not, asking whether old releases stay published. The other sources are Apple's own download, which needs a signed-in Apple Account and cannot be scripted, and CrossOver |
-| MD2 | What the guide says about Apple's licence | What 1.5 says, in plain words, with the licence's address: allowed non-commercially, written for evaluating games, Apple-branded hardware only. No claim that it permits more |
-| MD3 | The helper in the repository | Commit `tools/frame-fix.exe`, 150 KB, built without a link stamp, with MT7. The other ways are a compiler on the player's Mac, or going without the helper |
-| MD4 | The app runs a copy in the state folder on every Mac | Yes. It replaces the unification plan's O3 (c) for this game: after `git pull`, run setup |
-| MD5 | Order against the installer plan | NL2 goes ahead as planned. NL3, the first public release, waits for ML4, so that what is first published installs both games and the shared files have their final addresses before anyone depends on them. The other order is to publish Cities: Skylines II now and move `release` forward later |
-| MD6 | Apple's Command Line Tools for this game | Asked for, as for Cities: Skylines II: one behaviour, and the app gets its icon and progress window. The other way is to skip the stage and accept a generic icon |
-| MD7 | One shared installer, or a second script held alike by a test | One (2.2). The second is how the two launchers share code today, and costs nothing in Cities: Skylines II's installer, but leaves two 400-line files |
-| MD8 | 14unch3r's "Not set up" tile starts the installer | A later slice, with its own plan: it changes the window app and its tests |
+| # | Decision | Recommendation | Decided |
+|---|---|---|---|
+| MD1 | Where D3DMetal 3.0 comes from | Gcenx's release page, pinned by size and sha256, fetched by the installer and never re-hosted, as for Porting Kit's two files; the guide and the installer state Apple's terms. A short note to Gcenx, drafted for James to send or not, asking whether old releases stay published. The other sources are Apple's own download, which needs a signed-in Apple Account and cannot be scripted, and CrossOver | as recommended |
+| MD2 | What the guide says about Apple's licence | What 1.5 says, in plain words, with the address it is linked from. No claim that it permits more | as recommended |
+| MD3 | The helper in the repository | Commit `tools/frame-fix.exe`, built stripped and without a link stamp (18 KB), with its build record, its runtime's licence text and MT7. The other ways are a compiler on the player's Mac, or going without the helper | as recommended |
+| MD4 | The app runs a copy in the state folder on every Mac | Yes. It replaces the unification plan's O3 (c) for this game: after `git pull`, run setup | as recommended |
+| MD5 | Order against the installer plan | NL2 goes ahead as planned. NL3, the first public release, waits for ML4, so that what is first published installs both games and the shared files have their final addresses before anyone depends on them | as recommended |
+| MD6 | Apple's Command Line Tools for this game | Asked for. The engine swap needs them, so there is no other way for this game | as recommended |
+| MD7 | One shared installer, or a second script held alike by a test | One (2.2) | as recommended |
+| MD8 | 14unch3r's "Not set up" tile starts the installer | A later slice, with its own plan: it changes the window app and its tests | as recommended |
+| MD9 | A question before Apple's software is fetched (2.4, stage 3) | Yes, once, answered no by default, as the installer already asks before Rosetta. The licence says not to install it if one does not agree; a line of text that scrolls past is less than that. The other way is the line of text | open |
+| MD10 | The installer stops when another wrapper's Steam is open on this Mac (2.2) | Yes, in the core, so for both games: two Steams on one account make the first skip its cloud upload. It is the one thing Cities: Skylines II's installer gains here. The other way is a sentence in the guide | open |
+
+## Review corrections (triple-check 2026-11-11)
+
+Pass 1: four lenses. A: architecture, sequencing, rollback and live-step safety. B: security, supply chain
+and outside facts. C: correctness and test plan. D: a builder, who built M1, M3 and part of M6 in a
+scratch tree and ran the tests. Each said build-ready-with-fixes. Three blockers, each re-read in the code
+or re-measured by the planner; all folded above.
+
+| # | Correction | Found by | Folded into |
+|---|---|---|---|
+| R1 | **Blocker.** ML2 signed in before the game was in the wrapper, so the launcher would have used that Steam, pulled no saves, and started the game on an empty save folder that could then conflict with the cloud | A | 1.2, ML2 (steps 1, 5, 6, 9), ML4, section 7 |
+| R2 | **Blocker.** MT4 stubbed `codesign`, so the signature check was never run by a test; and the check alone passes a framework with a file added (measured) | B | 1.4, 2.3 (steps 5, 6, "What rests on what"), MT4 |
+| R3 | **Blocker.** MT1 could not be run as worded (the test copies one file; its output holds random names), and as a one-time gate it said nothing of the core that ships after M6 edits it | C, D | 1.6, 2.1, 2.2, M1, MT1 |
+| R4 | The Wine environment and Steam's start line are each launcher's own and differ; the core's were Cities: Skylines II's | A, C, D | 1.2, 1.6, 2.2 (table, rules), ML2 step 3 |
+| R5 | The core's list missed the places where the flow crosses stages: the `--check` report, the lock, step numbers in words, the own-files list, two variable names, the options passed to setup | A, C, D | 1.6, 2.2 (table, functions, rules), MT3 |
+| R6 | Setup could write over a launcher that is still running | A, B, C | 2.5, MT6 |
+| R7 | ML4 would have rebuilt the real app, the real state folder and 14unch3r from an unmerged branch, and redeployed Cities: Skylines II's files | A, C | 2.4 (`SM_WRAPPER`), ML4, ML4b |
+| R8 | "A CrossOver on the Mac is not looked for" was false of `make-engine.sh`, which falls through to it; a broken hand-over would have passed on the owner's Mac | A, B, C, D | 1.1, 2.1, 2.4, MT8, ML3, ML4, exit criteria |
+| R9 | The Command Line Tools are needed by the engine swap (`nm`), not only by the app's looks | B, C, D | 1.1, 2.2, 2.4 (stage 2), MD6, MT3 |
+| R10 | The licence summary was loose: non-commercial limits passing on, purpose limits use; it left out the end on breach, the indemnity, the notices and "host"; the address is Gcenx's | B | 1.5, 2.7, 2.8, MD1, MD2 |
+| R11 | Consent: the installer stated where Rosetta's stage asks, and one stage late, since the Wine archive already holds D3DMetal 2.1 | B | 2.4 (stage 3), MT3, MD9 (open) |
+| R12 | The signature covers the framework and the library only; the four DLLs rest on the pin; `tar -tf` shows no link targets | B | 1.4 (table), 2.3 |
+| R13 | The helper as built held the compiler package's build paths and would rebuild alike on one package only; the runtime linked into it has its own licence | B | 1.4, 2.6, MD3, MT7 |
+| R14 | Stage 4 stopped part way leaves three states, one of which the core would have called "move it to the Trash" | A, B, C | 2.4, MT3, MT8 |
+| R15 | A second installer makes two Steams on one account likely; nothing stopped it | C | 2.2, 2.7, MT2, MD10 (open) |
+| R16 | The hand-over by "what it printed" would have hidden the download's progress | C, D | 2.3, 2.4 |
+| R17 | `--mac-only` takes `--yes` and `--check`, and the plan did not say what refuses and what cautions; 14.6 was the old donor wrapper's need, the framework's is 14.0 | B, C | 2.4 (stage 1), 2.5, MT6 |
+| R18 | Lines of the launcher and `make-app.sh` that assume a checkout were missed | A, B, C | 2.7, MT8 |
+| R19 | Section 7 said no save was touched, had no way back for MD4, and ML3 had no clone of the engine it replaces | A | ML3, ML4b, section 7 |
+| R20 | Exit criterion 4 could not be checked: ML6 stops at the sign-in window | A | section 6 |
+| R21 | M1 could not be committed alone; MT5 was not a plain move; its "Wine 10 layout" case assumed what ML1 has yet to measure | A, C, D | M1, MT5, ML1 |
+| R22 | The uninstall named the whole state folder, which holds save backups; it left out the log, the preferences file and downloads kept by `L1_DOWNLOADS` | B, C | 2.7, ML6 |
+| R23 | MT8's helper case had no harness: it is a grep, and is now named as one | C | MT8 |
+| R24 | Documents that name the moved script; the unification O3 row; README lines `:47-57` | A, C, D | 1.1, 2.7 |
+| R25 | Smaller: the launcher takes 3 or later, not only 3.0; `:79-84` was `:77-84`; the BAK is the moved original; `make-wrapper.sh --help` names an engine; Sikarugir's files named GPTK 1.1; the Steam row's source; the Wine archive without D3DMetal; the rolling release; no way to sign in again; the branch cut after a rebase | A, B, C | 1.1, 1.2, 1.3, 2.2, 2.4, 2.8, M0, section 3 |
+
+Not taken: nothing was rejected. Left for the build to settle, and named above: the terms of the
+compiler's support library (2.6), and Apple's own download (M0).
+
+The builder lens broke one of its rules once: a test run without its stub `curl` fetched the public
+archive of 1.3 a second time, then deleted it. Nothing else left its scratch tree.
 
 ## Review log
-
-Not checked yet.
 
 Key paths: `install.sh`, `common/` (`install-core.sh`, `make-wrapper.sh`, `fetch.sh`,
 `make-installer-app.sh`, `games.tsv`, `test-launch-lock.sh`), `cities-skylines-2/scripts/` (`install.sh`,
 `setup.sh`, `make-wrapper.sh`, `test-install.sh`, `test-make-wrapper.sh`), `surviving-mars-relaunched/`
 (`launch-relaunched.sh`, `make-app.sh`, `README.md`, `tools/make-engine.sh`, `tools/frame-fix.c`).
+
+| Date | Pass | Lenses | Method | Model | Verified against | Verdict |
+|---|---|---|---|---|---|---|
+| 2026-11-11 | 1 | architecture, sequencing, rollback and live steps; security, supply chain and outside facts; correctness and test plan; builder simulation | four agents; each blocker re-read in the code or re-measured by the planner; the builder's test results re-run by the planner; seven measurements added to the probe's records | Fable 5.2 for three lenses and the fold, Opus 5.5 for the builder | `04936e7` on `main`, `6a66416` on `simple-install` | build-ready-with-fixes |
