@@ -1,7 +1,7 @@
 # A one-step install for Cities: Skylines II
 
 > **Status:** Triple-checked 2026-11-10 — build-ready-with-fixes, corrections folded (pass 1: four lenses;
-> the fold's own check is the Review log's next row). Written 2026-11-10.
+> pass 1b: a fitted check of that fold, one blocker, folded too). Written 2026-11-10.
 > Tracking: issue #22. File and line references are as of `a749425`; none of the cited files changed up to
 > `580cf4e`. A path is relative to the repository root. Every number marked "measured" was measured on the
 > Studio (M5 Max, macOS 27.2) on 2026-11-10; the probe's scripts, logs, captures and a `NOTES.md` are in
@@ -180,26 +180,34 @@ Wineskin Winery itself makes (`Wineskin_WineryAppDelegate.m:931-996` in
 | The guide, three READMEs, the root `CLAUDE.md`, `cities-skylines-2/GOTCHAS.md`, four pictures | 2.7 |
 
 Someone with a clone can run `bash cities-skylines-2/scripts/install.sh` and never see the other two. Setup
-keeps working alone, as today, for anyone who made a wrapper by hand. All three new scripts refuse to run
-as root (exit 1): `sudo` keeps `HOME`, and root-owned files in a home folder break every later run. Every
-path any of them prints has the home folder written as `~`.
+keeps working alone, as today, for anyone who made a wrapper by hand. The three scripts that run on a
+user's Mac (`make-wrapper.sh` and both `install.sh`) refuse to run as root (exit 1): `sudo` keeps `HOME`,
+and root-owned files in a home folder break every later run. Every path they print has the home folder
+written as `~`. What other programs print is left as it is: the template launcher's and Wine's output
+(kept in a log, shown only on failure, and holding `drive_c/users/<name>`), and the paths printed by
+setup's helpers (`cities-skylines-2/repatch.sh:45`, `:137`; `make-shortcut.sh:96`, `:259`;
+`common/make-launcher-app.sh:54`, `:143`). So the guide says to look for the Mac's user name before
+pasting Terminal output anywhere public (2.7).
 
 ### 2.2 `make-wrapper.sh`
 
 ```
 bash scripts/make-wrapper.sh [--wrapper <path of the wrapper to make>] [--check]
-exit 0 = made (or, with --check, could be made); 1 = refused or failed, said why, nothing left; 2 = a wrong option
+exit 0 = made (or, with --check, could be made); 1 = refused or failed, said why, nothing left; 2 = a wrong option;
+3 = another install is making a wrapper in that folder
 ```
 
 1. The target is `--wrapper`, else `$CS2_WRAPPER`, else `~/Applications/CS2dxmt11.app` (ND5). It must be an
    absolute path whose last part matches `^[A-Za-z0-9._ -]+\.app$` (the template launcher writes that name
    into `Info.plist`), and it must not exist in any form (`-e` or `-L`): this script never replaces anything.
-2. The target's folder: `~/Applications` is made if absent (a new account may not have it); any other
-   folder must exist. It must be on a volume that ignores case (a file made there is found under its name
-   in capitals): setup and the launcher test `steam.exe` where Valve's installer writes `Steam.exe`. The
-   volume must have 6 GB free (`df -k`). Each refusal says what it found.
+2. The target's folder: `~/Applications` is made if absent (a new account may not have it), except under
+   `--check`; any other folder must exist. The folder, or under `--check` its nearest existing parent, must
+   be found again under its own path in capitals: the test that the volume ignores case, made without
+   writing anything (measured: on a case-sensitive disk image the capitals are not found, on the home
+   volume they are). Setup and the launcher test `steam.exe` where Valve's installer writes `Steam.exe`.
+   The volume must have 6 GB free (`df -k`). Each refusal says what it found.
 3. Older build folders, `<folder>/.l1-wrapper.*`: one whose `pid` file names a live process is another
-   install at work, and the script refuses; any other is a build that died, and is removed. Then a build
+   install at work, and the script exits 3; any other is a build that died, and is removed. Then a build
    folder `<folder>/.l1-wrapper.XXXXXX` (`mktemp -d`) with this process's id in its `pid` file. The `EXIT`
    trap is set only once `mktemp` has succeeded; it ends the build prefix's `wineserver` (`wineserver -k`
    with the exports of step 8) and then removes the build folder. Everything below happens inside it.
@@ -234,7 +242,8 @@ exit 0 = made (or, with --check, could be made); 1 = refused or failed, said why
     Kit's, with its address.
 
 When a step fails, the last twenty lines of that step's output are printed, home folder as `~`. `--check`
-does steps 1 and 2 and says what it would download.
+does steps 1 and 2 without writing anything, says what it would download, and exits 0 when the wrapper
+could be made and 1 when not.
 
 ### 2.3 `cities-skylines-2/scripts/install.sh`
 
@@ -242,7 +251,7 @@ does steps 1 and 2 and says what it would download.
 bash scripts/install.sh [--check] [--yes] [--desktop] [--no-setup]
 exit 0 = done; 1 = a stage failed, said why; 2 = a wrong option; 3 = stopped at a question (answered no, or
 nobody to ask) or because the game or another install is running; 4 = it cannot go on by itself: open the
-installer again to carry on
+installer again to carry on. --check exits 0 after its report, or 1 or 3 for the refusals that come before it.
 ```
 
 It opens with three lines: what is needed (a Steam account that owns Cities: Skylines II, about 105 GB
@@ -251,7 +260,8 @@ that it keeps the Mac awake while it runs (`caffeinate -i -w $$ &`, not under `-
 prints one line, `Step n of 6`, with its name and `OK`, or what it is doing. A stage whose result is
 already there is skipped, so running it again after any stop carries on from where it stopped, and running
 it on a finished install is the way to update (stage 6 runs every time). It ends with one of three lines,
-by exit code: 0, "Done. Start the game from Applications: Cities Skylines II, or 14unch3r."; 4, what
+by exit code (not under `--check`, which ends with its report, or `--no-setup`, which ends with "Stopped
+before step 6, as asked."): 0, "Done. Start the game from Applications: Cities Skylines II, or 14unch3r."; 4, what
 stopped and "Open the installer again: it carries on from here."; anything else, "The install stopped. The
 lines above say why. Open the installer again to carry on from that step."
 
@@ -265,22 +275,28 @@ own `find_wrapper` (1.2), which NT3 holds identical to the launcher's:
 - It finds nothing, or a wrapper that does not hold the game (someone's other `CS2.app`): the wrapper is
   `~/Applications/CS2dxmt11.app`, to be made. The launcher prefers that name to every other.
 
-The path is resolved (`cd`, `pwd -P`) and exported as `CS2_WRAPPER` for everything after, so setup uses
-the same one. A wrapper that exists must have an executable `wine64` and `wineserver`; if not, the script
-says it looks incomplete, to move it to the Trash and open the installer again, and exits 1. It deletes
-nothing. If the game is running in the wrapper (the launcher's `game_running`, `:190`), it says to quit
-the game and open the installer again, and exits 3.
+`CS2_WRAPPER` must be an absolute path, or the script exits 2. A wrapper that exists is resolved (`cd`
+and `pwd -P`); one still to be made is used as given, and resolved once stage 3 has made it. The result is
+exported as `CS2_WRAPPER` for everything after, so setup uses the same one, and `WINEPREFIX` is set from
+it. No copied function is called while `WINEPREFIX` is empty: an empty pattern makes `_owns` match every
+process (measured). A wrapper that exists must have an executable `wine64` and `wineserver` and a prefix
+folder; if not, the script says it looks incomplete, to move it to the Trash and open the installer again,
+and exits 1. It deletes nothing. If the wrapper exists and the game is running in it (the launcher's
+`game_running`, `:190`), it says to quit the game and open the installer again, and exits 3.
 
 **The lock.** From stage 4 to the end it holds `<prefix>/.launcher.lock`, with copies of the launcher's
-`lock_holder`, `acquire_lock` and `release_lock` (`:200-218`), tried once: held by a live process, it says
-another launch or install is using this wrapper, and exits 3. Released by the `EXIT` trap.
-`common/test-launch-lock.sh` gains this script as a third file whose copies must be identical.
+`LOCK=` line and `lock_holder`, `acquire_lock` and `release_lock` (`:200-217`), called as `acquire_lock 1`:
+one try, 2 s (measured). Held by a live process, it says another launch or install is using this wrapper,
+and exits 3. `acquire_lock` needs `step`, `die` and `game_running`: in this script `step` prints nothing
+and `die` prints its line and exits 3. Released by the `EXIT` trap. `common/test-launch-lock.sh` gains
+this script as a third file whose copies must be identical (measured: it takes a third file and stays
+green).
 
 | # | Stage | Done when | What it does otherwise |
 |---|---|---|---|
 | 1 | This Mac | `setup.sh --mac-only` exits 0 | `setup.sh --mac-only`, with `--yes` and `--check` passed on (2.6), prints the Mac's lines and asks its one question on a Mac outside what has been tested. Exit 1 there means Rosetta is missing: the script says what Rosetta is, that the game cannot run without it and that installing it accepts Apple's licence for it; it asks `[y/N]`, and on `y` (or with `--yes`) runs `softwareupdate --install-rosetta --agree-to-license` and runs `--mac-only` again. On anything else, or with no terminal, it prints the command and exits 3 |
-| 2 | Apple's Command Line Tools | `xcode-select -p` succeeds, and then the `python3` test of `setup.sh:121` passes (that order: without the tools, running `python3` itself opens Apple's window) | Runs `xcode-select --install`, says that a box from Apple has opened, perhaps behind this window, to press Install and then Agree there, and that this window goes on by itself; polls every 5 s for up to 60 minutes. On time-out (which is also what pressing Cancel in Apple's box leads to) it exits 4 |
-| 3 | Wine | the wrapper exists | `make-wrapper.sh --wrapper <the path>`; its failure is this stage's |
+| 2 | Apple's Command Line Tools | `xcode-select -p` succeeds, and then the `python3` test of `setup.sh:121` passes (that order: without the tools, running `python3` itself opens Apple's window) | If `xcode-select -p` succeeds and the `python3` test fails, the tools are installed but broken: it says so and exits 1, without asking Apple for them again. Otherwise it runs `xcode-select --install`, says that a box from Apple has opened, perhaps behind this window, to press Install and then Agree there, and that this window goes on by itself; polls every 5 s for up to 60 minutes. On time-out (which is also what pressing Cancel in Apple's box leads to) it exits 4 |
+| 3 | Wine | the wrapper exists | `make-wrapper.sh --wrapper <the path>`; its failure is this stage's, and its exit 3 is passed on |
 | 4 | Steam for Windows | `Steam/steam.exe` or `Steam/Steam.exe` is in the prefix | Below |
 | 5 | The game | `Cities2.exe` exists | Below |
 | 6 | The Mac fixes and the game's app | never skipped | Below |
@@ -300,15 +316,16 @@ then the test of the "done when" column.
 copy of the launcher's `acf_field` (`:302-304`):
 
 - **Installed** (`Cities2.exe` present, `StateFlags` 4): the stage is done.
-- **Update waiting** (`Cities2.exe` present, any other value): it says "Steam has a game update waiting.
-  The game's app offers it at the next start." and the stage is done. Updates are the launcher's
-  (`:297-379`).
-- **Not installed** (`Cities2.exe` absent): the steps below.
+- **Update waiting** (`Cities2.exe` present, `StateFlags` with its bit 4 set and another bit too, for
+  example 6): it says "Steam has a game update waiting. The game's app offers it at the next start." and
+  the stage is done. Updates are the launcher's (`:297-379`).
+- **Not installed** (`Cities2.exe` absent; or present with no manifest, or with a `StateFlags` that lacks
+  bit 4, which is a first download that stopped part way, for example 1026): the steps below.
 
 1. *Steam up.* "The client is up" means a `steamwebhelper` process holds the prefix (the launcher's
    `webhelper_up`, a copy). "A Steam process" means a process whose command matches `[Ss]team\.exe`, not a
    web helper, holds the prefix: the launcher's `steam_exe_up` matches lower case only and would miss the
-   first starts. If the client is up, go to step 2. If a Steam process is there without the client for
+   first starts. If the client is up, go to step 3. If a Steam process is there without the client for
    twelve polls (60 s), it is stuck at its box: end it and start. Otherwise start.
 2. *Starting, at most five times.* Remove a stale `.crash` (`:260-261`); note the length of
    `logs/bootstrap_log.txt`; start Steam (`steam.exe`, else `Steam.exe`) in its own process group with
@@ -318,7 +335,9 @@ copy of the launcher's `acf_field` (`:302-304`):
    `Error: (Failed to determine download location|Steam needs to be online)`: end this Steam and start
    again. No Steam process for three polls in a row: start again. Ten minutes without the client: end it
    and start again. "End" is `wineserver -k`, then a wait of up to 10 s until nothing holds the prefix.
-   After five starts the stage ends Steam, prints the last twenty log lines and exits 1.
+   After five starts the stage ends Steam, prints the last twenty log lines and exits 1. With
+   `L1_TRACE=<file>` each poll of steps 1, 2 and 4 writes one line there: the time, the count of Steam
+   processes holding the prefix, and whether the client is up (for NL1).
 3. *What to do*, printed once (the words are 2.7's).
 4. *Waiting*, with no time limit, polling every 5 s. `Cities2.exe` present and `StateFlags` 4: go on. No
    manifest yet: one line, "Waiting for you to choose Install in Steam". A manifest with `BytesToDownload`
@@ -341,11 +360,12 @@ and `--desktop` passed on when given and `CS2_VIA_INSTALLER=1` in its environmen
 this script's. With `--no-setup` the script stops before this stage and says so.
 
 `--check` prints the state of every stage and what it would do. It starts nothing, downloads nothing,
-asks nothing and changes nothing; with Rosetta missing it says so and that it would be offered.
+asks nothing and changes nothing; with Rosetta missing it says so and that it would be offered. It exits 0
+after its report; as root it exits 1, and with the game or another install running 3, as without it.
 
 **Copies held together.** `find_wrapper`, `_owns`, `webhelper_up`, `steam_family`, `game_running` and
 `acf_field` are copies of the launcher's functions; NT3 cuts each out of both files and requires them
-equal. The three lock functions are held by `common/test-launch-lock.sh`. The `python3` test line is
+equal. The `LOCK=` line and the three lock functions are held by `common/test-launch-lock.sh`. The `python3` test line is
 compared with `setup.sh:121`. The Steam-process test and the start and shutdown sequences are this
 script's own, for the reasons given in stage 5.
 
@@ -377,8 +397,9 @@ bash install.sh [<game folder> [<ref>]] [options for the game's installer ...]
 - It exports `L1_FETCHED_REF=<ref>` (2.6), runs the game's installer with the remaining arguments, removes
   the temporary folder whatever the result (an `EXIT` trap), and exits with the installer's code.
 - The pasted form is the one above, not `curl ... | bash`: with a pipe the script's questions would have no
-  terminal to read from. To pass options with it, three words follow the closing quote first:
-  `install.sh cities-skylines-2 release --check`.
+  terminal to read from. To pass options with it, the words after the closing quote are the script's name
+  and then its arguments: `1launcher-install cities-skylines-2 release --check`. A third leading word that
+  is not an option is exit 2.
 
 ### 2.5 The installer app
 
@@ -393,17 +414,18 @@ bundle in, and replaces only a bundle carrying its own marker line and identifie
 
 The bundle holds three files: `Contents/Info.plist` (with `LSArchitecturePriority` naming `arm64`, so that
 macOS does not offer Rosetta for a script's sake; not verified, and harmless), the icon (ND6), and
-`Contents/MacOS/install`, a bash script with the game and the ref written in at build time:
+`Contents/MacOS/install`, a bash script with the game, the ref and the title written in at build time
+(below as `<game>`, `<ref>` and `<title>`):
 
 ```bash
 #!/bin/bash
 # Generated by common/make-installer-app.sh -- run that again instead of editing this file.
 D="$(mktemp -d "${TMPDIR:-/tmp}/1launcher-install.XXXXXX" 2>/dev/null)" \
   || D="$(mktemp -d /tmp/1launcher-install.XXXXXX 2>/dev/null)" || {
-  osascript -e 'display alert "Install Cities Skylines II" message "A temporary folder could not be made. Restart the Mac, then open the installer again." as critical'
+  osascript -e 'on run a' -e 'display alert ("Install " & item 1 of a) message "A temporary folder could not be made. Restart the Mac, then open the installer again." as critical' -e 'end run' -- "<title>"
   exit 1
 }
-C="$D/Install Cities Skylines II.command"
+C="$D/Install <title>.command"
 cat > "$C" <<'EOS'
 #!/bin/bash
 trap 'rm -f "$0"; rmdir "$(dirname "$0")" 2>/dev/null' EXIT
@@ -458,8 +480,8 @@ open -a Terminal "$C"
   `repo: a temporary copy of macgameport/1launcher at <ref>`; `:128` prints the guide's `https://` address;
   `:204-206` says to open the installer again, which fetches the current scripts, where it now says to
   update this checkout with `git pull`.
-- Every path setup prints (`$DEST` at `:146`, the wrapper where it is printed whole) goes through one
-  helper that writes the home folder as `~`.
+- Every path setup itself prints (`$DEST` at `:146`, the wrapper where it is printed whole) goes through
+  one helper that writes the home folder as `~`. Its helpers' own lines (2.1) are not changed.
 - The three hint lines (`:104`, `:116`, `:118`) gain "or run bash scripts/install.sh, which does this for
   you", without backticks: they are inside double quotes. The header's "cannot be scripted" (`:4-6`) is
   replaced by one line naming `install.sh`.
@@ -493,8 +515,8 @@ pasted line as the way in; then, once the release exists, leading with the app.
 Under the list: the pasted line as the other way in, and what to do if Terminal says "Possible malware,
 paste blocked"; that the installer runs Porting Kit's Wine and Valve's installer as they come, with no
 check by macOS, the first against fixed checksums; that opening the installer again carries on after any
-stop and is also how to update; what to remove from Terminal's output before pasting it into an issue
-(nothing, if the home folder shows as `~`; setup's older lines are covered by 2.6).
+stop and is also how to update; and that Terminal's output can show the Mac's user name inside file paths,
+so to look for it before pasting the output anywhere public.
 
 **The installer's words in Terminal**, stage 5 step 3:
 
@@ -594,9 +616,9 @@ deleted pushes, and turning on immutable releases, are settings James changes at
 
 Built on a branch, `simple-install`, in a scratch worktree. N1 and N2 touch different files and can go in
 either order; N3 needs both; N4 and N5 need N3's interface only. The builder lens's scratch build of N1 to
-N5 (`/tmp/si-sim`, built from the plan before this fold) may be used as a starting point; every file in it
+N5 (`/tmp/si-sim`, built from the plan before the fold) may be used as a starting point; every file in it
 is to be brought to this text. New scripts are committed with mode 755, like their neighbours. Nothing is
-merged or published before NL3.
+merged, released or linked before NL3; NL2 needs the branch pushed to GitHub, as a branch only.
 
 ## 4. Test plan
 
@@ -606,19 +628,21 @@ the environment they were given. No network, no Wine, no real download. Each tes
 listing of everything outside its own scratch folder that it could have written (the real `~/Applications`
 names and `/tmp` names made by the scripts under test) with the listing taken at its start
 (`test-setup.sh:107`'s `snap`). Each mutant is applied to the scratch copy by a `sed` that refuses when it
-did not apply, and must be seen red. The library path cannot be seen by a stub (1.2): each test file
-instead greps the script under test for the launcher's export line and for the absence of `nohup`, `env `,
-`setsid` and `kill -9` on any line that is not a comment, and NL1 shows the rest.
+did not apply, and must be seen red. The library path cannot be seen by a stub (1.2): NT1 and NT3 instead
+grep the script under test for the launcher's export line, and NL1 shows the rest. Every test file greps
+its scripts for the absence of `nohup`, `env `, `setsid` and `kill -9` on any line that is not a comment.
 
 | # | Script | Cases | Mutants (each must exit 1) |
 |---|---|---|---|
-| NT1 | `cities-skylines-2/scripts/test-make-wrapper.sh` | A stub `curl` that copies fixture archives: the engine a tar under its `.tar.7z` name, the template a tar inside a tar, made from files that carry a quarantine attribute (`xattr -w`, packed by `/usr/bin/tar`); the pins rewritten in the scratch copy. **Made:** the wrapper is at the target with `wine/bin/wine64`, `prefix/system.reg`, `prefix/drive_c/users/Wineskin` and `Frameworks`; no file in it carries the quarantine attribute; the launcher stub was called once with `WSS-wineprefixcreate` from a bundle named as the target; `curl` was called twice with exactly the two addresses of 1.3, and the six constants in the real script equal the six literals written in the test. **Refused, with nothing made, no build folder left and `curl` not called:** the target exists as a folder, as a file, as a dangling link; a relative path; a name not ending `.app` or holding `/`-unsafe characters; a folder that does not exist (other than `~/Applications`, which is made); a case-sensitive folder (stub); too little space (stub `df`); another build folder with a live `pid`; run as root (stub `id`); a wrong option exits 2. **Failed, with nothing made and no build folder left:** `curl` fails with an HTTP error (the "no longer published" line) and otherwise (the network line); a wrong sha256 of the engine; of the template; a wrong size; a template with two apps, with no launcher, without `libfreetype`, without `libgnutls`, without `libinotify`; an engine without `wine64`; the launcher stub exits 1; it leaves no `system.reg`; no `users/Wineskin`; `wine64 --version` prints nothing; the target appears while the prefix is being made (the stub makes it). A stale build folder with a dead `pid` is removed and the wrapper made. `L1_DOWNLOADS`: a matching file is used and `curl` not called for it; a non-matching one is dropped and `curl` called. `--check` writes nothing | the sha256 not compared; an existing target replaced (step 1's test removed: caught by "`curl` not called"); step 9's second test removed (caught by "the target appears"); the build folder left behind on failure; a failed prefix still moved to the target; `L1_DOWNLOADS` used without the sha256; the bundle not renamed before the prefix is made; both quarantine guards removed; a live build folder removed; a pin changed in the script alone |
-| NT2 | `cities-skylines-2/scripts/test-setup.sh`, new cases | `--mac-only`: exits before any wrapper line is printed; 0 on a tested Mac; 1 with Rosetta missing; on macOS 15 with a terminal (the `pty` helper, `:183`) asks and exits 0; with `--yes`, and with `--check`, does not ask. `CS2_VIA_INSTALLER=1` with a terminal on macOS 15: a full setup does not ask, and prints the two installer lines; without it, it asks and prints today's lines. `L1_FETCHED_REF=release`: the `repo:` line, the guide's address, and no "git pull" in the failed-patch lines. A scratch `HOME` path never appears whole in the output. The sixteen existing mutants, run again | 17: `--mac-only` goes on to the wrapper checks; 18: `CS2_VIA_INSTALLER` is ignored; 19: `--mac-only` exits 0 with Rosetta missing; 20: `L1_FETCHED_REF` is ignored; 21: the path helper returns its argument unchanged |
-| NT3 | `cities-skylines-2/scripts/test-install.sh` | Recording stubs for `make-wrapper.sh`, `setup.sh`, `wine64`, `wineserver`, `curl`, `softwareupdate`, `xcode-select`, `python3`, `caffeinate`, `id`, `df`, `pgrep`, `ps`, `lsof` and `sleep` (which advances a scenario file, one line per poll); a fixture prefix; its own copy of the `pty` helper for the questions. **Wrapper rule:** for each fixture home (none; `CS2dxmt11.app`; `CS2.app` with the game; `CS2.app` without; the game under another name; two holding the game; `CS2_WRAPPER` set to a path with a space), the wrapper install.sh uses equals what the launcher's own `find_wrapper`, cut out of the launcher and run in the same home, answers once the wrapper exists; a wrapper without `wine64` exits 1 and nothing is deleted. **Copies:** the six functions of 2.3 equal the launcher's; the `python3` line equals setup's. **All done:** only setup runs, with `CS2_VIA_INSTALLER=1` and `CS2_WRAPPER` in its environment, and `--yes` and `--desktop` when given; the exit code is setup's (0, then 1); the closing line is the one for that code. **Nothing done:** the six stages in order. Stage 1: `--mac-only` exit 1 then `n`, Return, and no terminal each exit 3 with `softwareupdate` not called; `y` and `--yes` call it with exactly `--install-rosetta --agree-to-license`; still missing afterwards exits 1. Stage 2: `python3` is not run before `xcode-select -p` succeeds; `xcode-select --install` is called once, then the stage goes on when the stub starts to succeed; a time-out (the limit lowered in the copy) exits 4. Stage 4: the second address is tried when the first fails; a file not starting `MZ`, one without `Valve Corp`, one under 1 MB (each failing that one test only), an installer exit of 1, and no `steam.exe` afterwards each exit 1 before stage 5; an unknown sha256 prints the `CAUTION` line and goes on; `Steam.exe` alone counts as present; `wine64` was given `winemenubuilder.exe=d`. Stage 5: game present with `StateFlags` 4 skips it; with 6 prints the update line and goes to setup; a fatal line of each of the two kinds (the exact lines of 1.4) ends that Steam (`wineserver -k` recorded, with the fixture's prefix) and starts another; a one-poll gap does not start another, a three-poll gap does; exactly five starts are recorded before exit 1, and Steam is ended first; a stale `.crash` is gone before each start; a Steam process with no client for twelve polls is ended and started; a client already up is not started again; no manifest prints the "choose Install" line once; `BytesToDownload` 0 prints the "getting ready" line and does not fall through; 41 percent prints one line for 41; the game arriving goes on, with `-shutdown` recorded before setup and no `wineserver` call without the prefix; Steam gone for three polls exits 4 and setup is not run. Stage 6: a missing checkout file exits 4. **Guards:** the game running exits 3 before anything else; a live lock holder exits 3; the lock is released on exit; run as root it refuses. `--no-setup` stops before setup. `--check` records no call that changes anything and asks nothing, and with the tools missing does not run `python3` | Rosetta installed on Return; setup run when the game is absent; the wrapper made when one exists; Steam's installer run when Steam is present; the fatal line not acted on; a one-poll gap restarts Steam; `-shutdown` left out; exit 0 when Steam is gone; `--check` starts Steam; the `MZ` test left out; the lock not taken; the running-game test left out; the update-waiting state treated as not installed; `BytesToDownload` 0 divides; `CS2_VIA_INSTALLER` not passed to setup; `winemenubuilder.exe=d` dropped; the `.crash` left; the start limit raised to six; a copied function changed in install.sh alone |
-| NT4 | `common/test-bootstrap.sh` | A stub `curl` serving a fixture `tar.gz` whose game installer records its arguments and environment. The pasted form (`bash -c "$(cat install.sh)"`), run from an empty folder and again from a folder that holds a game installer: both fetch the address of the ref, run the fixture's installer with the options passed on and `L1_FETCHED_REF` set, remove the temporary folder, and exit with the installer's code (0, then 7). As a file beside a game folder: `curl` is not called and the ref is ignored. `bash install.sh --check`: `--check` reaches the installer and the game is the default. A ref holding a space, `;`, `..`, `//`, or starting `-` or `/`, and a game named `../x`, each exit 2 with nothing fetched. A failed fetch, a `tar` failure, an archive with two top folders, one whose top entry is a link, and a game without an installer each exit 1 with a line, and leave no folder. Run as root it refuses. The file's last line is the call of `main` | the temporary folder kept; the installer's exit code dropped; a ref with `..` fetched; the clone's case decided by `$0`; `L1_FETCHED_REF` not set |
-| NT5 | `common/test-make-installer-app.sh` | Built into a scratch folder with a stub `open`: the three files, the identifier, the marker line, the game and the ref in every place; the name and the ZIP's name from `games.tsv`; the ZIP unpacked with `ditto -x -k` keeps the script executable. The script run with the bundle's files carrying a quarantine attribute: the `.command` it writes has none, and `open` is called with `-a Terminal` and that path. The `.command` run with a stub `curl`: `bash -c` gets `1launcher-install`, the game and the ref; `curl` exit 22 prints the withdrawn lines, any other failure the network line; afterwards the file and its folder are gone. The `.command` copied into a folder beside another file and run: the other file is still there. With `TMPDIR` naming no folder, `/tmp` is used. A bad ref exits 2. Neither `--icns` nor `--no-icon` exits 2. A target that is not this builder's own bundle is refused and left as it was | the `.command` copied from the bundle (the attribute travels); `open` given a file inside the bundle; a foreign bundle replaced; the ref not checked; the recursive delete put back; the `$0` word given as `install.sh` |
+| NT1 | `cities-skylines-2/scripts/test-make-wrapper.sh` | A stub `curl` that copies fixture archives: the engine a tar under its `.tar.7z` name, the template a tar inside a tar, made from files that carry a quarantine attribute (`xattr -w`, packed by `/usr/bin/tar`); the pins rewritten in the scratch copy. **Made:** the wrapper is at the target with `wine/bin/wine64`, `prefix/system.reg`, `prefix/drive_c/users/Wineskin` and `Frameworks`; no file in it carries the quarantine attribute; the launcher stub was called once with `WSS-wineprefixcreate` from a bundle named as the target; `curl` was called twice with exactly the two addresses of 1.3, and the six constants in the real script equal the six literals written in the test. **Refused, with nothing made, no build folder left and `curl` not called:** the target exists as a folder, as a file, as a dangling link; a relative path; a name not ending `.app` or holding `/`-unsafe characters; a folder that does not exist (other than `~/Applications`, which is made); a folder on a 20 MB case-sensitive disk image made with `hdiutil` and mounted inside the scratch folder
+(no administrator needed; measured); too little space (stub `df`); another build folder with a live `pid` (exit 3); run as root (stub `id`); a wrong option exits 2. **Failed, with nothing made and no build folder left:** `curl` fails with an HTTP error (the "no longer published" line) and otherwise (the network line); a wrong sha256 of the engine; of the template; a wrong size; a template with two apps, with no launcher, without `libfreetype`, without `libgnutls`, without `libinotify`; an engine without `wine64`; the launcher stub exits 1; it leaves no `system.reg`; no `users/Wineskin`; `wine64 --version` prints nothing; the target appears while the prefix is being made (the stub makes it). A stale build folder with a dead `pid` is removed and the wrapper made. `L1_DOWNLOADS`: a matching file is used and `curl` not called for it; a non-matching one is dropped and `curl` called. `--check` writes nothing, does not make a missing
+`~/Applications`, and exits 0 or 1. The wrapper's path is printed with `~` | the sha256 not compared; an existing target replaced (step 1's test removed: caught by "`curl` not called"); step 9's second test removed (caught by "the target appears"); the build folder left behind on failure; a failed prefix still moved to the target; `L1_DOWNLOADS` used without the sha256; the bundle not renamed before the prefix is made; both quarantine guards removed; a live build folder removed; a pin changed in the script alone |
+| NT2 | `cities-skylines-2/scripts/test-setup.sh`, new cases | `--mac-only`: exits before any wrapper line is printed; 0 on a tested Mac; 1 with Rosetta missing; on macOS 15 with a terminal (the `pty` helper, `:183`) asks and exits 0; with `--yes`, and with `--check`, does not ask. `CS2_VIA_INSTALLER=1` with a terminal on macOS 15: a full setup does not ask, and prints the two installer lines; without it, it asks and prints today's lines. `L1_FETCHED_REF=release`: the `repo:` line, the guide's address, and no "git pull" in the failed-patch lines. No line setup.sh itself prints (the `Installing launcher` line, the wrapper line, the `repo:` line) holds the scratch `HOME` whole; lines from `repatch.sh` and the builders are not asserted (2.1). The sixteen existing mutants, run again | 17: `--mac-only` goes on to the wrapper checks; 18: `CS2_VIA_INSTALLER` is ignored; 19: `--mac-only` exits 0 with Rosetta missing; 20: `L1_FETCHED_REF` is ignored; 21: the path helper returns its argument unchanged |
+| NT3 | `cities-skylines-2/scripts/test-install.sh` | Recording stubs for `make-wrapper.sh`, `setup.sh`, `wine64`, `wineserver`, `curl`, `softwareupdate`, `xcode-select`, `python3`, `caffeinate`, `id`, `df`, `pgrep`, `ps`, `lsof` and `sleep` (which advances a scenario file and a clock, one line per poll); a fixture prefix; its own copy of a helper shaped like `ptya` (`test-setup.sh:233`), which types a given line, for the questions. **Wrapper rule:** for each fixture home (none; `CS2dxmt11.app`; `CS2.app` with the game; `CS2.app` without; the game under another name; two holding the game; `CS2_WRAPPER` set to a path with a space), the wrapper install.sh uses equals what the launcher's own `find_wrapper`, cut out of the launcher and run in the same home, answers once the wrapper exists, both sides resolved with `pwd -P` (`/tmp` is `/private/tmp`); a wrapper without `wine64`, and one without a prefix folder, exit 1 and nothing is deleted; a relative `CS2_WRAPPER` exits 2; a wrapper still to be made is passed to `make-wrapper.sh` as given and no copied function runs before it exists. **Copies:** the six functions of 2.3 equal the launcher's; the `python3` line equals setup's. **All done:** only setup runs, with `CS2_VIA_INSTALLER=1` and `CS2_WRAPPER` in its environment, and `--yes` and `--desktop` when given; the exit code is setup's (0, then 1); the closing line is the one for that code. **Nothing done:** the six stages in order. Stage 1: `--mac-only` exit 1 then `n`, Return, and no terminal each exit 3 with `softwareupdate` not called; `y` and `--yes` call it with exactly `--install-rosetta --agree-to-license`; still missing afterwards exits 1. Stage 2: `python3` is not run before `xcode-select -p` succeeds; tools present with a broken `python3` exit 1 and `xcode-select --install` is not called; `xcode-select --install` is called once, then the stage goes on when the stub starts to succeed; a time-out (the limit lowered in the copy) exits 4. Stage 4: the second address is tried when the first fails; a file not starting `MZ`, one without `Valve Corp`, one under 1 MB (each failing that one test only), an installer exit of 1, and no `steam.exe` afterwards each exit 1 before stage 5; an unknown sha256 prints the `CAUTION` line and goes on; `Steam.exe` alone counts as present; `wine64` was given `winemenubuilder.exe=d`. Stage 5: game present with `StateFlags` 4 skips it; with 6 prints the update line and goes to setup; present with no manifest, and present with 1026, take the not-installed path; a fatal line of each of the two kinds (the exact lines of 1.4) ends that Steam (`wineserver -k` recorded, with the fixture's prefix) and starts another; a one-poll gap does not start another, a three-poll gap does; exactly five starts are recorded before exit 1, and Steam is ended first; a stale `.crash` is gone before each start; a Steam process with no client for twelve polls is ended and started; ten minutes without the client ends that start and starts another; a client already up is not started again and goes straight to the words; no manifest prints the "choose Install" line once; `BytesToDownload` 0 prints the "getting ready" line and does not fall through; 41 percent prints one line for 41; the game arriving goes on, with `-shutdown` recorded before setup and no `wineserver` call without the prefix; a Steam still there after `-shutdown` gets `wineserver -k`, and a stray still holding the prefix after that gets a plain `kill`, never `-9`; `L1_TRACE` gets one line per poll; Steam gone for three polls exits 4 and setup is not run. Stage 6: a missing checkout file exits 4; the game running exits 3. Under 110 GB free prints the `CAUTION` line and goes on. `caffeinate` is started with `-i -w` and the script's own process id, and not under `--check`. Every path it prints has the home folder as `~`. **Guards:** the game running exits 3 before anything else; a live lock holder exits 3; the lock is released on exit; run as root it refuses. `--no-setup` stops before setup with its own line. `--check` records no call that changes anything and asks nothing, exits 0 with no closing "Done" line, with the tools missing does not run `python3`, and with Rosetta missing reports it and exits 0 | Rosetta installed on Return; setup run when the game is absent; the wrapper made when one exists; Steam's installer run when Steam is present; the fatal line not acted on; a one-poll gap restarts Steam; `-shutdown` left out; exit 0 when Steam is gone; `--check` starts Steam; the `MZ` test left out; the lock not taken; the running-game test left out; the update-waiting state treated as not installed; `BytesToDownload` 0 divides; `CS2_VIA_INSTALLER` not passed to setup; `winemenubuilder.exe=d` dropped; the `.crash` left; the start limit raised to six; a copied function changed in install.sh alone; the update state matched on any value other than 4; a client already up started again; the ten-minute limit removed; a copied function run with an empty `WINEPREFIX`; a broken `python3` sent to `xcode-select --install` |
+| NT4 | `common/test-bootstrap.sh` | A stub `curl` serving a fixture `tar.gz` whose game installer records its arguments and environment. The pasted form (`bash -c "$(cat install.sh)"`), run from an empty folder and again from a folder that holds a game installer: both fetch the address of the ref, run the fixture's installer with the options passed on and `L1_FETCHED_REF` set, remove the temporary folder, and exit with the installer's code (0, then 7). As a file beside a game folder: `curl` is not called and the ref is ignored. `bash install.sh --check`: `--check` reaches the installer and the game is the default. A third leading word that is not an option exits 2. A ref holding a space, `;`, `..`, `//`, or starting `-` or `/`, and a game named `../x`, each exit 2 with nothing fetched. A failed fetch, a `tar` failure, an archive with two top folders, one whose top entry is a link, and a game without an installer each exit 1 with a line, and leave no folder. Run as root it refuses. The file's last line is the call of `main` | the temporary folder kept; the installer's exit code dropped; a ref with `..` fetched; the clone's case decided by `$0`; `L1_FETCHED_REF` not set |
+| NT5 | `common/test-make-installer-app.sh` | Built into a scratch folder with a stub `open`: the three files, the identifier, the marker line, the game, the ref and the title in every place, the alert's title passed to `osascript` as an argument; the name and the ZIP's name from `games.tsv`; the ZIP unpacked with `ditto -x -k` keeps the script executable. The script run with the bundle's files carrying a quarantine attribute: the `.command` it writes has none, and `open` is called with `-a Terminal` and that path. The `.command` run with a stub `curl`: `bash -c` gets `1launcher-install`, the game and the ref; `curl` exit 22 prints the withdrawn lines, any other failure the network line; afterwards the file and its folder are gone. The `.command` copied into a folder beside another file and run: the other file is still there. With `TMPDIR` naming no folder, `/tmp` is used. A bad ref exits 2. Neither `--icns` nor `--no-icon` exits 2. A target that is not this builder's own bundle is refused and left as it was | the `.command` copied from the bundle (the attribute travels); `open` given a file inside the bundle; a foreign bundle replaced; the ref not checked; the recursive delete put back; the `$0` word given as `install.sh` |
 | NT6 | The repository's gates | `python3 common/check-links.py` (0 unresolved); `bash common/check-identifiers.sh` at the recorded residual; `python3 cities-skylines-2/scripts/check-experiments.py` (the pictures' audit rows); `bash -n` on every new script; `bash common/test-launch-lock.sh` with its three files; the existing suites `test-setup.sh`, `common/test-launcher-builders.sh`, `common/test-make-launcher-app.sh`, `common/test-launcher-parity.sh` green | none: they are gates |
-| NT7 | In NT5's file, on scratch copies of the documents | Every tracked occurrence of `raw.githubusercontent.com/macgameport/1launcher/` (`git grep`) is the one string ending `release/install.sh`, and at least one is found in each of the guide and the two READMEs; the app built with the default ref fetches that string. From N6b on: every occurrence of `releases/download/installer-` names `installer-1` and the ZIP's exact name | the README's line changed alone |
+| NT7 | In NT5's file, on scratch copies of the root `README.md`, `cities-skylines-2/README.md` and `cities-skylines-2/INSTALL.md` | In those three files every occurrence of `raw.githubusercontent.com/macgameport/1launcher/` is the one string ending `release/install.sh`, and each file has at least one; the app built with the default ref fetches that string. From N6b on: every occurrence of `releases/download/installer-` in them names `installer-1` and the ZIP's exact name | the root README's line changed alone |
 
 Not testable without a real Mac state, and so live: the real archives through the real script, Wine,
 Steam, a sign-in, the game, a closed Terminal window, and Gatekeeper.
@@ -626,13 +650,13 @@ Steam, a sign-in, the game, a closed Terminal window, and Gatekeeper.
 ## 5. Live steps, each on James's word
 
 - **NL1. The mechanism, for real, into a scratch wrapper on the Studio.** With no game, Steam or launcher
-  running. Before and after, a listing of the names in `~/Desktop`, `~/Documents` and two levels of
+  running, and the real game's `StateFlags` 4. Before and after, a listing of the names in `~/Desktop`, `~/Documents` and two levels of
   `~/Library` (what the template launcher and Steam write outside the wrapper: ND10, and the guide's
   "Nothing is installed outside those paths", `:342`). From the branch's worktree, in Terminal:
   `CS2_WRAPPER=~/Applications/CS2fresh.app bash cities-skylines-2/scripts/install.sh --no-setup`. It
   downloads the two archives, makes the wrapper, installs Steam and rides out the first-start failure;
-  the count of Steam processes at each poll is recorded through the updater's self-replace (the three-poll
-  rule). At the sign-in window, before signing in: Control-C in the Terminal window, then the installer
+  with `L1_TRACE` set, the count of Steam processes at each poll is recorded through the updater's
+  self-replace (the three-poll rule). At the sign-in window, before signing in: Control-C in the Terminal window, then the installer
   again; then the window closed, then the installer again. Each time: does Steam still hold the prefix 30 s
   later, and is a `.crash` left? The words of 2.7 follow the result. James signs in. Then, once: whether
   `wine64 steam.exe steam://install/949230` opens the install box (press Cancel in it). Picture 4 is taken.
@@ -656,9 +680,10 @@ Steam, a sign-in, the game, a closed Terminal window, and Gatekeeper.
   approved, ND1's other half applies (2.5).
 - **NL3. Publish.** First the note to Porting Kit's developers: the draft is `portingkit-note-draft.md` in
   the probe's evidence folder, and James sends it, changes it or drops it before anything is public; an
-  answer is recorded here. Then, with James's word for each public act: the branch is merged (N1 to N5 and
-  N6a); `release` is created at that commit (2.8), and the pasted line is run once in Terminal with
-  `--check`; when NL2 passed, the `installer-1` release with the ZIP built for `release`, whose link must
+  answer is recorded here. Then, with James's word for each public act: the branch is merged with
+  `--no-ff` (N1 to N5 and N6a), and `main` and `release` are pushed in one atomic push
+  (`git push --atomic origin <merge>:main <merge>:refs/heads/release`), so the documents never name a
+  `release` that does not exist (2.8); the pasted line is run once in Terminal with `--check`; when NL2 passed, the `installer-1` release with the ZIP built for `release`, whose link must
   download a file with the sha256 the builder printed; then N6b is committed and `release` moved to it;
   then the issue #22 note.
 - **NL4. A Mac account with nothing in it.** A new macOS user account (James makes it) or any Mac without
@@ -688,8 +713,8 @@ Steam, a sign-in, the game, a closed Terminal window, and Gatekeeper.
 - **Before NL3:** the branch is all there is in the repository. On the Studio, NL2 ran setup from the
   branch's code on the real install: run `bash cities-skylines-2/scripts/setup.sh` from `main` to put
   `main`'s files back in `~/cs2-patch` and rebuild the apps.
-- **After NL3:** `git revert -m 1` of the merge takes the scripts and the documents back on `main`, with
-  one exception: the root `install.sh` is kept as a short file that prints "This installer has been
+- **After NL3:** a `git revert` of N6b, then `git revert -m 1` of the merge (a `--no-ff` merge, NL3),
+  takes the scripts and the documents back on `main`, with one exception: the root `install.sh` is kept as a short file that prints "This installer has been
   withdrawn" and the guide's address, and `release` is moved forward to that commit. Every published app
   and every pasted line then says so instead of failing; an app whose fetch finds nothing at all says the
   same from its own text (2.5).
@@ -715,7 +740,7 @@ Steam, a sign-in, the game, a closed Terminal window, and Gatekeeper.
 | ND10 | No new place outside the repository. Downloads, logs of a build and the temporary checkout live in `mktemp` folders that are removed; the wrapper is where wrappers already are. NL1 lists what the template launcher and Steam themselves write elsewhere | this plan |
 | ND11 | The guide's quick way has four pictures, each audited, none showing a Steam name, a Mac user name or a live sign-in code | James (K6) |
 | ND12 | The app and the pasted line follow a branch named `release`, which moves forward only on purpose and on James's word; `main` reaches no installer user by itself | James (K7) |
-| ND13 | The installer finds a wrapper by the launcher's own rule, uses an install under another name, and never puts Steam into a wrapper that neither it made nor holds the game nor was named with `CS2_WRAPPER` | this plan |
+| ND13 | The installer finds a wrapper by the launcher's own rule and uses an install under another name. It puts Steam only into a wrapper it made, one that holds the game, `~/Applications/CS2dxmt11.app` (the name every guide and script uses, so a resumed install finds it), or one named with `CS2_WRAPPER` | this plan |
 
 ## Review corrections (triple-check 2026-11-10)
 
@@ -756,6 +781,34 @@ moved before anything is public. Rejected: nothing was rejected outright. Two pr
 different form: a `setup.sh --print-wrapper` option (the launcher's own function is used instead, so the
 rule is one), and a `mkdir` lock (the launcher's existing lock is used instead).
 
+### Fold check (pass 1b, 2026-11-10)
+
+One agent checked the fold above against the code and by measurement. It confirmed: the counts against
+their lists; every cite of 2.3 and 2.6; that the nine copied functions can be cut out by name and their
+dependencies; that `find_wrapper` returns what 2.3 assumes; that `common/test-launch-lock.sh` takes a third
+file and stays green; `acquire_lock 1` (one try, 2 s); the shim of 2.5 under `/bin/bash` 3.2 in all its
+paths; that `BASH_SOURCE` is empty under `bash -c`; that `/usr/bin/tar` keeps a quarantine attribute on a
+plain unpack and drops it with `--no-mac-metadata`; the start line's own process group; the later order of
+NL3. One blocker and seven should-fixes, folded:
+
+| # | Finding | Where it landed |
+|---|---|---|
+| F1 | NT2's "the scratch `HOME` never appears whole" cannot pass: `repatch.sh` and the two builders print paths of their own, and 2.6 left them unchanged (measured: six lines) | 2.1 names them and the guide says to look before pasting; NT2 asserts setup's own lines only |
+| F2 | "If the client is up, go to step 2" restarted a Steam that was ready | 2.3 stage 5 step 1 |
+| F3 | A wrapper still to be made cannot be resolved with `cd`, and an empty prefix makes `_owns` match every process | 2.3 which wrapper, NT3 and a mutant |
+| F4 | "Update waiting" included no manifest and a first download that stopped part way | 2.3 stage 5's states, NT3 and a mutant |
+| F5 | Tools present with a broken `python3` asked Apple again and waited an hour, on every opening | 2.3 stage 2, NT3 and a mutant |
+| F6 | `--check` and `--no-setup` had no exit code or closing line, and `make-wrapper.sh --check` would have written | 2.2, 2.3, NT1, NT3 |
+| F7 | NL3 left a window in which the documents named a `release` not yet pushed; a rebased branch merges without a merge commit; the rollback left N6b in place | NL3 (one atomic push, `--no-ff`), 7 |
+| F8 | Behaviour with no case: the ten-minute limit, `~` in the new scripts' output, the shutdown's later tiers, stage 6's game test, the space caution, `caffeinate`, `--check` with Rosetta missing | NT1, NT3 |
+
+Also folded: `acquire_lock`'s needs (`step`, `die`, the `LOCK=` line) and its cite; a `ptya`-shaped helper
+for NT3's typed answers; NT7 limited to three named files; the export-line grep limited to NT1 and NT3;
+the old-engines question added to the note's draft; ND13's exception for the usual wrapper name; the
+title as a placeholder in the shim; `1launcher-install` in 2.4's example; which scripts refuse root; the
+branch pushed for NL2; NL1's `StateFlags` precondition and `L1_TRACE`; the prefix folder in the
+completeness test. The case test of 2.2 was measured for this fold on a case-sensitive disk image.
+
 ## Review log
 
 Key paths: `cities-skylines-2/scripts/setup.sh`, `cities-skylines-2/scripts/test-setup.sh`,
@@ -767,3 +820,4 @@ Key paths: `cities-skylines-2/scripts/setup.sh`, `cities-skylines-2/scripts/test
 | Date | Pass | Lenses | Method | Model | Verified against | Verdict |
 |---|---|---|---|---|---|---|
 | 2026-11-10 | 1 | architecture, rollout and words; security and outside facts; correctness and test plan; builder simulation | four agents, each blocker re-read in the code by the planner; one measurement added (the template archive) | Fable 5.2 for three lenses and the fold, Opus 5.5 for the builder | `580cf4e` | build-ready-with-fixes |
+| 2026-11-10 | 1b | fitted fold check | one agent, its citations re-read and one measurement added by the planner (the case test) | Fable 5.2 for the check; Opus 5.5 for its fold, at James's word ("Continue on opus") | `82f8533` | build-ready-with-fixes |
