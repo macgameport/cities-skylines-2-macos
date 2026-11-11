@@ -404,7 +404,12 @@ removed; a mutant whose line is gone refuses with exit 2.
 
 ## 8. Decisions, each James's
 
-| # | Decision | Recommendation |
+**Decided 2026-11-11: all eight as recommended.** Asked whether he accepted them, with MD5 named as the
+one that costs time, James answered: "That's fine, no one is waiting for any of this. We're just doing it
+for the sake of doing it." So nothing here is traded against a date: where a step can be done properly or
+quickly, it is done properly. The sections above already describe the recommended choices.
+
+| # | Decision | Decided as recommended |
 |---|---|---|
 | MD1 | Where D3DMetal 3.0 comes from | Gcenx's release page, pinned by size and sha256, fetched by the installer and never re-hosted, as for Porting Kit's two files; the guide and stage 4 state Apple's terms. A short note to Gcenx, drafted for James to send or not, asking whether old releases stay published. The other sources are Apple's own download, which needs a signed-in Apple Account and cannot be scripted, and CrossOver |
 | MD2 | What the guide says about Apple's licence | What 1.5 says, in plain words, with the licence's address: allowed non-commercially, written for evaluating games, Apple-branded hardware only. No claim that it permits more |
