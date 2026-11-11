@@ -1368,8 +1368,9 @@ may belong to a different wrapper's Steam.
 | exp_75cd2d | 2026-11-10 14:34 | `14unch3r-look-L3-20261110` | 0 | 0 | 0 | — | no-capture |
 | exp_7e3863 | 2026-11-10 14:55 | `14unch3r-look-L4-20261110` | 0 | 0 | 0 | — | no-capture |
 | exp_a934dc | 2026-11-10 20:38 | `simple-install-probe-20261110` | 0 | 0 | 0 | — | no-capture |
+| exp_ceec08 | 2026-11-11 08:06 | `simple-install-NL1-20261111` | 0 | 0 | 0 | — | no-capture |
 
-308 cells · 45 VOID-LIBS · 244 candidate
+309 cells · 45 VOID-LIBS · 244 candidate
 ---
 
 ## Running a cell (the procedure this ledger assumes)

@@ -38,8 +38,9 @@ about 105 GB of free disk space (the game with all its DLC is about 100 GB).
 
 Good to know:
 
-- **Stopped part way?** Paste the line again. It carries on from the step it stopped at. Pasting it again
-  on a finished install is also how to update: it fetches the current scripts and re-applies the fixes.
+- **Stopped part way?** Paste the line again. It carries on from the step it stopped at. Closing the
+  window or pressing Control-C stops the installer only: Steam stays open. Pasting the line again on a
+  finished install is also how to update: it fetches the current scripts and re-applies the fixes.
 - **What it downloads, and from whom.** The Wine engine and the wrapper it lives in are
   [Porting Kit](https://www.portingkit.com/)'s, fetched from their own pages on GitHub and checked against
   fixed checksums; Steam's installer comes from Valve; Rosetta and the Command Line Tools, if missing, come

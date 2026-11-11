@@ -3,11 +3,12 @@
 > **Status:** Triple-checked 2026-11-10 — build-ready-with-fixes, corrections folded (pass 1: four lenses;
 > pass 1b: a fitted check of that fold, one blocker, folded too). Written 2026-11-10.
 >
-> **🔧 As-built (2026-11-11):** PARTIAL: N1 to N6a are built on the local branch `simple-install` (`86c83d8`),
-> not merged and not pushed; nothing is published and no live step has been run. Tests, each with `HOME` at a
+> **🔧 As-built (2026-11-11):** PARTIAL: N1 to N6a are built on the local branch `simple-install` (`86c83d8`, and
+> `a9eeaa7` for a defect the first live step found), not merged and not pushed; nothing is published. NL1 was
+> begun on 2026-11-11 and is part done (the last paragraph of this header); no other live step has been run. Tests, each with `HOME` at a
 > scratch folder: NT1 59 cases and 10 mutants; NT2 94 cases, mutants 17 to 21 beside the sixteen older ones;
-> NT3 92 cases and 24 mutants; NT4 31 cases and 5 mutants; NT5 with NT7 42 cases and 7 mutants;
-> `common/test-launch-lock.sh` 24 cases and its mutant, with the installer as its third file. All 51 new
+> NT3 96 cases and 25 mutants; NT4 31 cases and 5 mutants; NT5 with NT7 42 cases and 7 mutants;
+> `common/test-launch-lock.sh` 24 cases and its mutant, with the installer as its third file. All 52 new
 > mutants and the 17 older ones were applied and seen red. NT6's gates were run and are green: links (0
 > unresolved), identifiers (at the residual of 9), the experiments ledger, `bash -n`, and the three launcher
 > suites. Deviations: (1) NT3 found a defect while it was being built: on a new install, where Steam has no
@@ -18,14 +19,27 @@
 > guard saves is the shell's "unbound variable" line, and that is what the case now asserts. (3) The stray
 > sweep's `kill` goes through `L1_KILL` (default `kill`), so that no test signals a real process; and NT1's
 > launcher-failure case makes a whole prefix before it exits 1, so that only the exit code tells. (4)
-> `cities-skylines-2/GOTCHAS.md` has the three planned entries and one the tests found; the fourth planned
-> entry (Steam and a closed Terminal window) waits for NL1. N6a carries picture 3 only, as planned. (5) The
+> `cities-skylines-2/GOTCHAS.md` has the four planned entries (the fourth, Steam and a closed Terminal window,
+> written from NL1), one the tests found and one the live run found. N6a carries picture 3 only, as planned. (5) The
 > experiments ledger gained a row for the probe's evidence folder (`exp_a934dc`): its gate was red on `main`
 > without one. (6) N1, N2 and most of N3 were written on Opus 5.5; N3's last fix, N4, N5, N6a and this header
-> on Fable 5.2. Still to come, each on James's word: NL1 to NL5, and N6b after the release exists. Verify
+> on Fable 5.2. Still to come, each on James's word: the rest of NL1, NL2 to NL5, and N6b after the release exists. Verify
 > against: `install.sh`, `cities-skylines-2/scripts/install.sh`, `cities-skylines-2/scripts/make-wrapper.sh`,
 > `cities-skylines-2/scripts/setup.sh`, `common/make-installer-app.sh`, their five tests,
 > `common/test-launch-lock.sh`, `cities-skylines-2/INSTALL.md`.
+>
+> **NL1 so far (the Studio, 2026-11-11; evidence `~/cs2-patch/evidence/simple-install-NL1-20261111/`, ledger
+> row `exp_ceec08`).** Measured: both real downloads passed their checksums and the wrapper was made (1.3 GB);
+> Steam's installer had the tested checksum; the installer started Steam twice (the first start ended 24 s
+> later at the "download location" line) and Steam's sign-in window was up about 115 s after the installer
+> was opened; Control-C's signal twice and the Terminal window closed once each stopped the installer and left Steam
+> holding the prefix with its window on screen, the lock released and `caffeinate` ended; opened again with
+> Steam up, the installer went straight to its sign-in words and did not start Steam again. Found and fixed
+> in `a9eeaa7`: after Control-C the installer said "Done."; it now traps INT, TERM and HUP and says it was
+> stopped (two GOTCHAS entries; the guide gained one sentence). Not done yet: the installer opened again
+> after the closed window, James's sign-in, `steam://install/949230`, picture 4, the cloned game seen while
+> polling and `-shutdown`, `boot-verify.sh` to the main menu, the after-listing, and the cleanup. The scratch
+> wrapper `~/Applications/CS2fresh.app` is kept until NL1 ends.
 >
 > Tracking: issue #22. File and line references are as of `a749425`; none of the cited files changed up to
 > `580cf4e`. A path is relative to the repository root. Every number marked "measured" was measured on the

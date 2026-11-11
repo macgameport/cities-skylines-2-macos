@@ -3100,3 +3100,32 @@ real views, read by eye before the merge, found it.
 - **Found by a test, not by reading:** `test-install.sh` asserts that the scratch home folder appears nowhere in
   the installer's output, and that line was the one place it did. Test the file first:
   `[ -f "$LOG" ] && before="$(wc -l < "$LOG")"`.
+
+## Control-C or a closed Terminal window stops the installer and not Steam (2026-11-11)
+
+- **Measured at the sign-in window of a new wrapper** (the Studio, macOS 27.2, the plan's NL1): Control-C's signal
+  twice (INT sent to the Terminal's foreground group) and the window closed once. Each time the installer was gone, its lock file was gone and `caffeinate` had
+  ended, and 30 to 62 s later the same seven Steam processes held the prefix with "Sign in to Steam" still on
+  screen. Steam's `.crash` stayed the 0-byte file it keeps while it runs.
+- That is `start_steam`'s doing: Steam is started in its own process group with hang-up ignored
+  (`set -m; ( trap '' HUP; exec ... ) & disown; set +m`), so the signal the Terminal sends to the installer's
+  group never reaches it.
+- **Opened again with Steam up**, the installer skips to its sign-in words and does not start Steam a second
+  time (measured after Control-C; after the closed window the state was the same and it was not opened again).
+- Not measured: the same during a download. Nobody had signed in.
+- Evidence: `~/cs2-patch/evidence/simple-install-NL1-20261111/` (`ctrl-c.txt`, `trace-run3.txt`).
+
+## In bash 3.2 an `EXIT` trap that runs after a signal can see exit code 0 (2026-11-11)
+
+- **Found at the first live run:** after Control-C the installer printed "Done. Start the game from
+  Applications", the closing line of a finished install. Its `EXIT` trap reads `$?` to choose the line, and
+  with no trap for the signal it read 0.
+- Measured apart (bash 3.2.57, a script that loops on `sleep` and prints `$?` from its `EXIT` trap, the
+  signal sent to its whole group as a Terminal does): INT gave 130, **TERM gave 0, HUP gave 0**. A closed
+  window is HUP.
+- With `trap 'exit 130' INT`, `trap 'exit 143' TERM` and `trap 'exit 129' HUP` the `EXIT` trap sees 130, 143
+  and 129. `scripts/install.sh` sets a flag in those traps and says "Stopped. Open the installer again"
+  (`test-install.sh`, the cases for TERM and HUP, and mutant 25).
+- A test cannot send INT to a script it started in the background: a non-interactive shell starts such a job
+  with INT ignored, and an ignored signal cannot be trapped. The tests use TERM and HUP; INT was seen live.
+- Evidence: the same folder (`ctrl-c.txt`, `trap-probe.sh`, `trap-probe-drive.py`).
