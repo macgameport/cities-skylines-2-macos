@@ -25,20 +25,27 @@ Everything that used to sit at the top level of this repository is now in `citie
 
 ## Cities: Skylines II — quick start
 
-Own the game on Steam, on an Apple Silicon Mac? Roughly 20 minutes:
+Own the game on Steam, on an Apple Silicon Mac? Paste one line into Terminal:
+
+```bash
+/bin/bash -c "$(curl --proto '=https' --tlsv1.2 -fsSL https://raw.githubusercontent.com/macgameport/1launcher/release/install.sh)"
+```
+
+The installer makes the Wine wrapper, puts Steam for Windows in it, waits while you sign in and the game
+downloads (about 100 GB), applies the patches, and builds a double-clickable app with the game's own icon,
+and **14unch3r**, one small window that lists every game set up on your Mac and starts the one you click.
+Each game's own app stays in Applications, so Spotlight finds it too, and setup offers a 14unch3r shortcut
+on the Desktop. **[The install guide](cities-skylines-2/INSTALL.md) walks through it step by step**, says
+what is downloaded from whom, and has the same steps by hand. The stack, the numbers and the story are in
+the game's [README](cities-skylines-2/README.md).
+
+With git, and a wrapper you made yourself:
 
 ```bash
 git clone https://github.com/macgameport/1launcher.git
 cd 1launcher/cities-skylines-2
 bash scripts/setup.sh
 ```
-
-`setup.sh` checks your prerequisites, applies the patches, and builds a double-clickable app with
-the game's own icon, and **14unch3r**, one small window that lists every game set up on your Mac and
-starts the one you click. Each game's own app stays in Applications, so Spotlight finds it too, and setup
-offers a 14unch3r shortcut on the Desktop. You need a Wine wrapper with Steam and the game inside it first:
-**[INSTALL.md](cities-skylines-2/INSTALL.md) walks through all of it**. The stack, the numbers and the
-story are in the game's [README](cities-skylines-2/README.md).
 
 Cloned this before the folders moved? `git pull`, then run setup the way you always have:
 `bash scripts/setup.sh` from the top of the clone still works.

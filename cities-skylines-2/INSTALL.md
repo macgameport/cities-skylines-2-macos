@@ -3,6 +3,64 @@
 Getting **Cities: Skylines II** running on an Apple Silicon Mac, free — no CrossOver licence.
 Mods included.
 
+## The quick way
+
+One line in Terminal does the whole install. It makes the Wine wrapper, puts Steam for Windows in it,
+waits while you sign in and the game downloads, then applies the fixes and builds the game's app.
+
+**You need:** an Apple Silicon Mac on macOS 26 or 27, a Steam account that owns Cities: Skylines II, and
+about 105 GB of free disk space (the game with all its DLC is about 100 GB).
+
+1. Open **Terminal** (in Applications → Utilities), paste this line and press Return:
+
+   ```bash
+   /bin/bash -c "$(curl --proto '=https' --tlsv1.2 -fsSL https://raw.githubusercontent.com/macgameport/1launcher/release/install.sh)"
+   ```
+
+   macOS 26.4 and later can stop a pasted command with "Possible malware, paste blocked"; it is reported
+   to let you paste it anyway. What the line runs is the script at that address, which you can read in a
+   browser first.
+2. The window works through six steps and says what each one is doing. It can ask for two things on the
+   way: to install Rosetta 2 (type `y`), and, in a box from Apple, to install Apple's Command Line Tools
+   (press Install, then Agree). Leave the window open; the Mac is kept awake while it runs.
+3. When Steam's sign-in window appears, sign in with the account that owns the game, with "Remember me"
+   ticked. Steam may ask for a code from your email or the Steam app. A small box headed
+   "Steam - Fatal Error" can appear once or twice before the sign-in window and close again: that is
+   Steam updating itself, and nothing in it needs a click.
+
+   ![Steam's sign-in window](docs/images/steam-signin.png)
+4. In Steam, click **Library**, then **Cities: Skylines II**, then **Install**. The download takes hours.
+   When it finishes Steam shows a green Play button: do not press it, it does not work from inside Steam.
+5. The installer sees the download finish, closes Steam, applies the fixes and builds the app. It ends
+   with `Done.`
+6. Play: **Cities Skylines II** in Applications, or **14unch3r**, the window that lists every game set up
+   on this Mac. One setting is worth changing in the game: see [Play](#5-play) below.
+
+Good to know:
+
+- **Stopped part way?** Paste the line again. It carries on from the step it stopped at. Pasting it again
+  on a finished install is also how to update: it fetches the current scripts and re-applies the fixes.
+- **What it downloads, and from whom.** The Wine engine and the wrapper it lives in are
+  [Porting Kit](https://www.portingkit.com/)'s, fetched from their own pages on GitHub and checked against
+  fixed checksums; Steam's installer comes from Valve; Rosetta and the Command Line Tools, if missing, come
+  from Apple. Nothing is re-hosted here. Wine and Valve's installer run as they come: macOS does not
+  check programs fetched this way.
+- **What it follows.** The line fetches this repository's `release` branch, which moves forward only after
+  the tests have passed. A fix made after a game update reaches the installer once it is there.
+- **To look before it touches anything**, give it `--check`. With the pasted form the words after the
+  closing quote are a name and then the arguments:
+  `... install.sh)" 1launcher-install cities-skylines-2 release --check`
+- **Asking for help?** Terminal's output can show your Mac's user name inside file paths. Look for it
+  before pasting the output anywhere public.
+- **Have a clone?** `bash cities-skylines-2/scripts/install.sh` is the same installer, from your checkout.
+
+---
+
+## By hand
+
+The numbered steps below do the same by hand, with Porting Kit's app. They are also where each of the
+installer's steps is explained.
+
 **Time:** about 20 minutes of clicking, plus however long the game takes to download.
 **You need:**
 
@@ -11,7 +69,7 @@ Mods included.
 - **Rosetta 2.** If you are not sure it is installed, paste this into Terminal:
   `softwareupdate --install-rosetta --agree-to-license`
 - The game already owned on Steam.
-- Disk space for the game. With its DLC it takes 96 GB on the test Mac.
+- Disk space for the game: about 100 GB with all its DLC (103 GB by Steam's count on the test Mac).
 - Setup checks all of this for you and says so line by line. `OK` is fine. `CAUTION` means this Mac is
   outside what has been tested: setup explains why, asks you to press Return, and goes on. `MISSING` means
   something it cannot work without, with the command that fixes it.
@@ -307,6 +365,9 @@ DLLs:
 cd 1launcher && git pull && cd cities-skylines-2 && bash scripts/setup.sh
 ```
 
+If you installed with [the quick way](#the-quick-way), paste its line again instead: it fetches the
+current scripts and re-applies the fixes.
+
 Each patch finds its target by name or by a byte pattern and refuses to write if what it finds is
 not exactly what it expects, so it will never corrupt a file. If one reports a miss, please open an
 issue. (1.6.2f1, October 2026: the cohtml and Paradox SDK patches needed re-deriving; the SDK ones
@@ -340,3 +401,5 @@ defaults delete local.1launcher.window 2>/dev/null; rm -f ~/Library/Preferences/
 Then delete the wrappers (`~/Applications/CS2dxmt11.app`, and `~/Applications/CS2dxmt11-pk110.app`
 if the engine build created it) via Porting Kit or the Finder, and the **14unch3r** shortcut on the
 Desktop if you made one: move it to the Trash in the Finder. Nothing is installed outside those paths.
+Rosetta 2 and Apple's Command Line Tools, if the installer added them, stay: they are Apple's, and other
+programs may use them.

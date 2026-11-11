@@ -21,6 +21,12 @@
 #   MUTANT=14 ...  the alias step run when the window was not built; must exit 1
 #   MUTANT=15 ...  the step run before the problems exit; must exit 1
 #   MUTANT=16 ...  the Desktop folder not tested; must exit 1
+#   MUTANT=17 ...  --mac-only goes on to the wrapper checks; must exit 1
+#   MUTANT=18 ...  CS2_VIA_INSTALLER is ignored; must exit 1
+#   MUTANT=19 ...  --mac-only exits 0 with Rosetta missing; must exit 1
+#   MUTANT=20 ...  L1_FETCHED_REF is ignored; must exit 1
+#   MUTANT=21 ...  the path helper returns its argument unchanged; must exit 1
+# (17 to 21: docs/plans/simple-install.md, NT2.)
 # The window builder is a recording stub beside the scratch repo, at $T/common, where setup.sh looks for it.
 set -u
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
@@ -48,6 +54,13 @@ case "${MUTANT:-0}" in
   14) mutate 's#^  \[ "\${WINDOW_BUILT:-0}" = 1 \] || return 0$#  true#' '^  true$' ;;
   15) mutate 's#^if \[ "\$problems" -gt 0 \]; then$#desktop_step; if [ "$problems" -gt 0 ]; then#' '^desktop_step; if' ;;
   16) mutate 's#^  \[ -d "\$HOME/Desktop" \] || return 0$#  true#' '^  true$' ;;
+  17) mutate 's#^if \[ "\$MAC_ONLY" = 1 \]; then .*#if false; then#' '^if false; then$' ;;
+  18) mutate 's#\[ "\${CS2_VIA_INSTALLER:-0}" != 1 \] \&\& ##' 'ASSUME_YES" = 0 \] && \[ "\$CHECK_ONLY" = 0 \] && \[ -t 0 \]'
+      mutate 's#^if \[ "\${CS2_VIA_INSTALLER:-0}" = 1 \]; then$#if false; then#' '^if false; then$' ;;
+  19) perl -0pi -e 's/(    echo "\$bad prerequisite\(s\) missing[^\n]*\n)    exit 1/$1    exit 0/' "$S"
+      grep -q '^    exit 0$' "$S" || { echo "REFUSED: mutant did not apply"; exit 2; } ;;
+  20) mutate 's#\[ -n "\${L1_FETCHED_REF:-}" \]#false#g' 'false && GUIDE=' ;;
+  21) mutate "s#^tilde() { case .*#tilde() { printf '%s' \"\$1\"; }#" "^tilde() { printf '%s' \"\$1\"; }$" ;;
   8) perl -0pi -e 's/\nelse\n  # 14unch3r/\nfi\nif true; then\n  # 14unch3r/' "$S"; grep -q '^if true; then$' "$S" || { echo "REFUSED: mutant did not apply"; exit 2; } ;;
 esac
 for f in "$REPO"/patches/patch_*.py; do
@@ -265,6 +278,41 @@ check "desktop: a home with no Desktop folder: no call, no line" "$(run "$H2" --
 check "desktop: a failing patch with --desktop: exit 1 as before, not asked, no call" \
   "$(STUB_FAIL=patch_mkparent.py run "$H" --desktop):$(said "$H" "$Q"):$(lines "$ALIAS_CALLS"):$(said "$H" '^=== setup finished with 1 problem')" "1:0:0:1"
 check "desktop: --help names --desktop" "$(bash "$S" --help | grep -c -- '--desktop')" 1
+
+# --- for scripts/install.sh (docs/plans/simple-install.md, 2.6 and NT2)
+H="$T/hm"; mkdir -p "$H"
+check "--mac-only on a tested Mac with nothing installed: exit 0, before any wrapper line" \
+  "$(run "$H" --mac-only):$(said "$H" 'Rosetta 2  *OK$'):$(said "$H" 'Wine wrapper')" "0:1:0"
+check "--mac-only with Rosetta missing: exit 1, the missing line" \
+  "$(STUB_ROSETTA=1 run "$H" --mac-only):$(said "$H" 'prerequisite(s) missing'):$(said "$H" 'Wine wrapper')" "1:1:0"
+check "--mac-only on macOS 15 at a terminal: the paragraph and the question, exit 0" \
+  "$(pty "$H" --mac-only):$(said "$H" '^1 caution(s)'):$(said "$H" 'Press Return to continue'):$(said "$H" 'Wine wrapper')" "0:1:1:0"
+check "  ...with --yes it is not asked" "$(pty "$H" --mac-only --yes):$(said "$H" 'Press Return')" "0:0"
+check "  ...with --check it is not asked" "$(pty "$H" --mac-only --check):$(said "$H" 'Press Return')" "0:0"
+check "--help names --mac-only" "$(bash "$S" --help | grep -c -- '--mac-only')" 1
+H="$T/hv"; home "$H"
+check "CS2_VIA_INSTALLER=1 on macOS 15 at a terminal: not asked again, setup complete" \
+  "$(CS2_VIA_INSTALLER=1 pty "$H"):$(said "$H" 'Press Return'):$(said "$H" '^1 caution(s)'):$(said "$H" '=== setup complete ===')" "0:0:1:1"
+check "  ...the closing line says to open the installer again after a game update" \
+  "$(said "$H" '^After a game update: open the installer again'):$(said "$H" 'bash scripts/setup.sh  (updates')" "1:0"
+check "without it: asked, and today's closing line" "$(pty "$H"):$(said "$H" 'Press Return'):$(said "$H" '^After a game update: re-run  bash scripts/setup.sh')" "0:1:1"
+mkdir -p "$H/Desktop"
+check "CS2_VIA_INSTALLER=1, no shortcut made: the line says to open the installer again" \
+  "$(CS2_VIA_INSTALLER=1 run "$H"):$(said "$H" '^Desktop:   no shortcut made. To add one, open the installer again and answer y.$')" "0:1"
+check "  ...without it, today's line" "$(run "$H"):$(said "$H" '^Desktop:   no shortcut made. To add one:  bash scripts/setup.sh --desktop$')" "0:1"
+H="$T/hf"; home "$H"
+check "L1_FETCHED_REF=release: the repo line names the temporary copy" \
+  "$(L1_FETCHED_REF=release run "$H"):$(said "$H" '^repo: a temporary copy of macgameport/1launcher at release$')" "0:1"
+check "  ...a failing patch says to open the installer again, not git pull" \
+  "$(L1_FETCHED_REF=release STUB_FAIL=patch_mkparent.py run "$H"):$(said "$H" 'open the installer'):$(said "$H" 'git pull')" "1:1:0"
+check "  ...without it, the checkout and git pull" "$(STUB_FAIL=patch_mkparent.py run "$H"):$(said "$H" 'git pull')" "1:1"
+check "  ...a missing prerequisite points at the guide's address" \
+  "$(L1_FETCHED_REF=release STUB_ROSETTA=1 run "$H"):$(said "$H" '^Full walkthrough: https://github.com/macgameport/1launcher/blob/main/cities-skylines-2/INSTALL.md$')" "1:1"
+H="$T/hp"; home "$H"; home "$H" CS2.app; rm -rf "$H/Applications/CS2dxmt11.app"
+check "the lines setup itself prints give the home folder as ~" \
+  "$(run "$H" --hide-mod-badges):$(said "$H" '^Installing launcher + patches into ~/cs2-patch$'):$(said "$H" 'Your wrapper is ~/Applications/CS2.app,')" "0:1:1"
+check "  ...and none of them holds the home folder whole" \
+  "$(grep -E '^(repo:|Installing launcher|  !! the badge patch|Full walkthrough)' "$H.out" | grep -c "$H")" 0
 
 echo "$fails failure(s)"
 [ "$fails" = 0 ]

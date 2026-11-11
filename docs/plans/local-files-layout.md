@@ -10,6 +10,13 @@
 > commit `14df074`. "The unification plan" is `docs/plans/1launcher-unification.md`; its phases are
 > "Phase 1" to "Phase 5" and its tests T1 to T15; this plan's are L0 to L3 and LT1 to LT20.
 
+> **Pointer (2026-11-11), from `docs/plans/simple-install.md`.** That plan adds an installer whose app is
+> released under its own tags, `installer-<n>`, created with `--latest=false`; `installer-1` may exist before
+> `v0.1.0`. So read "the first tagged release" below as "the first numbered release", and let this plan's
+> tag tests (LT19, LT20) leave `installer-*` tags alone. The installer runs `setup.sh` as its last step, right
+> after it has closed Steam and waited for `wineserver` to end, which is what 3.4's refusal needs. Whichever
+> of the two plans is built second gets a fitted re-check against the other.
+
 ## 0. Decisions already made (James, 2026-11-09)
 
 | # | Decision | His words |

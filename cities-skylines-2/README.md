@@ -24,18 +24,24 @@ overlay is Metal's own performance HUD, enabled with `CS2_HUD=1`.*
 
 ## Quick start
 
-Own the game on Steam, on an Apple Silicon Mac? Roughly 20 minutes:
+Own the game on Steam, on an Apple Silicon Mac? Paste one line into Terminal:
+
+```bash
+/bin/bash -c "$(curl --proto '=https' --tlsv1.2 -fsSL https://raw.githubusercontent.com/macgameport/1launcher/release/install.sh)"
+```
+
+The installer makes the Wine wrapper, puts Steam for Windows in it, waits while you sign in and the game
+downloads (about 100 GB), applies the patches, and builds a double-clickable app with the game's own
+icon. **[INSTALL.md](INSTALL.md) walks through it step by step**, including the one in-game setting worth
+changing (Display Mode → Fullscreen Window), and has the same steps by hand.
+
+With git, and a wrapper you made yourself:
 
 ```bash
 git clone https://github.com/macgameport/1launcher.git
 cd 1launcher/cities-skylines-2
 bash scripts/setup.sh
 ```
-
-`setup.sh` checks your prerequisites, applies the patches, and builds a double-clickable app with
-the game's own icon. You need a Wine wrapper with Steam and the game inside it first —
-**[INSTALL.md](INSTALL.md) walks through all of it**, including the one in-game setting worth
-changing (Display Mode → Fullscreen Window).
 
 ## The stack that works
 

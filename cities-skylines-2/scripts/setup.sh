@@ -1,9 +1,8 @@
 #!/bin/bash
 # setup.sh — install the launcher, apply the patches, and build the double-clickable app.
 #
-# Run this AFTER you have: the Wine 11 + DXMT wrapper installed, Steam installed inside it, and
-# Cities: Skylines II downloaded inside that Steam. See INSTALL.md for those steps — they need a
-# GUI and cannot be scripted.
+# Run this AFTER you have the Wine 11 + DXMT wrapper, Steam inside it and the game (INSTALL.md), or run
+# scripts/install.sh, which does all of it and then runs this.
 #
 #   bash scripts/setup.sh              # check, install, patch, build shortcut
 #   bash scripts/setup.sh --check      # preflight only, change nothing
@@ -11,6 +10,10 @@
 #   bash scripts/setup.sh --show-mod-badges   # opt out again
 #   bash scripts/setup.sh --yes        # do not stop to ask when this Mac is outside what has been tested
 #   bash scripts/setup.sh --desktop    # also put a 14unch3r shortcut on the Desktop, without asking
+#   bash scripts/setup.sh --mac-only   # check this Mac only (Apple Silicon, Rosetta, macOS), then stop
+#
+# Read from the environment by scripts/install.sh's runs: CS2_VIA_INSTALLER=1 (the caution question was
+# asked already; two lines speak of the installer) and L1_FETCHED_REF=<ref> (the checkout is a temporary copy).
 #
 # What it does:
 #   1. verifies the wrapper, Steam and the game are where they should be
@@ -26,6 +29,7 @@ RETIRED="The Wine 10 + D3DMetal stack was retired on 2026-11-09. Its last versio
 CHECK_ONLY=0
 ASSUME_YES=0
 DESKTOP=0
+MAC_ONLY=0
 BADGES=""
 DEST="${CS2_PATCH_DIR:-$HOME/cs2-patch}"
 
@@ -37,6 +41,7 @@ while [ $# -gt 0 ]; do
     --check)   CHECK_ONLY=1; shift ;;
     --yes)     ASSUME_YES=1; shift ;;
     --desktop) DESKTOP=1; shift ;;
+    --mac-only) MAC_ONLY=1; shift ;;
     --stack)   need_value "$@"            # there is one stack now; its names are still accepted
                case "$2" in
                  dxmt11|wine11) ;;
@@ -62,9 +67,26 @@ good() { say "$1" "OK";   ok=$((ok+1)); }
 fail() { say "$1" "MISSING"; echo "      -> $2"; bad=$((bad+1)); }
 # a CAUTION is not a failure: this Mac is outside what has been tested, and the player may go on
 caution() { say "$1" "CAUTION"; echo "      -> $2"; cautions=$((cautions+1)); }
+# a path as printed: the home folder as ~, so that output pasted into an issue does not carry the user's name
+tilde() { case "$1" in "$HOME") printf '~' ;; "$HOME"/*) printf '~%s' "${1#"$HOME"}" ;; *) printf '%s' "$1" ;; esac; }
+caution_note() {
+  echo
+  echo "$cautions caution(s): this Mac is outside what this project has been tested on (README.md, \"Compatibility\")."
+  echo "Setup can go on from here. It changes only what INSTALL.md names, and INSTALL.md's Uninstall section undoes it."
+  echo "The game may still not start on this Mac. Either way, a note in the project's Discussions helps the next person."
+}
+caution_ask() {   # asked once per install: scripts/install.sh asks it through --mac-only and sets CS2_VIA_INSTALLER
+  if [ "$cautions" -gt 0 ] && [ "$ASSUME_YES" = 0 ] && [ "$CHECK_ONLY" = 0 ] && [ "${CS2_VIA_INSTALLER:-0}" != 1 ] && [ -t 0 ]; then
+    printf 'Press Return to continue, or Control-C to stop. (--yes skips this question.) '
+    read -r _ || true
+  fi
+}
+GUIDE="$(tilde "$REPO/INSTALL.md")"
+[ -n "${L1_FETCHED_REF:-}" ] && GUIDE="https://github.com/macgameport/1launcher/blob/main/cities-skylines-2/INSTALL.md"
 
 echo "=== Cities: Skylines II on macOS — setup ==="
-echo "repo: $REPO"
+if [ -n "${L1_FETCHED_REF:-}" ]; then echo "repo: a temporary copy of macgameport/1launcher at $L1_FETCHED_REF"
+else echo "repo: $(tilde "$REPO")"; fi
 echo
 echo "Preflight:"
 
@@ -90,6 +112,16 @@ case "$OSMAJ" in
        caution "macOS $OSV" "below the minimum of DXMT, the graphics layer (macOS 14)."
      fi ;;
 esac
+if [ "$MAC_ONLY" = 1 ]; then   # scripts/install.sh, stage 1: this Mac alone
+  echo
+  if [ "$bad" -gt 0 ]; then
+    echo "$bad prerequisite(s) missing — fix the ones marked above, then re-run."
+    exit 1
+  fi
+  [ "$cautions" -gt 0 ] && caution_note
+  caution_ask
+  exit 0
+fi
 
 # --- the wrapper
 WRAPPER=""
@@ -101,7 +133,7 @@ else
   done
 fi
 if [ -n "$WRAPPER" ]; then good "Wine wrapper ($(basename "$WRAPPER"))"
-else fail "Wine wrapper" "INSTALL.md step 1 — install the Porting Kit Wine 11 + DXMT wrapper, or set CS2_WRAPPER=/path/to/Wrapper.app"; fi
+else fail "Wine wrapper" "INSTALL.md step 1 — install the Porting Kit Wine 11 + DXMT wrapper, or set CS2_WRAPPER=/path/to/Wrapper.app, or run bash scripts/install.sh, which does this for you"; fi
 
 PREFIX="${WRAPPER:-}/Contents/SharedSupport/prefix"
 GDIR="$PREFIX/drive_c/Program Files (x86)/Steam/steamapps/common/Cities Skylines II"
@@ -113,9 +145,9 @@ else fail "wine64 in the wrapper" "the wrapper looks incomplete — reinstall th
 
 # --- steam + game
 if [ -n "$WRAPPER" ] && [ -f "$PREFIX/drive_c/Program Files (x86)/Steam/steam.exe" ]; then good "Steam inside the wrapper"
-else fail "Steam inside the wrapper" "INSTALL.md step 2 — install Steam into the wrapper's prefix"; fi
+else fail "Steam inside the wrapper" "INSTALL.md step 2 — install Steam into the wrapper's prefix, or run bash scripts/install.sh, which does this for you"; fi
 if [ -n "$WRAPPER" ] && [ -f "$GDIR/Cities2.exe" ]; then good "Cities: Skylines II installed"
-else fail "Cities: Skylines II installed" "INSTALL.md step 3 — install the game via Steam inside the wrapper"; fi
+else fail "Cities: Skylines II installed" "INSTALL.md step 3 — install the game via Steam inside the wrapper, or run bash scripts/install.sh, which does this for you"; fi
 
 # --- python3 that really runs (Apple's stub answers to the name before the Command Line Tools are installed)
 if python3 -c 'import sys; raise SystemExit(sys.version_info < (3, 8))' >/dev/null 2>&1; then
@@ -125,25 +157,17 @@ else fail "python3, version 3.8 or newer" "install Apple's Command Line Tools:  
 echo
 if [ "$bad" -gt 0 ]; then
   echo "$bad prerequisite(s) missing — fix the ones marked above, then re-run."
-  echo "Full walkthrough: $REPO/INSTALL.md"
+  echo "Full walkthrough: $GUIDE"
   exit 1
 fi
 echo "All $ok checks passed."
-if [ "$cautions" -gt 0 ]; then
-  echo
-  echo "$cautions caution(s): this Mac is outside what this project has been tested on (README.md, \"Compatibility\")."
-  echo "Setup can go on from here. It changes only what INSTALL.md names, and INSTALL.md's Uninstall section undoes it."
-  echo "The game may still not start on this Mac. Either way, a note in the project's Discussions helps the next person."
-fi
+[ "$cautions" -gt 0 ] && caution_note
 [ "$CHECK_ONLY" = 1 ] && { echo "(--check: stopping before making changes)"; exit 0; }
-if [ "$cautions" -gt 0 ] && [ "$ASSUME_YES" = 0 ] && [ -t 0 ]; then
-  printf 'Press Return to continue, or Control-C to stop. (--yes skips this question.) '
-  read -r _ || true
-fi
+caution_ask
 
 # ---------------------------------------------------------------- install
 echo
-echo "Installing launcher + patches into $DEST"
+echo "Installing launcher + patches into $(tilde "$DEST")"
 mkdir -p "$DEST"
 _lname="$(basename "$LAUNCHER_SRC")"
 if [ -f "$DEST/$_lname" ] && ! cmp -s "$LAUNCHER_SRC" "$DEST/$_lname"; then
@@ -174,7 +198,7 @@ case "$BADGES" in
   hide)
     badge_install && echo "  mod badge patch: on. It takes effect at the next launch; --show-mod-badges turns it off"
     [ "$WRAPPER" = "$HOME/Applications/CS2dxmt11.app" ] \
-      || echo "  !! the badge patch only knows ~/Applications/CS2dxmt11.app. Your wrapper is $WRAPPER, so it will not find your game."
+      || echo "  !! the badge patch only knows ~/Applications/CS2dxmt11.app. Your wrapper is $(tilde "$WRAPPER"), so it will not find your game."
     ;;
   show)
     rm -f "$BADGE_DST" "$BADGE_MARK"
@@ -202,8 +226,13 @@ if CS2_GAME_DIR="$GDIR" bash "$DEST/repatch.sh" dxmt11; then
 else
   problems=$((problems+1))
   echo "  !! not every patch is in place: the FAILED line above names the ones that are not. They refuse to write"
-  echo "     rather than corrupt a file. If the game has just updated, a pattern may have moved: update this"
-  echo "     checkout (git pull), run setup again, and see INSTALL.md, 'After a game update'."
+  if [ -n "${L1_FETCHED_REF:-}" ]; then
+    echo "     rather than corrupt a file. If the game has just updated, a pattern may have moved: open the installer"
+    echo "     again, which fetches the current scripts, and see INSTALL.md, 'After a game update'."
+  else
+    echo "     rather than corrupt a file. If the game has just updated, a pattern may have moved: update this"
+    echo "     checkout (git pull), run setup again, and see INSTALL.md, 'After a game update'."
+  fi
 fi
 
 echo
@@ -257,12 +286,18 @@ desktop_step() {
     made)          DESKTOP_LINE="Desktop:   14unch3r shortcut added" ;;
     have)          DESKTOP_LINE="Desktop:   the 14unch3r shortcut is already there" ;;
     other)         DESKTOP_LINE="Desktop:   something else named 14unch3r is there; it was left as it is" ;;
-    none|unlooked) DESKTOP_LINE="Desktop:   no shortcut made. To add one:  bash scripts/setup.sh --desktop" ;;
+    none|unlooked) DESKTOP_LINE="Desktop:   no shortcut made. $ADD_ONE" ;;
     failed*)       DESKTOP_LINE="Desktop:   the shortcut could not be made: $(printf '%s' "$_state" | cut -s -f2)" ;;
   esac
   return 0
 }
 
+ADD_ONE="To add one:  bash scripts/setup.sh --desktop"
+AFTER_UPDATE="re-run  bash scripts/setup.sh  (updates reset the patched DLLs)."
+if [ "${CS2_VIA_INSTALLER:-0}" = 1 ]; then
+  ADD_ONE="To add one, open the installer again and answer y."
+  AFTER_UPDATE="open the installer again (updates reset the patched DLLs)."
+fi
 if [ "$problems" -gt 0 ]; then
   echo
   echo "=== setup finished with $problems problem(s): see the lines marked !! above ==="
@@ -284,6 +319,6 @@ In-game:   Options -> Graphics -> Display Mode -> FULLSCREEN WINDOW.
            Exclusive Fullscreen has an alt-tab presentation bug on this stack (dxmt#206) —
            borderless looks identical and is immune.
 
-After a game update: re-run  bash scripts/setup.sh  (updates reset the patched DLLs).
+After a game update: $AFTER_UPDATE
 Troubleshooting: INSTALL.md, then GOTCHAS.md.
 DONE

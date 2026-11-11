@@ -3049,3 +3049,54 @@ real views, read by eye before the merge, found it.
 - **Look at a drawn surface before calling it built.** The engineering rule's "load the page and look at it"
   caught what the drawing tests could not; a render of the real views offscreen does it without putting a
   window on someone's screen (14unch3r's window was rendered that way while a game ran).
+
+## The first start of Steam in a new prefix fails, and a later one works (2026-11-10)
+
+- **Measured, 3 clean prefixes out of 3** (the Studio, macOS 27.2; a wrapper made by `scripts/make-wrapper.sh`'s
+  method, Steam put in with `wine64 SteamSetup.exe /S`): the first `steam.exe -no-cef-sandbox` ends about 25 s
+  later at a box headed "Steam - Fatal Error" ("Failed to load steamui.dll" in one run) that stays until
+  something ends it.
+- The installer Valve serves is from May 2024. Its updater downloads the first stage, logs
+  `Error: Download of package (...) failed after 0 bytes (0 : 200)` one to three times, and stops. The last
+  line of `logs/bootstrap_log.txt` was one of these two, exactly:
+  `Error: Failed to determine download location for universe 1` and
+  `Error: Steam needs to be online to update. Please confirm your network connection and try again.`
+- **Started again, it carries on**: the log then shows the updater of 2024, of January 2026, of October 2026,
+  and the sign-in window appears 20 to 50 s later. A start that works logs no `Error:` line.
+- So `scripts/install.sh` starts Steam until a `steamwebhelper` holds the prefix: on one of the two lines it
+  ends that Steam (`wineserver -k`) and starts again, at most five times.
+- **"No Steam process" for one poll is not "Steam is gone".** While the updater replaces itself there is a gap
+  with nothing holding the prefix; a loop that restarted on the first empty poll started Steam a third time for
+  nothing. The installer waits for three polls in a row.
+- Evidence: `~/cs2-patch/evidence/simple-install-probe-20261110/` (files 05 to 11).
+
+## Porting Kit's two archives are different things under one name, and one carries quarantine inside (2026-11-10)
+
+- Both are named `.tar.7z`. The engine (`WS12Wine11.0_DXMT-v0.80.tar.7z`) is **XZ data**: one
+  `/usr/bin/tar -xf` unpacks it to `wswine.bundle` (5,220 entries, 6 s). The Wineskin template
+  (`Wineskin.app.tar.7z`) is a **real 7-Zip file holding one file**, `Wineskin.app.tar`: `tar -xf` gives that
+  file, and a second `tar -xf` gives the app. `file` tells them apart; the name does not.
+- **Unpacked plainly, 1,037 of the template's files carry `com.apple.quarantine`** (`0082;690d199d;The
+  Unarchiver;`): the packager's own quarantine, stored in the archive and put back by `tar`. Its launcher is
+  a quarantined Intel program at that point. `curl` adds no quarantine, so nothing else in the install has it.
+- `/usr/bin/tar --no-mac-metadata -xf` leaves none, and every file then equals Porting Kit's own unpacked
+  copy (which only adds 1,045 `._` files). `make-wrapper.sh` unpacks that way and then runs
+  `xattr -dr com.apple.quarantine`, the call Wineskin Winery makes at the same point.
+- Evidence: the same folder, file 12.
+
+## `wineserver` needs the library path too (2026-11-10)
+
+- `wineserver -k` for a Porting Kit wrapper, called without `DYLD_FALLBACK_LIBRARY_PATH`, exits 134:
+  `dyld: Library not loaded: @rpath/libinotify.0.dylib`, which lives in the wrapper's `Contents/Frameworks`.
+  With the launcher's export it exits 0.
+- With its output sent to `/dev/null`, as every script here does, the failed call says nothing and the Wine
+  session it was meant to end stays up. A cleanup trap is the usual place to forget the variable.
+
+## `cmd < missing 2>/dev/null` still prints "No such file or directory" (2026-11-11)
+
+- Redirections are applied left to right, and a failed `<` is reported by the shell itself before the
+  `2>/dev/null` after it exists. `before="$(wc -l < "$LOG" 2>/dev/null)"` printed the log's whole path to the
+  player's Terminal on every new install, where Steam has no log yet.
+- **Found by a test, not by reading:** `test-install.sh` asserts that the scratch home folder appears nowhere in
+  the installer's output, and that line was the one place it did. Test the file first:
+  `[ -f "$LOG" ] && before="$(wc -l < "$LOG")"`.
