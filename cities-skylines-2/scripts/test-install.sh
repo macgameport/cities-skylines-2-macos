@@ -33,6 +33,16 @@
 #   MUTANT=23 ...  a copied function run with an empty WINEPREFIX; must exit 1
 #   MUTANT=24 ...  a broken python3 sent to xcode-select --install; must exit 1
 #   MUTANT=25 ...  a signal ends in the EXIT trap alone (which then says Done.); must exit 1
+#   MUTANT=26 ...  one word of one line changed ("is open." made "is opened."); must exit 1, by the transcript
+#   MUTANT=27 ...  one exit code changed (Apple's tools not there yet: 5, not 4); must exit 1
+#   MUTANT=28 ...  a stage's skip test turned round (Apple's tools); must exit 1
+# The transcript (docs/plans/shared-installer.md, ST1): every case's name, result and whole output, with the
+# scratch folder's name and process numbers replaced, is compared with test-install.golden, which holds what
+# the installer printed at 6a66416, before it was divided into a shared part and a game's part. A changed
+# line of that file is a changed word of the installer.
+#   GOLDEN=record bash scripts/test-install.sh   write test-install.golden from this run: a deliberate act,
+#                                                 refused under a mutant and from a run with a failure
+# Under mutants 1 to 25 the transcript is not compared: each of those must be caught by its own case.
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
 REPO="$(cd "$HERE/../.." && pwd)"
@@ -73,12 +83,17 @@ case "${MUTANT:-0}" in
   22) mutate 's#^    while \[ "\$i" -lt "\$START_POLLS" \]; do$#    while :; do#' '^    while :; do$' ;;
   23) first 'if prefix_known && game_running' 'if game_running' '^if game_running' ;;
   25) mutate "s#^trap 'on_signal 143' TERM\$#: no trap#" '^: no trap$' ;;
+  26) mutate 's#Steam for Windows is open\.#Steam for Windows is opened.#' 'Steam for Windows is opened\.' ;;
+  27) mutate 's#are not installed yet\."; exit 4; }#are not installed yet."; exit 5; }#' 'installed yet\."; exit 5; }' ;;
+  28) mutate 's#^if xcode-select -p > /dev/null 2>&1; then #if ! xcode-select -p > /dev/null 2>\&1; then #' '^if ! xcode-select -p' ;;
   24) mutate 's#^if xcode-select -p > /dev/null 2>&1; then #if xcode-select -p > /dev/null 2>\&1 \&\& py_ok; then #' '2>&1 && py_ok; then' ;;
 esac
 
 fails=0
-check() {  # <name> <got> <want>
+check() {  # <name> <got> <want>; the case also goes to the transcript, with the output of the run it judged
   if [ "$2" = "$3" ]; then echo "PASS  $1"; else echo "FAIL  $1 (got '$2', want '$3')"; fails=$((fails + 1)); fi
+  { echo "== $1 :: $2"; cat "${H:-/nonexistent}.out" 2>/dev/null; } \
+    | sed -e "s#/private$T#T#g" -e "s#$T#T#g" -e 's/process [0-9][0-9]*/process N/g' >> "$T/transcript"
 }
 
 # --- the source: copies held identical to the launcher's, and what no line may hold
@@ -447,5 +462,23 @@ check "--check on an empty home: make-wrapper asked only to check" "$(run --chec
 check "--help prints the usage" "$(bash "$S" --help | grep -c 'exit 0 = done')" 1
 
 check "no run reached the runaway guard" "$(cat "$T/runaway" 2>/dev/null | wc -l | tr -d ' ')" 0
+# --- the transcript: what the installer printed in every case above, against what it printed at 6a66416
+GOLD="$HERE/test-install.golden"
+if [ "${GOLDEN:-}" = record ]; then
+  [ "${MUTANT:-0}" = 0 ] || { echo "REFUSED: the transcript is not recorded under a mutant"; exit 2; }
+  [ "$fails" = 0 ] || { echo "REFUSED: the transcript is not recorded from a run with a failure"; exit 2; }
+  cp "$T/transcript" "$GOLD" && echo "RECORDED  $(grep -c '^== ' "$GOLD") cases in $(basename "$GOLD")"
+else
+  case "${MUTANT:-0}" in
+    0|26|27|28)
+      if cmp -s "$T/transcript" "$GOLD"; then echo "PASS  the transcript equals $(basename "$GOLD") ($(grep -c '^== ' "$GOLD") cases)"
+      else
+        echo "FAIL  the transcript differs from $(basename "$GOLD"):"
+        diff "$GOLD" "$T/transcript" 2>&1 | head -n 12 | sed 's/^/        /'
+        fails=$((fails + 1))
+      fi ;;
+    *) echo "SKIP  the transcript is not compared under mutant ${MUTANT}: its own case must catch it" ;;
+  esac
+fi
 echo "$fails failure(s)"
 [ "$fails" = 0 ]
