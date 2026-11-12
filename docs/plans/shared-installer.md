@@ -6,9 +6,12 @@
 > criteria) and the split itself were checked the same day by a fitted check: two blockers, folded
 > (Review, below). Written 2026-11-11.
 >
-> **🔧 As-built (2026-11-11):** PARTIAL: S1, S2 and S3 are built on `simple-install`; the live steps SL1 and
-> SL2 are not run. S1 is `00108f7`, with `7b102a1` for a defect in it found the same evening; S2 is
-> `1df6f27`; S3 is the commit that changes this line. **What stands:** `common/install-core.sh` (420 lines) holds the stages; Cities: Skylines II's
+> **🔧 As-built (2026-11-11):** PARTIAL: S1, S2 and S3 are built on `simple-install`; of the live steps only
+> the last sentence of SL1 is run, and SL1's visible part and SL2 are not. S1 is `00108f7`, with `7b102a1`
+> for a defect in it found the same evening; S2 is `1df6f27`; S3 is `2577207`. **SL1's pasted line, run
+> 2026-11-11 from the pushed branch with `--check`:** it fetched `2577207`, reported all six steps OK against
+> the Studio's own wrapper, exit 0, and started nothing; with no game named the same bootstrap exited 2 with
+> the usage line and fetched nothing. **What stands:** `common/install-core.sh` (420 lines) holds the stages; Cities: Skylines II's
 > `scripts/install.sh` is its settings and its own functions (120 lines, from 446); `make-wrapper.sh` and its
 > test are in `common/`, with `common/fetch.sh` taken out of it. The divided installer prints what the
 > installer of `6a66416` printed in all 96 recorded cases, word for word. **Tests:** the installer's test has
