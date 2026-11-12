@@ -6,16 +6,17 @@
 > criteria) and the split itself were checked the same day by a fitted check: two blockers, folded
 > (Review, below). Written 2026-11-11.
 >
-> **🔧 As-built (2026-11-11):** PARTIAL: S1 and S2 are built on `simple-install`; S3, SL1 and SL2 are not.
-> S1 is `00108f7`, with `7b102a1` for a defect in it found the same evening; S2 is the commit that adds this
-> header. **What stands:** `common/install-core.sh` (420 lines) holds the stages; Cities: Skylines II's
+> **🔧 As-built (2026-11-11):** PARTIAL: S1, S2 and S3 are built on `simple-install`; the live steps SL1 and
+> SL2 are not run. S1 is `00108f7`, with `7b102a1` for a defect in it found the same evening; S2 is
+> `1df6f27`; S3 is the commit that changes this line. **What stands:** `common/install-core.sh` (420 lines) holds the stages; Cities: Skylines II's
 > `scripts/install.sh` is its settings and its own functions (120 lines, from 446); `make-wrapper.sh` and its
 > test are in `common/`, with `common/fetch.sh` taken out of it. The divided installer prints what the
 > installer of `6a66416` printed in all 96 recorded cases, word for word. **Tests:** the installer's test has
 > 105 cases and the transcript, and 33 mutants (its 25, three for the transcript, five new); the wrapper's
 > test 63 cases and 11 mutants; the lock test 24 cases and its mutant, its third file now the core; the
-> bootstrap's 31 cases and 5 mutants and the app builder's 42 and 7 are unchanged. All 57 mutants were
-> applied and seen red, each on its own case. The gates of ST7 are green: links (0 unresolved), identifiers
+> bootstrap's test 40 cases and 10 mutants and the app builder's 48 and 10 (S3 rewrote the first and added
+> to the second). Every mutant was applied and seen red on its own case: 57 at S2, and the bootstrap's and
+> the app builder's 20 again at S3. The gates of ST7 are green: links (0 unresolved), identifiers
 > (at the residual of 9), the experiments ledger, `bash -n`, `test-setup.sh`, `test-launch-feedback.sh` and
 > `test-launcher-parity.sh`. **Deviations:** (1) `main` was merged into the branch, not the branch rebased:
 > it is published, and a rebase would have needed a forced push. (2) S1's transcript held carriage returns
@@ -32,7 +33,17 @@
 > `steam.exe` is not taken for one (mutant 32). (7) Both steps were written on Fable 5.2, starting from what
 > the check's builder lens had built (Opus 5.5), read whole and changed where the folds had moved on: the
 > Wine environment, the tools test and the words at Steam's Play button were still one game's inside the
-> core. Verify against: `common/install-core.sh`, `common/make-wrapper.sh`, `common/fetch.sh`,
+> core. **S3:** the root `install.sh` takes a Steam app ID, finds the folder in `common/games.tsv`, and
+> has no default game; `common/make-installer-app.sh` writes the row's ID into the app; the pasted line in
+> `README.md`, `cities-skylines-2/README.md` and `cities-skylines-2/INSTALL.md` carries `949230`; no line of
+> the root `install.sh` names a folder. (8) The builder already had a variable `ID`, its bundle identifier;
+> the first S3 draft reused the name for the Steam app ID, and the builder then refused to rebuild its own
+> app. The existing case "built again over its own app" caught it; the new variable is `APPID`, and a case
+> now holds the bundle identifier. (9) An ID with no row or no installer exits 2 in both the pasted and the
+> checkout case, with the table's games listed by ID and title. (10) The installer plan's guide text in its
+> section 2.7 is not rewritten; the documents themselves are, and that plan's header says so. Verify
+> against: `install.sh`, `common/make-installer-app.sh`, `common/test-bootstrap.sh`,
+> `common/test-make-installer-app.sh`, `common/install-core.sh`, `common/make-wrapper.sh`, `common/fetch.sh`,
 > `common/test-make-wrapper.sh`, `common/test-launch-lock.sh`, `cities-skylines-2/scripts/install.sh`,
 > `cities-skylines-2/scripts/test-install.sh`, `cities-skylines-2/scripts/test-install.golden`.
 >

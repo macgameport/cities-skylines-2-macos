@@ -27,7 +27,7 @@ overlay is Metal's own performance HUD, enabled with `CS2_HUD=1`.*
 Own the game on Steam, on an Apple Silicon Mac? Paste one line into Terminal:
 
 ```bash
-/bin/bash -c "$(curl --proto '=https' --tlsv1.2 -fsSL https://raw.githubusercontent.com/macgameport/1launcher/release/install.sh)"
+/bin/bash -c "$(curl --proto '=https' --tlsv1.2 -fsSL https://raw.githubusercontent.com/macgameport/1launcher/release/install.sh)" 1launcher-install 949230
 ```
 
 The installer makes the Wine wrapper, puts Steam for Windows in it, waits while you sign in and the game

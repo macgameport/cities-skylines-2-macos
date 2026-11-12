@@ -14,8 +14,10 @@ about 105 GB of free disk space (the game with all its DLC is about 100 GB).
 1. Open **Terminal** (in Applications → Utilities), paste this line and press Return:
 
    ```bash
-   /bin/bash -c "$(curl --proto '=https' --tlsv1.2 -fsSL https://raw.githubusercontent.com/macgameport/1launcher/release/install.sh)"
+   /bin/bash -c "$(curl --proto '=https' --tlsv1.2 -fsSL https://raw.githubusercontent.com/macgameport/1launcher/release/install.sh)" 1launcher-install 949230
    ```
+
+   The number at its end is the game's Steam app ID: it tells the installer which game is meant.
 
    macOS 26.4 and later can stop a pasted command with "Possible malware, paste blocked"; it is reported
    to let you paste it anyway. What the line runs is the script at that address, which you can read in a
@@ -57,7 +59,7 @@ Good to know:
   the tests have passed. A fix made after a game update reaches the installer once it is there.
 - **To look before it touches anything**, give it `--check`. With the pasted form the words after the
   closing quote are a name and then the arguments:
-  `... install.sh)" 1launcher-install cities-skylines-2 release --check`
+  `... install.sh)" 1launcher-install 949230 release --check`
 - **Asking for help?** Terminal's output can show your Mac's user name inside file paths. Look for it
   before pasting the output anywhere public.
 - **Have a clone?** `bash cities-skylines-2/scripts/install.sh` is the same installer, from your checkout.

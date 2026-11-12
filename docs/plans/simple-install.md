@@ -81,7 +81,10 @@
 > Then: build the ZIP, serve it, start the evidence folder's `watch.sh`. Since that plan's S2 (2026-11-11)
 > the files named under "Verify against" above have moved on: `make-wrapper.sh` and its test are in
 > `common/`, and the stages of `cities-skylines-2/scripts/install.sh` are `common/install-core.sh`; what
-> the installer prints is held to what it printed here by `test-install.golden`. **NL3 now waits:** `docs/plans/surviving-mars-install.md` on `main` (its MD5,
+> the installer prints is held to what it printed here by `test-install.golden`. Since its S3 the pasted
+> line ends ` 1launcher-install 949230`: the bootstrap takes a game's Steam app ID, has no default game,
+> and the app's program carries the ID, not the folder (this plan's 2.4, 2.5 and 2.7 describe the earlier
+> form). **NL3 now waits:** `docs/plans/surviving-mars-install.md` on `main` (its MD5,
 > decided 2026-11-11) holds the first release until both games install, and its step M1 moves
 > `make-wrapper.sh` and most of `cities-skylines-2/scripts/install.sh` into `common/`.
 >
