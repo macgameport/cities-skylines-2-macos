@@ -2,7 +2,8 @@
 
 > **Status:** Triple-checked 2026-11-11 — build-ready-with-fixes, corrections folded (pass 1: four lenses;
 > pass 1b: a fitted check of that fold, one blocker, folded too). Four changes were folded after the check
-> ("After the check", below) and are not yet checked. Written 2026-11-11.
+> ("After the check", below) and checked the same evening by one agent; its findings are folded. Written
+> 2026-11-11.
 >
 > Tracking: issue #22. The installer this builds on exists only on the branch `simple-install`; references
 > to `install.sh`, `cities-skylines-2/scripts/install.sh`, `make-wrapper.sh`, `common/make-installer-app.sh`,
@@ -199,7 +200,7 @@ The 14unch3r window shows a game with no app as "Not set up" and opens its guide
    whether the first Wine start after the engine swap updates the prefix (ML2).
 5. Whether the helper works stripped, and from a folder whose path holds a space (ML2).
 6. Whether Play inside Steam works for this game. For Cities: Skylines II it does not; here it is
-   unmeasured, and the installer's words do not depend on it (2.2).
+   unmeasured, and the installer's words do not depend on it (the shared-installer plan, 2.1).
 7. Whether `steam://install/3215050` is needed. The header of the launcher calls it "the route
    (unmeasured)" for a Mac with no copy of the game (`launch-relaunched.sh:35`). For Cities: Skylines II
    the player's own click on Install worked (the installer plan's NL1); this plan uses the click.
@@ -435,7 +436,7 @@ part of the install, and its absence is a damaged install.
 
 ## 3. Steps
 
-- **M0. The probes that decide the design, before any code** (ML1, then ML2 and ML3, which can share one sitting: ML3 changes nothing in the wrapper).
+- **M0. The probes that decide the design, before any code** (ML1, then ML2 and ML3, which can share one sitting: ML3 replaces nothing in the wrapper).
   ML1 is done (1.4): the pin stands, and the design is unchanged by it.
   If the published Wine is not the wrapper's Wine, or a wrapper from nothing does not run the game, the
   difference is written into this plan as a step and the plan is checked again. Beside them, if James
@@ -471,7 +472,7 @@ exit 2.
 | MT6 | `surviving-mars-relaunched/scripts/test-setup.sh` | the launcher and the helper are in the scratch state folder; the app's program names that copy and not the checkout; an older copy there is replaced; `runs/` and `backup/` are untouched, files in them included; a held lock, or the game running, refuses with exit 3 and copies nothing; a state folder others can write to is refused; `--mac-only` gives 0, 1 without Rosetta, 3 on Intel and below macOS 14, takes `--yes` and `--check`, and copies nothing; from a temporary copy the app still names the state folder; the 14unch3r builder is called, and with `SM_APP` set it builds in that app's folder and nothing in the real one; run by the installer (`SM_VIA_INSTALLER=1`, its parent holding the lock) it goes on, and the same lock without the variable, or held by another live process, exits 3 | the app pointed at the checkout; the helper not copied; copied only when absent; written in place; a file in `runs/` removed; the lock test removed; the parent's lock refused; any live holder passed; 14unch3r built in the real folder with `SM_APP` set; the test of who may write to the state folder removed; the running-game test removed; `--mac-only` going on to copy |
 | MT7 | `surviving-mars-relaunched/tools/test-frame-fix-build.sh` | everywhere: `frame-fix.c` and the program have the sha256 values in `frame-fix.build`, and the program holds no `/Users/`, `/private/tmp` or `/opt/homebrew` string; where `brew list --versions mingw-w64` equals the record, the header's own build line gives a byte-identical file; elsewhere it prints SKIP for the rebuild, with the reason, and does not call it a pass | one byte of the program changed; one byte of `frame-fix.c` changed; `-s` dropped from the build line (red only where the rebuild runs) |
 | MT8 | `tools/test-make-engine-install.sh` and `tools/test-engine-source.sh`, with cases added; and a source gate on the launcher and `make-app.sh` | `CX_GPTK` set to a folder without the framework stops with exit 1 even with a CrossOver planted in the scratch home; a half-finished swap is finished; stale clone folders are removed; root is refused. The source gate, which is a grep and is named as one: the lines of 2.7 no longer name a file of the checkout or the header | the fall-through to CrossOver put back; the finishing move removed; stale clone folders left; the root refusal removed; one old line put back |
-| MT9 | `common/test-launch-lock.sh` with the core as its third file, `common/test-bootstrap.sh` with a case for this game, `common/test-make-installer-app.sh` with a case for this game, `common/test-launcher-parity.sh`, and the eight `tools/test-*.sh` | the lock code is identical in the core and both launchers; the bootstrap hands over to either game; the app is "Install Surviving Mars Relaunched"; nothing else moved | the lock test's own mutant |
+| MT9 | `common/test-launch-lock.sh` with the core as its third file, `common/test-bootstrap.sh` with a case for this game, `common/test-make-installer-app.sh` with a case for this game, `common/test-launcher-parity.sh`, and the eight `tools/test-*.sh` | the lock code is identical in the core and both launchers; the bootstrap hands over to either game; the app is "Install Surviving Mars Relaunched", and its guide's pasted line carries 3215050; nothing else moved | the lock test's own mutant |
 | MT10 | The gates: `common/check-links.py`, `common/check-identifiers.sh` at its residual of 9, `cities-skylines-2/scripts/check-experiments.py`, `bash -n` on every script | no dead link, no identifier, the ledger whole | none: they are gates |
 
 The uninstall the guide describes is prose and has no test; ML6 follows it by hand at its end.
@@ -518,8 +519,13 @@ Steam of macOS included; and the game's last exit upload was ok.
   wrapper is started once with `SM_ENGINE` at the engine of 1.4
   (`~/Library/Developer/1launcher/surviving-mars-relaunched/engine/wine-d3dm30-gcenx`), which the launcher
   then uses for Steam and for the game (`launch-relaunched.sh:76`, `:90`). Nothing in the wrapper is
-  replaced. Recorded: whether Wine updates the prefix at that start; the menu; the landscaping save; and
-  James plays a session. The way back is the next start without the variable. It can share ML2's sitting.
+  replaced; its prefix is used, and whether Wine updates it at that start is recorded. It is started from
+  Terminal, `SM_ENGINE=<that folder> bash surviving-mars-relaunched/launch-relaunched.sh`, not from the
+  app. Recorded first, so that the step shows which engine ran: `d3d12.dll` in that engine at 114,688
+  bytes, and that the running game's process is that engine's `bin/wine64`. Then: the menu; the
+  landscaping save; and James plays a session. The way back is the next start without the variable. It
+  can share ML2's sitting, after ML2's step 9 has been seen on the wrapper's own engine, so that the two
+  changes are not in one start.
 - **ML4. The installer, for real, on the Studio**, after M6. For this game: from the branch's worktree
   into a scratch wrapper named by `SM_WRAPPER` (so it stops before setup), through every stage, the game
   cloned in while it polls, as NL1 did; recorded with `make-engine.sh`'s `D3DMetal    :` line and the size of `d3d12.dll` in the
@@ -533,12 +539,15 @@ Steam of macOS included; and the game's last exit upload was ok.
   `SM_WRAPPER`: every stage reports done, then stage 7 runs setup with the installer's lock held, which is
   the first time the two meet outside a test. The app then runs the state folder's launcher, and the game
   is started once from it. The way back: `make-app.sh` and `common/make-launcher-app.sh` run from a
-  checkout of `main`, and the two copies removed from the state folder. Then, so that the Studio runs
-  what is published: the wrapper's present `wine/` is cloned to
+  checkout of `main`, and the two copies removed from the state folder. Then, with the game closed and
+  nothing of Wine running, so that the Studio runs what is published: the wrapper's present `wine/` is
+  cloned to
   `~/Library/Developer/1launcher/surviving-mars-relaunched/engine/wine-d3dm30-crossover`, because a rebuild
   removes it (`make-engine.sh:99`), and `make-engine.sh --install ~/Applications/SurvivingMars.app
-  --rebuild` is run with `CX_GPTK` at the fetched pieces. Recorded: its `D3DMetal    :` line, and
-  `d3d12.dll` in the wrapper at 114,688 bytes. The way back is that clone moved into place, or the same
+  --rebuild` is run with `CX_GPTK` at the folder `tools/fetch-d3dmetal.sh` leaves, run for this and removed
+  afterwards (at ML4b every stage reports done, so the installer fetches nothing). Recorded: its
+  `D3DMetal    :` line, and `d3d12.dll` in the wrapper at 114,688 bytes. Then the game is started once
+  from the app to the menu, with the landscaping save. The way back is that clone moved into place, or the same
   line without `CX_GPTK` while CrossOver 26 is still installed.
 - **ML5. The MacBook.** The installer on a Mac whose wrapper was made the old way: every stage reports done
   except setup, and the app runs the copy in the state folder. Then the game.
@@ -569,8 +578,8 @@ Steam of macOS included; and the game's last exit upload was ok.
 - **Saves.** No step changes a file in a prefix by hand. But ML2 and ML4 start the game from a second
   prefix on James's account, which uploads to Steam Cloud what the real wrapper then pulls. ML2's steps 1,
   5, 6 and 9 are what keep that safe, and they name the way back.
-- **The engine.** The swap keeps the Wine it replaced inside the wrapper. ML3 changes nothing in the wrapper. ML4b
-  replaces a working engine, so it clones that first and names two ways back.
+- **The engine.** The swap keeps the Wine it replaced inside the wrapper. ML3 replaces nothing in the wrapper; whether Wine updates its prefix is
+  recorded. ML4b replaces a working engine, so it clones that first and names two ways back.
 - **MD4 on the two existing Macs.** ML4b names the way back for the Studio; it is the same on the
   MacBook after ML5.
 - **The shared installer** has its own way back, in its plan.
@@ -589,16 +598,16 @@ four"); they are listed under "After the check".**
 
 | # | Decision | Recommendation | Decided |
 |---|---|---|---|
-| MD1 | Where D3DMetal 3.0 comes from | Gcenx's release page, pinned by size and sha256, fetched by the installer and never re-hosted, as for Porting Kit's two files; the guide and the installer state Apple's terms. Short notes to Gcenx and to Porting Kit, drafted for James to send or not, asking whether old releases stay published and whether a Wine 10 engine with D3DMetal 3.0 built in could be published, which would make the swap unnecessary. The other sources are Apple's own download, which needs a signed-in Apple Account and cannot be scripted, and CrossOver | as recommended |
+| MD1 | Where D3DMetal 3.0 comes from | Gcenx's release page, pinned by size and sha256, fetched by the installer and never re-hosted, as for Porting Kit's two files; the guide and the installer state Apple's terms. Short notes to Gcenx and to Porting Kit, drafted for James to send or not, asking whether old releases stay published and whether a Wine 10 engine with D3DMetal 3.0 built in could be published, which would make the swap unnecessary. The one to Porting Kit rides with the note the installer plan already has drafted (its K4). The other sources are Apple's own download, which needs a signed-in Apple Account and cannot be scripted, and CrossOver | as recommended |
 | MD2 | What the guide says about Apple's licence | What 1.5 says, in plain words, with the address it is linked from. No claim that it permits more | as recommended |
 | MD3 | The helper in the repository | Commit `tools/frame-fix.exe`, built stripped and without a link stamp (18 KB), with its build record, its runtime's licence text and MT7. The other ways are a compiler on the player's Mac, or going without the helper | as recommended |
 | MD4 | The app runs a copy in the state folder on every Mac | Yes. It replaces the unification plan's O3 (c) for this game: after `git pull`, run setup | as recommended |
-| MD5 | Order against the installer plan | NL2 goes ahead as planned. NL3, the first public release, waits for ML4, so that what is first published installs both games and the shared files have their final addresses before anyone depends on them | as recommended |
+| MD5 | Order against the installer plan | NL2 goes ahead once the shared-installer plan is built and its SL1 passed (SD2 there), on the app that plan's builder makes. NL3, the first public release, waits for ML4, so that what is first published installs both games and the shared files have their final addresses before anyone depends on them | as recommended |
 | MD6 | Apple's Command Line Tools for this game | Asked for. The engine swap needs them, so there is no other way for this game | as recommended |
 | MD7 | One shared installer, or a second script held alike by a test | One (2.2) | as recommended |
 | MD8 | 14unch3r's "Not set up" tile starts the installer | A later slice, with its own plan: it changes the window app and its tests | as recommended |
 | MD9 | A question before Apple's software is fetched (2.4, stage 3) | Yes, once, answered no by default, as the installer already asks before Rosetta. The licence says not to install it if one does not agree; a line of text that scrolls past is less than that. The other way is the line of text | as recommended |
-| MD10 | The installer stops when another wrapper's Steam is open on this Mac (2.2) | Yes, in the core, so for both games: two Steams on one account make the first skip its cloud upload. It is the one thing Cities: Skylines II's installer gains here. The other way is a sentence in the guide | as recommended |
+| MD10 | The installer stops when another wrapper's Steam is open on this Mac (2.2) | Yes, in the core, so for both games: two Steams on one account make the first skip its cloud upload. Cities: Skylines II's installer gains it in the shared-installer plan (its 2.1 and 2.3). The other way is a sentence in the guide | as recommended |
 
 ## Review corrections (triple-check 2026-11-11)
 
@@ -658,11 +667,12 @@ fold itself, all folded:
 | S9 | A rebuild stopped while removing the old Wine was a fourth state | 2.4 |
 | S10 | Smaller: the archive is gone before the temporary folder; `--mac-only`'s exit 3 against "the same contract"; README's 14.6; `make-engine.sh`'s own words; a wrong line for why the app ignores `SM_WRAPPER`; MD10 under `--check` and in the other game's documents; mutants missing for nine cases; the fetch script missing from the own-files list; the way back for the MacBook; ML4 against ML2's step 5 | 2.2, 2.4, 2.7, MT2, MT3, MT4, MT6, MT8, ML4, ML4b, section 7 |
 
-### After the check (2026-11-11): four changes, not yet checked
+### After the check (2026-11-11): four changes, checked the same evening
 
 At the session's close James asked whether this path was the best one. Four changes were offered and he
 took all of them. Sections 1.6 and 2.2, step M1 and tests MT1, MT2 and MT5 moved to the shared-installer
-plan with the third; where a row above names them, read that plan's 1.1, 2.1, S2 and ST1 to ST3.
+plan with the third; where a row above names them, read that plan's sections 1.1 and 2.1, its step S2 and
+its tests ST1 to ST3. (The rows S1 to S10 above are the second pass's, not that plan's steps.)
 
 | # | Change | Why | Folded into |
 |---|---|---|---|
@@ -670,6 +680,18 @@ plan with the third; where a row above names them, read that plan's 1.1, 2.1, S2
 | P2 | What is published names a game by its Steam app ID, with no default game | the repository's own rule on keys and labels, in the one place that cannot be changed after a release | the shared-installer plan (1.2, 2.2, S3, ST5, ST6); 2.2 here |
 | P3 | The shared installer is a plan of its own, built first, before the installer plan's NL2 | it needs none of this plan's probes, it is already built once in a scratch tree, and this plan was 742 lines | the shared-installer plan; 1.6, 2.1, 2.2, M1, MT1, MT2, MT5, ML4, sections 6 and 7 here |
 | P4 | The notes to Gcenx and Porting Kit also ask for a Wine 10 engine with D3DMetal 3.0 built in | it would take the swap, and one download, out of every install | MD1, 2.8 |
+
+A fitted check of these four changes and of the split (one agent, the same evening) found two blockers,
+one in each plan, and these defects here, all folded:
+
+| # | Defect | Folded into |
+|---|---|---|
+| T1 | **Blocker.** MD5 still sent NL2 ahead "as planned", against the shared-installer plan's order | MD5 |
+| T2 | ML3 recorded nothing that shows which engine ran, since the two lines that did moved to ML4b | ML3 |
+| T3 | ML4b's rebuild named pieces that are not fetched at that point, did not close the game first, and started nothing afterwards | ML4b |
+| T4 | ML3 in ML2's sitting would have changed the engine and the cloud's state in one start | ML3 |
+| T5 | MD10's row and 2.8 disagreed on which plan changes Cities: Skylines II's installer | MD10 |
+| T6 | Smaller: "changes nothing in the wrapper" (the prefix is used); a pointer in 1.7 that landed on nothing; the pasted line's ID in MT9; the note to Porting Kit rides with the installer plan's; step names against second-pass rows | M0, 1.7, MT9, MD1, section 7, this section |
 
 The builder lens broke one of its rules once: a test run without its stub `curl` fetched the public
 archive of 1.3 a second time, then deleted it. Nothing else left its scratch tree.
@@ -685,3 +707,4 @@ Key paths: `install.sh`, `common/` (`install-core.sh`, `make-wrapper.sh`, `fetch
 |---|---|---|---|---|---|---|
 | 2026-11-11 | 1 | architecture, sequencing, rollback and live steps; security, supply chain and outside facts; correctness and test plan; builder simulation | four agents; each blocker re-read in the code or re-measured by the planner; the builder's test results re-run by the planner; seven measurements added to the probe's records | Fable 5.2 for three lenses and the fold, Opus 5.5 for the builder | `04936e7` on `main`, `6a66416` on `simple-install` | build-ready-with-fixes |
 | 2026-11-11 | 1b | fitted fold check | one agent; its blocker and four of its facts re-read in the code by the planner, one measurement re-read and recorded (the transcript mutant) | Fable 5.2 for the check and its fold | `8465248` on `main`, `6a66416` on `simple-install` | build-ready-with-fixes |
+| 2026-11-11 | 2 | fitted check of the four changes after the check, and of the split | one agent; its two blockers re-read by the planner | Fable 5.2 for the check and its fold | `3f80932` on `main`, `7ef565f` on `simple-install` | build-ready-with-fixes |

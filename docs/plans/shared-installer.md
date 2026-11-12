@@ -1,9 +1,10 @@
 # One installer for every game: the shared core, and what is published keyed by Steam app ID
 
-> **Status:** Triple-checked 2026-11-11 — build-ready-with-fixes, as part of `docs/plans/surviving-mars-install.md`
-> (its passes 1 and 1b), from which sections 1.1 and 2.1, step S2 and tests ST1 to ST3 were moved on
-> 2026-11-11. Section 2.2 (published by app ID), its tests ST5 and ST6, and the split itself are new and
-> not yet checked. Written 2026-11-11.
+> **Status:** Triple-checked 2026-11-11 — build-ready-with-fixes. Sections 1.1 and 2.1, steps S1 and S2 and
+> tests ST1 to ST4 were checked as part of `docs/plans/surviving-mars-install.md` (its passes 1 and 1b), from
+> which they were moved on 2026-11-11. What is new here (1.2, 2.2, 2.3, S3, ST5, ST6, SL1, the exit
+> criteria) and the split itself were checked the same day by a fitted check: two blockers, folded
+> (Review, below). Written 2026-11-11.
 >
 > Tracking: issue #22. This plan changes the installer of the branch `simple-install`; references to
 > `install.sh`, `cities-skylines-2/scripts/install.sh`, `make-wrapper.sh`, `common/make-installer-app.sh`,
@@ -80,13 +81,17 @@ and process numbers.
   (`:95`). The pasted line has no word after it (`README.md:31`, `cities-skylines-2/README.md:30`,
   `cities-skylines-2/INSTALL.md:17`), so it means the bootstrap's default, which is the literal
   `cities-skylines-2` (`install.sh:18`). The bootstrap takes a folder's name (`:37`), lists folders when
-  there is no such game (`:79`), and names `<folder>/INSTALL.md` when GitHub has no such ref (`:63`).
+  there is no such game (`:79-80`), and names `<folder>/INSTALL.md` when GitHub has no such ref (`:63`); its
+  own header and usage line name the folder and the default (`:7`, `:9`, `:12`, `:32`). One line of the
+  guide spells the folder out: `cities-skylines-2/INSTALL.md:55`, the pasted line with `--check`.
 - The repository's own rule (`.claude/rules/shared.md`, "keys are opaque, human-readable values are
   labels"): a key is opaque and never changes; a readable name is a label, free to edit; nothing durable
   is derived from a label; and no readable literal is a default, because it makes "nobody said which" and
   "that one" the same thing. A folder's name is a label. The default game is such a literal.
 - The key each game already has is its Steam app ID: the first field of its row in `common/games.tsv`
-  (949230, 3215050), which the 14unch3r window reads (`common/launcher-window.swift:424-425`).
+  (949230, 3215050), which the 14unch3r window reads (`common/launcher-window.swift:424-426`). The table
+  is two rows of four tab-separated fields; its fourth, a guide's address, holds the folder's name too, and
+  `common/make-launcher-app.sh` copies the table into every `14unch3r.app`.
 
 ## 2. Design
 
@@ -154,16 +159,28 @@ Rules for the move:
 `common/make-wrapper.sh` takes `--engine-url`, `--engine-bytes`, `--engine-sha` and `--wrapper`; without
 all four it exits 2. It reads no game's variable and has no default. Its header, which `--help` prints, is
 rewritten without a game's name; its other lines name only the files it is given. Each game's engine pin
-lives in that game's `scripts/install.sh`.
+lives in that game's `scripts/install.sh`; the template's pin stays in `common/make-wrapper.sh`.
+
+`common/fetch.sh` is new, taken out of `make-wrapper.sh`: `fetch <url> <bytes> <sha256> <file>` with
+`L1_DOWNLOADS`, and `sha`, for both of its callers, the wrapper script and the Surviving Mars plan's
+`tools/fetch-d3dmetal.sh`.
 
 ### 2.2 Published by app ID
 
 - **The bootstrap's first word is a Steam app ID**, digits only. Once it has the repository, fetched or
   the checkout it lies in, it finds the row of `common/games.tsv` whose first field is that ID and hands
   over to `<that row's folder>/scripts/install.sh`. Its second word is the ref, as today.
-- **There is no default game.** With no word it prints the games that have an installer, each with its ID
-  and title, and exits 2. A first word that is not digits is refused the same way, before anything is
-  fetched; an ID with no row, or whose folder has no installer, after.
+- **There is no default game.** With no word, or a first word that is not digits, nothing is fetched and
+  it exits 2. From a checkout it prints that checkout's games that have an installer, each with its ID and
+  title. Pasted or from the app, where there is no table yet, it prints the usage line and the front
+  page's address, where the games and their IDs are listed. An ID with no row, or whose folder has no
+  installer, is found once the table is there (after the fetch, or in the checkout, which does not then
+  fall through to a fetch): it prints that table's games and exits 2, where today's "no installer" exits 1
+  (`install.sh:79-81`).
+- **How the table is used.** A checkout is known by this file being a real file with `common/games.tsv`
+  beside it, since it can no longer look for a named game's folder (`install.sh:48`). The row's folder is
+  checked against the pattern for a folder's name before it is put in a path. The builder checks that the
+  row's ID is digits before it writes it into the program.
 - **The installer app carries the ID.** `common/make-installer-app.sh` keeps `--game <folder>`, which is
   how the person building it says which row; what it writes into the app's program is that row's ID.
 - **No folder in an address that is printed without the table.** The app's line for a withdrawn installer
@@ -171,8 +188,9 @@ lives in that game's `scripts/install.sh`.
   the repository's front page, `https://github.com/macgameport/1launcher`, where the games are listed.
 - **The guides' pasted line gains its words:** `... install.sh)" 1launcher-install 949230`, and for
   Surviving Mars `3215050`.
-- **The rule's own test.** In a scratch copy, a game's folder is renamed and the second field of its row
-  changed: the same ID still reaches its installer, and an app built before the rename still works.
+- **The rule's own test.** In a scratch copy, a game's folder is renamed and its row's second and fourth
+  fields changed: the same ID still reaches its installer. An app built before the rename still works,
+  because all it hands the bootstrap is the ID and the ref.
 - What stays a published address: `install.sh` at the root of the `release` branch, and the names
   `macgameport` and `1launcher`, as the installer plan says (its 2.7). A game's title, which names the
   app's file, is a label on that file: a new title is a new build of the app, and old copies go on working.
@@ -180,7 +198,9 @@ lives in that game's `scripts/install.sh`.
 ### 2.3 What this plan leaves alone
 
 - Surviving Mars's installer, setup and guide: the Surviving Mars plan, built on this one.
-- 14unch3r's "Not set up" tile (MD8 there).
+- 14unch3r's "Not set up" tile (MD8 there). The guide's address in the table's fourth field holds the
+  folder and is copied into `14unch3r.app`; setup makes that copy afresh; it is left as it is, for that
+  slice.
 - Cities: Skylines II's installer gains two things besides the move: MD10's stop for another wrapper's
   Steam, with a sentence in `cities-skylines-2/INSTALL.md` and in its header's list of exit codes
   (`cities-skylines-2/scripts/install.sh:14-15`), and the ID in its pasted line.
@@ -191,13 +211,15 @@ lives in that game's `scripts/install.sh`.
 ## 3. Steps
 
 - **S1. `cities-skylines-2/scripts/test-install.golden` is recorded from the installer of `6a66416`**,
-  before a line is moved. ST1.
+  before a line is moved. ST1. The same commit says in the installer plan's NL2 note that NL2 follows this
+  plan.
 - **S2. `common/fetch.sh`, `common/make-wrapper.sh`, `common/install-core.sh`, and Cities: Skylines II's
   installer reduced to its settings, in one commit**, since the installer calls the wrapper script and
   holds the engine pin; the lock test's third file becomes the core in the same commit; and MD10's check.
   ST2, ST3, ST4.
-- **S3. Published by app ID:** the bootstrap, the app builder, and the pasted line in the three documents
-  of 1.2 and in the installer plan's guide text. ST5, ST6.
+- **S3. Published by app ID:** the bootstrap, with its header and usage line; the app builder; and the
+  pasted line wherever a document has it: the three places of 1.2, `cities-skylines-2/INSTALL.md:55`, and
+  the installer plan's guide text. ST5, ST6.
 - **S4. SL1, then the as-built header;** the installer plan's NL2 follows on this structure (SL2).
 
 It is built on `simple-install`, after that branch is rebased on `main`. The builder lens of the Surviving
@@ -215,8 +237,8 @@ applied to the real source, seen red, and removed; a mutant whose line is gone r
 | ST2 | `cities-skylines-2/scripts/test-install.sh`, its 96 cases: the core copied into the scratch repository beside the game's file, the wrapper stub moved to `common/`, the mutant helpers applied to both files | the installer still does what NT3 showed; the engine pin reaches the wrapper script as its three options; new cases: another prefix's Steam stops it with exit 3 (MD10), with `--check` it only says so, and with none it goes on | its 25 mutants, each applied where its line now lives; new: one of the core's forbidden words put into it; a setting read before it is set; MD10's check removed |
 | ST3 | `common/test-make-wrapper.sh`, the 59 cases moved and changed as the builder lens changed them: the options always given, the engine pin set by the case, its `fetch.sh` copied beside it | as NT1; and: no engine options exits 2, each two of three exits 2, no `--wrapper` exits 2, `CS2_WRAPPER` is not read, a wrong option among right ones exits 2. The Surviving Mars plan's ML1 measured that the Wine 10 archive unpacks to the same top folder with the same two programs, so the existing fixture's layout holds for it | its 10 mutants (the tenth now on the template's sha256); new: a default engine put back |
 | ST4 | `common/test-launch-lock.sh`, its third file the core | the lock code is identical in the core and both launchers | its own mutant |
-| ST5 | `common/test-bootstrap.sh`, its 21 cases changed to give an ID, and new ones | an ID reaches the folder of its row; no word prints the list and exits 2; a word that is not digits exits 2 and fetches nothing; an ID with no row, or with no installer in its folder, prints the list and exits 2; with a game's folder renamed and its row changed, the same ID reaches it; from a checkout the checkout's table is read; the line for a missing ref names the front page and no folder | its 5 mutants; new: a default game put back; a folder's name accepted as the first word; the folder taken from the word and not from the table |
-| ST6 | `common/test-make-installer-app.sh`, with cases added | the app's program holds the row's ID and no folder's name; the line for a withdrawn installer names the front page; an app built before a folder is renamed still reaches the game (its program is run against the changed scratch repository) | its 6 mutants; new: the folder written into the program; the folder put back into the address |
+| ST5 | `common/test-bootstrap.sh`, its cases changed to give an ID, its fixtures given a `common/games.tsv`, and its recorder made to print the game's folder | an ID reaches the folder of its row; with no word, or a first word that is not digits, it exits 2 and fetches nothing: pasted it prints the usage line and the front page, from a checkout that checkout's games with their IDs and titles; an ID with no row, or with no installer in its folder, prints the table's games and exits 2, after the fetch when pasted and with no fetch from a checkout; with a game's folder renamed and its row changed, the same ID reaches it; a row whose folder is not a plain folder's name is refused; the line for a missing ref names the front page and no folder | its 5 mutants; new: a default game put back; a folder's name accepted as the first word; the folder taken from the word and not from the table; a table of IDs to folders written into the bootstrap; the list printed by fetching first |
+| ST6 | `common/test-make-installer-app.sh`, with cases added | the app's program holds the row's ID and no second field of `common/games.tsv`; a row whose ID is not digits is refused before anything is written; the `.command` hands the bootstrap the ID and the ref and nothing else (the recorder shows `1launcher-install 949230 release`), which with ST5's renamed-folder case is the whole of "an app built before the rename still works"; the line for a withdrawn installer names the front page; every `install.sh)"` in a README or an `INSTALL.md` is followed by `1launcher-install` and that document's game's ID | its 7 mutants; new: the folder written into the program; the folder put back into the address; the ID dropped from one document's line |
 | ST7 | The gates: `common/check-links.py`, `common/check-identifiers.sh` at its residual of 9, `cities-skylines-2/scripts/check-experiments.py`, `bash -n` on every script, and the installer plan's other suites (`test-setup.sh`, the three launcher suites) | nothing else moved | none: they are gates |
 
 ## 5. Live steps, each on James's word
@@ -224,8 +246,9 @@ applied to the real source, seen red, and removed; a mutant whose line is gone r
 - **SL1. Cities: Skylines II's installer after the move, on the Studio.** With no game, Steam or launcher
   running and the real game's `StateFlags` 4: the installer with `--no-setup` into a scratch wrapper, the
   game cloned in while it polls, `boot-verify.sh` to the main menu, as the second half of NL1 did; then
-  Steam signed out there and the wrapper to the Trash. And the pasted line with `949230`, from the pushed
-  branch, run once with `--check`.
+  Steam signed out there and the wrapper to the Trash. And the pasted line from the pushed branch, with
+  the branch in both places, run once with `--check`:
+  `.../1launcher/simple-install/install.sh)" 1launcher-install 949230 simple-install --check`.
 - **SL2. The installer plan's NL2**, the Gatekeeper test, with the app built by this plan's builder.
 
 ## 6. Exit criteria
@@ -233,8 +256,10 @@ applied to the real source, seen red, and removed; a mutant whose line is gone r
 - S1 to S3 are committed; ST1 to ST7 pass; every listed mutant was applied and seen red, with the count in
   the as-built header.
 - Cities: Skylines II's installer prints what the recorded transcript holds in all 96 cases.
-- No published thing names a game's folder: `git grep` finds no folder's name in the app builder's
-  program text or after `install.sh)"` in a guide.
+- Nothing the installer publishes names a game's folder: the built app's program holds no second field of
+  `common/games.tsv` (ST6); `git grep -nE 'cities-skylines-2|surviving-mars-relaunched' -- install.sh`
+  finds nothing; and every `install.sh)"` in a README or an `INSTALL.md` is followed by
+  `1launcher-install` and that document's game's ID (ST6).
 - SL1 passed.
 - The as-built header is written, and the installer plan's header points here.
 
@@ -261,10 +286,25 @@ Sections 1.1 and 2.1, step S2 and tests ST1 to ST3 were checked as part of the S
 lenses, then a fitted check of the fold, on 2026-11-11. The corrections that concern them are in that
 plan's "Review corrections": R3 (the recorded transcript), R4 (each game's Wine environment), R5 (the
 places where the flow crosses stages), R15 (another Steam), R21 (one commit; the wrapper test is not a
-plain move), and in its second pass S5 and S6. Its builder lens built S2 and ran ST2 and ST3.
+plain move), and its second-pass rows S5 and S6. Its builder lens built step S2 and ran ST2 and ST3.
 
-New here and not yet checked: 1.2, 2.2, 2.3, S3, ST5, ST6, SL1's last sentence, the exit criterion on
-folder names, and the split itself.
+### Second-pass re-check (2026-11-11): the split and what is new
+
+One agent, briefed to check the commit that made this plan and nothing else. It read every claim of 1.2 in
+the code and found each true; it found the moved sections whole but for one sentence; and it found two
+blockers and nine smaller defects in the fold, all folded above:
+
+| # | Defect | Folded into |
+|---|---|---|
+| F1 | **Blocker.** With no word, or a word that is not digits, 2.2 promised a list of games "before anything is fetched"; pasted or from the app there is no table before the fetch | 2.2 ("There is no default game"), ST5 |
+| F2 | **Blocker, shared with the Surviving Mars plan.** Its MD5 still sent NL2 ahead "as planned" while this plan puts NL2 after itself; the installer plan's own NL2 note said the same | that plan's MD5; S1 here; the installer plan's header on the branch |
+| F3 | SL1's pasted line would have fetched `release`, which does not exist yet | SL1 |
+| F4 | ST6's last case could not be made in that test's world | ST6 |
+| F5 | The exit criterion on folder names passed before S3 was done, and no test held the ID in the guides | exit criteria, ST6 |
+| F6 | Two published places with the folder were missed: `cities-skylines-2/INSTALL.md:55` and the bootstrap's own header and usage | 1.2, S3 |
+| F7 | What `common/fetch.sh` is, and where the template's pin stays, were lost in the move | 2.1 |
+| F8 | The table's fourth field holds the folder and is copied into every `14unch3r.app` | 1.2, 2.2 (the rule's own test), 2.3, exit criteria |
+| F9 | Smaller: how a checkout is known once no folder is named; the row's folder and ID checked before use; counts of cases and mutants; a mutant that did not prove the renamed-folder case; the fixtures ST5 needs; two citations; step names that clashed with the other plan's second-pass rows | 1.2, 2.2, ST5, ST6, Review |
 
 ## Review log
 
@@ -276,3 +316,4 @@ Key paths: `install.sh`, `common/` (`make-installer-app.sh`, `games.tsv`, `test-
 | Date | Pass | Lenses | Method | Model | Verified against | Verdict |
 |---|---|---|---|---|---|---|
 | 2026-11-11 | 1 and 1b, as part of the Surviving Mars plan | four lenses, then a fitted fold check | see that plan's Review log | Fable 5.2, and Opus 5.5 for the builder | `04936e7` and `8465248` on `main`, `6a66416` on `simple-install` | build-ready-with-fixes |
+| 2026-11-11 | 2 | fitted check of the split and of 1.2, 2.2, 2.3, S3, ST5, ST6 | one agent; both blockers re-read in the code by the planner | Fable 5.2 for the check and its fold | `3f80932` on `main`, `7ef565f` on `simple-install` | build-ready-with-fixes |
