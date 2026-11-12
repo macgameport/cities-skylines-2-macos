@@ -652,8 +652,8 @@ Steam of macOS included; and the game's last exit upload was ok.
 **Decided 2026-11-11: MD1 to MD8, all as recommended.** Asked whether he accepted them, with MD5 named as
 the one that costs time, James answered: "That's fine, no one is waiting for any of this. We're just
 doing it for the sake of doing it." So nothing here is traded against a date: where a step can be done
-properly or quickly, it is done properly. **MD9 and MD10 came out of the check and are not decided:** the
-sections above describe them as recommended, and either can be taken out.
+properly or quickly, it is done properly. **MD9 and MD10 came out of the check; decided the same
+evening, both as recommended** (James: "Accept both").
 
 | # | Decision | Recommendation | Decided |
 |---|---|---|---|
@@ -665,8 +665,8 @@ sections above describe them as recommended, and either can be taken out.
 | MD6 | Apple's Command Line Tools for this game | Asked for. The engine swap needs them, so there is no other way for this game | as recommended |
 | MD7 | One shared installer, or a second script held alike by a test | One (2.2) | as recommended |
 | MD8 | 14unch3r's "Not set up" tile starts the installer | A later slice, with its own plan: it changes the window app and its tests | as recommended |
-| MD9 | A question before Apple's software is fetched (2.4, stage 3) | Yes, once, answered no by default, as the installer already asks before Rosetta. The licence says not to install it if one does not agree; a line of text that scrolls past is less than that. The other way is the line of text | open |
-| MD10 | The installer stops when another wrapper's Steam is open on this Mac (2.2) | Yes, in the core, so for both games: two Steams on one account make the first skip its cloud upload. It is the one thing Cities: Skylines II's installer gains here. The other way is a sentence in the guide | open |
+| MD9 | A question before Apple's software is fetched (2.4, stage 3) | Yes, once, answered no by default, as the installer already asks before Rosetta. The licence says not to install it if one does not agree; a line of text that scrolls past is less than that. The other way is the line of text | as recommended |
+| MD10 | The installer stops when another wrapper's Steam is open on this Mac (2.2) | Yes, in the core, so for both games: two Steams on one account make the first skip its cloud upload. It is the one thing Cities: Skylines II's installer gains here. The other way is a sentence in the guide | as recommended |
 
 ## Review corrections (triple-check 2026-11-11)
 
@@ -687,11 +687,11 @@ or re-measured by the planner; all folded above.
 | R8 | "A CrossOver on the Mac is not looked for" was false of `make-engine.sh`, which falls through to it; a broken hand-over would have passed on the owner's Mac | A, B, C, D | 1.1, 2.1, 2.4, MT8, ML3, ML4, exit criteria |
 | R9 | The Command Line Tools are needed by the engine swap (`nm`), not only by the app's looks | B, C, D | 1.1, 2.2, 2.4 (stage 2), MD6, MT3 |
 | R10 | The licence summary was loose: non-commercial limits passing on, purpose limits use; it left out the end on breach, the indemnity, the notices and "host"; the address is Gcenx's | B | 1.5, 2.7, 2.8, MD1, MD2 |
-| R11 | Consent: the installer stated where Rosetta's stage asks, and one stage late, since the Wine archive already holds D3DMetal 2.1 | B | 2.4 (stage 3), MT3, MD9 (open) |
+| R11 | Consent: the installer stated where Rosetta's stage asks, and one stage late, since the Wine archive already holds D3DMetal 2.1 | B | 2.4 (stage 3), MT3, MD9 |
 | R12 | The signature covers the framework and the library only; the four DLLs rest on the pin; `tar -tf` shows no link targets | B | 1.4 (table), 2.3 |
 | R13 | The helper as built held the compiler package's build paths and would rebuild alike on one package only; the runtime linked into it has its own licence | B | 1.4, 2.6, MD3, MT7 |
 | R14 | Stage 4 stopped part way leaves three states, one of which the core would have called "move it to the Trash" | A, B, C | 2.4, MT3, MT8 |
-| R15 | A second installer makes two Steams on one account likely; nothing stopped it | C | 2.2, 2.7, MT2, MD10 (open) |
+| R15 | A second installer makes two Steams on one account likely; nothing stopped it | C | 2.2, 2.7, MT2, MD10 |
 | R16 | The hand-over by "what it printed" would have hidden the download's progress | C, D | 2.3, 2.4 |
 | R17 | `--mac-only` takes `--yes` and `--check`, and the plan did not say what refuses and what cautions; 14.6 was the old donor wrapper's need, the framework's is 14.0 | B, C | 2.4 (stage 1), 2.5, MT6 |
 | R18 | Lines of the launcher and `make-app.sh` that assume a checkout were missed | A, B, C | 2.7, MT8 |
