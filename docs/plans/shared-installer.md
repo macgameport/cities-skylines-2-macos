@@ -342,10 +342,24 @@ each with its test, and this section needs a check before any of it is built.
 | # | What was seen | What is wanted |
 |---|---|---|
 | SF1 | A new Steam downloads its own update (305 MB) from one server, `cdn.steamstatic.com`. With that path cut, the installer started Steam five times in 90 s and then printed twenty lines of Steam's log and "Steam did not start after 5 tries" | The installer knows this case from Steam's log ("Steam needs to be online to update"), does not start Steam again for it, tests the server once with a short transfer of its own, and says in one sentence that the connection to Valve's server keeps being cut, and to open the installer again later |
-| SF2 | James, after it worked on another route: "so we need a warning about vpns? can we check for that and popup that it may interfere?" The same VPN had carried the same update that morning | No warning for a VPN as such. In SF1's sentence, and only when the Mac's default route is a tunnel, the advice to change the VPN's server or pause it. Whether it is a line in the window or a box is to be decided |
+| SF2 | James, after it worked on another route: "so we need a warning about vpns? can we check for that and popup that it may interfere?" The same VPN had carried the same update that morning | No warning for a VPN as such. In SF1's sentence, and only when the Mac's default route is a tunnel, the advice to change the VPN's server or pause it. A line in the installer's window, not a box (James, 2026-11-11, to the wording below: "ok"); a box is looked at again only if SF3 finds that Steam's own error box cannot be hidden and would cover that window |
 | SF3 | Steam's updater draws its own windows, and its "Fatal Error" box, on every start; James saw it fail "many many times" and asked whether the progression can be hidden | Measured first: whether Steam's updater can be kept off screen in a new prefix. If it can, the installer prints one progress line of its own, read from Steam's log; if not, its words say what will be seen |
 | SF4 | In step 4 `curl: (18) Transferred a partial file` was printed as curl wrote it: the first of the two addresses of Steam's installer failed and the second worked | Nothing of curl's on screen when the next address works; the installer's own sentence when none does |
 | SF5 | At the wrapper's first start macOS showed: "App Update Required. This version of "CS2fresh" includes a component that will not open in macOS 28, the next major release. An update may be available on the developer's website." James: "don't forget this." `cities-skylines-2/README.md` warns of macOS 28; the quick way in `INSTALL.md` and the installer say nothing of the notice | One line in the installer where Wine first starts, and one sentence in the guide's quick way: the notice is expected, nothing needs updating, and the Mac must stay on macOS 27 (issue #16) |
+
+**SF1 and SF2, the words (put to James on 2026-11-11, who answered "ok"; not checked, not built).** With the
+default route on a tunnel:
+
+```
+  !! Steam could not download its own update: the connection to Valve's server keeps being cut.
+     This Mac is using a VPN, which may be the cause. Change the VPN's server or pause it,
+     then open the installer again. It carries on from this step.
+```
+
+With no tunnel, the first line and then: `Open the installer again in a few minutes. It carries on from this
+step.` The words say "may be the cause" because SL1 did not measure whether the VPN's exit or Valve's server
+did the cutting. They are shown only after the failure and after the installer's own short transfer to the
+server has failed too; a VPN that works is never mentioned.
 
 ## Review
 
