@@ -7,7 +7,8 @@
 > (Review, below). Written 2026-11-11.
 >
 > **🔧 As-built (2026-11-11):** BUILT: S1 to S4 are done on `simple-install`, and SL1 passed; SL2, the
-> installer plan's NL2, is still to come. S1 is `00108f7`, with `7b102a1`
+> installer plan's NL2, ran on 2026-11-12 and met its pass condition, with one finding (that plan's header;
+> SF6 and SF7 in section 9 here). S1 is `00108f7`, with `7b102a1`
 > for a defect in it found the same evening; S2 is `1df6f27`; S3 is `2577207`. **SL1 passed 2026-11-11**
 > (evidence `~/cs2-patch/evidence/shared-installer-SL1-20261111/`, `summary.txt`; ledger row `exp_8f0511`),
 > on `c6cbd2d`. Run 1 made the scratch wrapper from the public downloads and installed Steam, then stopped
@@ -333,11 +334,11 @@ applied to the real source, seen red, and removed; a mutant whose line is gone r
 | SD1 | What is published names a game by its Steam app ID; there is no default game | 2026-11-11, "Fold all four" |
 | SD2 | This plan is built first, on `simple-install`, before the installer plan's NL2 | 2026-11-11, "Fold all four" |
 
-## 9. Found at SL1 (2026-11-11): not planned in detail, not checked, not built
+## 9. Found at SL1 (2026-11-11) and SL2 (2026-11-12): not planned in detail, not checked, not built
 
 SL1 passed, and its first run showed five things a new player would meet. None is a fault of the split: the
 installer of `6a66416` behaves the same. They belong before the first release (the installer plan's NL3),
-each with its test, and this section needs a check before any of it is built.
+each with its test, and this section needs a check before any of it is built. SL2 added SF6 and SF7.
 
 | # | What was seen | What is wanted |
 |---|---|---|
@@ -346,6 +347,8 @@ each with its test, and this section needs a check before any of it is built.
 | SF3 | Steam's updater draws its own windows, and its "Fatal Error" box, on every start; James saw it fail "many many times" and asked whether the progression can be hidden | Measured first: whether Steam's updater can be kept off screen in a new prefix. If it can, the installer prints one progress line of its own, read from Steam's log; if not, its words say what will be seen |
 | SF4 | In step 4 `curl: (18) Transferred a partial file` was printed as curl wrote it: the first of the two addresses of Steam's installer failed and the second worked | Nothing of curl's on screen when the next address works; the installer's own sentence when none does |
 | SF5 | At the wrapper's first start macOS showed: "App Update Required. This version of "CS2fresh" includes a component that will not open in macOS 28, the next major release. An update may be available on the developer's website." James: "don't forget this." `cities-skylines-2/README.md` warns of macOS 28; the quick way in `INSTALL.md` and the installer say nothing of the notice | One line in the installer where Wine first starts, and one sentence in the guide's quick way: the notice is expected, nothing needs updating, and the Mac must stay on macOS 27 (issue #16) |
+| SF6 | At SL2, the one approval of the downloaded app was stranded. After Open Anyway and the second dialog macOS showed a Touch ID box; its button that falls back to the password was pressed, the approval's request was set aside and never completed, and macOS kept the app held before its first instruction. Every later open ended in Finder's "not responding" until the held process was ended from Terminal. The approval itself had been recorded: the next open ran with no dialog. One run; that the button caused it is inferred | Decided first, by James (the installer plan's ND1): the app is published, or only the pasted line is. If the app is: the guide says to use Touch ID or to type the password in the box that is shown, and says what to do when Finder reports the app as not responding. What that is for a player who does not use Terminal (Force Quit, logging out, a restart) is measured first, not assumed |
+| SF7 | At SL2 the game was one build newer than the patches (26404411, 1.6.4f1): `patch_cohtml.py` found no pattern, nine of ten scripts finished, both apps were built, and the window ended "setup finished with 1 problem(s)" and "The install stopped. The lines above say why. Open the installer again to carry on from that step." Opening it again gives the same result until the project publishes a new pattern | Words for this case that say what is true: the game updated, one fix is not yet available for the new build, everything else is in place, whether the game can be played meanwhile, and where to look for news. Decided first: whether such a run counts as stopped |
 
 **SF1 and SF2, the words (put to James on 2026-11-11, who answered "ok"; not checked, not built).** With the
 default route on a tunnel:

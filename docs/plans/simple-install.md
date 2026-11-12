@@ -24,7 +24,7 @@
 > second half. N6a carries picture 3 only, as planned; picture 4 was added at NL1. (5) The
 > experiments ledger gained a row for the probe's evidence folder (`exp_a934dc`): its gate was red on `main`
 > without one. (6) N1, N2 and most of N3 were written on Opus 5.5; N3's last fix, N4, N5, N6a and this header
-> on Fable 5.2; NL1's second half and its records on Opus 5.5. Still to come, each on James's word: NL2 to NL5,
+> on Fable 5.2; NL1's second half and its records on Opus 5.5. NL2 ran on 2026-11-12 (below). Still to come, each on James's word: NL3 to NL5,
 > and N6b after the release exists. Verify
 > against: `install.sh`, `cities-skylines-2/scripts/install.sh`, `cities-skylines-2/scripts/make-wrapper.sh`,
 > `cities-skylines-2/scripts/setup.sh`, `common/make-installer-app.sh`, their five tests,
@@ -77,7 +77,7 @@
 > `127.0.0.1:8765`, with a watcher for the dialogs. James was away from the Studio, so nothing was
 > downloaded; the server and the watcher were stopped. **NL2 now follows `docs/plans/shared-installer.md` on
 > `main`** (its SD2, decided 2026-11-11): that plan moves this installer into a shared core and has what is
-> published name a game by its Steam app ID, so the app for NL2 is built by its builder, after its SL1. **SL1 passed on 2026-11-11**, so NL2 is next; what
+> published name a game by its Steam app ID, so the app for NL2 is built by its builder, after its SL1. **SL1 passed on 2026-11-11**, and NL2 ran on 2026-11-12 (the next paragraph); what
 > SL1's first run showed a new player would meet is that plan's section 9, wanted before NL3.
 > Then: build the ZIP, serve it, start the evidence folder's `watch.sh`. Since that plan's S2 (2026-11-11)
 > the files named under "Verify against" above have moved on: `make-wrapper.sh` and its test are in
@@ -88,6 +88,38 @@
 > form). **NL3 now waits:** `docs/plans/surviving-mars-install.md` on `main` (its MD5,
 > decided 2026-11-11) holds the first release until both games install, and its step M1 moves
 > `make-wrapper.sh` and most of `cities-skylines-2/scripts/install.sh` into `common/`.
+>
+> **NL2 ran on 2026-11-12 and met its pass condition, with a finding that bears on ND1** (same evidence
+> folder: `notes-attempt1.txt`, `notes-attempt2-3.txt`, macOS's own log lines beside them). The app was built
+> by `common/make-installer-app.sh --ref simple-install` (ZIP 210,933 bytes), downloaded and unpacked by
+> Safari (`com.apple.quarantine` `0083;...;Safari`), on macOS 27.2.1 with "assessments enabled". **What macOS
+> said.** First open: '"Install Cities Skylines II.app" Not Opened', 'Apple could not verify "Install Cities
+> Skylines II.app" is free of malware that may harm your Mac or compromise your privacy.' (Move to Trash,
+> Done). After Open Anyway in Privacy & Security, a second dialog: 'Open "Install Cities Skylines II.app"?',
+> 'Apple is not able to verify that it is free from malware that could harm your Mac or compromise your
+> privacy. Don't open this unless you are certain it is from a trustworthy source.' (Move to Trash, Open
+> Anyway, Done). Then a Touch ID box. **The finding.** In that box the button that falls back to the password
+> was pressed; another authentication took over, macOS's log shows the approval's own request set aside
+> ("Canceled by another authentication") and never completed, and macOS kept the app's process held before
+> its first instruction. Each later open ended in Finder's 'You can't open the application "Install Cities
+> Skylines II.app" because it is not responding.' The held process ended on a plain `kill`. Nine hours later
+> the app opened with no dialog, and its quarantine attribute read `00c3`: the approval had been recorded.
+> That the fallback button is what stranded it is inferred from one run; what a player without Terminal does
+> to get out of it is not measured. **The pass.** The app ran from an `AppTranslocation` folder; the
+> `.command` it wrote carried `com.apple.provenance` and no `com.apple.quarantine`; Terminal fetched the
+> branch's `install.sh` and ran setup on the real install in 13 s. Setup ended "with 1 problem(s)":
+> `patch_cohtml.py` finds no pattern in the game's build 26404411 (1.6.4f1, installed by the launcher on
+> 2026-11-10). The script is the same file on `main`, so that is the install's state and not the installer's
+> doing (`cities-skylines-2/CLAUDE.md`, "Apply all patches"). Every file setup wrote equals `main`'s copy, so
+> section 7's rollback was not needed. **Differences from the step as written:** the two opens that ran were
+> made with `open` from the session, on James's word, not by a double-click in Finder; picture 1 is in the
+> evidence folder and not yet in the guide; picture 2 was not taken (the watcher did not capture the Touch ID
+> box). **For James (ND1):** the app can be approved, and the one approval made here was stranded. Whether
+> the app is published, with the guide saying what to do at that box, or only the pasted line is, is his to
+> decide before NL3. He asked whether Apple's paid developer programme avoids the step: a Developer ID
+> signature with notarization should replace it with one "downloaded from the Internet" question, and would
+> put the member's legal name in the app's signature (from what is known of Apple's programme; not read or
+> measured here). What a player would meet is `docs/plans/shared-installer.md`, section 9, SF6 and SF7.
 >
 > Tracking: issue #22. File and line references are as of `a749425`; none of the cited files changed up to
 > `580cf4e`. A path is relative to the repository root. Every number marked "measured" was measured on the
