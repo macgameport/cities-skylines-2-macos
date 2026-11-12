@@ -19,7 +19,8 @@ Mods included.
   offers to install Apple's Command Line Tools: accept, wait for it to finish, and run the command again.
 
 > Tested on an M3 Max running macOS 26 with game version 1.6.0f1, and on an M5 Max running macOS 27.0.1
-> with 1.6.2f1 (2026-10-10); booted to the main menu on an M3 Max on macOS 27.2 (2026-11-07). Intel Macs
+> with 1.6.2f1 (2026-10-10); booted to the main menu on an M3 Max on macOS 27.2 (2026-11-07), and with
+> 1.6.4f1 on the M5 Max on macOS 27.2.1 (2026-11-12). Intel Macs
 > are not supported. On macOS 27, check Rosetta is still installed
 > after every update (`arch -x86_64 /bin/ls /`); the launcher also checks, and if Rosetta is gone it
 > stops with the reinstall command (`softwareupdate --install-rosetta --agree-to-license`). A game
@@ -310,7 +311,9 @@ cd 1launcher && git pull && cd cities-skylines-2 && bash scripts/setup.sh
 Each patch finds its target by name or by a byte pattern and refuses to write if what it finds is
 not exactly what it expects, so it will never corrupt a file. If one reports a miss, please open an
 issue. (1.6.2f1, October 2026: the cohtml and Paradox SDK patches needed re-deriving; the SDK ones
-now resolve their methods by name, so later updates should not break them the same way.)
+now resolve their methods by name, so later updates should not break them the same way. 1.6.4f1,
+November 2026: the cohtml patch needed re-deriving again, because the compiler had moved the function to
+another register.)
 
 ## Troubleshooting
 

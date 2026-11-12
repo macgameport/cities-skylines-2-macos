@@ -1,11 +1,11 @@
 # CS2 macOS patch inventory
 
-**Game:** Cities: Skylines II `1.6.2f1` (Steam build 25127643; re-derived 2026-10-10 — 1.6.0f1 `419.d6c6` before that)
+**Game:** Cities: Skylines II `1.6.4f1` (Steam build 26404411, since 2026-11-10; `patch_cohtml` re-derived 2026-11-12). Before that `1.6.2f1` (build 25127643; re-derived 2026-10-10), and 1.6.0f1 `419.d6c6`
 **Stack:** self-built stock Wine 11.16 + DXMT (`~/Applications/CS2dxmt11.app`): needs **10** of these patch
 scripts. The other six are for an engine with the errno defect (`CS2_ERRNO_PATCHES=1`). An older Wine 10 +
 D3DMetal stack was retired from this repository on 2026-11-09.
 **Applied by:** `~/cs2-patch/repatch.sh dxmt11` — idempotent, self-verifying (byte pattern, or by-name method lookup for the PDX.SDK five), each writes a `.bak`
-**Last verified:** 2026-10-10 — 1.6.2f1 re-derivation: all 10 dxmt11 patches + badge applied, boot-verify PASS ×3 and a forced mod re-download (C73); before that 2026-09-03, when targets and patch counts were re-measured against `repatch.sh`; the
+**Last verified:** 2026-11-12 — 1.6.4f1: `setup.sh` reported 10 of 10 patch scripts finished without error after the `patch_cohtml` re-derivation, and boot-verify PASS (`20261112-155937`, the main menu); the other nine were not re-read against the new build. Before that 2026-10-10 — 1.6.2f1 re-derivation: all 10 dxmt11 patches + badge applied, boot-verify PASS ×3 and a forced mod re-download (C73); before that 2026-09-03, when targets and patch counts were re-measured against `repatch.sh`; the
 in-game verification behind §1 is 2026-08-22
 
 > **These are not bugs in this project's code.** Every entry is a workaround for a defect in
