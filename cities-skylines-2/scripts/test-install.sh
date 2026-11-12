@@ -39,7 +39,9 @@
 # The transcript (docs/plans/shared-installer.md, ST1): every case's name, result and whole output, with the
 # scratch folder's name and process numbers replaced, is compared with test-install.golden, which holds what
 # the installer printed at 6a66416, before it was divided into a shared part and a game's part. A changed
-# line of that file is a changed word of the installer.
+# line of that file is a changed word of the installer. Carriage returns (a case run at a terminal has them)
+# are dropped: the repository stores text with plain line ends, so a file holding them would not survive a
+# checkout.
 #   GOLDEN=record bash scripts/test-install.sh   write test-install.golden from this run: a deliberate act,
 #                                                 refused under a mutant and from a run with a failure
 # Under mutants 1 to 25 the transcript is not compared: each of those must be caught by its own case.
@@ -92,7 +94,7 @@ esac
 fails=0
 check() {  # <name> <got> <want>; the case also goes to the transcript, with the output of the run it judged
   if [ "$2" = "$3" ]; then echo "PASS  $1"; else echo "FAIL  $1 (got '$2', want '$3')"; fails=$((fails + 1)); fi
-  { echo "== $1 :: $2"; cat "${H:-/nonexistent}.out" 2>/dev/null; } \
+  { echo "== $1 :: $2"; cat "${H:-/nonexistent}.out" 2>/dev/null; } | tr -d '\r' \
     | sed -e "s#/private$T#T#g" -e "s#$T#T#g" -e 's/process [0-9][0-9]*/process N/g' >> "$T/transcript"
 }
 
