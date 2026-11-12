@@ -3,7 +3,9 @@
 # its manifest says, git stores every byte unchanged, every script that imports dnfile finds it there under
 # Apple's python3 and whatever python3 is first on PATH, from any working directory, through a symlink and
 # from an install-folder layout, and running them leaves no bytecode behind. Also the two patch scripts that
-# can tell a missing pattern from an applied patch: they must fail on a file that has neither.
+# can tell a missing pattern from an applied patch: they must fail on a file that has neither. And
+# patch_cohtml.py's three forms of the function (one per compiler output seen in a game build): each is
+# found, patched once and then recognised as patched, and two forms in one file are refused.
 # No game, no Wine, no network. Nothing is written outside a scratch folder.
 #   bash scripts/test-vendor.sh            exit 0 = every case passed
 #   MUTANT=1 ...   one byte of one vendored file changed (in a scratch copy); must exit 1
@@ -11,6 +13,7 @@
 #   MUTANT=3 ...   one patcher finds _vendor with abspath instead of realpath; must exit 1
 #   MUTANT=4 ...   patch_longfile.py returns instead of failing when its pattern is missing; must exit 1
 #   MUTANT=5 ...   the .gitattributes line for _vendor is moved to the top; must exit 1
+#   MUTANT=6 ...   patch_cohtml.py's form for 1.6.4f1 (fn-rbx) no longer matches; must exit 1
 set -u
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 TOP="$(cd "$REPO/.." && pwd)"
@@ -30,6 +33,7 @@ case "$M" in
   4) sed -i '' 's/^        sys.exit(1)  # neither the original bytes.*/        return/' "$C/patches/patch_longfile.py"; grep -q 'neither the original bytes' "$C/patches/patch_longfile.py" && mutated ;;
   5) { grep 'patches/_vendor' "$T/gitattributes"; grep -v 'patches/_vendor' "$T/gitattributes"; } > "$T/ga" && mv "$T/ga" "$T/gitattributes"
      [ "$(head -1 "$T/gitattributes" | grep -c '_vendor')" = 1 ] || mutated ;;
+  6) sed -i '' 's/0x48, 0x8B, 0xD9,   /0x48, 0x8B, 0xDA,   /' "$C/patches/patch_cohtml.py"; grep -q '0x48, 0x8B, 0xDA,' "$C/patches/patch_cohtml.py" || mutated ;;
 esac
 fails=0
 check() {  # <name> <got> <want>
@@ -81,6 +85,29 @@ out="$(/usr/bin/python3 -I "$C/patches/patch_cohtml.py" "$R" 2>&1)"; rc=$?
 check "patch_cohtml.py on a file with neither form: warns and exits 1" "$rc:$(echo "$out" | grep -c 'WARNING: Pattern not found')" "1:1"
 out="$(/usr/bin/python3 -I "$C/patches/patch_longfile.py" "$R" 2>&1)"; rc=$?
 check "patch_longfile.py on a file with neither form: warns and exits 1" "$rc:$(echo "$out" | grep -c 'WARNING: GetFileHandle throw pattern not found')" "1:1"
+
+# --- patch_cohtml.py: the function as each game build compiled it. The bytes are the real ones of 1.6.2f1
+#     (fn; with the int3 before it, 1.6.0f1's legacy form too) and of 1.6.4f1 (fn-rbx), in a file of zeros.
+FN="405648 83EC30 80791000 488BF1 0F84 2E060000 488B8998000000"
+RBX="405348 83EC30 80791000 488BD9 0F84 32060000 488B8998000000"
+mk() { /usr/bin/python3 -I -c 'import sys; open(sys.argv[1], "wb").write(bytes(4096) + b"".join(bytes.fromhex(h) + bytes(64) for h in sys.argv[2:]) + bytes(4096))' "$@"; }
+at() { xxd -s "$2" -l 1 -p "$1"; }
+for form in "fn:$FN:4110:fn" "fn-rbx:$RBX:4110:fn-rbx" "legacy:CC $FN:4111:legacy, fn"; do
+  IFS=: read -r name hex off found <<<"$form"
+  D="$T/cohtml-$name"; F="$D/Cities2_Data/Plugins/x86_64/cohtml_unity3dplugin.dll"; mkdir -p "$(dirname "$F")"
+  mk "$F" "$hex"
+  out="$(/usr/bin/python3 -I "$C/patches/patch_cohtml.py" "$D" 2>&1)"; rc=$?
+  check "patch_cohtml.py, $name: found, the je becomes jne, the original kept beside it" \
+    "$rc:$(echo "$out" | grep -cF "Pattern found [$found]"):$(at "$F" "$off"):$(at "$F.bak" "$off")" "0:1:85:84"
+  out="$(/usr/bin/python3 -I "$C/patches/patch_cohtml.py" "$D" 2>&1)"; rc=$?
+  check "patch_cohtml.py, $name: a second run sees it patched and writes nothing" \
+    "$rc:$(echo "$out" | grep -cF "Already patched (je -> jne) at 0x$(printf '%X' "$off") [$found]"):$(at "$F" "$off")" "0:1:85"
+done
+D="$T/cohtml-two"; F="$D/Cities2_Data/Plugins/x86_64/cohtml_unity3dplugin.dll"; mkdir -p "$(dirname "$F")"
+mk "$F" "$FN" "$RBX"
+out="$(/usr/bin/python3 -I "$C/patches/patch_cohtml.py" "$D" 2>&1)"; rc=$?
+check "patch_cohtml.py, two forms in one file: refused, exit 1, nothing written" \
+  "$rc:$(echo "$out" | grep -c 'more than one site'):$(at "$F" 4110):$(at "$F" 4200):$([ -e "$F.bak" ] && echo bak || echo none)" "1:1:84:84:none"
 
 echo "$fails failure(s)"
 [ "$fails" = 0 ]

@@ -3049,3 +3049,24 @@ real views, read by eye before the merge, found it.
 - **Look at a drawn surface before calling it built.** The engineering rule's "load the page and look at it"
   caught what the drawing tests could not; a render of the real views offscreen does it without putting a
   window on someone's screen (14unch3r's window was rendered that way while a game ran).
+
+## A game update can move a byte pattern without changing the function: the compiler picked another register (2026-11-12)
+
+The launcher took the game to build 26404411 (1.6.4f1) on 2026-11-10 and said "some fixes did not apply".
+Nobody read that line; two days later a setup run printed `9 of 10 patch scripts finished without error` and
+`FAILED: patch_cohtml.py`. The function it patches had not changed in what it does: the same 45 `Release()`
+call sites, the same fields, the same constants, 1,611 bytes where 1.6.2f1 had 1,604. The compiler now keeps
+the object in `rbx` where it kept it in `rsi`, so the prologue reads `push rbx` / `mov rbx,rcx`, and a pattern
+that spells out `40 56 ... 48 8B F1` misses by two bytes.
+
+- **Re-deriving it:** search for the instruction that cannot change, here `80 79 10 00`
+  (`cmp byte ptr [rcx+10h],0`); two hits, and only one is followed by `mov rcx,[rcx+98h]`. Disassemble that
+  function in the old `.bak` and in the new file (`/usr/bin/objdump -d --x86-asm-syntax=intel` reads the DLL)
+  and compare call sites, field offsets and constants, not bytes.
+- **The patcher** now carries the form as `fn-rbx`, beside `legacy` and `fn`; `scripts/test-vendor.sh`
+  patches all three forms in files of zeros and refuses a file that holds two (`MUTANT=6`).
+- **Not measured:** whether 1.6.4f1 on DXMT needs the patch at all (C72 is still `PARTIAL`), and a boot of
+  the game with it applied on this build.
+- **Do not run a patch script with `PYTHONPATH=patches/_vendor` from the checkout** to look at a DLL: it
+  leaves `__pycache__` in `_vendor`, and `test-vendor.sh` then fails three cases that have nothing to do with
+  the change in hand. Use `python3 -I`, or delete the folders afterwards.

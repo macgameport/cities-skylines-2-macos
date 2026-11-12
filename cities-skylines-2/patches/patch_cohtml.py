@@ -3,7 +3,7 @@
 Patches cohtml_Unity3DPlugin.dll to fix a crash during UI rendering under Wine/GPTK.
 
 What the patched code actually is (re-derived 2026-10-10 against 1.6.0f1 and
-1.6.2f1 by disassembly; the "IAllocator initialization" wording inherited from
+1.6.2f1 by disassembly, and again 2026-11-12 against 1.6.4f1; the "IAllocator initialization" wording inherited from
 the community fix does not match the code):
 
 The plugin wraps each UI draw in a save/restore of Unity's D3D11 pipeline
@@ -34,6 +34,12 @@ Patterns (each must match exactly once; None = wildcard):
             codegen changes and now ends flush on the 16-byte boundary), which
             is why the legacy pattern stopped matching; the function body
             itself is byte-identical (1604 bytes) between the two builds.
+  fn-rbx  - the same function as 1.6.4f1 compiles it (build 26404411, file
+            0xDFD0; re-derived 2026-11-12 by disassembly). The compiler keeps
+            the object in rbx where it kept it in rsi, so the prologue is
+            push rbx / mov rbx,rcx and the fn pattern misses by two bytes.
+            The function is otherwise the same: 45 Release() calls in both,
+            the same fields and the same constants, 1611 bytes for 1604.
 """
 
 import sys
@@ -52,6 +58,13 @@ PATTERNS = [
      [0x40, 0x56, 0x48, 0x83, 0xEC, 0x30,            # push rsi ; sub rsp,30h
       0x80, 0x79, 0x10, 0x00,                        # cmp byte ptr [rcx+10h],0
       0x48, 0x8B, 0xF1,                              # mov rsi,rcx
+      0x0F, 0x84, None, None, None, None,            # je  rel32
+      0x48, 0x8B, 0x89, 0x98, 0x00, 0x00, 0x00],     # mov rcx,[rcx+98h]
+     14),
+    ("fn-rbx",
+     [0x40, 0x53, 0x48, 0x83, 0xEC, 0x30,            # push rbx ; sub rsp,30h
+      0x80, 0x79, 0x10, 0x00,                        # cmp byte ptr [rcx+10h],0
+      0x48, 0x8B, 0xD9,                              # mov rbx,rcx
       0x0F, 0x84, None, None, None, None,            # je  rel32
       0x48, 0x8B, 0x89, 0x98, 0x00, 0x00, 0x00],     # mov rcx,[rcx+98h]
      14),
