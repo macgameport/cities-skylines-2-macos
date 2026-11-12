@@ -78,7 +78,10 @@
 > downloaded; the server and the watcher were stopped. **NL2 now follows `docs/plans/shared-installer.md` on
 > `main`** (its SD2, decided 2026-11-11): that plan moves this installer into a shared core and has what is
 > published name a game by its Steam app ID, so the app for NL2 is built by its builder, after its SL1.
-> Then: build the ZIP, serve it, start the evidence folder's `watch.sh`. **NL3 now waits:** `docs/plans/surviving-mars-install.md` on `main` (its MD5,
+> Then: build the ZIP, serve it, start the evidence folder's `watch.sh`. Since that plan's S2 (2026-11-11)
+> the files named under "Verify against" above have moved on: `make-wrapper.sh` and its test are in
+> `common/`, and the stages of `cities-skylines-2/scripts/install.sh` are `common/install-core.sh`; what
+> the installer prints is held to what it printed here by `test-install.golden`. **NL3 now waits:** `docs/plans/surviving-mars-install.md` on `main` (its MD5,
 > decided 2026-11-11) holds the first release until both games install, and its step M1 moves
 > `make-wrapper.sh` and most of `cities-skylines-2/scripts/install.sh` into `common/`.
 >

@@ -1,12 +1,13 @@
 #!/bin/bash
-# make-wrapper.sh -- make the Wine 11 + DXMT wrapper from two public files of Porting Kit's releases, with
-# no Porting Kit app (docs/plans/simple-install.md, 2.2): the Wineskin template and the engine, each
+# make-wrapper.sh -- make a Wineskin wrapper from two public files of Porting Kit's releases, with no Porting
+# Kit app (docs/plans/simple-install.md, 2.2; docs/plans/shared-installer.md, 2.1): the Wineskin
+# template, pinned here, and the engine, pinned by the game's installer and given as three options, each
 # checked against a fixed sha256, then the prefix made by the template's own launcher, as Wineskin Winery
 # makes it. Measured on the Studio, 2026-11-10: about 40 s once the two files are here.
 #
-#   bash scripts/make-wrapper.sh                       # ~/Applications/CS2dxmt11.app, or $CS2_WRAPPER
-#   bash scripts/make-wrapper.sh --wrapper <path.app>  # another place (an absolute path)
-#   bash scripts/make-wrapper.sh --check               # say what it would do; write nothing
+#   bash common/make-wrapper.sh ENGINE --wrapper <path.app>           # make it (an absolute path)
+#   bash common/make-wrapper.sh ENGINE --wrapper <path.app> --check   # say what it would do; write nothing
+#   where ENGINE is --engine-url <url> --engine-bytes <n> --engine-sha <sha256>, all three
 #
 #   exit 0 = made (or, with --check, could be made); 1 = refused or failed, said why, nothing left;
 #   2 = a wrong option; 3 = another install is making a wrapper in that folder.
@@ -15,9 +16,6 @@
 # L1_DOWNLOADS=<folder> names a folder of the two files already downloaded: a copy of one is used only if
 # its size and sha256 match.
 set -u
-ENGINE_URL="https://github.com/vitor251093/porting-kit-engines/releases/download/wineskin/WS12Wine11.0_DXMT-v0.80.tar.7z"
-ENGINE_BYTES=180784324
-ENGINE_SHA=afdaab97e84ec7064b8fddf47192c95b18b8bbb9cc3aa4d81060a57d7b4dced0
 TEMPLATE_URL="https://github.com/vitor251093/porting-kit-wrappers/releases/download/Wineskin-3.0.6-2/Wineskin.app.tar.7z"
 TEMPLATE_BYTES=53110672
 TEMPLATE_SHA=fbe276bba96d5582b99c511117abb1e035a988b8c1aeefe27c32df266a07907a
@@ -27,17 +25,24 @@ tilde() { case "$1" in "$HOME") printf '~' ;; "$HOME"/*) printf '~%s' "${1#"$HOM
 say() { echo "  $*"; }
 die() { echo "  !! $*"; exit 1; }
 
-CHECK=0
-TARGET="${CS2_WRAPPER:-$HOME/Applications/CS2dxmt11.app}"
+CHECK=0; TARGET=""; ENGINE_URL=""; ENGINE_BYTES=""; ENGINE_SHA=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --check) CHECK=1; shift ;;
     --wrapper) if [ $# -lt 2 ] || [ -z "$2" ]; then echo "--wrapper needs a value"; exit 2; fi
                TARGET="$2"; shift 2 ;;
+    --engine-url|--engine-bytes|--engine-sha)
+               if [ $# -lt 2 ] || [ -z "$2" ]; then echo "$1 needs a value"; exit 2; fi
+               case "$1" in --engine-url) ENGINE_URL="$2" ;; --engine-bytes) ENGINE_BYTES="$2" ;; *) ENGINE_SHA="$2" ;; esac
+               shift 2 ;;
     -h|--help) sed -n '2,/^set -u$/p' "$0" | sed '$d'; exit 0 ;;
     *) echo "unknown option: $1 (try --help)"; exit 2 ;;
   esac
 done
+{ [ -n "$ENGINE_URL" ] && [ -n "$ENGINE_BYTES" ] && [ -n "$ENGINE_SHA" ]; } \
+  || { echo "--engine-url, --engine-bytes and --engine-sha are all needed (try --help)"; exit 2; }
+case "$ENGINE_BYTES" in *[!0-9]*) echo "--engine-bytes must be a number"; exit 2 ;; esac
+[ -n "$TARGET" ] || { echo "--wrapper is needed (try --help)"; exit 2; }
 [ "$(id -u)" = 0 ] && die "do not run this as root (with sudo): it would leave files only root can change in your home folder"
 
 # 1. the target
@@ -97,27 +102,7 @@ fail_log() {   # <log> <message>: the last twenty lines of a step's output, then
 }
 
 # 4. the two files
-sha() { shasum -a 256 "$1" | awk '{ print $1 }'; }
-fetch() {   # <url> <bytes> <sha256> <file>
-  local url="$1" bytes="$2" want="$3" out="$4" name size got rc bar=-sS
-  name="$(basename "$url")"
-  if [ -n "${L1_DOWNLOADS:-}" ] && [ -f "$L1_DOWNLOADS/$name" ]; then
-    cp "$L1_DOWNLOADS/$name" "$out"
-    if [ "$(stat -f %z "$out")" = "$bytes" ] && [ "$(sha "$out")" = "$want" ]; then say "$name: the copy in $(tilde "$L1_DOWNLOADS")"; return 0; fi
-    rm -f "$out"; say "$name in $(tilde "$L1_DOWNLOADS") is not the file this was tested with: downloading it instead"
-  fi
-  say "downloading $name ($((bytes / 1000000)) MB)"
-  [ -t 1 ] && bar=-#
-  curl --proto '=https' --tlsv1.2 -fL --retry 2 $bar -o "$out" "$url"; rc=$?
-  if [ "$rc" = 22 ]; then die "$name is no longer published at $url. Please open an issue: https://github.com/macgameport/1launcher/issues"
-  elif [ "$rc" != 0 ]; then die "the download of $name failed (curl exit $rc). Check the network, then try again."
-  fi
-  size="$(stat -f %z "$out")"; got="$(sha "$out")"
-  if [ "$size" != "$bytes" ] || [ "$got" != "$want" ]; then
-    rm -f "$out"
-    die "$name is not the file this was tested with: $size bytes, sha256 $got, where $bytes bytes, sha256 $want was expected. Please open an issue: https://github.com/macgameport/1launcher/issues"
-  fi
-}
+. "$(dirname "$0")/fetch.sh"
 fetch "$TEMPLATE_URL" "$TEMPLATE_BYTES" "$TEMPLATE_SHA" "$B/template.tar.7z"
 fetch "$ENGINE_URL" "$ENGINE_BYTES" "$ENGINE_SHA" "$B/engine.tar.7z"
 

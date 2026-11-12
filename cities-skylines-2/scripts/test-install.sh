@@ -36,6 +36,11 @@
 #   MUTANT=26 ...  one word of one line changed ("is open." made "is opened."); must exit 1, by the transcript
 #   MUTANT=27 ...  one exit code changed (Apple's tools not there yet: 5, not 4); must exit 1
 #   MUTANT=28 ...  a stage's skip test turned round (Apple's tools); must exit 1
+#   MUTANT=29 ...  a game's name put into a line of the shared part; must exit 1
+#   MUTANT=30 ...  the shared part not checking that the game set its settings; must exit 1
+#   MUTANT=31 ...  the look for another wrapper's Steam left out; must exit 1
+#   MUTANT=32 ...  any line naming steam.exe taken for a Steam, a Wine program or not; must exit 1
+#   MUTANT=33 ...  --desktop taken by a game whose setup has none; must exit 1
 # The transcript (docs/plans/shared-installer.md, ST1): every case's name, result and whole output, with the
 # scratch folder's name and process numbers replaced, is compared with test-install.golden, which holds what
 # the installer printed at 6a66416, before it was divided into a shared part and a game's part. A changed
@@ -53,12 +58,14 @@ T="$(mktemp -d /tmp/install-test.XXXX)"
 trap 'rm -rf "$T"' EXIT
 R="$T/repo"; mkdir -p "$R/cities-skylines-2/scripts" "$R/cities-skylines-2/patches" "$R/common"
 S="$R/cities-skylines-2/scripts/install.sh"; cp "$HERE/install.sh" "$S"
+C="$R/common/install-core.sh"; cp "$REPO/common/install-core.sh" "$C"   # the shared stages: mutants apply in either file
 : > "$R/cities-skylines-2/repatch.sh"; : > "$R/common/make-launcher-app.sh"
 mutate() {  # <sed expression> <grep that proves it applied>
-  sed -i '' "$1" "$S"; grep -q -- "$2" "$S" || { echo "REFUSED: mutant did not apply"; exit 2; }
+  sed -i '' "$1" "$S" "$C"; cat "$S" "$C" | grep -q -- "$2" || { echo "REFUSED: mutant did not apply"; exit 2; }
 }
-first() {   # <perl search> <replacement> <grep that proves it applied>: the first occurrence only
-  perl -0pi -e "s/$1/$2/" "$S"; grep -q -- "$3" "$S" || { echo "REFUSED: mutant did not apply"; exit 2; }
+first() {   # <perl search> <replacement> <grep that proves it applied>: the first occurrence only, the core first
+  cp "$C" "$T/c0"; perl -0pi -e "s/$1/$2/" "$C"; cmp -s "$C" "$T/c0" && perl -0pi -e "s/$1/$2/" "$S"
+  cat "$S" "$C" | grep -q -- "$3" || { echo "REFUSED: mutant did not apply"; exit 2; }
 }
 case "${MUTANT:-0}" in
   1) mutate 's#^      y|Y) softwareupdate#      y|Y|"") softwareupdate#' 'y|Y|"") softwareupdate' ;;
@@ -72,7 +79,7 @@ case "${MUTANT:-0}" in
   9) mutate 's#if \[ "\$CHECK" = 1 \]; then say "not installed: would start#if false; then say "not installed: would start#' 'if false; then say "not installed' ;;
   10) mutate 's# || \[ "\$(head -c 2 "\$D/SteamSetup.exe")" != MZ \]##' 'le 1048576 \] || ! grep' ;;
   11) mutate 's#^  acquire_lock 1 ||#  true ||#' '^  true ||' ;;
-  12) first 'if prefix_known && game_running; then say "!! The game is running.[^\n]*\n' '' 'x' ; grep -c 'prefix_known && game_running' "$S" | grep -qx 1 || { echo "REFUSED: mutant did not apply"; exit 2; } ;;
+  12) first 'if prefix_known && game_running; then say "!! The game is running.[^\n]*\n' '' 'x' ; cat "$S" "$C" | grep -c 'prefix_known && game_running' | grep -qx 1 || { echo "REFUSED: mutant did not apply"; exit 2; } ;;
   13) mutate 's#^  elif \[ \$((f \& 4)) -ne 0 \]; then echo update$#  elif false; then echo update#' 'elif false; then echo update' ;;
   14) mutate 's#^        if \[ "\$to" = 0 \]; then$#        if false; then#' '^        if false; then$' ;;
   15) mutate 's#^CS2_VIA_INSTALLER=1 bash "\$SETUP" "\$@"#bash "$SETUP" "$@"#' '^bash "\$SETUP" "\$@"' ;;
@@ -88,6 +95,11 @@ case "${MUTANT:-0}" in
   26) mutate 's#Steam for Windows is open\.#Steam for Windows is opened.#' 'Steam for Windows is opened\.' ;;
   27) mutate 's#are not installed yet\."; exit 4; }#are not installed yet."; exit 5; }#' 'installed yet\."; exit 5; }' ;;
   28) mutate 's#^if xcode-select -p > /dev/null 2>&1; then #if ! xcode-select -p > /dev/null 2>\&1; then #' '^if ! xcode-select -p' ;;
+  29) mutate 's#^stage "\$1" "The game"$#stage "$1" "Cities: Skylines II"#' '^stage "\$1" "Cities: Skylines II"$' ;;
+  30) mutate 's#^  \[ -n "\${!_v:-}" \] || {#  true || {#' '^  true || { echo "install-core.sh: the game' ;;
+  31) mutate 's#^    other="\$(other_steam)"$#    other=""#' '^    other=""$' ;;
+  32) mutate 's#^    case "\$o" in \*drive_c\*) ;; \*) continue ;; esac.*#    :#' '^    :$' ;;
+  33) mutate 's#^    --desktop) \[ "\${TAKES_DESKTOP:-0}" = 1 \] || {.*#    --desktop)#' '^    --desktop)$' ;;
   24) mutate 's#^if xcode-select -p > /dev/null 2>&1; then #if xcode-select -p > /dev/null 2>\&1 \&\& py_ok; then #' '2>&1 && py_ok; then' ;;
 esac
 
@@ -99,17 +111,18 @@ check() {  # <name> <got> <want>; the case also goes to the transcript, with the
 }
 
 # --- the source: copies held identical to the launcher's, and what no line may hold
+ALL="$T/all.sh"; cat "$S" "$C" > "$ALL"
 fn() {   # one function, as common/test-launch-lock.sh cuts it
   awk -v f="$1" 'index($0, f "() {") == 1 { print; if ($0 ~ /; }[[:space:]]*$/) exit; p = 1; next }
                  p { print; if ($0 ~ /^}/) exit }' "$2"
 }
 for f in find_wrapper _owns webhelper_up steam_family game_running acf_field; do
-  check "the copy of $f equals the launcher's" "$( [ -n "$(fn "$f" "$S")" ] && [ "$(fn "$f" "$S")" = "$(fn "$f" "$LAUNCHER")" ] && echo same )" same
+  check "the copy of $f equals the launcher's" "$( [ -n "$(fn "$f" "$ALL")" ] && [ "$(fn "$f" "$ALL")" = "$(fn "$f" "$LAUNCHER")" ] && echo same )" same
 done
-check "the python3 test equals setup.sh's" "$(grep -cxF "$(grep -m1 '^if python3 -c' "$HERE/setup.sh")" "$S")" 1
-check "the library path is exported with the launcher's own line" "$(grep -cxF "  $(grep -m1 '^export DYLD_FALLBACK_LIBRARY_PATH=' "$LAUNCHER")" "$S")" 1
+check "the python3 test equals setup.sh's" "$(grep -cxF "$(grep -m1 '^if python3 -c' "$HERE/setup.sh")" "$ALL")" 1
+check "the library path is exported with the launcher's own line" "$(grep -cxF "  $(grep -m1 '^export DYLD_FALLBACK_LIBRARY_PATH=' "$LAUNCHER")" "$ALL")" 1
 check "no nohup, env, setsid or kill -9 outside comments" \
-  "$(grep -v '^[[:space:]]*#' "$S" | grep -cE '(^|[^-[:alnum:]_])(nohup|setsid)([^[:alnum:]_]|$)|(^|[^[:alnum:]_-])env |kill -9')" 0
+  "$(grep -v '^[[:space:]]*#' "$ALL" | grep -cE '(^|[^-[:alnum:]_])(nohup|setsid)([^[:alnum:]_]|$)|(^|[^[:alnum:]_-])env |kill -9')" 0
 
 # --- stubs
 B="$T/bin"; mkdir -p "$B" "$T/fixbin"
@@ -123,11 +136,12 @@ case " $* " in *" --mac-only "*)
 esac
 exit "${STUB_SETUP_EXIT:-0}"
 X
-cat > "$R/cities-skylines-2/scripts/make-wrapper.sh" << 'X'
+cat > "$R/common/make-wrapper.sh" << 'X'
 #!/bin/bash
 echo "MAKEWRAPPER $*" >> "$CALLS"
 case " $* " in *" --check "*) exit 0 ;; esac
 [ -n "${STUB_MW_EXIT:-}" ] && exit "$STUB_MW_EXIT"
+while [ "$1" != --wrapper ]; do shift; done
 bash "$MKW" "$2"
 X
 cat > "$T/mkw.sh" << 'X'
@@ -206,8 +220,8 @@ cat > "$B/pgrep" << 'X'
 case "$2" in
   *Cities2*) [ -f "$ST/game" ] && echo 99901 ;;
   steamwebhelper.exe) [ -f "$ST/helper" ] && echo 99903 ;;
-  '[Ss]team\.exe') [ -f "$ST/steam" ] && echo 99902 ;;
-  steam) [ -f "$ST/steam" ] && echo 99902; [ -f "$ST/helper" ] && echo 99903 ;;
+  '[Ss]team\.exe') [ -f "$ST/steam" ] && echo 99902; [ -f "$ST/foreign" ] && echo 99904; [ -f "$ST/lookalike" ] && echo 99905 ;;
+  steam) [ -f "$ST/steam" ] && echo 99902; [ -f "$ST/helper" ] && echo 99903; [ -f "$ST/foreign" ] && echo 99904 ;;
 esac
 exit 0
 X
@@ -217,7 +231,12 @@ case "$*" in *99903*) echo 'C:\Program Files (x86)\Steam\bin\cef\cef.win7x64\ste
 X
 cat > "$B/lsof" << 'X'
 #!/bin/bash
-case "$*" in *99901*) echo "wine64 ${STUB_GAME_OTHER:-${WINEPREFIX:-}}/drive_c/x" ;; *) echo "wine64 ${WINEPREFIX:-}/drive_c/x" ;; esac
+case "$*" in
+  *99901*) echo "wine64 ${STUB_GAME_OTHER:-${WINEPREFIX:-}}/drive_c/x" ;;
+  *99904*) echo "wine64 $HOME/Applications/Other Game.app/Contents/SharedSupport/prefix/drive_c/x" ;;   # another wrapper's Steam
+  *99905*) echo "grep /usr/bin/grep" ;;                                                                  # a line that names steam.exe
+  *) echo "wine64 ${WINEPREFIX:-}/drive_c/x" ;;
+esac
 X
 cat > "$B/curl" << 'X'
 #!/bin/bash
@@ -244,7 +263,7 @@ printf '#!/bin/bash\necho "CAFF $*" >> "$CALLS"\n' > "$B/caffeinate"
 printf '#!/bin/bash\necho "KILL $*" >> "$CALLS"; rm -f "$ST/steam" "$ST/helper"\n' > "$B/killrec"
 printf '#!/bin/bash\nif [ "$1" = -u ] && [ -n "${STUB_ROOT:-}" ]; then echo 0; else exec /usr/bin/id "$@"; fi\n' > "$B/id"
 printf '#!/bin/bash\necho "Filesystem 1024-blocks Used Available Capacity Mounted"\necho "/dev/x 999999999 1 ${STUB_DF_KB:-999999999} 1%% /"\n' > "$B/df"
-chmod +x "$B"/* "$T/fixbin"/* "$R/cities-skylines-2/scripts"/*.sh
+chmod +x "$B"/* "$T/fixbin"/* "$R/cities-skylines-2/scripts"/*.sh "$R/common"/*.sh
 { printf 'MZ'; head -c 2100000 /dev/zero; printf 'Valve Corp.'; } > "$T/fixbin/SteamSetup.good"
 { printf 'XX'; head -c 2100000 /dev/zero; printf 'Valve Corp.'; } > "$T/fixbin/SteamSetup.nomz"
 { printf 'MZ'; head -c 2100000 /dev/zero; } > "$T/fixbin/SteamSetup.novalve"
@@ -276,7 +295,7 @@ starts() { cat "$ST/starts" 2>/dev/null || echo 0; }
 
 # --- which wrapper: install.sh's choice equals the launcher's once the wrapper exists
 chosen() {   # the wrapper install.sh used under --check, resolved
-  local m; m="$(sed -n 's/^MAKEWRAPPER --wrapper \(.*\) --check$/\1/p' "$CALLS")"
+  local m; m="$(sed -n 's/^MAKEWRAPPER .*--wrapper \(.*\) --check$/\1/p' "$CALLS")"
   [ -n "$m" ] || m="$(sed -n 's/^  OK: \(.*\)$/\1/p' "$H.out" | sed "s#^~#$H#")"
   [ -d "$m" ] || bash "$MKW" "$m"
   (cd "$m" && pwd -P)
@@ -345,9 +364,9 @@ check "  ...still missing afterwards: exit 1" "$rc" 1
 newh; done_all; rc="$(STUB_NO_TOOLS=1 run)"
 check "tools missing: Apple asked once, then on when they arrive" "$rc:$(calls 'XS --install'):$(grep -c '^SETUP  via=1' "$CALLS")" "0:1:1"
 check "  ...python3 not run before xcode-select -p succeeds" "$(awk '/^XS -p ok/ { ok = 1 } /^PY$/ && !ok { bad = 1 } END { print bad ? "early" : "after" }' "$CALLS")" after
-newh; done_all; sed -i '' 's/^TOOLS_POLLS=720 /TOOLS_POLLS=3 /' "$S"; rc="$(STUB_NO_TOOLS=1 STUB_TOOLS_NEVER=1 run)"
+newh; done_all; sed -i '' 's/^TOOLS_POLLS=720 /TOOLS_POLLS=3 /' "$C"; rc="$(STUB_NO_TOOLS=1 STUB_TOOLS_NEVER=1 run)"
 check "  ...they never arrive: exit 4" "$rc" 4
-sed -i '' 's/^TOOLS_POLLS=3 /TOOLS_POLLS=720 /' "$S"
+sed -i '' 's/^TOOLS_POLLS=3 /TOOLS_POLLS=720 /' "$C"
 newh; done_all; rc="$(STUB_PY_EXIT=1 run)"
 check "tools there, python3 broken: exit 1, Apple not asked" "$rc:$(calls 'XS --install')" "1:0"
 
@@ -358,7 +377,7 @@ newh; rc="$(STUB_MW_EXIT=1 run)"; check "make-wrapper fails: exit 1" "$rc" 1
 newh; rc="$(STUB_MW_EXIT=3 run)"; check "make-wrapper finds another build at work: exit 3" "$rc" 3
 newh; : > "$ST/game"; STUB_GAME_OTHER="$T/elsewhere"; export STUB_GAME_OTHER; dl installed
 rc="$(run)"; unset STUB_GAME_OTHER
-check "a wrapper to be made, with a game running in another wrapper: made, not taken for ours" "$rc:$(grep -c "^MAKEWRAPPER --wrapper $H/Applications/CS2dxmt11.app\$" "$CALLS")" "0:1"
+check "a wrapper to be made, with a game running in another wrapper: made, not taken for ours" "$rc:$(grep -c "^MAKEWRAPPER --engine-url https://github.com/vitor251093/porting-kit-engines/releases/download/wineskin/WS12Wine11.0_DXMT-v0.80.tar.7z --engine-bytes 180784324 --engine-sha afdaab97e84ec7064b8fddf47192c95b18b8bbb9cc3aa4d81060a57d7b4dced0 --wrapper $H/Applications/CS2dxmt11.app\$" "$CALLS")" "0:1"
 # (with no prefix yet, set -u stops the copied function inside its own pipeline, so the game is not taken for
 # ours either way; what the guard saves is the shell's error line in the player's Terminal)
 check "  ...and no copied function was run before there was a prefix" "$(said 'unbound variable')" 0
@@ -406,11 +425,11 @@ newh; bash "$MKW" "$WR" steam
 rc="$(STUB_STARTS='fatal-u fatal-u fatal-u fatal-u fatal-u ok' run)"
 check "five fatal starts: exit 1, five starts, Steam ended, its log shown, no setup" \
   "$rc:$(starts):$(said 'did not start after 5 tries'):$(said 'Failed to determine download location' | awk '{ print ($1 > 0) }'):$(grep -c '^SETUP  via' "$CALLS")" "1:5:1:1:0"
-newh; bash "$MKW" "$WR" steam; : > "$ST/steam"; dl - installed; sed -i '' 's/^STUCK_POLLS=12 /STUCK_POLLS=2 /' "$S"
-rc="$(run)"; sed -i '' 's/^STUCK_POLLS=2 /STUCK_POLLS=12 /' "$S"
+newh; bash "$MKW" "$WR" steam; : > "$ST/steam"; dl - installed; sed -i '' 's/^STUCK_POLLS=12 /STUCK_POLLS=2 /' "$C"
+rc="$(run)"; sed -i '' 's/^STUCK_POLLS=2 /STUCK_POLLS=12 /' "$C"
 check "a Steam already there with no client: ended, then started" "$rc:$(calls '^WINESERVER -k'):$(starts)" "0:1:1"
-newh; bash "$MKW" "$WR" steam; dl - installed; sed -i '' 's/^START_POLLS=120 /START_POLLS=3 /' "$S"
-rc="$(STUB_STARTS='slow ok' run)"; sed -i '' 's/^START_POLLS=3 /START_POLLS=120 /' "$S"
+newh; bash "$MKW" "$WR" steam; dl - installed; sed -i '' 's/^START_POLLS=120 /START_POLLS=3 /' "$C"
+rc="$(STUB_STARTS='slow ok' run)"; sed -i '' 's/^START_POLLS=3 /START_POLLS=120 /' "$C"
 check "no client within the limit: ended and started again" "$rc:$(starts):$(calls '^WINESERVER -k' | awk '{ print ($1 > 0) }')" "0:2:1"
 newh; bash "$MKW" "$WR" steam; : > "$ST/steam"; : > "$ST/helper"; dl installed
 check "a client already up: not started again, straight to the words, and not said to be starting" "$(run):$(starts):$(said 'Do not press it'):$(said 'is starting'):$(said 'Steam for Windows is open.')" "0:0:1:0:1"
@@ -460,8 +479,30 @@ check "--check with the tools missing: python3 not run" "$(STUB_NO_TOOLS=1 run -
 newh; done_all
 check "--check with Rosetta missing: reported, exit 0" "$(STUB_NO_ROSETTA=1 run --check):$(said 'would offer to install it'):$(calls SOFTWAREUPDATE)" "0:1:0"
 newh
-check "--check on an empty home: make-wrapper asked only to check" "$(run --check):$(grep -c '^MAKEWRAPPER' "$CALLS"):$(grep -c '^MAKEWRAPPER --wrapper .* --check$' "$CALLS")" "0:1:1"
+check "--check on an empty home: make-wrapper asked only to check" "$(run --check):$(grep -c '^MAKEWRAPPER' "$CALLS"):$(grep -c '^MAKEWRAPPER --engine-url .* --wrapper .* --check$' "$CALLS")" "0:1:1"
 check "--help prints the usage" "$(bash "$S" --help | grep -c 'exit 0 = done')" 1
+
+# --- the shared part (docs/plans/shared-installer.md, 2.1): added after the installer was divided, so these
+# --- cases are in test-install.golden from their first run, after the 96 recorded at 6a66416
+check "no line of the shared part that is not a comment names a game or a size" \
+  "$(grep -v '^[[:space:]]*#' "$C" | sed 's/[[:space:]]#.*//' | grep -cE 'Cities|Skylines|Surviving|Mars|949230|3215050|CS2_|SM_|CS2dxmt11|[0-9] ?(GB|MB)')" 0
+check "  ...and the step a line sends the player on to is worked out, not written in" "$(grep -cE 'to step [0-9]|before step [0-9]' "$C")" 0
+newh
+check "the engine's pin reaches the wrapper script as its three options" \
+  "$(run --check > /dev/null; grep -c '^MAKEWRAPPER --engine-url https://github.com/vitor251093/porting-kit-engines/releases/download/wineskin/WS12Wine11.0_DXMT-v0.80.tar.7z --engine-bytes 180784324 --engine-sha afdaab97e84ec7064b8fddf47192c95b18b8bbb9cc3aa4d81060a57d7b4dced0 --wrapper ' "$CALLS")" 1
+newh; done_all; cp "$S" "$T/s.keep"; sed -i '' '/^GAME_TITLE=/d' "$S"; rc="$(run)"; cp "$T/s.keep" "$S"
+check "a game that sets no title is refused by the shared part, by the setting's name" "$rc:$(said 'did not set GAME_TITLE')" "1:1"
+newh; done_all; sed -i '' '/^TAKES_DESKTOP=/d' "$S"; rc="$(run --desktop)"; cp "$T/s.keep" "$S"
+check "--desktop is a wrong option for a game whose setup has none: exit 2, nothing done" "$rc:$(said 'unknown option: --desktop'):$(grep -c '^SETUP' "$CALLS")" "2:1:0"
+newh; bash "$MKW" "$WR" steam; : > "$ST/foreign"; rc="$(run)"
+check "another wrapper's Steam is open: exit 3, the wrapper named, Steam not started here" \
+  "$rc:$(said 'Steam is open in Other Game.app. Quit it'):$(starts):$(grep -c '^SETUP  via' "$CALLS")" "3:1:0:0"
+newh; bash "$MKW" "$WR" steam; : > "$ST/foreign"
+check "  ...with --check: said, and the report goes on" "$(run --check):$(said 'Steam is open in Other Game.app: the installer would stop here'):$(said 'would run setup.sh')" "0:1:1"
+newh; done_all; : > "$ST/foreign"
+check "  ...with the game installed Steam is not needed, so it is not looked for" "$(run):$(said 'Steam is open in'):$(grep -c '^SETUP  via=1' "$CALLS")" "0:0:1"
+newh; bash "$MKW" "$WR" steam; : > "$ST/lookalike"; dl installed
+check "a line that only names steam.exe is not a Steam: the install goes on" "$(run):$(said 'Steam is open in'):$(starts)" "0:0:1"
 
 check "no run reached the runaway guard" "$(cat "$T/runaway" 2>/dev/null | wc -l | tr -d ' ')" 0
 # --- the transcript: what the installer printed in every case above, against what it printed at 6a66416

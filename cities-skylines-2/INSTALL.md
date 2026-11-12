@@ -40,6 +40,11 @@ about 105 GB of free disk space (the game with all its DLC is about 100 GB).
 
 Good to know:
 
+- **One Steam at a time.** If Steam for Windows is open in another wrapper on this Mac (another game of
+  this project, or its Steam app), the installer stops before it starts its own and says which one: quit
+  it, then open the installer again. Two Steams on one account push each other out, and the one pushed out
+  skips its cloud upload. The installer cannot see a Steam on another Mac, or the Steam of macOS: close
+  those yourself.
 - **Stopped part way?** Paste the line again. It carries on from the step it stopped at. Closing the
   window or pressing Control-C stops the installer only: Steam stays open. Pasting the line again on a
   finished install is also how to update: it fetches the current scripts and re-applies the fixes.

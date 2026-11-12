@@ -2126,7 +2126,7 @@ Step 5 of 6: The game
 
 Step 6 of 6: The Mac fixes and the game's app
   would run setup.sh
-== no run reached the runaway guard :: 0
+== no line of the shared part that is not a comment names a game or a size :: 0
 Cities: Skylines II for Apple Silicon Macs: the installer
 You need a Steam account that owns the game, about 105 GB free, and time for a download of about 100 GB.
 You can open the installer again at any point: it carries on from where it stopped.
@@ -2146,3 +2146,184 @@ Step 5 of 6: The game
 
 Step 6 of 6: The Mac fixes and the game's app
   would run setup.sh
+==   ...and the step a line sends the player on to is worked out, not written in :: 0
+Cities: Skylines II for Apple Silicon Macs: the installer
+You need a Steam account that owns the game, about 105 GB free, and time for a download of about 100 GB.
+You can open the installer again at any point: it carries on from where it stopped.
+
+Step 1 of 6: This Mac
+
+Step 2 of 6: Apple's Command Line Tools
+  OK
+
+Step 3 of 6: Wine, which runs Windows programs (about 235 MB)
+
+Step 4 of 6: Steam for Windows
+  would be downloaded from Valve and installed in the new wrapper
+
+Step 5 of 6: The game
+  would wait for you to sign in to Steam and press Install
+
+Step 6 of 6: The Mac fixes and the game's app
+  would run setup.sh
+== the engine's pin reaches the wrapper script as its three options :: 1
+Cities: Skylines II for Apple Silicon Macs: the installer
+You need a Steam account that owns the game, about 105 GB free, and time for a download of about 100 GB.
+You can open the installer again at any point: it carries on from where it stopped.
+
+Step 1 of 6: This Mac
+
+Step 2 of 6: Apple's Command Line Tools
+  OK
+
+Step 3 of 6: Wine, which runs Windows programs (about 235 MB)
+
+Step 4 of 6: Steam for Windows
+  would be downloaded from Valve and installed in the new wrapper
+
+Step 5 of 6: The game
+  would wait for you to sign in to Steam and press Install
+
+Step 6 of 6: The Mac fixes and the game's app
+  would run setup.sh
+== a game that sets no title is refused by the shared part, by the setting's name :: 1:1
+install-core.sh: the game's installer did not set GAME_TITLE
+== --desktop is a wrong option for a game whose setup has none: exit 2, nothing done :: 2:1:0
+unknown option: --desktop (try --help)
+== another wrapper's Steam is open: exit 3, the wrapper named, Steam not started here :: 3:1:0:0
+Cities: Skylines II for Apple Silicon Macs: the installer
+You need a Steam account that owns the game, about 105 GB free, and time for a download of about 100 GB.
+You can open the installer again at any point: it carries on from where it stopped.
+  The Mac is kept awake while this runs.
+
+Step 1 of 6: This Mac
+
+Step 2 of 6: Apple's Command Line Tools
+  OK
+
+Step 3 of 6: Wine, which runs Windows programs (about 235 MB)
+  OK: ~/Applications/CS2dxmt11.app
+
+Step 4 of 6: Steam for Windows
+  OK
+
+Step 5 of 6: The game
+  !! Steam is open in Other Game.app. Quit it, then open the installer again.
+     Only one Steam at a time can use a Steam account, and the one that is pushed out skips its cloud upload.
+
+The install stopped. The lines above say why. Open the installer again to carry on from that step.
+==   ...with --check: said, and the report goes on :: 0:1:1
+Cities: Skylines II for Apple Silicon Macs: the installer
+You need a Steam account that owns the game, about 105 GB free, and time for a download of about 100 GB.
+You can open the installer again at any point: it carries on from where it stopped.
+
+Step 1 of 6: This Mac
+
+Step 2 of 6: Apple's Command Line Tools
+  OK
+
+Step 3 of 6: Wine, which runs Windows programs (about 235 MB)
+  OK: ~/Applications/CS2dxmt11.app
+
+Step 4 of 6: Steam for Windows
+  OK
+
+Step 5 of 6: The game
+  Steam is open in Other Game.app: the installer would stop here until it is quit.
+  not installed: would start Steam and wait for you to sign in and press Install
+
+Step 6 of 6: The Mac fixes and the game's app
+  would run setup.sh
+==   ...with the game installed Steam is not needed, so it is not looked for :: 0:0:1
+Cities: Skylines II for Apple Silicon Macs: the installer
+You need a Steam account that owns the game, about 105 GB free, and time for a download of about 100 GB.
+You can open the installer again at any point: it carries on from where it stopped.
+  The Mac is kept awake while this runs.
+
+Step 1 of 6: This Mac
+
+Step 2 of 6: Apple's Command Line Tools
+  OK
+
+Step 3 of 6: Wine, which runs Windows programs (about 235 MB)
+  OK: ~/Applications/CS2dxmt11.app
+
+Step 4 of 6: Steam for Windows
+  OK
+
+Step 5 of 6: The game
+  OK
+
+Step 6 of 6: The Mac fixes and the game's app
+
+Done. Start the game from Applications: Cities Skylines II, or 14unch3r.
+== a line that only names steam.exe is not a Steam: the install goes on :: 0:0:1
+Cities: Skylines II for Apple Silicon Macs: the installer
+You need a Steam account that owns the game, about 105 GB free, and time for a download of about 100 GB.
+You can open the installer again at any point: it carries on from where it stopped.
+  The Mac is kept awake while this runs.
+
+Step 1 of 6: This Mac
+
+Step 2 of 6: Apple's Command Line Tools
+  OK
+
+Step 3 of 6: Wine, which runs Windows programs (about 235 MB)
+  OK: ~/Applications/CS2dxmt11.app
+
+Step 4 of 6: Steam for Windows
+  OK
+
+Step 5 of 6: The game
+  Steam for Windows is starting. A small box headed "Steam - Fatal Error" can appear once or twice
+  and close again. That is expected: Steam is updating itself. Click nothing in it.
+  When Steam's sign-in window appears:
+    1. Sign in with the Steam account that owns Cities: Skylines II. Tick "Remember me".
+       Steam may ask for a code from your email or the Steam app on your phone.
+    2. Click Library, then Cities: Skylines II, then the blue Install button, then Install.
+       The download is about 100 GB and takes hours.
+    3. When it finishes Steam shows a green Play button. Do not press it: it does not work from
+       inside Steam. This window sees the download finish, closes Steam, and goes on to step 6.
+  Leave this window open. The Mac is kept awake while it runs.
+  Waiting for you to choose Install in Steam
+  The game is installed. Closing Steam.
+  OK
+
+Step 6 of 6: The Mac fixes and the game's app
+
+Done. Start the game from Applications: Cities Skylines II, or 14unch3r.
+== no run reached the runaway guard :: 0
+Cities: Skylines II for Apple Silicon Macs: the installer
+You need a Steam account that owns the game, about 105 GB free, and time for a download of about 100 GB.
+You can open the installer again at any point: it carries on from where it stopped.
+  The Mac is kept awake while this runs.
+
+Step 1 of 6: This Mac
+
+Step 2 of 6: Apple's Command Line Tools
+  OK
+
+Step 3 of 6: Wine, which runs Windows programs (about 235 MB)
+  OK: ~/Applications/CS2dxmt11.app
+
+Step 4 of 6: Steam for Windows
+  OK
+
+Step 5 of 6: The game
+  Steam for Windows is starting. A small box headed "Steam - Fatal Error" can appear once or twice
+  and close again. That is expected: Steam is updating itself. Click nothing in it.
+  When Steam's sign-in window appears:
+    1. Sign in with the Steam account that owns Cities: Skylines II. Tick "Remember me".
+       Steam may ask for a code from your email or the Steam app on your phone.
+    2. Click Library, then Cities: Skylines II, then the blue Install button, then Install.
+       The download is about 100 GB and takes hours.
+    3. When it finishes Steam shows a green Play button. Do not press it: it does not work from
+       inside Steam. This window sees the download finish, closes Steam, and goes on to step 6.
+  Leave this window open. The Mac is kept awake while it runs.
+  Waiting for you to choose Install in Steam
+  The game is installed. Closing Steam.
+  OK
+
+Step 6 of 6: The Mac fixes and the game's app
+
+Done. Start the game from Applications: Cities Skylines II, or 14unch3r.

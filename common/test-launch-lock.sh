@@ -17,7 +17,7 @@ if [ $# -gt 0 ]; then
   LAUNCHERS=("$@")
 else
   for f in surviving-mars-relaunched/launch-relaunched.sh cities-skylines-2/launchers/launch-cs2-dxmt11.sh \
-           cities-skylines-2/scripts/install.sh; do
+           common/install-core.sh; do
     [ -f "$HERE/$f" ] || { echo "REFUSED: $f not found under $HERE"; exit 2; }
     LAUNCHERS+=("$HERE/$f")
   done

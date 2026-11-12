@@ -1,11 +1,11 @@
 #!/bin/bash
-# test-make-wrapper.sh -- scripts/make-wrapper.sh with HOME at a scratch folder (docs/plans/simple-install.md,
+# test-make-wrapper.sh -- common/make-wrapper.sh with HOME at a scratch folder (docs/plans/simple-install.md,
 # NT1). A stub curl copies fixture archives made here: the engine a tar under its .tar.7z name, the template a
 # tar inside a tar whose files carry a quarantine attribute, as the real ones are (measured 2026-11-10). The
 # pins are rewritten in a scratch copy. The template's launcher is a stub that records its call and makes a
 # fake prefix; wine64 and wineserver are stubs. No network, no Wine, nothing written outside the scratch
 # folder (the real ~/Applications is listed before and after).
-#   bash scripts/test-make-wrapper.sh            exit 0 = every case passed
+#   bash common/test-make-wrapper.sh             exit 0 = every case passed
 #   MUTANT=1  ...  the sha256 not compared; must exit 1
 #   MUTANT=2  ...  step 1's existence test removed (an existing target replaced); must exit 1
 #   MUTANT=3  ...  step 9's test before the move removed; must exit 1
@@ -16,16 +16,18 @@
 #   MUTANT=8  ...  both quarantine guards removed; must exit 1
 #   MUTANT=9  ...  a live build folder removed; must exit 1
 #   MUTANT=10 ...  a pin changed in the script alone; must exit 1
+#   MUTANT=11 ...  a default engine put back; must exit 1
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
 REAL="$HERE/make-wrapper.sh"
-LAUNCHER="$HERE/../launchers/launch-cs2-dxmt11.sh"
+LAUNCHER="$HERE/../cities-skylines-2/launchers/launch-cs2-dxmt11.sh"
+CS2_INSTALL="$HERE/../cities-skylines-2/scripts/install.sh"
 REALHOME="$HOME"
 T="$(mktemp -d /tmp/make-wrapper-test.XXXX)"
 trap 'hdiutil detach -quiet "$T/cs-mnt" 2>/dev/null; rm -rf "$T"' EXIT
-S="$T/make-wrapper.sh"; cp "$REAL" "$S"
-mutate() {  # <sed expression> <grep that proves it applied>
-  sed -i '' "$1" "$S"; grep -q -- "$2" "$S" || { echo "REFUSED: mutant did not apply"; exit 2; }
+S="$T/make-wrapper.sh"; cp "$REAL" "$S"; cp "$HERE/fetch.sh" "$T/fetch.sh"
+mutate() {  # <sed expression> <grep that proves it applied>: in the copy or in its fetch.sh
+  sed -i '' "$1" "$S" "$T/fetch.sh"; cat "$S" "$T/fetch.sh" | grep -q -- "$2" || { echo "REFUSED: mutant did not apply"; exit 2; }
 }
 case "${MUTANT:-0}" in
   1) mutate 's#|| \[ "\$got" != "\$want" \]; then$#; then#' 'bytes" \] ; then$' ;;
@@ -39,7 +41,8 @@ case "${MUTANT:-0}" in
   8) mutate 's#/usr/bin/tar --no-mac-metadata -xf "\$B/t1/#/usr/bin/tar -xf "$B/t1/#' '/usr/bin/tar -xf "\$B/t1/'
      mutate 's#^xattr -dr com.apple.quarantine "\$TOP".*#: guard#' '^: guard$' ;;
   9) mutate 's#if kill -0 "\$p" 2>/dev/null; then#if false; then#' 'if false; then' ;;
-  10) mutate 's#^ENGINE_SHA=afdaab97.*#ENGINE_SHA=1111111111111111111111111111111111111111111111111111111111111111#' '^ENGINE_SHA=1111' ;;
+  10) mutate 's#^TEMPLATE_SHA=fbe276bb.*#TEMPLATE_SHA=1111111111111111111111111111111111111111111111111111111111111111#' '^TEMPLATE_SHA=1111' ;;
+  11) mutate 's#^CHECK=0; TARGET=""; ENGINE_URL=""; ENGINE_BYTES=""; ENGINE_SHA=""$#CHECK=0; TARGET=""; ENGINE_URL=x; ENGINE_BYTES=1; ENGINE_SHA=x#' '^CHECK=0; TARGET=""; ENGINE_URL=x' ;;
 esac
 
 fails=0
@@ -48,12 +51,12 @@ check() {  # <name> <got> <want>
 }
 
 # --- the pins, as published (docs/plans/simple-install.md, 1.3), before the copy's pins are rewritten
-pinned() { sed -n "s/^$1=\"\{0,1\}\([^\"]*\)\"\{0,1\}$/\1/p" "$S"; }
-check "pins: the engine's address, size and sha256" "$(pinned ENGINE_URL) $(pinned ENGINE_BYTES) $(pinned ENGINE_SHA)" \
+pinned() { sed -n "s/^$1=\"\{0,1\}\([^\"]*\)\"\{0,1\}$/\1/p" "${2:-$S}"; }
+check "pins: the engine's address, size and sha256 (in Cities: Skylines II's installer)" "$(pinned ENGINE_URL "$CS2_INSTALL") $(pinned ENGINE_BYTES "$CS2_INSTALL") $(pinned ENGINE_SHA "$CS2_INSTALL")" \
   "https://github.com/vitor251093/porting-kit-engines/releases/download/wineskin/WS12Wine11.0_DXMT-v0.80.tar.7z 180784324 afdaab97e84ec7064b8fddf47192c95b18b8bbb9cc3aa4d81060a57d7b4dced0"
 check "pins: the template's address, size and sha256" "$(pinned TEMPLATE_URL) $(pinned TEMPLATE_BYTES) $(pinned TEMPLATE_SHA)" \
   "https://github.com/vitor251093/porting-kit-wrappers/releases/download/Wineskin-3.0.6-2/Wineskin.app.tar.7z 53110672 fbe276bba96d5582b99c511117abb1e035a988b8c1aeefe27c32df266a07907a"
-ENGINE_URL="$(pinned ENGINE_URL)"; TEMPLATE_URL="$(pinned TEMPLATE_URL)"
+ENGINE_URL="$(pinned ENGINE_URL "$CS2_INSTALL")"; TEMPLATE_URL="$(pinned TEMPLATE_URL)"
 ENGINE="$(basename "$ENGINE_URL")"; TEMPLATE="$(basename "$TEMPLATE_URL")"
 
 # --- the source
@@ -110,11 +113,12 @@ mk_template "$F/good/$TEMPLATE"; mk_engine "$F/good/$ENGINE"
 pin() { sed -i '' "s#^$1=.*#$1=$2#" "$S"; }
 sz() { stat -f %z "$1"; }
 sh256() { shasum -a 256 "$1" | awk '{ print $1 }'; }
-pin_to() {   # <folder>: the copy's pins made those of the fixtures in <folder>
-  pin ENGINE_BYTES "$(sz "$1/$ENGINE")"; pin ENGINE_SHA "$(sh256 "$1/$ENGINE")"
+EB=""; ES=""
+pin_to() {   # <folder>: the copy's template pin, and the engine options, made those of the fixtures in <folder>
+  EB="$(sz "$1/$ENGINE")"; ES="$(sh256 "$1/$ENGINE")"
   pin TEMPLATE_BYTES "$(sz "$1/$TEMPLATE")"; pin TEMPLATE_SHA "$(sh256 "$1/$TEMPLATE")"
 }
-pin_to "$F/good"; cp "$S" "$S.good"
+pin_to "$F/good"; cp "$S" "$S.good"; EB_GOOD="$EB"; ES_GOOD="$ES"
 
 # --- stubs
 mkdir -p "$T/bin"
@@ -135,12 +139,15 @@ REAL_BEFORE="$(real_apps)"
 
 n=0
 newh() { n=$((n + 1)); H="$T/h$n"; mkdir -p "$H/Applications"; : > "$LAUNCHER_CALLS"; : > "$CURL_CALLS"; : > "$WINESERVER_CALLS"; }
-run() {   # the copy, HOME at $H (newh first, in the calling shell); output in $H.out; echoes the exit code
+W="Applications/CS2dxmt11.app"
+eng() { echo --engine-url "$ENGINE_URL" --engine-bytes "$EB" --engine-sha "$ES"; }   # no space in any of them
+run() {   # the copy, HOME at $H (newh first, in the calling shell); output in $H.out; echoes the exit code.
+  # The engine options always; --wrapper ~/Applications/CS2dxmt11.app unless the arguments name one.
+  local w=""; case " $* " in *" --wrapper "*) ;; *) w="$H/$W" ;; esac
   env -u CS2_WRAPPER -u L1_DOWNLOADS HOME="$H" PATH="$T/bin:$PATH" FIXDIR="${FIXDIR:-$F/good}" \
-    ${DL:+L1_DOWNLOADS="$DL"} bash "$S" "$@" > "$H.out" 2>&1 < /dev/null
+    ${DL:+L1_DOWNLOADS="$DL"} bash "$S" $(eng) ${w:+--wrapper "$w"} "$@" > "$H.out" 2>&1 < /dev/null
   echo $?
 }
-W="Applications/CS2dxmt11.app"
 left() { ls -A "$H/Applications" 2>/dev/null | grep -c '^\.l1-wrapper'; }
 calls() { wc -l < "$1" | tr -d ' '; }
 said() { grep -c -- "$1" "$H.out"; }
@@ -160,8 +167,15 @@ check "  ...the wrapper's path printed with ~, and the home folder nowhere in th
 newh; rm -rf "$H/Applications"; check "no ~/Applications yet: made, the folder made" "$(run):$([ -d "$H/$W/Contents/SharedSupport/prefix" ] && echo y)" "0:y"
 newh; mkdir -p "$T/else$n"; check "--wrapper elsewhere: made there" "$(run --wrapper "$T/else$n/My Wrapper.app"):$([ -f "$T/else$n/My Wrapper.app/Contents/SharedSupport/prefix/system.reg" ] && echo y)" "0:y"
 newh; mkdir -p "$T/cw$n"
-rc="$(env -u L1_DOWNLOADS CS2_WRAPPER="$T/cw$n/W.app" HOME="$H" PATH="$T/bin:$PATH" FIXDIR="$F/good" bash "$S" > "$H.out" 2>&1; echo $?)"
-check "CS2_WRAPPER names the target" "$rc:$([ -d "$T/cw$n/W.app/Contents/SharedSupport/prefix" ] && echo y)" "0:y"
+rc="$(env -u L1_DOWNLOADS CS2_WRAPPER="$T/cw$n/W.app" HOME="$H" PATH="$T/bin:$PATH" FIXDIR="$F/good" bash "$S" $(eng) > "$H.out" 2>&1; echo $?)"
+check "CS2_WRAPPER is not read: no --wrapper is exit 2, nothing made" "$rc:$([ -d "$T/cw$n/W.app" ] && echo made || echo none)" "2:none"
+for drop in --engine-url --engine-bytes --engine-sha; do
+  newh; set -- $(eng); a=(); while [ $# -gt 0 ]; do [ "$1" = "$drop" ] || a+=("$1" "$2"); shift 2; done
+  rc="$(env -u L1_DOWNLOADS HOME="$H" PATH="$T/bin:$PATH" FIXDIR="$F/good" bash "$S" "${a[@]}" --wrapper "$H/$W" > "$H.out" 2>&1; echo $?)"
+  check "two of the three engine options (no $drop): exit 2, nothing downloaded" "$rc:$(calls "$CURL_CALLS")" "2:0"
+done
+newh; rc="$(env -u L1_DOWNLOADS HOME="$H" PATH="$T/bin:$PATH" FIXDIR="$F/good" bash "$S" --wrapper "$H/$W" > "$H.out" 2>&1; echo $?)"
+check "no engine options: exit 2, nothing downloaded, nothing made" "$rc:$(calls "$CURL_CALLS"):$([ -e "$H/$W" ] && echo made || echo none)" "2:0:none"
 newh; mkdir -p "$H/Applications/.l1-wrapper.dead1/x"; echo 999999 > "$H/Applications/.l1-wrapper.dead1/pid"
 check "a build folder left by a dead install: removed, and the wrapper made" "$(run):$(left):$(said 'removed a build folder')" "0:0:1"
 
@@ -203,9 +217,9 @@ failed() {   # <name> <exit>
 }
 newh; failed "curl fails with an HTTP error" "$(STUB_CURL_EXIT=22 run)"; check "  ...says it is no longer published" "$(said 'no longer published')" 1
 newh; failed "curl fails otherwise" "$(STUB_CURL_EXIT=6 run)"; check "  ...says to check the network" "$(said 'Check the network')" 1
-pin ENGINE_SHA 0000; newh; failed "a wrong sha256 of the engine" "$(run)"; check "  ...both checksums said" "$(grep -c 'sha256 [0-9a-f]\{64\}, where .* sha256 0000 was expected' "$H.out")" 1
-cp "$S.good" "$S"; pin TEMPLATE_SHA 0000; newh; failed "a wrong sha256 of the template" "$(run)"
-cp "$S.good" "$S"; pin ENGINE_BYTES 5; newh; failed "a wrong size" "$(run)"
+ES=0000; newh; failed "a wrong sha256 of the engine" "$(run)"; check "  ...both checksums said" "$(grep -c 'sha256 [0-9a-f]\{64\}, where .* sha256 0000 was expected' "$H.out")" 1
+ES="$ES_GOOD"; cp "$S.good" "$S"; pin TEMPLATE_SHA 0000; newh; failed "a wrong sha256 of the template" "$(run)"
+cp "$S.good" "$S"; EB=5; newh; failed "a wrong size" "$(run)"; EB="$EB_GOOD"
 bad() {   # <template kind> <engine kind>: fixtures in $F/bad, the copy pinned to them
   rm -f "$F/bad"/*; mk_template "$F/bad/$TEMPLATE" "$1"; mk_engine "$F/bad/$ENGINE" "$2"; cp "$S.good" "$S"; pin_to "$F/bad"
 }
@@ -214,7 +228,7 @@ for k in two-apps no-launcher no-freetype no-gnutls no-inotify; do
 done
 newh; bad ok no-wine64; failed "an engine without wine64" "$(FIXDIR="$F/bad" run)"
 newh; bad ok silent; failed "wine64 --version prints nothing" "$(FIXDIR="$F/bad" run)"
-cp "$S.good" "$S"
+cp "$S.good" "$S"; EB="$EB_GOOD"; ES="$ES_GOOD"
 newh; failed "the template's launcher exits 1 after making a whole prefix" "$(STUB_LAUNCHER_FAIL=1 run)"
 check "  ...its last lines shown, with the home folder as ~" "$(said 'prefix made for ~/x'):$(grep -c "$H" "$H.out")" "1:0"
 newh; failed "the prefix has no system.reg" "$(STUB_NO_SYSREG=1 run)"

@@ -6,6 +6,36 @@
 > criteria) and the split itself were checked the same day by a fitted check: two blockers, folded
 > (Review, below). Written 2026-11-11.
 >
+> **🔧 As-built (2026-11-11):** PARTIAL: S1 and S2 are built on `simple-install`; S3, SL1 and SL2 are not.
+> S1 is `00108f7`, with `7b102a1` for a defect in it found the same evening; S2 is the commit that adds this
+> header. **What stands:** `common/install-core.sh` (420 lines) holds the stages; Cities: Skylines II's
+> `scripts/install.sh` is its settings and its own functions (120 lines, from 446); `make-wrapper.sh` and its
+> test are in `common/`, with `common/fetch.sh` taken out of it. The divided installer prints what the
+> installer of `6a66416` printed in all 96 recorded cases, word for word. **Tests:** the installer's test has
+> 105 cases and the transcript, and 33 mutants (its 25, three for the transcript, five new); the wrapper's
+> test 63 cases and 11 mutants; the lock test 24 cases and its mutant, its third file now the core; the
+> bootstrap's 31 cases and 5 mutants and the app builder's 42 and 7 are unchanged. All 57 mutants were
+> applied and seen red, each on its own case. The gates of ST7 are green: links (0 unresolved), identifiers
+> (at the residual of 9), the experiments ledger, `bash -n`, `test-setup.sh`, `test-launch-feedback.sh` and
+> `test-launcher-parity.sh`. **Deviations:** (1) `main` was merged into the branch, not the branch rebased:
+> it is published, and a rebase would have needed a forced push. (2) S1's transcript held carriage returns
+> from the cases run at a terminal; the repository stores text with plain line ends, so the recorded file
+> would not have survived a checkout; they are dropped (`7b102a1`). (3) What 2.1's table calls settings is
+> carried by eighteen settings and five functions the game defines (`game_wrapper`, `game_env`,
+> `game_running`, `tools_ok`, `words_play`), with `TAKES_DESKTOP` for a setup that takes `--desktop`; the
+> report `--check` gives with no wrapper, and the last stage, stay in the game's file. (4) The new cases sit
+> before the last recorded one, which judges no run of its own, so it moved to the end of the record: the
+> record gained 182 lines and that one line moved; the other 95 records are untouched. (5) The case on the
+> core's words does not forbid a bare "step N", which the lock code's own `step 0` call would trip; a second
+> case holds that no line of the core says "to step N" or "before step N". (6) The look for another
+> wrapper's Steam counts only a process whose open files hold `drive_c`, so a line that merely names
+> `steam.exe` is not taken for one (mutant 32). (7) Both steps were written on Fable 5.2, starting from what
+> the check's builder lens had built (Opus 5.5), read whole and changed where the folds had moved on: the
+> Wine environment, the tools test and the words at Steam's Play button were still one game's inside the
+> core. Verify against: `common/install-core.sh`, `common/make-wrapper.sh`, `common/fetch.sh`,
+> `common/test-make-wrapper.sh`, `common/test-launch-lock.sh`, `cities-skylines-2/scripts/install.sh`,
+> `cities-skylines-2/scripts/test-install.sh`, `cities-skylines-2/scripts/test-install.golden`.
+>
 > Tracking: issue #22. This plan changes the installer of the branch `simple-install`; references to
 > `install.sh`, `cities-skylines-2/scripts/install.sh`, `make-wrapper.sh`, `common/make-installer-app.sh`,
 > their tests, and `common/test-launch-lock.sh` with the installer as its third file, are as of that branch

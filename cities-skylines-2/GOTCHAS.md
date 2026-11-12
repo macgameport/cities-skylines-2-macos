@@ -3052,7 +3052,7 @@ real views, read by eye before the merge, found it.
 
 ## The first start of Steam in a new prefix fails, and a later one works (2026-11-10)
 
-- **Measured, 3 clean prefixes out of 3** (the Studio, macOS 27.2; a wrapper made by `scripts/make-wrapper.sh`'s
+- **Measured, 3 clean prefixes out of 3** (the Studio, macOS 27.2; a wrapper made by `common/make-wrapper.sh`'s (then `scripts/make-wrapper.sh`)
   method, Steam put in with `wine64 SteamSetup.exe /S`): the first `steam.exe -no-cef-sandbox` ends about 25 s
   later at a box headed "Steam - Fatal Error" ("Failed to load steamui.dll" in one run) that stays until
   something ends it.
