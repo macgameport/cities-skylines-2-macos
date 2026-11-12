@@ -75,18 +75,19 @@ is the silent-conflict case of `:41-43`.
 | Piece | Published by | File | Bytes | sha256 |
 |---|---|---|---|---|
 | Wrapper template | Porting Kit, `vitor251093/porting-kit-wrappers`, release `Wineskin-3.0.6-2` | `Wineskin.app.tar.7z` | 53,110,672 | `fbe276bb...907a` (the installer plan's pin, `make-wrapper.sh:21-23`) |
-| Wine 10 | Porting Kit, `vitor251093/porting-kit-engines`, release `wineskin` | `WS12WineSikarugir10.0_2_D3DMetal-v2.1.tar.7z` | 183,963,888 | `a2f9322f3e6160453d9b31891e91d17a7c1f0b752c1804416880792c37d125d2` (GitHub's digest; not downloaded) |
+| Wine 10 | Porting Kit, `vitor251093/porting-kit-engines`, release `wineskin` | `WS12WineSikarugir10.0_2_D3DMetal-v2.1.tar.7z` | 183,963,888 | `a2f9322f3e6160453d9b31891e91d17a7c1f0b752c1804416880792c37d125d2` (downloaded at ML1, matches) |
 | D3DMetal 3.0 | Gcenx, `Gcenx/game-porting-toolkit`, release `Game-Porting-Toolkit-3.0-3` (2026-03-03) | `game-porting-toolkit-3.0-3.tar.xz` | 239,200,808 | `d377683937340f914823dbb2e1252b329cbf834ff58907d0293db8cebf0e392e` (downloaded, matches) |
 | Steam for Windows | Valve | `SteamSetup.exe` | 2,380,800 (the installer plan, `docs/plans/simple-install.md:149`) | the tested value at `cities-skylines-2/scripts/install.sh:26` |
 
 Each file's address is `https://github.com/<repository>/releases/download/<release>/<file>`.
 
 The wrapper's own Wine names itself: `wine.d3dm21-BAK/version` reads "wine sikarugir 10.0 (revision 2
-D3DMetal-v2.1)", which is the name of the second row. That the published file is the same Wine, and what
-its top folder is called, are not measured (ML1). No published engine names D3DMetal 3.0: of the 300 files
+D3DMetal-v2.1)", which is the name of the second row, and ML1 measured that the published file is that
+Wine (1.4). No published engine names D3DMetal 3.0: of the 300 files
 of Porting Kit's `wineskin` release 16 name D3DMetal and the highest is v2.1; `Sikarugir-App/Engines` has
 none (by file name; contents not inspected). That repository also publishes `WS12WineSikarugir10.0_2.tar.xz`
-(166,278,716 bytes), the same Wine by name with no D3DMetal in it; it is unmeasured (ML1).
+(166,278,716 bytes), the same Wine by name with no D3DMetal in it; ML1 measured it to be another build
+(1.4), and it is not used.
 
 Porting Kit's `wineskin` is one rolling release whose files can be replaced in place; Gcenx makes a new
 release per build, and every older one still has its file.
@@ -130,6 +131,15 @@ release per build, and every older one still has its file.
   (`mingw-w64` 14.0.0_3 from Homebrew, gcc 16.2.0). That the stripped helper still fixes the click offset
   is not measured (ML2).
 - The game is 10,816,563,427 bytes on disk by Steam's count (build 25579348).
+- **ML1 (2026-11-11; records in the game's `runs/ml1-wine10-20261111/`).** Porting Kit's Wine 10 archive
+  matches GitHub's digest and unpacks to one folder, `wswine.bundle`, holding `bin/wine64` and
+  `bin/wineserver`, which is the layout `make-wrapper.sh` expects. Every one of its 4,703 files is in the
+  wrapper's `wine.d3dm21-BAK`, byte for byte, and no file differs. The wrapper's Wine holds 86 files
+  more, all libraries directly in `lib/`, each byte-identical to the file of the same name in the
+  wrapper's own `Contents/Frameworks`: copies of the template's libraries, made after the Wine was
+  unpacked. The Cities: Skylines II wrapper shows the same. Both launchers put `Contents/Frameworks`
+  first on the library path. The archive without D3DMetal is another build: 1,543 of its files differ,
+  its program is `bin/wine` with no `bin/wine64`, and it has none of D3DMetal's pieces.
 - The builder lens of this plan's check built M1 and M3 in a scratch tree: the reduced Cities: Skylines II
   installer passes the 96 cases of `test-install.sh` (run again by the planner), and its per-case output
   equals the installer's of `6a66416` once the scratch folder's name is replaced; the fetch script, run on
@@ -204,8 +214,9 @@ and process numbers.
 
 1. Whether the game starts on an engine made from Gcenx's pieces, whose DLLs lack CodeWeavers' signature.
    Nothing in Wine reads it; whether the game or Steam does is unmeasured (ML3).
-2. Whether the published Wine 10 archive is the Wine in the wrapper, and whether the archive without
-   D3DMetal is that Wine less D3DMetal (ML1).
+2. Whether a wrapper made from nothing gets the 86 library copies the old wrapper's Wine holds in
+   `lib/`, and whether the game needs them there (ML2). That the published Wine is the wrapper's was
+   settled by ML1.
 3. Whether a prefix made from nothing runs Steam and the game. The wrapper in use is a clone of one that
    Porting Kit's Steam port made; whatever that port put in its prefix beyond a plain one is unlisted (ML2).
 4. Whether Steam's installer and Steam's first start behave on Wine 10 with D3DMetal 3.0 as they did on
@@ -509,6 +520,7 @@ part of the install, and its absence is a damaged install.
 ## 3. Steps
 
 - **M0. The probes that decide the design, before any code** (ML1, ML2, ML3, in that order, not at once).
+  ML1 is done (1.4): the pin stands, and the design is unchanged by it.
   If the published Wine is not the wrapper's Wine, or a wrapper from nothing does not run the game, the
   difference is written into this plan as a step and the plan is checked again. Beside them, if James
   wants it: Apple's own download of the toolkit, which needs his Apple Account, read for its licence and
@@ -542,7 +554,7 @@ exit 2.
 | MT2 | `cities-skylines-2/scripts/test-install.sh`, its 96 cases: the core copied into the scratch repository beside the game's file, the wrapper stub moved to `common/`, the mutant helpers applied to both files | the installer still does what NT3 showed; the engine pin reaches the wrapper script as its three options; new cases: another prefix's Steam stops it with exit 3 (MD10), with `--check` it only says so, and with none it goes on | its 25 mutants, each applied where its line now lives; new: one of the core's forbidden words put into it; a setting read before it is set; MD10's check removed |
 | MT3 | `surviving-mars-relaunched/scripts/test-install.sh`, with its own fixture maker (a wrapper whose framework reads 2.1, 3.0 or is absent) and stubs for the fetch and engine scripts that write to the one record of calls | seven stages, each skipped when done; the question of MD9: declined, or with nobody to ask, nothing is fetched and it exits 3, `--yes` answers it, `--check` only says, and it is not asked when stages 3 and 4 are done; stage 2 before stage 4 and stage 4 before Steam's installer, by the order of the record; stage 4 skipped at 3.0, run at 2.1 and with no framework, with `--rebuild` when a BAK exists, with the lock held, and with the temporary folder gone afterwards; a wrapper whose pieces differ from the fetched ones after the swap stops it; a half-finished swap is finished and not called incomplete; Steam open in the wrapper stops stage 4 with exit 3; the game found by `Project Spark/Mars.exe` and manifest `3215050` at `StateFlags` 4; with `SM_WRAPPER` set it stops before stage 7; a relative `SM_WRAPPER` exits 2 by that name; `--desktop` exits 2; the installer's own files gone exits 4; `--check` with no wrapper names stages 4 to 7 and changes nothing; no line holds a word of the other game; this game's `game_running` and engine pin; its exports equal the launcher's lines `:77-84`, and its version expression and pattern equal `:139-142`; `SM_VIA_INSTALLER=1` reaches setup; the two lines of `make-engine.sh` that are shown name the temporary folder; a `--mac-only` that exits 3 stops the install, setup's words above the core's | stage 4 skipped at 2.1; stage 4 after Steam; the comparison after the swap removed; the question removed; the question asked again when done; the lock taken after stage 4; the half-finished swap left; the manifest of the other game accepted; `--check` fetching; setup run with the game absent; setup run with `SM_WRAPPER` set; `WINEMSYNC` dropped from the exports; the pattern made `3.0`; `SM_VIA_INSTALLER` not passed; `--rebuild` never passed; the wait for Wine to let go removed; the temporary folder left |
 | MT4 | `surviving-mars-relaunched/tools/test-fetch-d3dmetal.sh`, with small archives the test makes (Python's `tarfile` for a name with `..`, which macOS's `tar` will not write) | the six pieces land and the last line is the folder; each of these stops it with nothing left: a wrong sha256 at the right size, a wrong size, a piece missing, an extra file among the pieces, a link among the pieces with another target, a framework reading 2.1, a DLL with another sha256, and a name that is absolute or has a `..` part placed outside the members taken; a `..` link elsewhere in the archive is accepted, as the real one has 29; a folder that exists is refused and keeps its files; a matching copy in `L1_DOWNLOADS` is used and a non-matching one is not; curl's 22 gives the "no longer published" words; nothing from the archive is run. **The signature, with the real `codesign`:** a look-alike framework the test builds and signs itself, with Apple's identifier and version 3.0, must be refused; the stub records that the script's two `codesign` lines carry `--verify --strict`, the two requirements, and as their paths the framework's root and the library; and where a real framework is on the Mac (the probe's, or a wrapper's) the script's own lines must pass on it, else the test prints SKIP for that case | the sha256 test removed; the version test removed; `-R` dropped from a `codesign` line; the check pointed at `Versions/A`; the fixed list removed; a DLL's sha256 test removed; the `..` test removed; the whole archive unpacked; the cleanup armed before the folder is made |
-| MT5 | `common/test-make-wrapper.sh`, the 59 cases moved and changed as the builder lens changed them: the options always given, the engine pin set by the case, its `fetch.sh` copied beside it | as NT1; and: no engine options exits 2, each two of three exits 2, no `--wrapper` exits 2, `CS2_WRAPPER` is not read, a wrong option among right ones exits 2. Whether the Wine 10 archive unpacks with the same top folder is ML1's to record, and a fixture follows what it finds | its 10 mutants (the tenth now on the template's sha256); new: a default engine put back |
+| MT5 | `common/test-make-wrapper.sh`, the 59 cases moved and changed as the builder lens changed them: the options always given, the engine pin set by the case, its `fetch.sh` copied beside it | as NT1; and: no engine options exits 2, each two of three exits 2, no `--wrapper` exits 2, `CS2_WRAPPER` is not read, a wrong option among right ones exits 2. ML1 measured that the Wine 10 archive unpacks to the same top folder with the same two programs, so the existing fixture's layout holds for it | its 10 mutants (the tenth now on the template's sha256); new: a default engine put back |
 | MT6 | `surviving-mars-relaunched/scripts/test-setup.sh` | the launcher and the helper are in the scratch state folder; the app's program names that copy and not the checkout; an older copy there is replaced; `runs/` and `backup/` are untouched, files in them included; a held lock, or the game running, refuses with exit 3 and copies nothing; a state folder others can write to is refused; `--mac-only` gives 0, 1 without Rosetta, 3 on Intel and below macOS 14, takes `--yes` and `--check`, and copies nothing; from a temporary copy the app still names the state folder; the 14unch3r builder is called, and with `SM_APP` set it builds in that app's folder and nothing in the real one; run by the installer (`SM_VIA_INSTALLER=1`, its parent holding the lock) it goes on, and the same lock without the variable, or held by another live process, exits 3 | the app pointed at the checkout; the helper not copied; copied only when absent; written in place; a file in `runs/` removed; the lock test removed; the parent's lock refused; any live holder passed; 14unch3r built in the real folder with `SM_APP` set; the test of who may write to the state folder removed; the running-game test removed; `--mac-only` going on to copy |
 | MT7 | `surviving-mars-relaunched/tools/test-frame-fix-build.sh` | everywhere: `frame-fix.c` and the program have the sha256 values in `frame-fix.build`, and the program holds no `/Users/`, `/private/tmp` or `/opt/homebrew` string; where `brew list --versions mingw-w64` equals the record, the header's own build line gives a byte-identical file; elsewhere it prints SKIP for the rebuild, with the reason, and does not call it a pass | one byte of the program changed; one byte of `frame-fix.c` changed; `-s` dropped from the build line (red only where the rebuild runs) |
 | MT8 | `tools/test-make-engine-install.sh` and `tools/test-engine-source.sh`, with cases added; and a source gate on the launcher and `make-app.sh` | `CX_GPTK` set to a folder without the framework stops with exit 1 even with a CrossOver planted in the scratch home; a half-finished swap is finished; stale clone folders are removed; root is refused. The source gate, which is a grep and is named as one: the lines of 2.7 no longer name a file of the checkout or the header | the fall-through to CrossOver put back; the finishing move removed; stale clone folders left; the root refusal removed; one old line put back |
@@ -556,7 +568,7 @@ The uninstall the guide describes is prose and has no test; ML6 follows it by ha
 For every step that starts Steam or the game: no Steam is using the account anywhere, on either Mac, the
 Steam of macOS included; and the game's last exit upload was ok.
 
-- **ML1. The published Wine.** The second row of 1.3 is downloaded (184 MB), checked against its digest,
+- **ML1. The published Wine. Done 2026-11-11; the result is in 1.4.** The second row of 1.3 is downloaded (184 MB), checked against its digest,
   unpacked beside the probe's folder, and compared with `SurvivingMars.app`'s `wine.d3dm21-BAK` by
   `diff -rq`. Recorded: the archive's top folder, and identical or every file that differs. Then the
   archive without D3DMetal (1.3; 166 MB), compared the same way: if it is that Wine less D3DMetal, it can
@@ -583,7 +595,8 @@ Steam of macOS included; and the game's last exit upload was ok.
      Recorded: the menu reached; the map; the helper's log showing it watching; the cloud upload at exit;
      the sizes of the wrapper and of Steam in it.
   8. Recorded besides: what the old prefix holds that the new one does not (the registry's override and
-     uninstall keys, `system32` files that are not Wine's), kept with the run.
+     uninstall keys, `system32` files that are not Wine's), and whether the new wrapper's `wine/lib` holds
+     the 86 library copies of 1.4; kept with the run.
   9. After: the real wrapper's next launch prints the same cloud line, with no conflict. If there is a
      conflict, the way back is the launcher's own recipe (`launch-relaunched.sh:49-56`) and the copies of
      step 1. Then Steam is signed out in `SMfresh.app` and it goes to the Trash; that the real wrappers'
@@ -620,7 +633,8 @@ Steam of macOS included; and the game's last exit upload was ok.
 
 ## 6. Exit criteria
 
-- M0's three probes are recorded, and the design is unchanged by them or the change was checked.
+- M0's three probes are recorded, and the design is unchanged by them or the change was checked. (ML1:
+  recorded, unchanged.)
 - M1 to M7 are committed; MT1 to MT10 pass; every listed mutant was applied and seen red, with the count
   in the as-built header.
 - ML4 passed for both games, ML4b passed, and ML5 passed.
