@@ -77,7 +77,8 @@
 > `127.0.0.1:8765`, with a watcher for the dialogs. James was away from the Studio, so nothing was
 > downloaded; the server and the watcher were stopped. **NL2 now follows `docs/plans/shared-installer.md` on
 > `main`** (its SD2, decided 2026-11-11): that plan moves this installer into a shared core and has what is
-> published name a game by its Steam app ID, so the app for NL2 is built by its builder, after its SL1.
+> published name a game by its Steam app ID, so the app for NL2 is built by its builder, after its SL1. **SL1 passed on 2026-11-11**, so NL2 is next; what
+> SL1's first run showed a new player would meet is that plan's section 9, wanted before NL3.
 > Then: build the ZIP, serve it, start the evidence folder's `watch.sh`. Since that plan's S2 (2026-11-11)
 > the files named under "Verify against" above have moved on: `make-wrapper.sh` and its test are in
 > `common/`, and the stages of `cities-skylines-2/scripts/install.sh` are `common/install-core.sh`; what

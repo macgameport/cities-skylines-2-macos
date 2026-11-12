@@ -6,9 +6,18 @@
 > criteria) and the split itself were checked the same day by a fitted check: two blockers, folded
 > (Review, below). Written 2026-11-11.
 >
-> **🔧 As-built (2026-11-11):** PARTIAL: S1, S2 and S3 are built on `simple-install`; of the live steps only
-> the last sentence of SL1 is run, and SL1's visible part and SL2 are not. S1 is `00108f7`, with `7b102a1`
-> for a defect in it found the same evening; S2 is `1df6f27`; S3 is `2577207`. **SL1's pasted line, run
+> **🔧 As-built (2026-11-11):** BUILT: S1 to S4 are done on `simple-install`, and SL1 passed; SL2, the
+> installer plan's NL2, is still to come. S1 is `00108f7`, with `7b102a1`
+> for a defect in it found the same evening; S2 is `1df6f27`; S3 is `2577207`. **SL1 passed 2026-11-11**
+> (evidence `~/cs2-patch/evidence/shared-installer-SL1-20261111/`, `summary.txt`; ledger row `exp_8f0511`),
+> on `c6cbd2d`. Run 1 made the scratch wrapper from the public downloads and installed Steam, then stopped
+> at step 5 with exit 1: Steam's own update failed on five starts, because the server it comes from cut
+> every transfer from the Studio after 5.4 s (measured with `curl`, six of six; the route was a VPN
+> tunnel). With the route changed, run 2 found the wrapper and Steam, went on at step 5, and showed the
+> sign-in window after 64 s. James signed in; the game was cloned in (1 s, no disk); the installer saw it
+> within one poll, closed Steam in order and exited 0. `boot-verify.sh`: PASS, the main menu after 106 s.
+> Then Steam was signed out there, shut down, and the wrapper moved to the Trash; the listings of the home
+> folder before and after are the same. What the run showed that is not built is in section 9. **SL1's pasted line, run
 > 2026-11-11 from the pushed branch with `--check`:** it fetched `2577207`, reported all six steps OK against
 > the Studio's own wrapper, exit 0, and started nothing; with no game named the same bootstrap exited 2 with
 > the usage line and fetched nothing. **What stands:** `common/install-core.sh` (420 lines) holds the stages; Cities: Skylines II's
@@ -323,6 +332,20 @@ applied to the real source, seen red, and removed; a mutant whose line is gone r
 | MD10 (the Surviving Mars plan) | The installer stops when another wrapper's Steam is open on this Mac, for both games | 2026-11-11, "Accept both" |
 | SD1 | What is published names a game by its Steam app ID; there is no default game | 2026-11-11, "Fold all four" |
 | SD2 | This plan is built first, on `simple-install`, before the installer plan's NL2 | 2026-11-11, "Fold all four" |
+
+## 9. Found at SL1 (2026-11-11): not planned in detail, not checked, not built
+
+SL1 passed, and its first run showed five things a new player would meet. None is a fault of the split: the
+installer of `6a66416` behaves the same. They belong before the first release (the installer plan's NL3),
+each with its test, and this section needs a check before any of it is built.
+
+| # | What was seen | What is wanted |
+|---|---|---|
+| SF1 | A new Steam downloads its own update (305 MB) from one server, `cdn.steamstatic.com`. With that path cut, the installer started Steam five times in 90 s and then printed twenty lines of Steam's log and "Steam did not start after 5 tries" | The installer knows this case from Steam's log ("Steam needs to be online to update"), does not start Steam again for it, tests the server once with a short transfer of its own, and says in one sentence that the connection to Valve's server keeps being cut, and to open the installer again later |
+| SF2 | James, after it worked on another route: "so we need a warning about vpns? can we check for that and popup that it may interfere?" The same VPN had carried the same update that morning | No warning for a VPN as such. In SF1's sentence, and only when the Mac's default route is a tunnel, the advice to change the VPN's server or pause it. Whether it is a line in the window or a box is to be decided |
+| SF3 | Steam's updater draws its own windows, and its "Fatal Error" box, on every start; James saw it fail "many many times" and asked whether the progression can be hidden | Measured first: whether Steam's updater can be kept off screen in a new prefix. If it can, the installer prints one progress line of its own, read from Steam's log; if not, its words say what will be seen |
+| SF4 | In step 4 `curl: (18) Transferred a partial file` was printed as curl wrote it: the first of the two addresses of Steam's installer failed and the second worked | Nothing of curl's on screen when the next address works; the installer's own sentence when none does |
+| SF5 | At the wrapper's first start macOS showed: "App Update Required. This version of "CS2fresh" includes a component that will not open in macOS 28, the next major release. An update may be available on the developer's website." James: "don't forget this." `cities-skylines-2/README.md` warns of macOS 28; the quick way in `INSTALL.md` and the installer say nothing of the notice | One line in the installer where Wine first starts, and one sentence in the guide's quick way: the notice is expected, nothing needs updating, and the Mac must stay on macOS 27 (issue #16) |
 
 ## Review
 
