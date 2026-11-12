@@ -65,7 +65,7 @@ The 11.16 engine is the recommended setup and takes about an hour to build ([INS
 It needs the Wine 11.0 + DXMT stack installed first — it reuses that engine's DXMT binaries and
 x86_64 support libraries, and redistributes nothing.
 
-Both ran CS2 `1.6.0f1 (419.d6c6)` (the 11.16 engine runs `1.6.2f1` since 2026-10-10) via Steam in-prefix at `Direct3D 11.0 [level 11.1]` — no MoltenVK
+Both ran CS2 `1.6.0f1 (419.d6c6)` (the 11.16 engine runs `1.6.2f1` since 2026-10-10 and `1.6.4f1` since 2026-11-10) via Steam in-prefix at `Direct3D 11.0 [level 11.1]` — no MoltenVK
 device-loss lottery, no OpenGL. The one serious defect — an alt-tab "freeze" in exclusive
 fullscreen — was diagnosed here, reproduced in a standalone ~150-line program, and reported
 upstream as [dxmt#206](https://github.com/3Shain/dxmt/issues/206) (presents to an HWND's
