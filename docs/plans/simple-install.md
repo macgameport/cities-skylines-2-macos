@@ -75,8 +75,10 @@
 > equalled `main`'s; the game's `StateFlags` read 4; `spctl --status` said "assessments enabled" on macOS
 > 27.2.1. The ZIP was built with `--ref simple-install` and the 14unch3r icon (210,959 bytes) and served on
 > `127.0.0.1:8765`, with a watcher for the dialogs. James was away from the Studio, so nothing was
-> downloaded; the server and the watcher were stopped. To go on: build the ZIP again, serve it, start the
-> evidence folder's `watch.sh`. **NL3 now waits:** `docs/plans/surviving-mars-install.md` on `main` (its MD5,
+> downloaded; the server and the watcher were stopped. **NL2 now follows `docs/plans/shared-installer.md` on
+> `main`** (its SD2, decided 2026-11-11): that plan moves this installer into a shared core and has what is
+> published name a game by its Steam app ID, so the app for NL2 is built by its builder, after its SL1.
+> Then: build the ZIP, serve it, start the evidence folder's `watch.sh`. **NL3 now waits:** `docs/plans/surviving-mars-install.md` on `main` (its MD5,
 > decided 2026-11-11) holds the first release until both games install, and its step M1 moves
 > `make-wrapper.sh` and most of `cities-skylines-2/scripts/install.sh` into `common/`.
 >
