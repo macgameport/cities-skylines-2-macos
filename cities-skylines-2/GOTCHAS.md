@@ -3170,8 +3170,9 @@ that spells out `40 56 ... 48 8B F1` misses by two bytes.
   and compare call sites, field offsets and constants, not bytes.
 - **The patcher** now carries the form as `fn-rbx`, beside `legacy` and `fn`; `scripts/test-vendor.sh`
   patches all three forms in files of zeros and refuses a file that holds two (`MUTANT=6`).
-- **Not measured:** whether 1.6.4f1 on DXMT needs the patch at all (C72 is still `PARTIAL`), and a boot of
-  the game with it applied on this build.
+- **Boot with it applied on this build:** `boot-verify.sh` PASS, run `20261112-155937` (the menu 56 s after
+  the game's first log line, graceful exit, 0 `InvalidProgramException`).
+- **Not measured:** whether 1.6.4f1 on DXMT needs the patch at all (C72 is still `PARTIAL`).
 - **Do not run a patch script with `PYTHONPATH=patches/_vendor` from the checkout** to look at a DLL: it
   leaves `__pycache__` in `_vendor`, and `test-vendor.sh` then fails three cases that have nothing to do with
   the change in hand. Use `python3 -I`, or delete the folders afterwards.
