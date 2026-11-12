@@ -1369,6 +1369,7 @@ may belong to a different wrapper's Steam.
 | exp_7e3863 | 2026-11-10 14:55 | `14unch3r-look-L4-20261110` | 0 | 0 | 0 | — | no-capture |
 | exp_a934dc | 2026-11-10 20:38 | `simple-install-probe-20261110` | 0 | 0 | 0 | — | no-capture |
 | exp_ceec08 | 2026-11-11 08:06 | `simple-install-NL1-20261111` | 0 | 0 | 0 | — | no-capture |
+| exp_6e64c0 | 2026-11-11 16:03 | `simple-install-NL2-20261111` | 0 | 0 | 0 | — | no-capture |
 
 309 cells · 45 VOID-LIBS · 244 candidate
 ---

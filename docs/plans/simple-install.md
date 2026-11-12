@@ -69,6 +69,17 @@
 > the recovery. **Still for James:** whether a later slice has the installer open Steam's Install box itself
 > with `steam://install/949230` (2.9).
 >
+> **NL2 prepared and paused (2026-11-11; evidence `~/cs2-patch/evidence/simple-install-NL2-20261111/`, ledger
+> row `exp_6e64c0`).** The branch was pushed to `origin` at `6a66416`, after its six changed suites passed on that
+> commit; the address the app fetches served the branch's `install.sh` byte for byte; the deployed files
+> equalled `main`'s; the game's `StateFlags` read 4; `spctl --status` said "assessments enabled" on macOS
+> 27.2.1. The ZIP was built with `--ref simple-install` and the 14unch3r icon (210,959 bytes) and served on
+> `127.0.0.1:8765`, with a watcher for the dialogs. James was away from the Studio, so nothing was
+> downloaded; the server and the watcher were stopped. To go on: build the ZIP again, serve it, start the
+> evidence folder's `watch.sh`. **NL3 now waits:** `docs/plans/surviving-mars-install.md` on `main` (its MD5,
+> decided 2026-11-11) holds the first release until both games install, and its step M1 moves
+> `make-wrapper.sh` and most of `cities-skylines-2/scripts/install.sh` into `common/`.
+>
 > Tracking: issue #22. File and line references are as of `a749425`; none of the cited files changed up to
 > `580cf4e`. A path is relative to the repository root. Every number marked "measured" was measured on the
 > Studio (M5 Max, macOS 27.2) on 2026-11-10; the probe's scripts, logs, captures and a `NOTES.md` are in
