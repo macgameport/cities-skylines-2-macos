@@ -114,6 +114,19 @@ check "an archive with no commit in its header: says so, and goes on" "$rc:$(sai
 rc="$(pasted "$T/empty" "$F/renamed.tar.gz" x 949230)"
 check "the game's folder renamed and its row changed: the same ID reaches it" \
   "$rc:$(grep -c '^INSTALLER args= ref=release from=1launcher-x game=a-new-name$' "$CALLS")" "0:1"
+# --- the repository's own table: every game in it has an installer, and the bootstrap hands over to each
+BOTH="$F/both/1launcher-x"; mkdir -p "$BOTH/common"; cp "$REPO/common/games.tsv" "$BOTH/common/"
+rows=0; have=0
+while IFS="$(printf '\t')" read -r id folder title guide; do
+  rows=$((rows + 1)); [ -f "$REPO/$folder/scripts/install.sh" ] && have=$((have + 1))
+  mkdir -p "$BOTH/$folder/scripts"; printf '%s\n' "$REC" > "$BOTH/$folder/scripts/install.sh"
+done < "$REPO/common/games.tsv"
+( cd "$F/both" && tar -czf "$F/both.tar.gz" 1launcher-x )
+check "every game in common/games.tsv has scripts/install.sh in its folder" "$have:$([ "$rows" -ge 2 ] && echo two-or-more)" "$rows:two-or-more"
+rc="$(pasted "$T/empty" "$F/both.tar.gz" x 3215050)"
+check "the repository's table: 3215050 reaches Surviving Mars's installer" "$rc:$(grep -c '^INSTALLER args= ref=release from=1launcher-x game=surviving-mars-relaunched$' "$CALLS"):$(calls '^INSTALLER')" "0:1:1"
+rc="$(pasted "$T/empty" "$F/both.tar.gz" 1launcher-install 949230 release --check)"
+check "  ...and 949230 reaches Cities: Skylines II's, with its options" "$rc:$(grep -c '^INSTALLER args=--check ref=release from=1launcher-x game=cities-skylines-2$' "$CALLS"):$(calls '^INSTALLER')" "0:1:1"
 CO="$T/checkout"; mkdir -p "$CO/cities-skylines-2/scripts" "$CO/other-game"; cp "$S" "$CO/install.sh"; table "$CO"
 printf '#!/bin/bash\necho "LOCAL args=$*" >> "$CALLS"\n' > "$CO/cities-skylines-2/scripts/install.sh"
 rc="$(pasted "$CO" "$F/good.tar.gz" x 949230)"

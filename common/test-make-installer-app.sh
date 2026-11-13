@@ -169,6 +169,20 @@ check "the app built with the default ref fetches that address" "$(grep -cF "\"$
 folders="$(cut -f2 "$T/common/games.tsv" | grep -c .)"
 check "the app's program holds the game's ID, and no folder of any row of the table" \
   "$(grep -c '1launcher-install 949230 ' "$P"):$folders:$(cut -f2 "$T/common/games.tsv" | while read -r f; do grep -c -- "$f" "$P"; done | paste -sd+ - | bc)" "1:2:0"
+# --- the second game (docs/plans/surviving-mars-install.md, MT9): its own app, its own ID, its own guide
+rc="$(env HOME="$T/home" TMPDIR="$T/tmp" bash "$S" --dest "$T/d7" --game surviving-mars-relaunched --no-icon > "$T/build.out" 2>&1; echo $?)"
+P2="$T/d7/Install Surviving Mars Relaunched.app/Contents/MacOS/install"
+check "the app for Surviving Mars: built, and it and its ZIP are named for the game" "$rc:$([ -f "$P2" ] && echo there):$(ls "$T/d7" | tr '\n' '|')" "0:there:Install Surviving Mars Relaunched.app|Install-Surviving-Mars-Relaunched.zip|"
+check "  ...its program holds that game's ID, the other game's nowhere, and no folder of the table" \
+  "$(grep -c '1launcher-install 3215050 ' "$P2"):$(grep -c 949230 "$P2"):$(cut -f2 "$T/common/games.tsv" | while read -r f; do grep -c -- "$f" "$P2"; done | paste -sd+ - | bc)" "1:0:0"
+G2="$REPO/surviving-mars-relaunched/INSTALL.md"
+n="$(grep -o 'raw\.githubusercontent\.com/macgameport/1launcher/[^ )"`]*' "$G2" | wc -l | tr -d ' ')"
+same="$(grep -o 'raw\.githubusercontent\.com/macgameport/1launcher/[^ )"`]*' "$G2" | grep -cx 'raw.githubusercontent.com/macgameport/1launcher/release/install.sh')"
+check "the pasted line in Surviving Mars's guide: there, and the same address" "$([ "$n" -ge 1 ] && echo some):$((n - same))" "some:0"
+n="$(grep -c 'install\.sh)"' "$G2")"
+with="$(grep -cE 'install\.sh\)" 1launcher-install 3215050( |$|`)' "$G2")"
+check "  ...and every pasted line in it names that game by its ID" "$([ "$n" -ge 1 ] && echo some):$((n - with))" "some:0"
+check "  ...the table's guide for that game is that file" "$(awk -F'\t' '$1 == 3215050 { print $4 }' "$T/common/games.tsv")" "https://github.com/macgameport/1launcher/blob/main/surviving-mars-relaunched/INSTALL.md"
 printf 'x12\tbad-id-game\tBad Id Game\thttps://example.invalid/\n' >> "$T/common/games.tsv"
 check "a row whose ID is not digits: exit 2, nothing built" \
   "$(env HOME="$T/home" TMPDIR="$T/tmp" bash "$S" --dest "$T/d6" --game bad-id-game --no-icon > "$T/build.out" 2>&1; echo $?):$([ -e "$T/d6" ] && echo made || echo none):$(grep -c 'no Steam app ID of digits' "$T/build.out")" "2:none:1"

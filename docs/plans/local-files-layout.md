@@ -96,7 +96,9 @@ Apple's file-system guidance gives each kind of file a place under `~/Library` a
 ```
 ~/Library/Application Support/1launcher/      the data root
 ├── cities-skylines-2/                         the runtime folder: the 22 deployed files and revenv/
-└── surviving-mars-relaunched/                 backup/ and runs/ (unification O9)
+└── surviving-mars-relaunched/                 backup/ and runs/ (unification O9); since 2026-11-13 also the
+                                               launcher's copy and tools/ that the game's app runs
+                                               (docs/plans/surviving-mars-install.md, 2.5)
 ~/Library/Developer/1launcher/                 the work root: durable, and no space in its path
 ├── cities-skylines-2/                         the workspace: everything else in today's ~/cs2-patch, names unchanged
 └── surviving-mars-relaunched/                 engine/ (O4)

@@ -2,8 +2,9 @@
 # make-engine.sh --install <wrapper.app> [--rebuild]   put D3DMetal 3.0 into the wrapper's own Wine
 # make-engine.sh [<out-dir>]                            build a standalone engine (default $SM_WORK/engine/wine-d3dm30)
 #
-# Builds the Wine engine the game runs on: a copy of a Wine 10 Sikarugir engine with D3DMetal 3.0 (taken
-# from CrossOver 26) in place of its D3DMetal 2.1. --install builds from the wrapper's own wine/, moves that
+# Builds the Wine engine the game runs on: a copy of a Wine 10 Sikarugir engine with D3DMetal 3.0 in place
+# of its D3DMetal 2.1. The 3.0 pieces usually come from the folder tools/fetch-d3dmetal.sh leaves, which
+# the installer names in CX_GPTK; a CrossOver 26 on the Mac is the other source. --install builds from the wrapper's own wine/, moves that
 # aside as wine.d3dm21-BAK and puts the result in its place (cs2 build-engine-1116.sh's swap). It refuses a
 # wrapper holding Cities: Skylines II (that game does not run on this engine), one with a Wine process
 # running, and one already installed unless --rebuild, which rebuilds wine/ from the BAK (never from the
@@ -35,7 +36,7 @@
 # Trash, and its name to the Steam app (docs/plans/launcher-window.md, D11). Either is only read.
 # The four D3DMetal DLLs and their Mac-side libraries change layout between the versions: 2.1 has a
 # separate d3d12.so/dxgi.so/... per DLL, 3.0 links all of them to one libd3dshared.dylib.
-# Rebuild after the source Wine or CrossOver is updated: it replaces <out-dir>.
+# Rebuild after the source Wine or the source of D3DMetal is updated: it replaces <out-dir>.
 set -eu
 [ "$(id -u)" = 0 ] && { echo "ERROR: do not run make-engine.sh as root (with sudo): it would leave files only root can change"; exit 1; }
 SM_WORK="${SM_WORK:-$HOME/Library/Developer/1launcher/surviving-mars-relaunched}"
@@ -108,7 +109,7 @@ nm -gU "$SRC/lib/wine/x86_64-unix/winemac.so" 2>/dev/null | grep -q " _macdrv_fu
 HERE="$(cd "$(dirname "$0")" && pwd)"
 LC_ALL=C tr '\0' '\n' < "$SRC/lib/wine/x86_64-windows/ntdll.dll" | grep -qx '__wine_unix_call' \
   || { echo "ERROR: $SRC's ntdll.dll does not export __wine_unix_call, which D3DMetal's DLLs call (Wine 11; see tools/archive/wine11/)"; exit 1; }
-[ -n "$GPTK" ] || { echo "ERROR: no CrossOver D3DMetal found (install CrossOver 26, or set CX_GPTK=<.../apple_gptk>)"; exit 1; }
+[ -n "$GPTK" ] || { echo "ERROR: no D3DMetal 3.0 to put in: set CX_GPTK to the folder tools/fetch-d3dmetal.sh leaves (the installer does this), or install CrossOver 26"; exit 1; }
 ver() { plutil -extract CFBundleShortVersionString raw "$1/Versions/A/Resources/Info.plist" 2>/dev/null \
           || plutil -extract CFBundleShortVersionString raw "$1/Resources/Info.plist"; }
 echo "source Wine : $SRC ($("$SRC/bin/wine64" --version), D3DMetal $(ver "$SRC/lib/external/D3DMetal.framework" 2>/dev/null || echo none))"

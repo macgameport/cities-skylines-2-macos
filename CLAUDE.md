@@ -9,7 +9,7 @@ for umbrella work.
 | Path | What |
 |---|---|
 | `cities-skylines-2/` | Cities: Skylines II: notes, patches, launchers, and its own `CLAUDE.md`, `GOTCHAS.md`, `EXPERIMENTS.md` and `docs/` |
-| `surviving-mars-relaunched/` | Surviving Mars: Relaunched: launcher, tools and tests, `README.md`, `docs/plans/`; no `CLAUDE.md` of its own. Its state is outside the repo (below) |
+| `surviving-mars-relaunched/` | Surviving Mars: Relaunched: launcher, tools and tests, `README.md`, `INSTALL.md`, `docs/plans/`, and its installer in `scripts/` (`install.sh`, `setup.sh`); no `CLAUDE.md` of its own. Its state is outside the repo (below) |
 | `common/` | checks and tests shared by every game: `check-links.py`, `check-identifiers.sh`, `test-launch-lock.sh` (the lock code two launchers share), `mac-inventory.sh` (a read-only, redacted report of what a Mac holds of the project) and its test `test-mac-inventory.sh`, `launch-progress.swift` (the start-up progress window both apps compile) with `test-launch-progress.sh`, `test-launch-feedback.sh` (the feedback block two launchers share) and `test-launcher-parity.sh` (fails when the two launchers drift apart; it is also the table of differences kept on purpose); `launcher-window.swift` (14unch3r, the window that lists the games and starts one), `make-launcher-app.sh` (builds `14unch3r.app`; `setup.sh` runs it) and `games.tsv` (every game this repo ports), with `test-launcher-window.sh`, `test-make-launcher-app.sh` and `test-launcher-builders.sh`; `make-installer-app.sh` (builds the double-click installer app of a game and its ZIP for a release page; the app is not in the tree) with `test-make-installer-app.sh`, and `test-bootstrap.sh` (the root `install.sh`); `install-core.sh` (the shared installer: the stages every game's `scripts/install.sh` calls, read with `.` after the game's settings), `make-wrapper.sh` (makes a game's Wine wrapper from Porting Kit's two public files, the engine given as options) with `fetch.sh` (a download checked against a fixed size and sha256) and `test-make-wrapper.sh` |
 | `docs/plans/` | repo-level plans. A game's own plans are in `<game>/docs/plans/`, so a plan audit must look in both |
 | `docs/images/` | `14unch3r.svg`, the mark the root `README.md` shows. It is written by `launcher-window --svg`, and `test-launcher-window.sh` (W16) fails when the file and the program's output differ |
@@ -37,7 +37,7 @@ Steam and `14unch3r.app`: macOS and Spotlight look for apps there), the one pref
 `14unch3r.app`, `~/Library/Preferences/local.1launcher.window.plist` (the last game started: where macOS keeps
 every app's preferences; agreed 2026-11-10), one alias `~/Desktop/14unch3r`, made by `setup.sh` only when
 someone says yes (James asked for a Desktop shortcut on 2026-11-10; it is never written over anything), each game's state folder under `~/Library/Application Support/1launcher/` (Surviving Mars's holds
-`backup/` and `runs/`: saves and logs kept out of a public repo), and each game's Wine trees under
+`backup/` and `runs/`: saves and logs kept out of a public repo; and, since its installer, the copy of the launcher and of `tools/frame-fix.exe` that the game's app runs, which `scripts/setup.sh` puts there), and each game's Wine trees under
 `~/Library/Developer/1launcher/` (Surviving Mars's standalone `engine/`, and the `probe-*` folders its install plan's probes downloaded into: kept off paths with a space). Anything
 else outside needs James's say-so first, and a line here saying where it is and why.
 

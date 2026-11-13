@@ -19,7 +19,7 @@ publisher's support team: they cannot help with it. See also the [security polic
 | Game | Folder | Stack | Status |
 |---|---|---|---|
 | **Cities: Skylines II** | [`cities-skylines-2/`](cities-skylines-2/README.md) | Wine 11 + DXMT, free, no CrossOver | Playable; details in its README |
-| **Surviving Mars: Relaunched** | [`surviving-mars-relaunched/`](surviving-mars-relaunched/README.md) | Wine 10 + D3DMetal 3.0, taken from a local CrossOver 26 install | Plays on its maintainer's Macs; integration glue, not a product |
+| **Surviving Mars: Relaunched** | [`surviving-mars-relaunched/`](surviving-mars-relaunched/README.md) | Wine 10 + Apple's D3DMetal 3.0, free, no CrossOver: its [installer](surviving-mars-relaunched/INSTALL.md) fetches each piece from its publisher | Plays on its maintainer's Macs; integration glue, not a product |
 
 Everything that used to sit at the top level of this repository is now in `cities-skylines-2/`.
 
@@ -57,8 +57,8 @@ Apple Silicon Macs only. Both games run Intel (x86-64) Wine under Rosetta 2, so 
 | | Cities: Skylines II | Surviving Mars: Relaunched |
 |---|---|---|
 | **Tested** | macOS 26 on an M3 Max and macOS 27.0.1 on an M5 Max: played and benchmarked. macOS 27.2 on an M3 Max: boots to the main menu. One user report from an M4 Pro on macOS 27.0 | macOS 27.2, on an M3 Max and an M5 Max |
-| **Untested** | macOS 14 and 15. DXMT's own minimum is macOS 14, but the DXMT library inside the Porting Kit engine that the install guide uses is built for macOS 26, and macOS does not load a library built for a newer release. Treat macOS 26 as the floor until someone reports otherwise | macOS 14.6 to 26. The Sikarugir wrapper's stated minimum is 14.6 and D3DMetal 3.0 is built for 14.0, but nobody has run this there |
-| **Not supported** | Intel Macs; macOS 13 and earlier; macOS 28 and later | Intel Macs; macOS before 14.6; macOS 28 and later |
+| **Untested** | macOS 14 and 15. DXMT's own minimum is macOS 14, but the DXMT library inside the Porting Kit engine that the install guide uses is built for macOS 26, and macOS does not load a library built for a newer release. Treat macOS 26 as the floor until someone reports otherwise | macOS 14 to 26. Apple's D3DMetal 3.0 is built for macOS 14.0, and the wrapper and Wine the installer fetches for 10.15 (read from the files, 2026-11-13), but nobody has run this there |
+| **Not supported** | Intel Macs; macOS 13 and earlier; macOS 28 and later | Intel Macs; macOS before 14; macOS 28 and later |
 
 Two things to know about macOS 27:
 
