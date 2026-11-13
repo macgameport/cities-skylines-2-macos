@@ -617,7 +617,8 @@ Steam of macOS included; and the game's last exit upload was ok.
 ## 5a. Found at ML2 (2026-11-13): not planned in detail, not checked, not built
 
 ML2 answered its questions (1.4, 1.7) and the design of section 2 stands. It also showed four things a
-player would meet. Each needs its place in a step and its test, and this section needs a check before any
+player would meet. The rows SF1, SF2 and SF8 named below are in section 9 of the shared-installer plan,
+which exists on the branch `simple-install` only. Each needs its place in a step and its test, and this section needs a check before any
 of it is built.
 
 | # | What was seen | What is wanted |
