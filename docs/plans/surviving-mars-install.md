@@ -1,5 +1,36 @@
 # Surviving Mars: Relaunched from nothing, without CrossOver, on one shared installer
 
+> **🔧 As-built (2026-11-13):** PARTIAL. M2 to M7 are built on the branch `surviving-mars-install`, cut
+> from `simple-install` at `4d339dd` and pushed, not merged: M2 `f71fb6d`, M3 `6ed2048`, M4 `962f33d`,
+> M5 `82c74c8`, M6 `6ade090`, M7 `fd1b821`. **M8 is owed: no live step from ML4 on has been run**, so the
+> installer has not yet taken a Mac from nothing to the game, and the exit criteria of section 6 that rest
+> on ML4, ML4b and ML5 are open. Tracking: issue #22.
+> **Tests.** MT3 66 cases, MT4 34, MT6 36, MT7 9, MT8 30 and 18 with a source gate of 14, MT9 and MT10
+> green; every shared test and every test of this game passes (the counts are in each commit). **Mutants
+> applied to the real source and seen red: 67** (MT3 27, MT4 9, MT6 12, MT7 3, MT8 14 with the source
+> gate's 2, and the lock test's own; 4 of MT8's 14 are older ones seen red again).
+> **Run for real, short of a live step:** the fetch script on the pinned archive from a folder of
+> downloads, no network (exit 0 in 14.9 s, the pieces equal to the probe's); and the installer's step 4
+> with the real fetch and engine scripts on a throwaway wrapper cloned from the 2.1 Wine, no Steam and no
+> game (exit 0 in 17 s; D3DMetal 3.0, `d3d12.dll` at 114,688 bytes, Apple's signature holding, the lock
+> released, the temporary folder gone). The committed helper is byte for byte the one that ran at ML2.
+> **Deviations.** (1) The plan's cites into `launch-relaunched.sh` are as of `main`: M5 shortened its
+> header by two lines, so on the branch `:77-84` is `:75-82` and so on; the tests compare the launcher's
+> lines by their content, not by number. (2) MT8's source gate is a file of its own,
+> `tools/test-install-words.sh`. (3) The launcher's two Steam Cloud conflict lines point at a section of
+> the guide, "A Steam Cloud conflict", which 2.7 did not list; the launcher's own recipe is written out
+> there. (4) The guide carries one paragraph from section 5a's MF3 (a new install starts with Paradox
+> mods switched off), worded as seen once, and a status note that goes at ML4; nothing else of 5a or of
+> the shared-installer plan's section 9 is built. (5) `scripts/setup.sh` takes `--check` without
+> `--mac-only` too. (6) The lowest macOS in the READMEs is 14 by measurement: the wrapper the installer
+> fetches declares 10.15.4, its Wine 10.15, D3DMetal 3.0 is built for 14.0. (7) `test-engine-source.sh`
+> gained a mutant the plan did not list (a wrapper that reads 2.1 taken as the engine test's source of
+> pieces). (8) Found while building, and recorded as SF9 in the shared-installer plan: Cities: Skylines
+> II's `test-install.sh` fails now and then, with and without the line M6 adds to the core.
+> **Verify against:** `surviving-mars-relaunched/scripts/` (`install.sh`, `setup.sh`, their tests),
+> `surviving-mars-relaunched/tools/` (`fetch-d3dmetal.sh`, `make-engine.sh`, `frame-fix.build`, their
+> tests), `surviving-mars-relaunched/INSTALL.md`, `common/install-core.sh` (`on_exit`).
+>
 > **Status:** Triple-checked 2026-11-11 — build-ready-with-fixes, corrections folded (pass 1: four lenses;
 > pass 1b: a fitted check of that fold, one blocker, folded too). Four changes were folded after the check
 > ("After the check", below) and checked the same evening by one agent; its findings are folded. Re-checked 2026-11-13 against the
