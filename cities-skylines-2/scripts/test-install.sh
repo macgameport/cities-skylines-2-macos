@@ -327,6 +327,9 @@ check "all done: exit 0" "$(run)" 0
 check "  ...setup run once, with CS2_VIA_INSTALLER=1 and the wrapper" "$(grep -c "^SETUP  via=1 wrapper=$(cd "$WR" && pwd -P)\$" "$CALLS")" 1
 check "  ...nothing else changed: no Steam start, no wrapper made, no download, no Rosetta, no Apple box" \
   "$(calls '^WINE '):$(calls MAKEWRAPPER):$(calls CURL):$(calls SOFTWAREUPDATE):$(calls 'XS --install')" "0:0:0:0:0"
+# the installer starts caffeinate in the background, so its stub may write its line after the installer has
+# exited: wait up to 3 s for it (seen 2026-11-13: the check read 0 in 1 run of 5 on a busy Mac)
+_i=0; while [ "$_i" -lt 30 ] && ! grep -qE '^CAFF -i -w [0-9]+$' "$CALLS"; do /bin/sleep 0.1; _i=$((_i + 1)); done
 check "  ...the Mac kept awake while it runs" "$(grep -cE '^CAFF -i -w [0-9]+$' "$CALLS")" 1
 check "  ...the closing line for exit 0" "$(said '^Done. Start the game from Applications')" 1
 check "  ...the lock released" "$([ -L "$PFX/.launcher.lock" ] && echo held || echo free)" free
