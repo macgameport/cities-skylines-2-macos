@@ -7,8 +7,9 @@
 > on ML4, ML4b and ML5 are open. Tracking: issue #22.
 > **Tests.** MT3 66 cases, MT4 34, MT6 36, MT7 9, MT8 30 and 18 with a source gate of 14, MT9 and MT10
 > green; every shared test and every test of this game passes (the counts are in each commit). **Mutants
-> applied to the real source and seen red: 67** (MT3 27, MT4 9, MT6 12, MT7 3, MT8 14 with the source
-> gate's 2, and the lock test's own; 4 of MT8's 14 are older ones seen red again).
+> applied to the real source and seen red: 68** (MT3 27, MT4 9, MT6 12, MT7 3, MT8 14 in the two engine
+> tests and 2 in its source gate, and the lock test's own; 4 of the engine tests' 14 are older ones seen
+> red again).
 > **Run for real, short of a live step:** the fetch script on the pinned archive from a folder of
 > downloads, no network (exit 0 in 14.9 s, the pieces equal to the probe's); and the installer's step 4
 > with the real fetch and engine scripts on a throwaway wrapper cloned from the 2.1 Wine, no Steam and no
