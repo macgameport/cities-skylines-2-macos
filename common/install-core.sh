@@ -12,6 +12,9 @@
 #   game_running   0 while the game runs in this prefix (its launcher's own test)
 #   tools_ok       0 when Apple's Command Line Tools do what this game needs of them
 #   words_play     <the step after the game's>: what to do at Steam's green Play button
+# And, if the game has temporary files of its own, game_cleanup: called last at every exit, after the lock
+# is released and the closing line printed. It prints nothing, never calls exit, sets neither rc nor END,
+# and is safe when its stage never ran.
 for _v in GAME_TITLE GAME_APPID GAME_DIR GAME_EXE WRAPPER_VAR STEPS NEED_GB ENGINE_URL ENGINE_BYTES ENGINE_SHA \
           WORDS_NEED WORDS_SPACE WORDS_WINE WORDS_DOWNLOAD WORDS_DONE TOOLS_PART STEAM_ARGS SETUP; do
   [ -n "${!_v:-}" ] || { echo "install-core.sh: the game's installer did not set $_v"; exit 1; }
@@ -71,6 +74,7 @@ on_exit() {
          *) echo "The install stopped. The lines above say why. Open the installer again to carry on from that step." ;;
        esac ;;
   esac
+  declare -F game_cleanup > /dev/null && game_cleanup
 }
 trap on_exit EXIT
 # Control-C, a closed window, a kill: without these the EXIT trap saw exit code 0 and said "Done." (measured

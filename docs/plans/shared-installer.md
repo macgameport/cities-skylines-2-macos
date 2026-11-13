@@ -6,6 +6,11 @@
 > criteria) and the split itself were checked the same day by a fitted check: two blockers, folded
 > (Review, below). Written 2026-11-11.
 >
+> **Since (2026-11-13):** the core's exit handler calls a game's `game_cleanup` when the game's file
+> defines one, last, after the lock is released and the closing line printed (the Surviving Mars plan's
+> 2.2 and M6, on the branch `surviving-mars-install`). Cities: Skylines II defines none, and its
+> `test-install.sh` passes unchanged.
+>
 > **🔧 As-built (2026-11-11):** BUILT: S1 to S4 are done on `simple-install`, and SL1 passed; SL2, the
 > installer plan's NL2, ran on 2026-11-12 and met its pass condition, with one finding (that plan's header;
 > SF6 and SF7 in section 9 here). S1 is `00108f7`, with `7b102a1`
