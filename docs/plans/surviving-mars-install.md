@@ -14,8 +14,8 @@
 > `docs/plans/simple-install.md`, with its steps N1 to N6 and live steps NL1 to NL5. This plan's steps are
 > M0 to M8, its tests MT1 to MT10, its live steps ML1 to ML7 (with ML4b) and its decisions MD1 to MD10. Since
 > 2026-11-11 the shared installer is a plan of its own, `docs/plans/shared-installer.md` ("the
-> shared-installer plan"): step M1 and tests MT1, MT2 and MT5 are there. Of the live steps, ML1 (2026-11-11) and ML2
-> (2026-11-13) are done; their records are in 1.4, and what ML2 found besides is section 5a. Every number
+> shared-installer plan"): step M1 and tests MT1, MT2 and MT5 are there. Of the live steps, ML1 (2026-11-11), ML2
+> (2026-11-13) and ML3 (2026-11-13) are done; their records are in 1.4, and what ML2 found besides is section 5a. Every number
 > marked "measured" was measured on the Studio (M5 Max, macOS 27.2.1) on 2026-11-11; the records are in
 > `~/Library/Application Support/1launcher/surviving-mars-relaunched/runs/d3dmetal-source-probe-20261111/`
 > (`SUMMARY.txt` first).
@@ -192,8 +192,31 @@ release per build, and every older one still has its file.
     such a prefix is not measured.
   - **After.** The real wrapper's next launch printed "Steam Cloud: saves up to date." with no conflict.
     Steam was signed out in the scratch wrapper (its `loginusers.vdf` no longer holds the account) and
-    `SMfresh.app` is in the Trash. The real wrapper's start after that sign-out is still to be seen.
+    `SMfresh.app` is in the Trash. At the real wrapper's next start after that sign-out (ML3, below) Steam
+    signed in by itself.
   - Sizes: the scratch wrapper 14 G by `du` with the game cloned in, Steam alone 1.7 G; the real wrapper 17 G.
+- **ML3 (2026-11-13; records in the game's `runs/ml3-20261113/`, `notes.md` first).** The real wrapper ran
+  the game on the engine made from the public pieces, with nothing in the wrapper replaced.
+  - **Before.** No Wine or Steam process ran. `d3d12.dll` in that engine is 114,688 bytes, against 122,432
+    in the wrapper's own; `diff -rq` between the two engines names `atidxx64.dll`, `d3d11.dll`,
+    `d3d12.dll` and `dxgi.dll` and nothing else.
+  - **The start.** `SM_ENGINE=<that engine> bash surviving-mars-relaunched/launch-relaunched.sh`, at
+    `b0a776a`, from the session's shell with its output in a file, not from Terminal. The launcher printed
+    "Steam Cloud: saves up to date." and found the game's build current. The game, Steam, the helper and
+    `wineserver` were all processes of that engine, and the game had that engine's `d3d12.dll`, `dxgi.dll`,
+    `D3DMetal.framework` and `libd3dshared.dylib` open. Wine did not update the prefix
+    (`.update-timestamp` unchanged, at the start and after the exit).
+  - **The game.** Its log names `wine-10.0 (Sikarugir)`, `d3d12` and feature level 12.1. The mod was loaded
+    from the start (its 44 "applied" lines, no "present, but not loaded"). The game then sat at its menu
+    for 1 h 46 min, James being away. He loaded the save with the landscaping project, played 4 min 48 s,
+    saved it and quit. Asked afterwards: the landscaped terrain "Drew correctly", and against his normal
+    game "Nothing different". He let that length stand as the step's session.
+  - **Against the wrapper's own engine.** The launcher's Wine log of this start has 152 lines, 3 `err:`
+    lines (Kerberos and NTLM, at Steam's start) and 2 lines of D3DMetal's "Unsupported API" (`EndQuery`
+    and `ResolveQueryData`, type 2). The six logs of starts on the wrapper's own engine from 2026-11-11
+    to 2026-11-13 have the same counts (one has 154 lines).
+  - **The exit.** The game ended with code 0; Steam uploaded the save and the account file with result OK
+    (change number 75 to 76); the launcher returned 0, with no process and no `.crash` marker left.
 - The builder lens of this plan's check built the shared installer (now the shared-installer plan's S2) and
   M3 in a scratch tree: the reduced Cities: Skylines II
   installer passes the 96 cases of `test-install.sh` (run again by the planner), and its per-case output
@@ -237,8 +260,8 @@ The 14unch3r window shows a game with no app as "Not set up" and opens its guide
 
 ### 1.7 What is not known
 
-1. Whether the game starts on an engine made from Gcenx's pieces, whose DLLs lack CodeWeavers' signature.
-   Nothing in Wine reads it; whether the game or Steam does is unmeasured (ML3).
+1. Answered by ML3 (1.4): the game and Steam run on an engine made from Gcenx's pieces, whose DLLs lack
+   CodeWeavers' signature. Measured for one start and a session of under five minutes.
 2. Answered by ML2 (1.4): a wrapper made from nothing does not get the 86 library copies, and the game
    does not need them.
 3. Answered by ML2 as far as the menu, a save's load and the map: a prefix made from nothing runs Steam
@@ -254,7 +277,8 @@ The 14unch3r window shows a game with no app as "Not set up" and opens its guide
    (unmeasured)" for a Mac with no copy of the game (`launch-relaunched.sh:35`). For Cities: Skylines II
    the player's own click on Install worked (the installer plan's NL1); this plan uses the click.
 8. Found at ML2, not known: where the game keeps a mod's on-or-off state (the account file is inferred
-   from its size), and whether the mod manager turns a mod on again by itself or only on a click.
+   from its size), and whether the mod manager turns a mod on again by itself or only on a click. At ML3 the game started
+   with the mod loaded.
 
 ## 2. Design
 
@@ -489,7 +513,9 @@ part of the install, and its absence is a damaged install.
 
 - **M0. The probes that decide the design, before any code** (ML1, then ML2 and ML3, which can share one sitting: ML3 replaces nothing in the wrapper).
   ML1 is done (1.4): the pin stands, and the design is unchanged by it. ML2 is done (1.4, 2026-11-13): a
-  wrapper from nothing runs the game, so the design stands; what it found besides is in section 5a.
+  wrapper from nothing runs the game, so the design stands; what it found besides is in section 5a. ML3
+  is done (1.4, 2026-11-13): the game runs on the engine made from the public pieces, in the real wrapper.
+  All three probes are done, and none changed the design.
   If the published Wine is not the wrapper's Wine, or a wrapper from nothing does not run the game, the
   difference is written into this plan as a step and the plan is checked again. Beside them, if James
   wants it: Apple's own download of the toolkit, which needs his Apple Account, read for its licence and
@@ -572,7 +598,9 @@ Steam of macOS included; and the game's last exit upload was ok.
      conflict, the way back is the launcher's own recipe (`launch-relaunched.sh:49-56`) and the copies of
      step 1. Then Steam is signed out in `SMfresh.app` and it goes to the Trash; that the real wrappers'
      saved sign-in still works is seen at their next start.
-- **ML3. The game on the published pieces, the wrapper unchanged.** With nothing running, the real
+- **ML3. The game on the published pieces, the wrapper unchanged.** *Done 2026-11-13; the record is in
+  1.4. It departed from the words below in one way: it was started from the session's shell with its
+  output in a file, not from Terminal.* With nothing running, the real
   wrapper is started once with `SM_ENGINE` at the engine of 1.4
   (`~/Library/Developer/1launcher/surviving-mars-relaunched/engine/wine-d3dm30-gcenx`), which the launcher
   then uses for Steam and for the game (`launch-relaunched.sh:76`, `:90`). Nothing in the wrapper is
@@ -626,7 +654,7 @@ of it is built.
 | MF1 | `make-wrapper.sh` did not return while any other Wine ran on the Mac: the template's own program waits for every `wineserver` to exit. A player with another game's wrapper, a storefront Steam or CrossOver open would see "making the Wine prefix (about 30 s)" for as long as that stays open | The shared installer's, not this game's: the shared-installer plan's SF8. For this game it matters twice over, because this project's own second game or its Steam app may be the Wine that is open |
 | MF2 | Steam's update was cut on the VPN route a second time, on another day and on Wine 10 with D3DMetal 3.0; paused, it worked at once. A Steam whose update failed did not close on `-shutdown` within 30 s | The shared-installer plan's SF1 and SF2 apply to this game unchanged. New: how the installer closes a Steam stuck at its update box (SF1's row there) |
 | MF3 | A player who already has the game elsewhere with a Paradox mod: the first start warns that the mod could not be loaded, the game fetches it again by itself, and it stays switched off, here and, through Steam Cloud, on the player's other installs, until the mod manager is opened. A save loaded meanwhile runs without its mod | One paragraph in this game's guide and one line where the installer ends: after a new install, open the mod manager before loading a save if you use mods. Measured first: 1.7's item 8 |
-| MF4 | The new prefix has none of the Visual C++ runtimes, `d3dcompiler_47` and fonts that the old one holds, and the game reached the map | Nothing is added to the installer for them on this evidence. ML3 and ML4 include a session of play; if one fails for a missing runtime, the runtime's source and licence are a decision of their own |
+| MF4 | The new prefix has none of the Visual C++ runtimes, `d3dcompiler_47` and fonts that the old one holds, and the game reached the map | Nothing is added to the installer for them on this evidence. ML4 includes a session of play in such a prefix (ML3's was in the old prefix, which holds them, so it measured nothing here); if it fails for a missing runtime, the runtime's source and licence are a decision of their own |
 
 ## 6. Exit criteria
 
@@ -649,8 +677,7 @@ of it is built.
 - **Saves.** No step changes a file in a prefix by hand. But ML2 and ML4 start the game from a second
   prefix on James's account, which uploads to Steam Cloud what the real wrapper then pulls. ML2's steps 1,
   5, 6 and 9 are what keep that safe, and they name the way back.
-- **The engine.** The swap keeps the Wine it replaced inside the wrapper. ML3 replaces nothing in the wrapper; whether Wine updates its prefix is
-  recorded. ML4b replaces a working engine, so it clones that first and names two ways back.
+- **The engine.** The swap keeps the Wine it replaced inside the wrapper. ML3 replaced nothing in the wrapper, and Wine did not update its prefix (1.4). ML4b replaces a working engine, so it clones that first and names two ways back.
 - **MD4 on the two existing Macs.** ML4b names the way back for the Studio; it is the same on the
   MacBook after ML5.
 - **The shared installer** has its own way back, in its plan.
