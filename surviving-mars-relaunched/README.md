@@ -58,8 +58,8 @@ answer is to run the game in CrossOver. What transfers to any setup is the *find
 - CrossOver 26 installed, as the local source of D3DMetal 3.0. `CX_GPTK=<dir>` points
   `make-engine.sh` at another `apple_gptk`-shaped directory. On 2026-11-11 it built an engine from the
   `lib` folder of Gcenx's published Game Porting Toolkit 3.0-3, whose D3DMetal pieces equal CrossOver
-  26.2's but for CodeWeavers' signature on the four DLLs; the game has not been started on that engine
-  yet ([the plan](../docs/plans/surviving-mars-install.md), 1.4).
+  26.2's but for CodeWeavers' signature on the four DLLs, and on 2026-11-13 the game ran on that engine
+  in this wrapper ([the plan](../docs/plans/surviving-mars-install.md), 1.4).
 - Homebrew `mingw-w64` to build the two `.exe` helpers (build lines in their headers).
 - The rest of this repository beside this folder. `make-app.sh` takes the app icon from the game with
   [`pe-icon.py`](../cities-skylines-2/scripts/pe-icon.py) (without it the icon is generic), and
