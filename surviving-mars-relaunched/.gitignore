@@ -5,8 +5,10 @@ runs/
 scratch/
 .DS_Store
 
-# built from tools/*.c (build line in each file header); not committed, same as cs2's driver
+# built from tools/*.c (build line in each file header); not committed, same as cs2's driver. The one
+# exception is the click helper, which an install needs and no player can build (tools/frame-fix.build)
 tools/*.exe
+!tools/frame-fix.exe
 
 # the game's Wine engine, built by tools/make-engine.sh (a ~1 GB clone of S734M's Wine + CrossOver's D3DMetal)
 engine/

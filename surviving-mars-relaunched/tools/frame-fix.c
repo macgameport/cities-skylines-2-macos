@@ -15,7 +15,11 @@
  *   --once   fix it once if stale, print before/after
  *   --watch  (default) fix whenever stale, until the window is gone; for the launcher
  *
- * Build:  x86_64-w64-mingw32-gcc -O2 -Wall -o tools/frame-fix.exe tools/frame-fix.c
+ * Build:  x86_64-w64-mingw32-gcc -O2 -Wall -s -Wl,--no-insert-timestamp -o tools/frame-fix.exe tools/frame-fix.c
+ * (-s leaves out the debug sections, which hold the compiler package's own build paths, and
+ * --no-insert-timestamp the link stamp, so two builds are the same bytes. The built program is committed:
+ * tools/frame-fix.build records what built it, tools/test-frame-fix-build.sh holds it to this source, and
+ * tools/LICENSE-mingw-w64 is the licence of the runtime linked into it.)
  */
 #include <windows.h>
 #include <stdio.h>

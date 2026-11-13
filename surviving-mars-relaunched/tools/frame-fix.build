@@ -1,0 +1,20 @@
+# frame-fix.build -- what built the committed tools/frame-fix.exe (docs/plans/surviving-mars-install.md, 2.6).
+# tools/test-frame-fix-build.sh holds the program and its source to the two sha256 values everywhere, and
+# rebuilds it byte for byte where the compiler package below is the one installed.
+build: x86_64-w64-mingw32-gcc -O2 -Wall -s -Wl,--no-insert-timestamp -o tools/frame-fix.exe tools/frame-fix.c
+built: 2026-11-13, macOS 27.2.1, Apple Silicon
+package: mingw-w64 14.0.0_3
+compiler: x86_64-w64-mingw32-gcc (GCC) 16.2.0
+linker: GNU ld (GNU Binutils) 2.47.20260726
+sha256 frame-fix.c: 39c14a61d8cea2921b574a24508d34bb281becfea262cbb866363a1e5834b146
+sha256 frame-fix.exe: 19f5708518c0dae12f88975719ea4be3b658316154417ae93756801df0e1917a
+bytes frame-fix.exe: 17920
+# Linked into the program besides frame-fix.c (from the link map): start-up code and one maths stub of
+# the mingw-w64 runtime (libmingw32.a, libmingwex.a), its import stubs for msvcrt, kernel32 and user32, and
+# two members of GCC's support library (libgcc.a: _chkstk_ms.o, _ctors.o).
+# - The mingw-w64 runtime is under the Zope Public License 2.1 (the package's COPYING), which asks that
+#   its notice, conditions and disclaimer go with a binary: tools/LICENSE-mingw-w64 is that file.
+# - libgcc is under the GPL version 3 with the GCC Runtime Library Exception 3.1 (31 March 2009), read on
+#   2026-11-13 in the copy GCC's own manual carries (gcc.gnu.org/onlinedocs/libstdc++/manual/license.html):
+#   a program compiled with GCC and GPL-compatible tools only may be passed on under terms of its author's
+#   choice, and the exception asks for no notice to go with it.
