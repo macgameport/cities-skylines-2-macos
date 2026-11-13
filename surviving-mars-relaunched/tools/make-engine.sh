@@ -9,6 +9,19 @@
 # running, and one already installed unless --rebuild, which rebuilds wine/ from the BAK (never from the
 # installed 3.0 engine) and keeps the BAK. Standalone mode builds an engine to try elsewhere (cs2 C82).
 #
+# CX_GPTK=<dir>, when set, is the only place D3DMetal is looked for: a folder shaped like CrossOver's
+# apple_gptk (external/D3DMetal.framework, external/libd3dshared.dylib, wine/x86_64-windows/*.dll), or a
+# CrossOver.app. One that holds no framework, or an empty value, stops the script. Not set, a CrossOver in
+# ~/Applications or /Applications is used.
+#
+# A swap stopped part way (docs/plans/surviving-mars-install.md, 2.4). The new Wine is built as
+# wine.new.tmp.<pid> and gets the name wine.new only when it is whole; then wine/ is moved aside (or, on a
+# rebuild, removed) and wine.new moved in. So a wine.new beside the BAK is a whole engine whose last move
+# did not happen: --install first removes what is left of wine/ and moves it in, prints "finished", and
+# without --rebuild exits 0. Left-over wine.new.tmp.* folders are removed. While it changes a wrapper the
+# script holds Contents/SharedSupport/.engine-swap, a link to its process number: a second run stops at
+# it, and one left by a process that is gone is replaced. It refuses to run as root.
+#
 # Why (Studio, M5 Max, macOS 27.2, 2026-11-07): under D3DMetal 2.1 a landscaping project (RC Dozer:
 # Flatten, Ramp, ...) turns the whole map black with a few bright pixels flickering, and a save that holds
 # one comes back black on every load, while saves without one render normally. The same save ("Archibald",
@@ -24,6 +37,7 @@
 # separate d3d12.so/dxgi.so/... per DLL, 3.0 links all of them to one libd3dshared.dylib.
 # Rebuild after the source Wine or CrossOver is updated: it replaces <out-dir>.
 set -eu
+[ "$(id -u)" = 0 ] && { echo "ERROR: do not run make-engine.sh as root (with sudo): it would leave files only root can change"; exit 1; }
 SM_WORK="${SM_WORK:-$HOME/Library/Developer/1launcher/surviving-mars-relaunched}"
 # ENGINE_SRC=<wine dir> clones another engine instead (the unified-stack probe used the daily CS2
 # wrapper's Wine 11.16, which exports the same macdrv_functions table D3DMetal reaches Wine through).
@@ -32,20 +46,36 @@ if [ "${1:-}" = --install ]; then
   INSTALL="${2:-}"
   [ -n "$INSTALL" ] || { echo "usage: make-engine.sh --install <wrapper.app> [--rebuild]"; exit 64; }
   T="${INSTALL%/}/Contents/SharedSupport"
-  [ -d "$T/wine" ] && [ -d "$T/prefix" ] || { echo "ERROR: $INSTALL is not a wrapper (no Contents/SharedSupport/wine + prefix)"; exit 1; }
+  BAK="$T/wine.d3dm21-BAK"
+  OUT="$T/wine.new"
+  # a wrapper whose wine/ is gone is still one when a finished wine.new waits beside the BAK
+  { [ -d "$T/wine" ] || { [ -d "$OUT" ] && [ -e "$BAK" ]; }; } && [ -d "$T/prefix" ] \
+    || { echo "ERROR: $INSTALL is not a wrapper (no Contents/SharedSupport/wine + prefix)"; exit 1; }
   [ -z "$(find "$T/prefix/drive_c/Program Files (x86)/Steam/steamapps/common" -maxdepth 2 -name Cities2.exe 2>/dev/null)" ] \
     || { echo "ERROR: $INSTALL holds Cities: Skylines II, so it is a cs2 wrapper; refusing to change its engine"; exit 1; }
   for p in $(pgrep -f -i 'wine|steam|\.exe' 2>/dev/null); do
     lsof -p "$p" 2>/dev/null | grep -qF "$T/" && { echo "ERROR: a Wine process (pid $p) is using $INSTALL; quit it first"; exit 1; }
   done
-  BAK="$T/wine.d3dm21-BAK"
+  GUARD="$T/.engine-swap"
+  h="$(readlink "$GUARD" 2>/dev/null || true)"
+  if [ -n "$h" ] && kill -0 "$h" 2>/dev/null; then
+    echo "ERROR: another make-engine.sh (process $h) is changing $INSTALL; wait for it to finish"; exit 1
+  fi
+  [ -n "$h" ] && [ "$(readlink "$GUARD" 2>/dev/null || true)" = "$h" ] && rm -f "$GUARD"   # left by a run that died
+  ln -s "$$" "$GUARD" 2>/dev/null || { echo "ERROR: another make-engine.sh is changing $INSTALL; wait for it to finish"; exit 1; }
+  trap '[ "$(readlink "$GUARD" 2>/dev/null)" = "$$" ] && rm -f "$GUARD"' EXIT
+  rm -rf "$T"/wine.new.tmp.*
+  if [ -d "$OUT" ] && [ -e "$BAK" ]; then
+    rm -rf "$T/wine"; mv "$OUT" "$T/wine"
+    echo "finished    : $T/wine (an engine swap that was stopped part way)"
+    [ "${3:-}" = --rebuild ] || exit 0
+  fi
   if [ -e "$BAK" ]; then
     [ "${3:-}" = --rebuild ] || { echo "ERROR: $BAK exists, so D3DMetal 3.0 is already installed; --rebuild rebuilds wine/ from the BAK"; exit 1; }
     SRC="$BAK"
   else
     SRC="$T/wine"
   fi
-  OUT="$T/wine.new"
 else
   # A Steam app named S734M.app has no SharedSupport, so it is passed over like an absent wrapper
   SRC="$HOME/Applications/S734M.app/Contents/SharedSupport/wine"
@@ -54,11 +84,18 @@ else
   OUT="${1:-$SM_WORK/engine/wine-d3dm30}"
 fi
 GPTK=""
-for c in "${CX_GPTK:-}" "$HOME/Applications/CrossOver.app" "/Applications/CrossOver.app"; do
-  [ -n "$c" ] || continue
-  [ -d "$c/Contents/SharedSupport/CrossOver/lib64/apple_gptk" ] && c="$c/Contents/SharedSupport/CrossOver/lib64/apple_gptk"
-  [ -d "$c/external/D3DMetal.framework" ] && { GPTK="$c"; break; }
-done
+if [ -n "${CX_GPTK+set}" ]; then
+  c="$CX_GPTK"
+  [ -n "$c" ] && [ -d "$c/Contents/SharedSupport/CrossOver/lib64/apple_gptk" ] && c="$c/Contents/SharedSupport/CrossOver/lib64/apple_gptk"
+  [ -n "$c" ] && [ -d "$c/external/D3DMetal.framework" ] \
+    || { echo "ERROR: CX_GPTK is set to '$CX_GPTK', which holds no external/D3DMetal.framework; nothing else is looked in"; exit 1; }
+  GPTK="$c"
+else
+  for c in "$HOME/Applications/CrossOver.app" "/Applications/CrossOver.app"; do
+    [ -d "$c/Contents/SharedSupport/CrossOver/lib64/apple_gptk" ] && c="$c/Contents/SharedSupport/CrossOver/lib64/apple_gptk"
+    [ -d "$c/external/D3DMetal.framework" ] && { GPTK="$c"; break; }
+  done
+fi
 [ -x "$SRC/bin/wine64" ] || { echo "ERROR: no Wine engine at $SRC"; exit 1; }
 nm -gU "$SRC/lib/wine/x86_64-unix/winemac.so" 2>/dev/null | grep -q " _macdrv_functions$" \
   || { echo "ERROR: $SRC's winemac.so does not export macdrv_functions, which D3DMetal needs"; exit 1; }

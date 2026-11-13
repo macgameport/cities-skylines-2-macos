@@ -6,17 +6,25 @@
 # hold no Wine, so each script stops at its first check of the Wine and names the path it chose: make-engine.sh
 # in its "ERROR: no Wine engine at" line (exit 1), the install test in its "REFUSED" line (exit 2), before
 # either makes or starts anything. No Wine, no Intel program, nothing written outside the scratch folder.
+# And where D3DMetal comes from (docs/plans/surviving-mars-install.md, 2.4, MT8): a CX_GPTK that is set is
+# the only place make-engine.sh looks, so one with no framework, or an empty one, stops it at its
+# "ERROR: CX_GPTK is set to" line even with a CrossOver in the fixture home; and the install test takes its
+# pieces from CX_GPTK or from an installed SurvivingMars.app whose framework reads 3, and refuses without.
+# Those last cases put a wine64 that is a two-line shell script in the fixture, to get past the Wine check.
 #   bash tools/test-engine-source.sh            exit 0 = every case passed
 #   MUTANT=1 ...   make-engine.sh never looks at the kept copy; must exit 1
 #   MUTANT=2 ...   make-engine.sh ignores ENGINE_SRC; must exit 1
 #   MUTANT=3 ...   the install test never looks at the kept copy; must exit 1
+#   MUTANT=4 ...   a CX_GPTK with no framework is passed over and the search goes on to a CrossOver; must exit 1
+#   MUTANT=5 ...   an empty CX_GPTK is taken as not set; must exit 1
+#   MUTANT=6 ...   the install test takes a wrapper that reads 2.1 as its source of pieces; must exit 1
 set -u
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 T="$(mktemp -d /tmp/engine-source-test.XXXX)"
 trap 'rm -rf "$T"' EXIT
 M="${MUTANT:-0}"
 mutated() { echo "REFUSED: mutant did not apply"; exit 2; }
-case "$M" in 0|1|2|3) ;; *) echo "REFUSED: no mutant $M"; exit 2 ;; esac
+case "$M" in 0|1|2|3|4|5|6) ;; *) echo "REFUSED: no mutant $M"; exit 2 ;; esac
 fails=0
 check() {  # <name> <got> <want>
   if [ "$2" = "$3" ]; then echo "PASS  $1"; else echo "FAIL  $1 (got '$2', want '$3')"; fails=$((fails + 1)); fi
@@ -30,6 +38,9 @@ case "$M" in
   1) sed -i '' '/^  \[ -d "\$SRC" \] || SRC=.*wine\.d3dm21-BAK"$/d' "$ME"; grep -q 'SurvivingMars.app/Contents/SharedSupport/wine.d3dm21-BAK' "$ME" && mutated ;;
   2) sed -i '' 's/^  SRC="\${ENGINE_SRC:-\$SRC}"$/  SRC="$SRC"/' "$ME"; grep -q 'ENGINE_SRC:-' "$ME" && mutated ;;
   3) sed -i '' '/^\[ -d "\$SRCW" \] || SRCW=.*wine\.d3dm21-BAK"$/d' "$IT"; grep -q 'SurvivingMars.app/Contents/SharedSupport/wine.d3dm21-BAK' "$IT" && mutated ;;
+  4) sed -i '' 's/^if \[ -n "\${CX_GPTK+set}" \]; then$/if false; then/' "$ME"; grep -q 'CX_GPTK+set' "$ME" && mutated ;;
+  5) sed -i '' 's/^if \[ -n "\${CX_GPTK+set}" \]; then$/if [ -n "${CX_GPTK:-}" ]; then/' "$ME"; grep -q 'CX_GPTK+set' "$ME" && mutated ;;
+  6) sed -i '' 's/in 3\.\*) ;; \*) GP="" ;; esac$/in [23].*) ;; *) GP="" ;; esac/' "$IT"; grep -q 'in 3\.\*) ;; \*) GP=""' "$IT" && mutated ;;
 esac
 
 H="$T/home"; A="$H/Applications"
@@ -70,7 +81,40 @@ check "  ...and so does the install test" "$(install_test)" "2:$KEPT"
 reset none no
 check "neither is there: make-engine.sh names the kept copy's place" "$(engine)" "1:$KEPT"
 check "  ...and so does the install test" "$(install_test)" "2:$KEPT"
-check "nothing was made beside the scripts (the install test makes scratch/ only past its check)" "$(ls -A "$T/sm")" tools
+
+# --- where D3DMetal comes from: CX_GPTK is the only place looked in
+CXO="$A/CrossOver.app/Contents/SharedSupport/CrossOver/lib64/apple_gptk"
+gptk() {   # <set|unset> [value]: make-engine.sh's exit code, whether CX_GPTK stopped it, and the Wine it reached
+  local out rc
+  if [ "$1" = set ]; then out=$(cd "$T" && env -u ENGINE_SRC HOME="$H" CX_GPTK="${2:-}" /bin/bash "$ME" 2>&1); rc=$?
+  else out=$(cd "$T" && env -u ENGINE_SRC -u CX_GPTK HOME="$H" /bin/bash "$ME" 2>&1); rc=$?; fi
+  echo "$rc:$(printf '%s\n' "$out" | grep -c '^ERROR: CX_GPTK is set to'):$(printf '%s\n' "$out" | sed -n 's/^ERROR: no Wine engine at //p')"
+}
+reset none yes; mkdir -p "$CXO/external/D3DMetal.framework" "$T/empty" "$T/pieces/external/D3DMetal.framework"
+check "CX_GPTK not set, a CrossOver in the home: the search passes and the Wine check is reached" "$(gptk unset)" "1:0:$KEPT"
+check "CX_GPTK at a folder with no framework stops it, the CrossOver not used" "$(gptk set "$T/empty")" "1:1:"
+check "CX_GPTK set and empty stops it too" "$(gptk set "")" "1:1:"
+check "CX_GPTK at a folder that holds the framework is taken" "$(gptk set "$T/pieces")" "1:0:$KEPT"
+check "CX_GPTK at a CrossOver.app is taken" "$(gptk set "$A/CrossOver.app")" "1:0:$KEPT"
+
+# --- the install test's source of pieces (a wine64 that is a shell script gets it past its Wine check)
+pieces_test() {   # [CX_GPTK]: the install test's exit code and whether its pieces refusal is the line
+  local out rc
+  if [ -n "${1:-}" ]; then out=$(cd "$T" && env -u ENGINE_SRC HOME="$H" CX_GPTK="$1" /bin/bash "$IT" 2>&1); rc=$?
+  else out=$(cd "$T" && env -u ENGINE_SRC -u CX_GPTK HOME="$H" /bin/bash "$IT" 2>&1); rc=$?; fi
+  echo "$rc:$(printf '%s\n' "$out" | grep -c '^REFUSED: no D3DMetal 3.0 pieces')"
+}
+plist() {   # <framework dir> <version>
+  mkdir -p "$1/Versions/A/Resources"
+  printf '<?xml version="1.0" encoding="UTF-8"?>\n<plist version="1.0"><dict><key>CFBundleShortVersionString</key><string>%s</string></dict></plist>\n' "$2" > "$1/Versions/A/Resources/Info.plist"
+}
+reset none yes; mkdir -p "$KEPT/bin"; printf '#!/bin/sh\nexit 0\n' > "$KEPT/bin/wine64"; chmod +x "$KEPT/bin/wine64"
+INST="$A/SurvivingMars.app/Contents/SharedSupport/wine/lib/external/D3DMetal.framework"
+check "the install test, a Wine but no pieces anywhere: refused with exit 2" "$(pieces_test)" "2:1"
+plist "$INST" 2.1
+check "  ...an installed wrapper that reads 2.1 is not a source of pieces" "$(pieces_test)" "2:1"
+check "  ...CX_GPTK at a folder with no framework is refused the same way" "$(pieces_test "$T/empty")" "2:1"
+[ "$M" = 6 ] || check "nothing was made beside the scripts (the install test makes scratch/ only past its checks)" "$(ls -A "$T/sm")" tools
 
 echo "$fails failure(s)"
 [ "$fails" = 0 ]
