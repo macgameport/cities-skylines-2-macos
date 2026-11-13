@@ -14,7 +14,8 @@
 > `docs/plans/simple-install.md`, with its steps N1 to N6 and live steps NL1 to NL5. This plan's steps are
 > M0 to M8, its tests MT1 to MT10, its live steps ML1 to ML7 (with ML4b) and its decisions MD1 to MD10. Since
 > 2026-11-11 the shared installer is a plan of its own, `docs/plans/shared-installer.md` ("the
-> shared-installer plan"): step M1 and tests MT1, MT2 and MT5 are there. Every number
+> shared-installer plan"): step M1 and tests MT1, MT2 and MT5 are there. Of the live steps, ML1 (2026-11-11) and ML2
+> (2026-11-13) are done; their records are in 1.4, and what ML2 found besides is section 5a. Every number
 > marked "measured" was measured on the Studio (M5 Max, macOS 27.2.1) on 2026-11-11; the records are in
 > `~/Library/Application Support/1launcher/surviving-mars-relaunched/runs/d3dmetal-source-probe-20261111/`
 > (`SUMMARY.txt` first).
@@ -133,8 +134,8 @@ release per build, and every older one still has its file.
   debug sections (64 strings under `/private/tmp/mingw-w64`, 18 under `/opt/homebrew/Cellar/mingw-w64`),
   and two builds differ in 2 bytes (the link stamp). Built with `-s` and `-Wl,--no-insert-timestamp` it is
   17,920 bytes, two builds are byte-identical, and it holds none of those strings and no `/Users/`
-  (`mingw-w64` 14.0.0_3 from Homebrew, gcc 16.2.0). That the stripped helper still fixes the click offset
-  is not measured (ML2).
+  (`mingw-w64` 14.0.0_3 from Homebrew, gcc 16.2.0). The stripped helper works, and from a folder whose
+  path holds spaces (ML2, below).
 - The game is 10,816,563,427 bytes on disk by Steam's count (build 25579348).
 - **ML1 (2026-11-11; records in the game's `runs/ml1-wine10-20261111/`).** Porting Kit's Wine 10 archive
   matches GitHub's digest and unpacks to one folder, `wswine.bundle`, holding `bin/wine64` and
@@ -145,6 +146,54 @@ release per build, and every older one still has its file.
   unpacked. The Cities: Skylines II wrapper shows the same. Both launchers put `Contents/Frameworks`
   first on the library path. The archive without D3DMetal is another build: 1,543 of its files differ,
   its program is `bin/wine` with no `bin/wine64`, and it has none of D3DMetal's pieces.
+- **ML2 (2026-11-12 and 2026-11-13; records in the game's `runs/ml2-20261112/`, `notes.md` first).** A
+  wrapper made from nothing ran the game. In the order of the step:
+  - **The wrapper.** The branch's `common/make-wrapper.sh` (at `d16156d`) was run as it is, with the engine
+    given as options, so no changed copy was needed. It made a 1.4 G wrapper with wine-10.0 (Sikarugir) and
+    no quarantine attribute. **It did not return for 85 minutes:** the template's
+    `wineskinlauncher WSS-wineprefixcreate` finished the prefix within a minute and then waited until no
+    process named `wineserver` ran anywhere on the Mac (`killall -0 wineserver` in its own loop). A
+    storefront Steam was open in another wrapper; 23 s after it was quit the build returned with exit 0.
+  - **The 86 library copies** are not made: the new wrapper's Wine holds the archive's 4,703 files and
+    nothing more. The game runs without them.
+  - **D3DMetal 3.0** went in with `make-engine.sh --install` and `CX_GPTK` at Gcenx's pieces in one second;
+    `d3d12.dll` is 114,688 bytes. The first Wine start after it took 7 s and did not update the prefix
+    (`.update-timestamp` unchanged).
+  - **Steam.** Its installer ran in 7 s. Its first start failed on its own update exactly as at the
+    shared-installer plan's SL1: the default route was a VPN tunnel, the update (336 MB from
+    `cdn.steamstatic.com`) reached about 21 MB in 83 s, then every package "failed after 0 bytes" and Steam
+    stopped at "Steam needs to be online to update"; a transfer of one package by `curl` was cut twice.
+    `-shutdown` did not end that Steam within 30 s; `wineserver -k` did, and left the 0-byte `.crash`
+    marker. With the VPN paused, one start carried Steam through two updates of itself to its sign-in
+    window in 53 s, with no restart by hand: the "first start fails, the second works" of Cities:
+    Skylines II did not show.
+  - **The sign-in and the clone.** James signed in with "Remember me". The game's folder and manifest were
+    cloned in under a second with no disk used, and `-shutdown` closed Steam in 6 s.
+  - **The game.** The scratch copy of the launcher printed "Steam Cloud: saves up to date." on both starts;
+    Steam signed in by itself with no window; all eight saves were pulled. The game's process was the new
+    wrapper's `wine64` with its 3.0 `d3d12.dll`. The stripped helper, beside the launcher in a folder whose
+    path holds spaces, logged `found`, `stale`, `fixed ... client 2560x1440` at 1.7 s. James loaded the
+    save with the landscaping project and said "Map is fine". Each exit uploaded with result OK.
+  - **A mod.** The first start opened with "The following mods couldn't be loaded ...
+    SMR_CommunityFixPack". The mod is a Paradox Mods download in
+    `AppData/Roaming/Surviving Mars Relaunched/PdxMods/`, outside Steam and Steam Cloud. The game fetched
+    its file again by itself during that start, but from then on the mod was switched off: the game's log
+    at the save's load says "present, but not loaded" and has none of the mod's 44 "applied" lines, and the
+    cloud-synced `account.dat` shrank from 4,633 to about 4,600 bytes. The real wrapper pulled that file
+    and started with the mod off too. It came on again while James was in the game's mod manager (he found
+    it "Already on"; the log shows the 44 lines at that moment), and `account.dat` is 4,634 bytes again. So
+    the save of step 7 was looked at without its mod; the save James then played and saved in the real
+    wrapper had it.
+  - **What the old prefix holds besides** (`step8-prefix-compare.txt`): 30 library overrides in the
+    registry (the Visual C++ runtimes of 2010 to 2022, `d3dcompiler_47`), 27 uninstall keys against 2,
+    85 files in `system32` and 84 in `syswow64` that are not Wine's, and a `winetricks.log` naming
+    `vcrun2010`, `2012`, `2013`, `2022`, `ucrtbase2019`, `d3dcompiler_47`, `corefonts` and `steam`. The new
+    prefix has none of it and reached the menu, loaded the save and showed the map. A session of play in
+    such a prefix is not measured.
+  - **After.** The real wrapper's next launch printed "Steam Cloud: saves up to date." with no conflict.
+    Steam was signed out in the scratch wrapper (its `loginusers.vdf` no longer holds the account) and
+    `SMfresh.app` is in the Trash. The real wrapper's start after that sign-out is still to be seen.
+  - Sizes: the scratch wrapper 14 G by `du` with the game cloned in, Steam alone 1.7 G; the real wrapper 17 G.
 - The builder lens of this plan's check built the shared installer (now the shared-installer plan's S2) and
   M3 in a scratch tree: the reduced Cities: Skylines II
   installer passes the 96 cases of `test-install.sh` (run again by the planner), and its per-case output
@@ -190,20 +239,22 @@ The 14unch3r window shows a game with no app as "Not set up" and opens its guide
 
 1. Whether the game starts on an engine made from Gcenx's pieces, whose DLLs lack CodeWeavers' signature.
    Nothing in Wine reads it; whether the game or Steam does is unmeasured (ML3).
-2. Whether a wrapper made from nothing gets the 86 library copies the old wrapper's Wine holds in
-   `lib/`, and whether the game needs them there (ML2). That the published Wine is the wrapper's was
-   settled by ML1.
-3. Whether a prefix made from nothing runs Steam and the game. The wrapper in use is a clone of one that
-   Porting Kit's Steam port made; whatever that port put in its prefix beyond a plain one is unlisted (ML2).
-4. Whether Steam's installer and Steam's first start behave on Wine 10 with D3DMetal 3.0 as they did on
-   Wine 11 with DXMT, where the first start failed and the second worked (the installer plan, 1.4); and
-   whether the first Wine start after the engine swap updates the prefix (ML2).
-5. Whether the helper works stripped, and from a folder whose path holds a space (ML2).
+2. Answered by ML2 (1.4): a wrapper made from nothing does not get the 86 library copies, and the game
+   does not need them.
+3. Answered by ML2 as far as the menu, a save's load and the map: a prefix made from nothing runs Steam
+   and the game, without the Visual C++ runtimes and the rest that the old prefix holds. **Still not
+   known:** whether a session of play needs any of it.
+4. Answered by ML2: Steam's installer and its first start work in one go on Wine 10 with D3DMetal 3.0 when
+   the route to Valve's server holds, and the first Wine start after the engine swap does not update the
+   prefix.
+5. Answered by ML2: the helper works stripped, from a folder whose path holds spaces.
 6. Whether Play inside Steam works for this game. For Cities: Skylines II it does not; here it is
    unmeasured, and the installer's words do not depend on it (the shared-installer plan, 2.1).
 7. Whether `steam://install/3215050` is needed. The header of the launcher calls it "the route
    (unmeasured)" for a Mac with no copy of the game (`launch-relaunched.sh:35`). For Cities: Skylines II
    the player's own click on Install worked (the installer plan's NL1); this plan uses the click.
+8. Found at ML2, not known: where the game keeps a mod's on-or-off state (the account file is inferred
+   from its size), and whether the mod manager turns a mod on again by itself or only on a click.
 
 ## 2. Design
 
@@ -437,7 +488,8 @@ part of the install, and its absence is a damaged install.
 ## 3. Steps
 
 - **M0. The probes that decide the design, before any code** (ML1, then ML2 and ML3, which can share one sitting: ML3 replaces nothing in the wrapper).
-  ML1 is done (1.4): the pin stands, and the design is unchanged by it.
+  ML1 is done (1.4): the pin stands, and the design is unchanged by it. ML2 is done (1.4, 2026-11-13): a
+  wrapper from nothing runs the game, so the design stands; what it found besides is in section 5a.
   If the published Wine is not the wrapper's Wine, or a wrapper from nothing does not run the game, the
   difference is written into this plan as a step and the plan is checked again. Beside them, if James
   wants it: Apple's own download of the toolkit, which needs his Apple Account, read for its licence and
@@ -487,7 +539,12 @@ Steam of macOS included; and the game's last exit upload was ok.
   `diff -rq`. Recorded: the archive's top folder, and identical or every file that differs. Then the
   archive without D3DMetal (1.3; 166 MB), compared the same way: if it is that Wine less D3DMetal, it can
   be the pin, and stage 3 then fetches nothing of Apple's.
-- **ML2. A wrapper from nothing, by hand, on the Studio.**
+- **ML2. A wrapper from nothing, by hand, on the Studio.** *Done 2026-11-13; the record is in 1.4. It
+  departed from the steps below in four ways: no changed copy of `make-wrapper.sh` was needed (the branch's
+  takes the engine as options); step 3 took two starts of Steam, a day apart, because of the VPN route;
+  step 6 was done twice, the second time after the mod's folder and the real wrapper's `LocalStorage.lua`
+  were copied into the new prefix (the folder turned out to be unneeded: the game had fetched it); and in
+  step 9 James played and saved in the real wrapper.*
   1. Before: the real wrapper's `Saved Games/Surviving Mars Relaunched/<its account folder>/` and
      `userdata/<its account folder>/3215050/` are copied into the state folder's `backup/`.
   2. A copy of `make-wrapper.sh` with the three pin lines changed, kept with the run, makes
@@ -556,6 +613,19 @@ Steam of macOS included; and the game's last exit upload was ok.
   its end the guide's uninstall is followed, and what is left is listed.
 - **ML7. After the first week:** whether the three pinned files are still published, and anything a player
   reported.
+
+## 5a. Found at ML2 (2026-11-13): not planned in detail, not checked, not built
+
+ML2 answered its questions (1.4, 1.7) and the design of section 2 stands. It also showed four things a
+player would meet. Each needs its place in a step and its test, and this section needs a check before any
+of it is built.
+
+| # | What was seen | What is wanted |
+|---|---|---|
+| MF1 | `make-wrapper.sh` did not return while any other Wine ran on the Mac: the template's own program waits for every `wineserver` to exit. A player with another game's wrapper, a storefront Steam or CrossOver open would see "making the Wine prefix (about 30 s)" for as long as that stays open | The shared installer's, not this game's: the shared-installer plan's SF8. For this game it matters twice over, because this project's own second game or its Steam app may be the Wine that is open |
+| MF2 | Steam's update was cut on the VPN route a second time, on another day and on Wine 10 with D3DMetal 3.0; paused, it worked at once. A Steam whose update failed did not close on `-shutdown` within 30 s | The shared-installer plan's SF1 and SF2 apply to this game unchanged. New: how the installer closes a Steam stuck at its update box (SF1's row there) |
+| MF3 | A player who already has the game elsewhere with a Paradox mod: the first start warns that the mod could not be loaded, the game fetches it again by itself, and it stays switched off, here and, through Steam Cloud, on the player's other installs, until the mod manager is opened. A save loaded meanwhile runs without its mod | One paragraph in this game's guide and one line where the installer ends: after a new install, open the mod manager before loading a save if you use mods. Measured first: 1.7's item 8 |
+| MF4 | The new prefix has none of the Visual C++ runtimes, `d3dcompiler_47` and fonts that the old one holds, and the game reached the map | Nothing is added to the installer for them on this evidence. ML3 and ML4 include a session of play; if one fails for a missing runtime, the runtime's source and licence are a decision of their own |
 
 ## 6. Exit criteria
 
