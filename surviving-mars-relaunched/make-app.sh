@@ -7,8 +7,10 @@
 # (SM_PANEL=1), so that a step shows in the window and posts no notification.
 # Re-run this instead of editing the generated app. The icon is Relaunched's own, pulled from
 # Mars.exe with ../cities-skylines-2/scripts/pe-icon.py; without it the app gets a generic icon.
-# Each launch runs the launcher in this checkout as it is: nothing is pulled at launch, so update with
-# `git pull` by hand (unification plan, O3). A change to this file needs a re-run.
+# Each launch runs the launcher this builder was told (SM_SCRIPT), as it is. scripts/setup.sh passes the
+# copy it keeps in the game's state folder, so an app the installer built needs no checkout; run by itself
+# this builder names the launcher beside it. Nothing is pulled at launch: to update, open the installer
+# again, or from a checkout `git pull` and run scripts/setup.sh. A change to this file needs a re-run.
 # It replaces its own app and nothing else: anything else at the target, a Wine wrapper above all, is
 # refused with nothing removed (own_bundle below). The Info.plist carries what the 14unch3r window reads
 # (docs/plans/launcher-window.md, 2.1): L1Role game, L1SteamAppID 3215050, and L1Prefix, the Wine prefix
@@ -65,7 +67,7 @@ GAME_EXE="$GAME_EXE"
 LOG="\$HOME/Library/Logs/sm-relaunched-launcher.log"
 mkdir -p "\$(dirname "\$LOG")"
 if [ ! -f "\$SCRIPT" ]; then
-  osascript -e 'display alert "Surviving Mars: Relaunched" message "Launcher script is missing. Re-run surviving-mars-relaunched/make-app.sh." as critical'
+  osascript -e 'display alert "Surviving Mars: Relaunched" message "The launcher is missing. Open the installer again. (From a checkout: bash surviving-mars-relaunched/scripts/setup.sh)" as critical'
   exit 1
 fi
 # Match the START of the game's command line (its own path), never a substring: a pattern alone
@@ -116,7 +118,7 @@ PANEL_SRC="$HERE/../common/launch-progress.swift"
 PANEL_OUT="$APP/Contents/Resources/launch-progress"
 PANEL_WHY=""
 if ! xcrun -f swiftc >/dev/null 2>&1; then PANEL_WHY="swiftc is missing: install the Xcode Command Line Tools"
-elif [ ! -f "$PANEL_SRC" ]; then PANEL_WHY="common/launch-progress.swift is missing from this checkout"
+elif [ ! -f "$PANEL_SRC" ]; then PANEL_WHY="common/launch-progress.swift is missing: open the installer again, or run setup from a whole checkout"
 elif ! grep -q '^# >>> launch-feedback (' "$SCRIPT"; then PANEL_WHY="the launcher prints no step lines: it is an older one"
 elif ! xcrun swiftc -O -o "$PANEL_OUT" "$PANEL_SRC" >/dev/null 2>&1; then PANEL_WHY="the compile failed"; rm -f "$PANEL_OUT"
 fi
@@ -176,10 +178,10 @@ touch "$APP"
 echo "built: $APP"
 if [ -n "$ICON_KEY" ]; then echo "icon:  from Mars.exe"; else echo "icon:  generic (pe-icon.py or Mars.exe not found)"; fi
 if [ -z "$PANEL_WHY" ]; then echo "progress: Swift panel built (the start-up progress window)"; else echo "progress: skipped ($PANEL_WHY): notifications only"; fi
-# 14unch3r lists every game set up on this Mac in one window. Cities: Skylines II's setup.sh builds it and this
+# 14unch3r lists every game set up on this Mac in one window. Each game's scripts/setup.sh builds it and this
 # builder does not (docs/plans/launcher-window.md, 2.3), so say how when it is not beside this app.
 WHERE="$(dirname "$APP")"
 if [ ! -d "$WHERE/14unch3r.app" ]; then
   if [ "$WHERE" = "$HOME/Applications" ]; then DEST_ARG=""; else DEST_ARG=" --dest \"$WHERE\""; fi
-  echo "14unch3r: not in $WHERE. To list every game in one window, run from the repository's top folder:  bash common/make-launcher-app.sh$DEST_ARG"
+  echo "14unch3r: not in $WHERE. It lists every game in one window; scripts/setup.sh builds it, and so does:  bash common/make-launcher-app.sh$DEST_ARG"
 fi

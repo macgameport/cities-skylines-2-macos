@@ -173,8 +173,8 @@ Steam Cloud could not sync at sign-in (Steam's logs/cloud_log.txt says why); pla
 Steam Cloud: no sign-in sync logged; playing with this Mac's saves.
 # the update that was declined, or that nobody was there to answer
 WARNING: game update waiting (build $UPD_FROM -> $UPD_TO) — launching the installed build. SM_UPDATE=apply takes it.
-# the click helper is not built
-tools/frame-fix.exe is not built (see its header). If clicks miss, press Option+Return twice.
+# the click helper is missing: it is part of the install
+The click helper (tools/frame-fix.exe) is missing, so this install is damaged: open the installer again. If clicks miss meanwhile, press Option+Return twice.
 # the closing line: the only sign that Steam is down on this Mac, for a player with two
 Surviving Mars: Relaunched closed.
 KEPT

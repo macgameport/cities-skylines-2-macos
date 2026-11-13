@@ -28,11 +28,9 @@
 #     AppData/Roaming/Surviving Mars Relaunched/PdxMods. Steam Workshop subscriptions are untested here.
 #   - Load: the game process uses 2.2-2.7 cores with no frame cap saved; set VSync or a frame limit in
 #     Options > Video if the Mac runs hot (not yet re-measured with a cap).
-# On another Mac: clone this repo, build tools/frame-fix.exe (line in its header), run
-# tools/split-wrapper.sh (it needs that Mac's S734M and storefront wrappers with the game installed in
-# the storefront one), re-run make-app.sh, and confirm Rosetta (`arch -x86_64 /usr/bin/true`). Mods are
-# per prefix (re-install them in the Mod Manager); saves travel by Steam Cloud, below. With no copy of
-# the game at all, forwarding steam://install/3215050 to this wrapper's Steam is the route (unmeasured).
+# On another Mac: INSTALL.md beside this file in the repository; the installer does all of it, and puts
+# a copy of this file where the game's app keeps it. Mods are per prefix (re-install them in the Mod
+# Manager, and open it once after a new install before loading a save); saves travel by Steam Cloud, below.
 #
 # Steam Cloud, measured on the Studio 2026-11-02 from Steam's logs/cloud_log.txt:
 #   - Steam's Auto-Cloud carries Saved Games/Surviving Mars Relaunched/<SteamID64>/* (saves plus
@@ -133,16 +131,16 @@ die() {
 }
 
 arch -x86_64 /usr/bin/true 2>/dev/null || die "Rosetta is missing (a macOS update removes it). Run: softwareupdate --install-rosetta --agree-to-license"
-[ -d "$WINEPREFIX" ] || die "The game's wrapper is missing: $APP. Build it: bash $HERE/tools/split-wrapper.sh"
+[ -d "$WINEPREFIX" ] || die "The game's wrapper is missing: $APP. Open the installer again: it makes one. (On a Mac set up from a checkout: bash surviving-mars-relaunched/tools/split-wrapper.sh)"
 [ -x "$WINE" ] || die "The game's Wine engine is missing: $ENGINE."
 # D3DMetal 2.1 blacks out the map whenever a landscaping project exists (header). Refuse it out loud.
 D3DM_VER=$(plutil -extract CFBundleShortVersionString raw "$ENGINE/lib/external/D3DMetal.framework/Versions/A/Resources/Info.plist" 2>/dev/null \
   || plutil -extract CFBundleShortVersionString raw "$ENGINE/lib/external/D3DMetal.framework/Resources/Info.plist" 2>/dev/null || echo none)
 case "$D3DM_VER" in
   [3-9].*) ;;
-  *) die "This Wine has D3DMetal $D3DM_VER, not 3.0, and landscaping turns the map black on it. Run: bash $HERE/tools/make-engine.sh --install \"$APP\"" ;;
+  *) die "This Wine has D3DMetal $D3DM_VER, not 3.0, and landscaping turns the map black on it. Open the installer again: it puts 3.0 in. (From a checkout: bash surviving-mars-relaunched/tools/make-engine.sh --install \"$APP\")" ;;
 esac
-[ -f "$GAME/Mars.exe" ] || die "Mars.exe not found in $(basename "$APP" .app). Reinstall it with this wrapper's Steam (steam://install/3215050; see the header)."
+[ -f "$GAME/Mars.exe" ] || die "Mars.exe not found in $(basename "$APP" .app). Open the installer again: it opens Steam in this wrapper and waits while you install the game."
 # The game's command line STARTS with its own path (wine shows the unix path it was given, or a
 # C:\ path if Steam started it). Match that start, never a substring: `pgrep -f` alone also matches
 # any shell or editor whose command line merely mentions the file, and refused a launch (2026-11-01).
@@ -266,7 +264,7 @@ _files="${SIGNIN#conflict}"
 case "$SIGNIN" in
   current) echo "Steam Cloud: saves up to date." ;;
   conflict*) [ "$STARTED" = 1 ] && stop_steam
-    die "Steam Cloud has a conflict${_files:+ on$_files}: this Mac's copy and the cloud's both changed, and saves made now could not upload. Clear it first: see the Steam Cloud notes at the top of launch-relaunched.sh." ;;
+    die "Steam Cloud has a conflict${_files:+ on$_files}: this Mac's copy and the cloud's both changed, and saves made now could not upload. Clear it first: see \"A Steam Cloud conflict\" in the guide, https://github.com/macgameport/1launcher/blob/main/surviving-mars-relaunched/INSTALL.md" ;;
   busy) [ "$STARTED" = 1 ] && stop_steam
     die "Steam Cloud was still syncing saves after 5 minutes. Launch again in a few minutes." ;;
   failed) note "Steam Cloud could not sync at sign-in (Steam's logs/cloud_log.txt says why); playing with this Mac's saves." ;;
@@ -374,7 +372,7 @@ if [ -f "$HELPER" ]; then
   "$WINE" "$HELPER" --watch >"$LOG.frame-fix" 2>&1 &
   FIX_PID=$!
 else
-  note "tools/frame-fix.exe is not built (see its header). If clicks miss, press Option+Return twice."
+  note "The click helper (tools/frame-fix.exe) is missing, so this install is damaged: open the installer again. If clicks miss meanwhile, press Option+Return twice."
 fi
 wait "$GAME_PID"
 echo "Game exited (rc=$?). Shutting down Steam…"
@@ -394,7 +392,7 @@ for _i in $(seq 1 150); do
 done
 case "$res" in
   ok)        echo "Steam Cloud: saves uploaded." ;;
-  conflict*) CLOUD_MSG="Steam Cloud refused this session's saves: a conflict on${res#conflict}. They are safe on this Mac but not in the cloud. To clear it, see the Steam Cloud notes at the top of launch-relaunched.sh." ;;
+  conflict*) CLOUD_MSG="Steam Cloud refused this session's saves: a conflict on${res#conflict}. They are safe on this Mac but not in the cloud. To clear it, see \"A Steam Cloud conflict\" in the guide, https://github.com/macgameport/1launcher/blob/main/surviving-mars-relaunched/INSTALL.md" ;;
   offline)
     if tail -n +$((CLBEFORE + 1)) "$CL" 2>/dev/null | grep -q "Session Replaced"; then
       CLOUD_MSG="Another Steam on this account signed in during play (Session Replaced), so Steam was offline when the game closed and did not upload this session's saves. They are safe on this Mac."
