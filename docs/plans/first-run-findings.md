@@ -208,10 +208,13 @@ this project it matters twice over: its own second game, or its Steam app, may b
    an alert, since nobody reads a log.
 3. **The guide** already says it (`surviving-mars-relaunched/INSTALL.md`, "Good to know").
 
-**What rests on a probe.** Whether a notice before the menu helps at all depends on P4: if the game goes
-to the last save by itself, the player cannot open the Mod Manager first, and the design changes (FD2).
-Whether the launcher can keep the account file from being uploaded in its switched-off state depends on
-P5; it is not designed here.
+**P4, answered 2026-11-13.** The game does not go to a save by itself: it stops at its menu, where the
+player chooses Load Game and then a save (James, with a capture of the menu; the menu's own row has
+"Mod Manager (1)", the number of mods). So the loads 24 s and 12 s after the start at ML4 were his, and
+a note before the game starts can be acted on: the Mod Manager is one click from the same menu.
+
+**What rests on a probe.** Whether the launcher can keep the account file from being uploaded in its
+switched-off state depends on P5; it is not designed here.
 
 ### 2.7 Slice J: runtimes the new prefix lacks
 
@@ -262,13 +265,13 @@ are done on James's word.
 | P1 | Can Steam's updater and its error box be kept off screen in a new prefix? | A scratch wrapper with Steam's installer run and Steam never started. Started once each way with the launcher's environment: plain, `-silent`, and with the update files already in place from a copy of another prefix's `package/` folder. Recorded with a capture of the Steam windows' region only: what appears, and whether the client comes up | Wine; no sign-in |
 | P2 | Can the prefix be made without the template's wait, and is it the same prefix? | With another Wine open (this project's Steam app), in a scratch folder: (a) the template's program, timed, as the control; (b) `wineboot -u` of the engine in a prefix folder made by hand, then what the template's program adds found by `diff -r` of the two prefixes and of the wrapper's `Info.plist`; (c) the template's program ended once the prefix is complete (its log line, or `system.reg` present and `wineserver -w` returned for that prefix). Then Steam's installer run in the result of (b) | Wine; another Wine open on purpose |
 | P3 (done 2026-11-13: 2.9) | Why does bash print `child setpgid (...): Operation not permitted`, and can a player see it? | `cities-skylines-2/scripts/test-install.sh` run 30 times, counting the runs that hold the line; then `start_steam` (`common/install-core.sh:147-151`) in a ten-line script of its own, 200 times each: with and without a terminal, and with the block's error output sent to `/dev/null` at the outer level. No Wine: a stub program | nothing: can run at any time |
-| P4 | Does the game go to the last save by itself at its start? | James is asked. If he does not know: one start of the real game with nothing pressed for two minutes, and the log read after exit | James |
+| P4 (done 2026-11-13: 2.6) | Does the game go to the last save by itself at its start? | James is asked. If he does not know: one start of the real game with nothing pressed for two minutes, and the log read after exit | James |
 | P5 | When is the switched-off account file written: at the menu, at the load of a save, or at exit? | In a scratch prefix signed in with James's account, under ML2's steps 1, 5, 6 and 9: the size and time of `account.dat` read every second from the start; quit at the menu with nothing loaded. It uploads a switched-off file once more, so James opens the Mod Manager in the real game afterwards | Wine; James's sign-in; his word |
 | P6 | Does Surviving Mars's new wrapper show the macOS 28 notice? | James is asked what he saw at ML4; else it is looked for at the next wrapper made | James |
 
 ## 4. Steps
 
-- **F0. The probes of section 3.** P3 is done. Then P4 and P6 (questions), then P1, P2 and P5 in one
+- **F0. The probes of section 3.** P3 and P4 are done. Then P6 (a question), then P1, P2 and P5 in one
   sitting on James's word. Their results are written into section 2, slices B, G and I are designed, and **the plan is checked** (`check it`) before F1.
 - **F1. Slice A** in `common/install-core.sh`, with its cases in both games' `test-install.sh` and the
   recorded transcript of Cities: Skylines II recorded again on purpose.
@@ -324,7 +327,7 @@ slices B and G are written after their probes.
 | # | Decision | Recommendation |
 |---|---|---|
 | FD1 | A run in which the only problem is a fix not yet available for a new game build: exit 0 or 1 | 0, with the words of 2.4. Everything the installer can do is done, and "stopped" sends the player round a loop that cannot end |
-| FD2 | If the game goes to the last save by itself (P4): what then | Decided after P4. The choices are a notice that says to open the Mod Manager and load the save again, or the launcher's first start in a prefix made in two parts |
+| FD2 | If the game goes to the last save by itself (P4): what then | Not needed: P4 found that it does not |
 | FD3 | Whether the launcher keeps a copy of the saves folder before the first start in a new prefix | Yes: it is small (about 100 MB for three saves), it is the way back the guide can point at, and it is made once per install |
 | ND1 | The app is published, or only the pasted line (the installer plan's; slice E waits for it) | open |
 
