@@ -104,8 +104,13 @@ the installer's own sentence, only when every address has failed. The sentence s
 "CS2fresh" includes a component that will not open in macOS 28, the next major release. An update may be
 available on the developer's website." (SL1; James: "don't forget this.") `cities-skylines-2/README.md`
 and the root `README.md` say that macOS 28 will not run these games (issue #16); the quick way of each
-guide and the installer say nothing of the notice. Whether Surviving Mars's wrapper shows the same notice
-was not written down at ML2 or ML4: probe P6 asks James.
+guide and the installer say nothing of the notice.
+
+**P6, answered 2026-11-14.** James did not see the notice when Surviving Mars's new wrapper was made at
+ML4. That is what he saw, not a measurement of what macOS did: nothing was captured, and why the notice
+came for one new wrapper (SL1) and was not seen for another (ML4) is not known. Both were made by
+`common/make-wrapper.sh` on the same Mac and the same macOS. So the line below keeps its "may", and is
+printed for every game.
 
 **Design.** One line where Wine first starts, in `common/make-wrapper.sh` before "making the Wine prefix"
 (`:135`), printed only on macOS 27:
@@ -267,11 +272,11 @@ are done on James's word.
 | P3 (done 2026-11-13: 2.9) | Why does bash print `child setpgid (...): Operation not permitted`, and can a player see it? | `cities-skylines-2/scripts/test-install.sh` run 30 times, counting the runs that hold the line; then `start_steam` (`common/install-core.sh:147-151`) in a ten-line script of its own, 200 times each: with and without a terminal, and with the block's error output sent to `/dev/null` at the outer level. No Wine: a stub program | nothing: can run at any time |
 | P4 (done 2026-11-13: 2.6) | Does the game go to the last save by itself at its start? | James is asked. If he does not know: one start of the real game with nothing pressed for two minutes, and the log read after exit | James |
 | P5 | When is the switched-off account file written: at the menu, at the load of a save, or at exit? | In a scratch prefix signed in with James's account, under ML2's steps 1, 5, 6 and 9: the size and time of `account.dat` read every second from the start; quit at the menu with nothing loaded. It uploads a switched-off file once more, so James opens the Mod Manager in the real game afterwards | Wine; James's sign-in; his word |
-| P6 | Does Surviving Mars's new wrapper show the macOS 28 notice? | James is asked what he saw at ML4; else it is looked for at the next wrapper made | James |
+| P6 (done 2026-11-14: 2.3) | Does Surviving Mars's new wrapper show the macOS 28 notice? | James is asked what he saw at ML4; else it is looked for at the next wrapper made | James |
 
 ## 4. Steps
 
-- **F0. The probes of section 3.** P3 and P4 are done. Then P6 (a question), then P1, P2 and P5 in one
+- **F0. The probes of section 3.** P3, P4 and P6 are done. Then P1, P2 and P5 in one
   sitting on James's word. Their results are written into section 2, slices B, G and I are designed, and **the plan is checked** (`check it`) before F1.
 - **F1. Slice A** in `common/install-core.sh`, with its cases in both games' `test-install.sh` and the
   recorded transcript of Cities: Skylines II recorded again on purpose.
