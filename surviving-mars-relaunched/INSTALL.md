@@ -3,10 +3,10 @@
 Getting **Surviving Mars: Relaunched** running on an Apple Silicon Mac, free: no CrossOver, and no other
 game of this project needed first.
 
-> **Status (2026-11-13).** The installer is new. Each of its steps is tested, and its step for Apple's
-> D3DMetal has run for real on a scratch wrapper; a wrapper made from nothing by hand runs the game, and
-> the game runs on the engine the installer builds. The installer as a whole has not yet taken a Mac from
-> nothing to the game in one run. This note goes when it has.
+> **Status (2026-11-13).** The installer is new. On 2026-11-13 it made a wrapper from nothing on one Mac,
+> from its own downloads, and the game ran in it. In that run the game's files were copied in from another
+> wrapper on the same Mac instead of downloaded, and the last step, the game's app, was run on its own. It
+> has not yet been run on a Mac that holds nothing of this project. This note goes when it has.
 
 ## The quick way
 
@@ -61,12 +61,12 @@ Good to know:
 - **Stopped part way?** Paste the line again. It carries on from the step it stopped at. Closing the
   window or pressing Control-C stops the installer only: Steam stays open. Pasting the line again on a
   finished install is also how to update.
-- **If you already play this game somewhere else with mods from Paradox Mods.** Seen once, on
-  2026-11-13: the first start in a new install warned that a mod could not be loaded, fetched the mod
-  again by itself, and left it switched off, and through Steam Cloud it was then switched off on the
-  other install too, until the Mod Manager was opened there. A save loaded meanwhile ran without its mod.
-  So after a new install, open the game's Mod Manager once before you load a save, here and on your
-  other Mac.
+- **If you already play this game somewhere else with mods from Paradox Mods.** Seen twice, on
+  2026-11-13: the first start in a new install fetches the mod again by itself and leaves it switched
+  off, and through Steam Cloud it is then switched off on the other install too. A save loaded in that
+  state runs without its mod, and is saved without it. Opening the game's Mod Manager switched the mod
+  back on both times. So after a new install, open the Mod Manager before you load or continue a save,
+  here and then on your other Mac.
 - **To look before it touches anything**, give it `--check`. With the pasted form the words after the
   closing quote are a name and then the arguments:
   `... install.sh)" 1launcher-install 3215050 release --check`

@@ -2,9 +2,11 @@
 
 > **🔧 As-built (2026-11-13):** PARTIAL. M2 to M7 are built on the branch `surviving-mars-install`, cut
 > from `simple-install` at `4d339dd` and pushed, not merged: M2 `f71fb6d`, M3 `6ed2048`, M4 `962f33d`,
-> M5 `82c74c8`, M6 `6ade090`, M7 `fd1b821`. **M8 is owed: no live step from ML4 on has been run**, so the
-> installer has not yet taken a Mac from nothing to the game, and the exit criteria of section 6 that rest
-> on ML4, ML4b and ML5 are open. Tracking: issue #22.
+> M5 `82c74c8`, M6 `6ade090`, M7 `fd1b821`. **Of M8, ML4 passed on 2026-11-13** (1.4): the installer made
+> a wrapper from the three downloads, exit 0, and the game ran in it; so section 6's criterion "a wrapper
+> made by the installer from the three downloads starts the game" is met, with both things its record must
+> hold. **ML4b, ML5 and ML6 are owed**, and the criteria that rest on them are open. ML4 also showed the
+> mod of section 5a's MF3 a second time, with a save written while it was off. Tracking: issue #22.
 > **Tests.** MT3 66 cases, MT4 34, MT6 36, MT7 9, MT8 30 and 18 with a source gate of 14, MT9 and MT10
 > green; every shared test and every test of this game passes (the counts are in each commit). **Mutants
 > applied to the real source and seen red: 68** (MT3 27, MT4 9, MT6 12, MT7 3, MT8 14 in the two engine
@@ -252,6 +254,43 @@ release per build, and every older one still has its file.
     to 2026-11-13 have the same counts (one has 154 lines).
   - **The exit.** The game ended with code 0; Steam uploaded the save and the account file with result OK
     (change number 75 to 76); the launcher returned 0, with no process and no `.crash` marker left.
+- **ML4 (2026-11-13; records in the game's `runs/ml4-20261113/`, `notes.md` first).** The installer, for
+  real, made a wrapper from nothing and the game ran in it.
+  - **Before.** No Wine on the Mac; the VPN paused by James (route `en1`); the real wrapper's saves and
+    Steam's record of them copied to `backup/`. James chose to download every file again.
+  - **The installer** (branch at `f821c0d`, `SM_WRAPPER` at `~/Applications/SMfresh.app`, started by James
+    in a Terminal window under `script`). Steps 1 and 2 OK; at the question James typed `y`. Step 3: both of
+    Porting Kit's files downloaded, the wrapper made (1.4 G, wine-10.0 (Sikarugir)), with no wait at the
+    prefix step. Step 4: Gcenx's archive downloaded, and the engine script's line shown as
+    `D3DMetal    : <the temporary folder>/pieces/lib (3.0)`; the wrapper then read 3.0 and its `d3d12.dll`
+    was 114,688 bytes. Step 5: Valve's installer, 2,380,800 bytes, the tested sha256. Step 6: Steam
+    updated itself in one start (updater at 20:36:26, connected at 20:37:15) with no failed transfer.
+    From the `y` to Steam starting: about 2 minutes. James signed in with "Remember me"; the game's folder
+    and manifest were cloned from the real wrapper (1 s, no disk); the installer saw the game at its next
+    poll, closed Steam, stopped before step 7 with its words for `SM_WRAPPER`, and exited 0. Afterwards:
+    no process, the lock released, the temporary folder gone, no `.crash` marker.
+  - **The game in that wrapper.** The branch's launcher printed "Steam Cloud: saves up to date." The game's
+    process had the wrapper's own `D3DMetal` and its 114,688-byte `d3d12.dll` open. James loaded the save
+    with the landscaping project and played 8 min 10 s: "Quit, all fine". Exit code 0, upload OK (change
+    number 79). The helper fixed the frame at 1.7 s. The Wine log has 154 lines, 3 `err:` and 2
+    "Unsupported API", as on the real wrapper. This prefix holds none of the Visual C++ runtimes,
+    `d3dcompiler_47` or fonts of the old one.
+  - **The mod, again.** The game fetched the mod's file 22.9 s after the start; the save was loaded at
+    23.9 s; at 28.0 s the log says "Savegame references Mod Relaunched Fix Pack ... which is not present",
+    and none of the 44 "applied" lines follows. The session ran without the mod, and the save and an
+    autosave were written and uploaded in that state; `account.dat` went from 4,633 to 4,585 bytes.
+  - **Setup on its own**, with `SM_APP` and `SM_STATE` at scratch folders: exit 0; the launcher and the
+    helper copied (equal to the branch's files), the app built to run that copy, 14unch3r built beside it;
+    `~/Applications`, the real app's program and the real state folder unchanged.
+  - **The scratch app started once.** It ran the scratch state folder's launcher against the real wrapper:
+    "Steam Cloud: saves up to date.", five files pulled at sign-in with no conflict, upload OK at exit. In
+    the real game the mod's definition loaded at 4.3 s, switched off; a save was loaded at 11.9 s and saved
+    again with the mod off; at 3 min 24 s, with James in the Mod Manager, the log has "Starting install of
+    mod ... installed" and then the 44 "applied" lines. He found the mod "installed already" there.
+    `account.dat` is 4,690 bytes afterwards.
+  - **After.** James signed out of Steam in the scratch wrapper (its `loginusers.vdf` holds no account);
+    `-shutdown` closed it in 5 s; the wrapper is in the Trash and the scratch app and state folder are
+    removed.
 - The builder lens of this plan's check built the shared installer (now the shared-installer plan's S2) and
   M3 in a scratch tree: the reduced Cities: Skylines II
   installer passes the 96 cases of `test-install.sh` (run again by the planner), and its per-case output
@@ -299,9 +338,9 @@ The 14unch3r window shows a game with no app as "Not set up" and opens its guide
    CodeWeavers' signature. Measured for one start and a session of under five minutes.
 2. Answered by ML2 (1.4): a wrapper made from nothing does not get the 86 library copies, and the game
    does not need them.
-3. Answered by ML2 as far as the menu, a save's load and the map: a prefix made from nothing runs Steam
-   and the game, without the Visual C++ runtimes and the rest that the old prefix holds. **Still not
-   known:** whether a session of play needs any of it.
+3. Answered by ML2 and ML4: a prefix made from nothing runs Steam and the game, without the Visual C++
+   runtimes and the rest that the old prefix holds, through a session of 8 minutes on a loaded map (ML4).
+   Longer play, and parts of the game that session did not reach, are not measured.
 4. Answered by ML2: Steam's installer and its first start work in one go on Wine 10 with D3DMetal 3.0 when
    the route to Valve's server holds, and the first Wine start after the engine swap does not update the
    prefix.
@@ -311,9 +350,12 @@ The 14unch3r window shows a game with no app as "Not set up" and opens its guide
 7. Whether `steam://install/3215050` is needed. The header of the launcher calls it "the route
    (unmeasured)" for a Mac with no copy of the game (`launch-relaunched.sh:35`). For Cities: Skylines II
    the player's own click on Install worked (the installer plan's NL1); this plan uses the click.
-8. Found at ML2, not known: where the game keeps a mod's on-or-off state (the account file is inferred
-   from its size), and whether the mod manager turns a mod on again by itself or only on a click. At ML3 the game started
-   with the mod loaded.
+8. Found at ML2: where the game keeps a mod's on-or-off state is not known (the account file is inferred
+   from its size, three times now). Whether the mod manager turns a mod on again by itself: seen twice, at
+   ML2 and at ML4, the mod's lines appear within seconds of the manager being opened and James reports
+   that no click was needed. At ML3 the game started with the mod loaded. **Not known:** whether the game
+   goes to the last save by itself at its start; at ML4 a save was loaded 24 s and 12 s after the start,
+   and at ML3, with James away, none for 1 h 46 min.
 
 ## 2. Design
 
@@ -726,7 +768,12 @@ Steam of macOS included; and the game's last exit upload was ok.
   landscaping save; and James plays a session. The way back is the next start without the variable. It
   can share ML2's sitting, after ML2's step 9 has been seen on the wrapper's own engine, so that the two
   changes are not in one start.
-- **ML4. The installer, for real, on the Studio**, after M6. Before it starts, no other Wine runs on the
+- **ML4. The installer, for real, on the Studio**, after M6. *Done 2026-11-13; the record is in 1.4. It
+  departed from the words below in three ways: the installer was started by James in a Terminal window of
+  his own, with a starter script that records its output (two earlier starts in the desktop app's own
+  terminal ended at the question, with nothing fetched: one with that app's restart, one closed because
+  James could not find that terminal); every file was downloaded again, by James's choice; and in both
+  games a save was loaded before the Mod Manager was opened, so MF3's caution was not kept.* Before it starts, no other Wine runs on the
   Mac (`pgrep -lf wineserver` prints nothing: MF1) and, if Steam's update is cut, the VPN is paused (MF2);
   after it, James opens the mod manager in the real game before he loads a save (MF3). For this game: from the branch's worktree
   into a scratch wrapper named by `SM_WRAPPER` (so it stops before setup), through every stage, the game
@@ -759,7 +806,7 @@ Steam of macOS included; and the game's last exit upload was ok.
 - **ML7. After the first week:** whether the three pinned files are still published, and anything a player
   reported.
 
-## 5a. Found at ML2 (2026-11-13): not planned in detail, not checked, not built
+## 5a. Found at ML2 and ML4 (2026-11-13): not planned in detail, not checked, not built
 
 ML2 answered its questions (1.4, 1.7) and the design of section 2 stands. It also showed four things a
 player would meet. The rows SF1, SF2 and SF8 named below are in section 9 of the shared-installer plan,
@@ -770,8 +817,8 @@ of it is built.
 |---|---|---|
 | MF1 | `make-wrapper.sh` did not return while any other Wine ran on the Mac: the template's own program waits for every `wineserver` to exit. A player with another game's wrapper, a storefront Steam or CrossOver open would see "making the Wine prefix (about 30 s)" for as long as that stays open | The shared installer's, not this game's: the shared-installer plan's SF8. For this game it matters twice over, because this project's own second game or its Steam app may be the Wine that is open |
 | MF2 | Steam's update was cut on the VPN route a second time, on another day and on Wine 10 with D3DMetal 3.0; paused, it worked at once. A Steam whose update failed did not close on `-shutdown` within 30 s | The shared-installer plan's SF1 and SF2 apply to this game unchanged. New: how the installer closes a Steam stuck at its update box (SF1's row there) |
-| MF3 | A player who already has the game elsewhere with a Paradox mod: the first start warns that the mod could not be loaded, the game fetches it again by itself, and it stays switched off, here and, through Steam Cloud, on the player's other installs, until the mod manager is opened. A save loaded meanwhile runs without its mod | One paragraph in this game's guide and one line where the installer ends: after a new install, open the mod manager before loading a save if you use mods. Measured first: 1.7's item 8 |
-| MF4 | The new prefix has none of the Visual C++ runtimes, `d3dcompiler_47` and fonts that the old one holds, and the game reached the map | Nothing is added to the installer for them on this evidence. ML4 includes a session of play in such a prefix (ML3's was in the old prefix, which holds them, so it measured nothing here); if it fails for a missing runtime, the runtime's source and licence are a decision of their own |
+| MF3 | A player who already has the game elsewhere with a Paradox mod: the first start warns that the mod could not be loaded, the game fetches it again by itself, and it stays switched off, here and, through Steam Cloud, on the player's other installs, until the mod manager is opened. A save loaded meanwhile runs without its mod | One paragraph in this game's guide and one line where the installer ends: after a new install, open the mod manager before loading a save if you use mods. Measured first: 1.7's item 8. **Seen again at ML4, and worse than a warning:** in the new install the save was loaded one second after the game had fetched the mod, ran without it for the whole session, and was saved and uploaded in that state; in the real install, which pulled the switched-off state from the cloud, a save was again loaded and saved before the Mod Manager was opened. So the wanted words must say to open the Mod Manager before a save is loaded or continued, and whether the launcher or the installer can do more than say so is to be planned |
+| MF4 | The new prefix has none of the Visual C++ runtimes, `d3dcompiler_47` and fonts that the old one holds, and the game reached the map | Nothing is added to the installer for them on this evidence. ML4's session of 8 minutes in such a prefix went without a fault (1.4). If longer play fails for a missing runtime, the runtime's source and licence are a decision of their own |
 
 ## 6. Exit criteria
 
